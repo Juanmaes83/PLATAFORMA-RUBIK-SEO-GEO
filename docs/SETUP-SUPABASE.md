@@ -26,11 +26,13 @@
 
 ### Decisiones
 
-- **Aprobada por el propietario:** correo y contraseña como método inicial de acceso.
-- **Propuestas, pendientes de revisión** ([ADR 0003 §1 y §5](adr/0003-auth-supabase-y-tenancy.md)):
-  - registro abierto solo para las pruebas iniciales, cerrado antes de exponer la plataforma a clientes;
-  - roles de organización `owner`/`member`;
-  - solo el rol de proyecto `owner` edita el proyecto.
+Todas aprobadas por el propietario ([ADR 0003 §1 y §5](adr/0003-auth-supabase-y-tenancy.md)):
+
+- correo y contraseña como método inicial de acceso;
+- registro abierto **solo durante las pruebas iniciales**; debe cerrarse antes de dar acceso a clientes;
+- roles de organización `owner`/`member`;
+- solo el rol `owner` del proyecto edita sus datos descriptivos;
+- riesgo residual aceptado: puede deducirse si un identificador global está ocupado. Se mantienen el modelo actual y el mensaje genérico.
 - **Fuera de esta fase:** invitaciones, MFA de usuarios y recuperación de contraseña.
 
 ## 2. Probar en local (sin tocar el proyecto alojado)
@@ -59,9 +61,13 @@ Son pasos **del propietario** y ninguno está hecho. Sin ellos la aplicación no
 3. **Auth en el panel** (Authentication):
    - Método **Email** con **Confirm email** activado (es el valor por defecto) y ningún proveedor OAuth.
    - Contraseñas: longitud mínima 12 y requisito «letters and digits», los mismos valores que `supabase/config.toml`.
-   - **Site URL** y **Redirect URLs:** solo `http://localhost:3000/auth/confirm` mientras no haya despliegue.
+   - **URL Configuration**, mientras no haya despliegue:
+     - **Site URL:** `http://localhost:3000`. Es la URL por defecto a la que Supabase redirige cuando no se indica `redirectTo`.
+     - **Redirect URLs** (lista de permitidas): solo `http://localhost:3000/auth/confirm`, como URL exacta y sin comodines. Es la que envía la aplicación como `emailRedirectTo` al registrarse (`src/lib/auth/actions.ts`, origen de la petición + `/auth/confirm`). Así el enlace de confirmación vuelve a esa ruta.
+     - Fuente: [Supabase · Redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls), consultada el 28/09/2026. La guía indica que la Site URL es la redirección por defecto sin `redirectTo`, que la lista admite URLs exactas o patrones glob, y que `redirectTo` debe coincidir con esa lista.
+     - Coincide con el stack local: `site_url` y `additional_redirect_urls` de `supabase/config.toml`.
    - **Plantilla «Confirm signup»:** el enlace debe ser `{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=email`, como `supabase/templates/confirmation.html`. Con la plantilla por defecto el enlace no pasa por `/auth/confirm` y la sesión no se crea en el servidor.
-   - **Registro abierto (decisión propuesta):** solo durante las pruebas iniciales. **Antes de exponer la plataforma a clientes hay que cerrarlo**: desactivar «Allow new users to sign up» en Authentication y pasar a invitaciones en una fase posterior.
+   - **Registro abierto (decisión aprobada):** solo durante las pruebas iniciales. **Antes de exponer la plataforma a clientes hay que cerrarlo**: desactivar «Allow new users to sign up» en Authentication y pasar a invitaciones en una fase posterior.
      - En el plan Free, el SMTP integrado tiene límites de envío muy bajos. Para más que pruebas puntuales hace falta un SMTP propio, que implica un proveedor externo y otra decisión.
 4. **Aplicar la migración, solo con el flujo versionado de la Supabase CLI.**
    - No se usa el SQL Editor para cambios de esquema. Una migración pegada a mano no queda registrada en el historial de migraciones del proyecto, y el alojado y el repositorio dejarían de coincidir.

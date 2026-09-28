@@ -327,10 +327,55 @@ Los commits que solo registran runs en ROADMAP y HANDOFF tienen su CI en la pest
 
 **PR y CI:** en la tabla del PR #2 (sesión 5). `120a89c` → [run 36440853359](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36440853359), en verde. La descripción del PR #2 está actualizada. Sin merge ni despliegue.
 
-**Decisiones y tareas del propietario (vigentes):**
+*Tareas actualizadas en la sesión 5c; ver debajo.*
 
-1. Revisar el PR #2 y la [ADR 0003](adr/0003-auth-supabase-y-tenancy.md): confirmar o cambiar las tres decisiones propuestas y aceptar el riesgo residual de los identificadores globales.
+**Tareas anteriores (sustituidas):**
+
+1. ~~Revisar el PR #2 y la ADR 0003: confirmar las decisiones propuestas.~~ Aprobadas en la sesión 5c.
 2. Tras el merge, configurar Auth en el proyecto alojado y aplicar la migración él mismo con el flujo de la CLI y `--dry-run` ([SETUP-SUPABASE §3](SETUP-SUPABASE.md)). Incluye: MFA de la cuenta, confirmación de correo, URLs de redirección, plantilla de confirmación y SMTP si hace falta.
 3. Cerrar el registro abierto antes de exponer la plataforma a clientes.
 4. En fases posteriores: invitaciones, MFA de usuarios y recuperación de contraseña (requiere SMTP propio).
 5. Las tareas de hosting siguen igual ([HOSTING](HOSTING.md)).
+
+## Sesión 5c — decisiones aprobadas y URLs de Auth (28/09/2026)
+
+**Punto de partida verificado:**
+
+- PR #2 abierto, con HEAD local y remoto en `a20ef0f` y su CI [36441560553](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36441560553) en verde.
+- `main` sigue en `a34746e`.
+
+**Decisiones aprobadas por el propietario** (registradas en ADR 0003, SETUP-SUPABASE, ROADMAP y la descripción del PR #2):
+
+1. Registro abierto solo durante las pruebas iniciales; debe cerrarse antes de dar acceso a clientes.
+2. Roles de organización `owner`/`member`.
+3. Solo el rol `owner` del proyecto puede editar sus datos descriptivos.
+4. Se acepta el riesgo residual de que pueda deducirse si un identificador global está ocupado. Se mantienen el modelo actual y el mensaje genérico.
+
+Junto con el método correo y contraseña (sesión 5b), ya no queda ninguna decisión de CORE-9.1 pendiente del propietario.
+
+**SETUP-SUPABASE §3 corregido:**
+
+- **Site URL:** `http://localhost:3000`.
+- **Redirect URL permitida** para la confirmación: `http://localhost:3000/auth/confirm`, como URL exacta.
+- **Comprobación contra la documentación vigente:** [Supabase · Redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls), consultada el 28/09/2026.
+  - La Site URL es la redirección por defecto cuando no hay `redirectTo`.
+  - La lista de Redirect URLs admite URLs exactas o patrones glob, y `redirectTo` debe coincidir con ella.
+- **Coherencia con el código:** la aplicación envía `emailRedirectTo = <origen>/auth/confirm` (`src/lib/auth/actions.ts`), y `supabase/config.toml` usa los mismos valores en local.
+
+Sin cambios de código, así que las pruebas son las de la sesión 5b. `npm run verify` se ejecutó de nuevo y está en verde: secretos (139 ficheros), lint, `tsc`, Vitest 41/41 y build.
+
+**Tareas del propietario (vigentes):**
+
+1. Revisión final (Codex) y merge del PR #2 por el propietario.
+2. Tras el merge, en el proyecto alojado y siguiendo [SETUP-SUPABASE §3](SETUP-SUPABASE.md):
+   - MFA de la cuenta;
+   - Email con confirmación y la política de contraseñas;
+   - Site URL `http://localhost:3000` y Redirect URL `http://localhost:3000/auth/confirm`;
+   - plantilla de confirmación;
+   - SMTP si hace falta;
+   - aplicar la migración con la CLI tras inspeccionar `db push --dry-run`.
+3. Cerrar el registro abierto antes de dar acceso a clientes.
+4. En fases posteriores: invitaciones, MFA de usuarios y recuperación de contraseña.
+5. Las tareas de hosting siguen igual ([HOSTING](HOSTING.md)).
+
+**CI:** el run del HEAD final de esta sesión se registra en la descripción del PR #2 y en su pestaña Checks, no en otro commit, para que el HEAD revisado sea el definitivo. El último run registrado en un commit es el de `120a89c` ([36440853359](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36440853359)); `a20ef0f` → [36441560553](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36441560553), también en verde.
