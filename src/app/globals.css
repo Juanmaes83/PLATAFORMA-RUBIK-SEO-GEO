@@ -1,0 +1,84 @@
+:root {
+  --bg: #ffffff;
+  --fg: #1d2330;
+  --muted: #5b6475;
+  --line: #d9dde5;
+  --accent: #1f5fbf;
+  --warn-bg: #fff6d6;
+  --warn-line: #e5c35c;
+  --ok: #1d7a46;
+  --no: #9b2c2c;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #11151c;
+    --fg: #e6e9ef;
+    --muted: #9aa3b5;
+    --line: #2c3442;
+    --accent: #7fb0ff;
+    --warn-bg: #3a3214;
+    --warn-line: #8a7426;
+    --ok: #6fd39b;
+    --no: #f08a8a;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.5;
+}
+
+a { color: var(--accent); }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em; }
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--line);
+}
+.topbar nav { display: flex; gap: 1rem; flex-wrap: wrap; }
+.brand { font-weight: 700; text-decoration: none; color: var(--fg); }
+
+.banner {
+  padding: 0.6rem 1.25rem;
+  background: var(--warn-bg);
+  border-bottom: 1px solid var(--warn-line);
+  font-size: 0.92rem;
+}
+
+main { max-width: 64rem; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+.lead { font-size: 1.1rem; }
+.muted { color: var(--muted); }
+.notice { padding: 0.6rem 0.8rem; border: 1px solid var(--warn-line); background: var(--warn-bg); }
+
+table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+caption { text-align: left; font-weight: 600; padding-bottom: 0.4rem; }
+th, td { text-align: left; padding: 0.45rem 0.6rem; border-bottom: 1px solid var(--line); }
+.permissions tr[data-allowed="true"] td:nth-child(2) { color: var(--ok); font-weight: 600; }
+.permissions tr[data-allowed="false"] td:nth-child(2) { color: var(--no); }
+
+.cards { list-style: none; padding: 0; display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); }
+.cards li { border: 1px solid var(--line); border-radius: 8px; padding: 1rem; }
+.cards p { margin: 0 0 0.5rem; }
+
+.button, button {
+  display: inline-block;
+  padding: 0.5rem 0.9rem;
+  border-radius: 6px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--bg);
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
