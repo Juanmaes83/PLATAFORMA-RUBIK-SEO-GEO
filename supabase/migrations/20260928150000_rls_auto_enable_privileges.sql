@@ -19,7 +19,7 @@
 --   3. Revokes EXECUTE from PUBLIC, anon and authenticated. The owner (postgres) keeps it.
 --
 -- Idempotent: it can be applied again without changing anything. Applied to the hosted
--- project only by the owner, with the versioned CLI flow (docs/SETUP-SUPABASE.md §3).
+-- project only by the owner, with the versioned CLI flow (docs/SETUP-SUPABASE.md §5).
 
 do $migration$
 begin
