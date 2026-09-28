@@ -266,7 +266,14 @@ Sin merge ni despliegue.
   - Con `AUTH_MODE=mock`, `next start` sale con 1.
   - Build conectado al stack local: `auth: supabase` y `/panel` → 307 a `/acceso`.
 
-**PR y CI:** se registran al final de esta sesión, debajo.
+**PR y CI:** [PR #2](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/2), abierto contra `main`, sin merge.
+
+| Commit | Contenido | Run | Resultado |
+|---|---|---|---|
+| `5db5932` | CORE-9.1 completo | [36437771145](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36437771145) | ❌ No llegó a ejecutarse: YAML inválido (nombre del job `e2e` con `: ` sin comillas) |
+| `bb8e22b` | Corrige las comillas del nombre del job | [36437992335](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36437992335) | ✅ Verde. `verify` en Node 22.23.2 y 24.21.0: Vitest 39/39, build y smoke. `e2e`: pgTAP 52/52, tipos iguales a las migraciones, integración 9/9, build conectado, Playwright 71 pasan y 16 se omiten |
+
+El commit siguiente solo registra estos runs en ROADMAP y HANDOFF; su CI consta en el PR.
 
 **Límites:**
 
