@@ -465,7 +465,7 @@ El commit que registra este run solo cambia ROADMAP y HANDOFF. Su CI, la del HEA
 
 **No hecho, a propósito:** la migración nueva no se ha aplicado al proyecto alojado, no se ha ejecutado `db push`, no se ha accedido al proyecto alojado, y no hay merge ni despliegue.
 
-**Tareas del propietario:**
+**Tareas pendientes en ese momento (estado actualizado en la sesión 7):**
 
 1. Revisar y fusionar el PR de esta rama.
 2. Aplicar la migración con la CLI, siguiendo [SETUP-SUPABASE §5](SETUP-SUPABASE.md): `migration list --linked`, `db push --dry-run` (solo `20260928150000`), `db push` y repetir `db advisors --linked --type security --level info`.
