@@ -272,8 +272,10 @@ Sin merge ni despliegue.
 |---|---|---|---|
 | `5db5932` | CORE-9.1 completo | [36437771145](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36437771145) | ❌ No llegó a ejecutarse: YAML inválido (nombre del job `e2e` con `: ` sin comillas) |
 | `bb8e22b` | Corrige las comillas del nombre del job | [36437992335](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36437992335) | ✅ Verde. `verify` en Node 22.23.2 y 24.21.0: Vitest 39/39, build y smoke. `e2e`: pgTAP 52/52, tipos iguales a las migraciones, integración 9/9, build conectado, Playwright 71 pasan y 16 se omiten |
+| `019fe4b` | Documentación: registra el PR #2 y sus runs | [36438699451](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36438699451) | ✅ Verde (verify Node 22/24, e2e) |
+| `120a89c` | Sesión 5b: error genérico al crear, método aprobado, flujo CLI de migración, decisiones propuestas | [36440853359](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36440853359) | ✅ Verde. `verify` en Node 22 y 24: Vitest 41/41, build y smoke. `e2e`: pgTAP 52/52, integración 9/9, Playwright 72 pasan y 18 se omiten |
 
-El commit siguiente solo registra estos runs en ROADMAP y HANDOFF; su CI consta en el PR.
+Los commits que solo registran runs en ROADMAP y HANDOFF tienen su CI en la pestaña Checks del PR.
 
 **Límites:**
 
@@ -323,7 +325,7 @@ El commit siguiente solo registra estos runs en ROADMAP y HANDOFF; su CI consta 
 - `npm run test:integration`: 9/9.
 - `E2E_PORT=3227 npx playwright test`: 72 pasan y 18 se omiten. Los 9 flujos de navegador se ejecutan una vez, en escritorio.
 
-**PR y CI:** se registran en la tabla del PR #2, debajo.
+**PR y CI:** en la tabla del PR #2 (sesión 5). `120a89c` → [run 36440853359](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36440853359), en verde. La descripción del PR #2 está actualizada. Sin merge ni despliegue.
 
 **Decisiones y tareas del propietario (vigentes):**
 
