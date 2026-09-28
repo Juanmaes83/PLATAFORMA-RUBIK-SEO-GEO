@@ -1,6 +1,9 @@
-// FICTITIOUS demo data for the local mock mode. No real people, clients, domains or
+// FICTITIOUS demo data for the local mock mode (DEMO_FIXTURE = true everywhere in the UI). No real people, clients, domains or
 // accounts: names are generic and domains use the reserved `.test` TLD (RFC 2606).
 import type { Role, Scope } from "@rubik/seo-geo-core/platform-contracts";
+
+/** Marks everything coming from this file so the UI can label it as demo/mock (D-27). */
+export const DEMO_FIXTURE = true as const;
 
 export interface DemoProject {
   tenantId: string;
@@ -39,6 +42,12 @@ export const DEMO_USERS: readonly DemoUser[] = [
     id: "demo-analyst",
     displayName: "Analista de demostración",
     memberships: [{ tenantId: "agencia-demo", projectId: "restaurante-demo", role: "analyst" }],
+  },
+  {
+    // D-27: a client sees only their own project (reports, evidence, drafts, approvals).
+    id: "demo-client",
+    displayName: "Cliente de demostración",
+    memberships: [{ tenantId: "agencia-demo", projectId: "inmobiliaria-demo", role: "client-approver" }],
   },
   {
     id: "demo-viewer",

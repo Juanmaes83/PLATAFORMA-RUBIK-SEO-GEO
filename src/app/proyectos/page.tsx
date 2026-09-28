@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { DemoBadge, EmptyState, PageHead } from "@/components/ui";
 import { accessibleProjects } from "@/lib/access";
 import { currentUser } from "@/lib/auth/session";
+import { roleLabel } from "@/lib/labels";
 
 export default async function ProjectsPage() {
   const user = await currentUser();
@@ -10,20 +12,29 @@ export default async function ProjectsPage() {
 
   return (
     <>
-      <h1>Proyectos</h1>
+      <PageHead title="Proyectos"><DemoBadge /></PageHead>
       <p>
-        Proyectos de demostración visibles para <strong>{user.displayName}</strong>. Solo aparecen los
-        proyectos en los que tiene pertenencia: el Core deniega el resto (<code>NOT_A_MEMBER_OF_SCOPE</code>).
+        Solo aparecen los proyectos en los que <strong>{user.displayName}</strong> tiene pertenencia; el Core deniega el
+        resto (<code>NOT_A_MEMBER_OF_SCOPE</code>).
       </p>
-      <ul className="cards">
-        {projects.map(({ project, role }) => (
-          <li key={`${project.tenantId}/${project.projectId}`}>
-            <p><strong>{project.name}</strong></p>
-            <p className="muted">{project.domain} · {project.vertical} · rol {role}</p>
-            <Link href={`/proyectos/${project.tenantId}/${project.projectId}`}>Ver proyecto</Link>
-          </li>
-        ))}
-      </ul>
+      {projects.length === 0 ? (
+        <EmptyState title="Sin proyectos">
+          <p>Este usuario no tiene pertenencia a ningún proyecto.</p>
+        </EmptyState>
+      ) : (
+        <ul className="cards">
+          {projects.map(({ project, role }) => (
+            <li key={`${project.tenantId}/${project.projectId}`} className="card">
+              <div className="card-head">
+                <h2 className="h3">{project.name}</h2>
+                <DemoBadge />
+              </div>
+              <p className="muted small">{project.domain} · {project.vertical} · {roleLabel(role)}</p>
+              <Link className="btn btn-block" href={`/proyectos/${project.tenantId}/${project.projectId}`}>Abrir proyecto</Link>
+            </li>
+          ))}
+        </ul>
+      )}
     </>
   );
 }

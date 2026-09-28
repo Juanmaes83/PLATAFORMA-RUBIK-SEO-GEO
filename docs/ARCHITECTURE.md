@@ -24,6 +24,12 @@ Navegador ──HTTP──▶ Next.js (servidor Node)
 | `/acceso` | Elección de usuario ficticio (modo demostración) y cierre de sesión | Público en local |
 | `/proyectos` | Proyectos en los que el usuario tiene pertenencia | Sesión de demostración (si no, 307 a `/acceso`) |
 | `/proyectos/[tenantId]/[projectId]` | Permisos según el Core y módulos pendientes | Pertenencia al proyecto (si no, 404) |
+| `/panel` | Panel: proyectos, pendientes de aprobación y actividad (estados vacíos honestos), y la última observación | Sesión de demostración |
+| `/proyectos/[tenantId]/[projectId]/[seccion]` | Mediciones, acciones, borradores, aprobaciones, conectores y miembros: «No disponible todavía», con su etapa | Pertenencia al proyecto (si no, 404) |
+| `/revision`, `/borradores`, `/equipo`, `/configuracion` | Áreas del espacio de trabajo aún no construidas: «No disponible todavía» | Sesión de demostración |
+| `/conectores` | Catálogo de conectores del Core, ninguno conectado | Público en local |
 | `/api/salud` | JSON con el estado técnico: etapa, modo de autenticación, commit del Core y conectores | Público en local; sin secretos ni valores de entorno |
+
+La navegación y el diseño mobile-first (D-27) están en la [ADR 0002](adr/0002-ux-mobile-first.md), y las capturas en [docs/visual](visual/README.md). En producción no hay sesión posible en CORE-9.0: el modo demo solo existe en desarrollo.
 
 Todas las rutas se renderizan por petición (`connection()`), de modo que el modo de autenticación nunca queda fijado en el build.

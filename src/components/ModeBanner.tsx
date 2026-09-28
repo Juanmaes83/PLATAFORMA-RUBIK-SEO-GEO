@@ -4,8 +4,10 @@ import type { AuthModeInfo } from "@/lib/auth/mode";
 export function ModeBanner({ auth, coreCommit }: { auth: AuthModeInfo; coreCommit: string }) {
   return (
     <div className="banner" role="status">
-      <strong>Entorno local · CORE-9.0.</strong> {auth.notice} Sin servicios conectados, datos
-      reales ni despliegue. Core fijado en <code>{coreCommit}</code>.
+      <p>
+        <strong>Entorno local · CORE-9.0.</strong> {auth.notice} Sin servicios conectados, datos reales ni
+        despliegue. <span className="nowrap">Core <code>{coreCommit}</code>.</span>
+      </p>
     </div>
   );
 }

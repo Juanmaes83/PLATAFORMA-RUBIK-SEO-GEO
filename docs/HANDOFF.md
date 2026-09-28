@@ -60,3 +60,46 @@
   - sesiones y errores seguros;
   - sin credenciales en el repositorio.
 - **Bloqueo:** tareas 2 y 3 del propietario.
+
+## Sesión 2 — D-27 aplicada en el PR #1 (28/09/2026)
+
+**Punto de partida:** PR #1 abierto, con HEAD `14d88b6` y CI en verde, sin comentarios. En el Core, `main@f276837`: D-27 (dirección UX mobile-first) añadida después de fijar el Core. Es un cambio solo de documentación, así que el pin sigue en `20e4f4e`.
+
+**Hecho:**
+
+- **Estructura visual D-27** ([ADR 0002](adr/0002-ux-mobile-first.md)):
+  - tokens neutros reemplazables (propuesta, sin marca);
+  - mobile-first desde 360 px: menú `<details>` en móvil y barra lateral desde 1024 px;
+  - panel con proyectos, pendientes, actividad y última observación, con estados vacíos honestos;
+  - arquitectura de navegación completa, con las áreas no construidas como «No disponible todavía»;
+  - distintivo «Demo · ficticio» en todos los fixtures;
+  - usuario cliente ficticio;
+  - tablas que en móvil pasan a filas apiladas, sin scroll horizontal.
+- **`AUTH_MODE=mock` solo en desarrollo:**
+  - en producción queda siempre desactivado;
+  - `build` y `start` se niegan;
+  - `src/instrumentation.ts` sale con código 1 si `next start` se lanza directamente con `AUTH_MODE=mock`.
+- **Node 20:** fecha de fin de vida corregida al 24/03/2026 en la ADR 0001, citando nodejs.org y señalando que `schedule.json` indica 2026-04-30.
+- **CI:**
+  - el job `verify` (Node 22/24) hace el smoke de producción sin sesión posible y prueba que `AUTH_MODE=mock` se rechaza en build, start y arranque directo;
+  - el nuevo job `ui` ejecuta Playwright con Chromium y sube las capturas como artefacto.
+
+**Validación local** (Windows, Node 24.14.1):
+
+- `npm run verify` en verde: pin, secretos (99 ficheros), lint, `tsc`, 20/20 pruebas unitarias y build con 13 rutas dinámicas.
+- `npm run test:e2e`: 42/42. Son 10 vistas × 3 anchos, más navegación, login, estados vacíos y una autoprueba del detector de desbordamiento.
+- `AUTH_MODE=mock`:
+  - `node scripts/run-next.mjs start` sale con 2;
+  - `next start` directo sale con 1 y el mensaje «prohibido en producción»;
+  - `run-next build` sale con 2.
+- Capturas en [docs/visual](visual/README.md).
+
+**CI:** pendiente del run de este push. Se registra en el PR.
+
+**Tareas del propietario:**
+
+1. Revisar la dirección visual con las capturas (D-27): tokens, densidad, textos y navegación.
+2. Revisar la ADR 0001 y la ADR 0002.
+3. Las tareas de Supabase y hosting siguen igual (sesión 1).
+
+**Siguiente bloque:** CORE-9.1, tras la revisión y aprobación del PR #1.

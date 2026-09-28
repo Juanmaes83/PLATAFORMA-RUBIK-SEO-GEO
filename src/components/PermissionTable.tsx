@@ -1,25 +1,14 @@
 import type { ProjectAccess } from "@/lib/access";
+import { actionLabel } from "@/lib/labels";
 
-const LABELS: Record<string, string> = {
-  read: "Leer",
-  draft: "Redactar borradores",
-  "propose-action": "Proponer acciones",
-  "review-action": "Revisar acciones",
-  "approve-external-action": "Aprobar acciones externas",
-  "execute-approved-action": "Ejecutar acciones aprobadas",
-  "approve-fact": "Aprobar información",
-  "confirm-cost": "Confirmar coste",
-  "manage-connectors": "Gestionar conectores",
-  "manage-secret-refs": "Gestionar referencias de secretos",
-  "manage-members": "Gestionar miembros",
-  "export-data": "Exportar datos",
-  "delete-data": "Borrar datos",
-};
-
-/** Presentational table of the Core's `authorize` decisions for one membership. */
+/**
+ * The Core's `authorize` decisions for one membership. Mobile-first (D-27): a list of
+ * compact rows on small screens; the same markup becomes a comparable table from 640 px.
+ * No horizontal scroll.
+ */
 export function PermissionTable({ permissions }: { permissions: ProjectAccess["permissions"] }) {
   return (
-    <table className="permissions">
+    <table className="rtable permissions">
       <caption>Permisos según los contratos del Core (MATRIX / authorize)</caption>
       <thead>
         <tr>
@@ -31,9 +20,9 @@ export function PermissionTable({ permissions }: { permissions: ProjectAccess["p
       <tbody>
         {permissions.map(({ action, decision }) => (
           <tr key={action} data-allowed={decision.allowed}>
-            <td>{LABELS[action] ?? action}</td>
-            <td>{decision.allowed ? "Permitido" : "No permitido"}</td>
-            <td><code>{decision.reason ?? "—"}</code></td>
+            <th scope="row" data-label="Acción">{actionLabel(action)}</th>
+            <td data-label="Resultado">{decision.allowed ? "Permitido" : "No permitido"}</td>
+            <td data-label="Motivo"><code>{decision.reason ?? "—"}</code></td>
           </tr>
         ))}
       </tbody>

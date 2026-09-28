@@ -17,7 +17,7 @@ export async function signInAsDemoUser(formData: FormData): Promise<void> {
     path: "/",
     maxAge: 60 * 60 * 8,
   });
-  redirect("/proyectos");
+  redirect("/panel");
 }
 
 export async function signOut(): Promise<void> {

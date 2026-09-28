@@ -21,5 +21,7 @@
 - Una rama y un PR por unidad coherente, con base en `main` verificada.
 - `npm run verify` debe pasar (pin del Core, guard de secretos, lint, typecheck, tests y build), y la CI debe estar en verde antes de pedir revisión.
 - Las decisiones técnicas reversibles se registran en `docs/adr/`. Si un contrato del Core no basta, documentar el caso y proponer el cambio en el repositorio Core por separado; nunca duplicarlo ni cambiarlo aquí en silencio.
+- `AUTH_MODE=mock` es solo para desarrollo/demo: no debe poder habilitarse en producción. No relajar las barreras de `src/lib/auth/mode.ts`, `scripts/run-next.mjs` ni `src/instrumentation.ts`, ni sus pruebas y pasos de CI.
+- Cambios visuales: seguir D-27 y la [ADR 0002](docs/adr/0002-ux-mobile-first.md) (mobile-first a 360 px, sin scroll horizontal, estados vacíos honestos, fixtures marcados), ejecutar `npm run test:e2e` y regenerar las capturas con `npm run visual:evidence`.
 - No afirmar que la autenticación, la base de datos o una integración están conectadas si solo hay mocks o configuración local.
 - Al terminar un bloque: actualizar `docs/ROADMAP.md` y `docs/HANDOFF.md` con fecha, rama/PR, HEAD, pruebas exactas, CI, bloqueos y el siguiente paso.

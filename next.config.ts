@@ -6,6 +6,8 @@ const nextConfig: NextConfig = {
   // instead of re-bundling it (ADR 0001).
   serverExternalPackages: ["@rubik/seo-geo-core"],
   poweredByHeader: false,
+  // No dev overlay badge: keeps local screenshots faithful to what users see.
+  devIndicators: false,
 };
 
 export default nextConfig;

@@ -17,7 +17,10 @@ El 28/09/2026 este repositorio estaba **vacío**: sin commits, sin ramas, sin PR
   - No tiene coste: todo es software libre instalado desde npm.
 - **Versiones:** las que fija `create-next-app@16.3.6`: `next` 16.3.6, `react`/`react-dom` 19.2.8, TypeScript 5 y ESLint 9 (configuración flat de `eslint-config-next`). `package-lock.json` fija el árbol completo.
 - **Node:** ≥ 22.12 (`.nvmrc` = 22). La CI prueba Node 22 y 24.
-  - Node 20 ya no se soporta: llegó al final de su ciclo LTS en abril de 2026, y Vitest 4 requiere Node ≥ 22.
+  - Node 20 ya no se soporta. Su fin de vida es el **24 de marzo de 2026** (corregido en la revisión del PR #1). Además, Vitest 4 requiere Node ≥ 22.
+    - [nodejs.org · previous releases](https://nodejs.org/en/about/previous-releases) lista v20 como EOL, con fecha de última actualización 24/03/2026 (consultado el 28/09/2026).
+    - El calendario del proyecto ([nodejs/Release schedule.json](https://github.com/nodejs/Release/blob/main/schedule.json)) indica 2026-04-30 como fin del periodo de mantenimiento.
+    - En cualquiera de los dos casos, Node 20 está fuera de soporte a la fecha de esta ADR.
   - El Core sigue probándose en Node 20/22 en su propio repositorio; eso no cambia.
 - **Estructura:** `src/app` (rutas), `src/lib` (código de servidor), `src/components` (presentación) y `tests/` (Vitest).
 
@@ -54,11 +57,17 @@ El 28/09/2026 este repositorio estaba **vacío**: sin commits, sin ramas, sin PR
 3. `npm run verify` y la CI deben pasar. El PR indica el rango de commits del Core que incorpora (`git log <anterior>..<nuevo>` en el Core) y las decisiones D-xx afectadas.
 4. Revisión humana y merge. **No se hace ninguna actualización automática:** ni Dependabot sobre esta dependencia ni un SHA elegido sin PR.
 
-### 5. Autenticación en CORE-9.0: solo demostración local
+### 5. Autenticación en CORE-9.0: demostración local, solo en desarrollo
 
 - Supabase Auth está aprobado (D-26), pero se implementa en CORE-9.1. Hasta entonces:
-  - `AUTH_MODE=mock`, o el valor por defecto fuera de producción, activa usuarios **ficticios**: la cookie guarda el id del usuario, sin firma ni verificación. No es seguridad.
-  - En producción sin `AUTH_MODE=mock`, la autenticación queda desactivada.
+  - **`AUTH_MODE=mock` es solo para desarrollo y demo local.** En `next dev` (el valor por defecto, o `AUTH_MODE=mock`) activa usuarios **ficticios**: la cookie guarda el id del usuario, sin firma ni verificación. No es seguridad.
+  - **No puede habilitarse en producción** (`NODE_ENV=production`), con tres barreras probadas:
+    1. `resolveAuthMode` devuelve `disabled` en producción, diga lo que diga `AUTH_MODE`;
+    2. `scripts/run-next.mjs` rechaza `build` y `start` con `AUTH_MODE=mock`;
+    3. `src/instrumentation.ts` corta el arranque del servidor (código de salida 1) si alguien llama a `next start` directamente con `AUTH_MODE=mock`.
+
+    La CI comprueba las tres, y que una cookie de demostración no da sesión en producción.
+  - Antes de cualquier despliegue o conexión con datos reales, el modo demo se sustituye por Supabase Auth (CORE-9.1). Estas barreras impiden que llegue activado a un entorno de producción.
   - `AUTH_MODE=supabase` responde «no implementado» y nunca inicia sesión.
 - No se usan credenciales de Supabase hosted ni service-role keys. Los pasos que tendrá que hacer el propietario están en [SETUP-SUPABASE.md](../SETUP-SUPABASE.md).
 
