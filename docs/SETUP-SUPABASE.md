@@ -6,14 +6,14 @@
 
 ### Proyecto alojado (lo ha creado el propietario; Claude no lo ha tocado)
 
-- **Proyecto:** `plataforma-rubik-seo-geo-dev`, en la organización `Rubik Sota`. Plan Free, región West EU (Paris / eu-west-3), estado saludable.
+- **Proyecto:** `plataforma-rubik-seo-geo-dev`, en la organización `Rubik Sota`. Plan Free, región West EU (Paris / eu-west-3), estado saludable. CORE-9.1 ya está fusionado en `main` mediante PR #2 (`debbb7078ea1af4931dea59d2169f8eda7a9967b`); su CI posterior al merge [36445304853](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36445304853) pasó. La migración versionada ya está en `main`, pero aún no se ha aplicado al proyecto alojado.
 - **Data API:** activada. La exposición automática de tablas está desactivada y la activación automática de RLS está configurada.
 - **Lo que todavía no tiene:**
   - migraciones (ni tablas de la plataforma) ni datos;
   - conexión con GitHub.
 - **Lo que no consta como configurado:** Auth (métodos, URLs de redirección, SMTP, plantillas), MFA de la cuenta y migraciones. Este documento no afirma que lo estén.
 
-### Implementado y probado solo en local (rama `feat/core-9-1-supabase-auth-tenancy`)
+### Implementado y probado solo en local (CORE-9.1 fusionado en `main`)
 
 - **Auth:** Supabase Auth con correo y contraseña en el servidor ([ADR 0003](adr/0003-auth-supabase-y-tenancy.md)).
 - **Datos:** organizaciones, proyectos, pertenencias y roles, con RLS. Migración en `supabase/migrations/`.
@@ -56,7 +56,7 @@ npx supabase@2.118.0 status -o env   # API_URL y PUBLISHABLE_KEY para .env.local
 
 Son pasos **del propietario** y ninguno está hecho. Sin ellos la aplicación no se ha probado contra el proyecto alojado.
 
-1. **Revisar y fusionar** el PR de CORE-9.1. Hasta entonces la migración no está en `main`.
+1. **CORE-9.1 ya está fusionado.** Confirma que tu copia está en `main` y actualizada antes de seguir; la migración `20260928120000_core_9_1_tenancy.sql` ya debe estar en `supabase/migrations/`.
 2. **Seguridad de la cuenta:** activar MFA en la cuenta de Supabase y revisar quién tiene acceso a la organización `Rubik Sota`.
 3. **Auth en el panel** (Authentication):
    - Método **Email** con **Confirm email** activado (es el valor por defecto) y ningún proveedor OAuth.
