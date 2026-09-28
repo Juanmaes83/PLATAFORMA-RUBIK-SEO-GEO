@@ -1,0 +1,40 @@
+{
+  "name": "plataforma-rubik-seo-geo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Plataforma Rubik SEO/GEO (CORE-9): aplicación que consume RUBIK-SEO-GEO-CORE como dependencia fijada.",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "node scripts/run-next.mjs dev",
+    "build": "node scripts/run-next.mjs build",
+    "start": "node scripts/run-next.mjs start",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "check:core-pin": "node scripts/check-core-pin.mjs",
+    "check:secrets": "node scripts/check-no-secrets.mjs",
+    "verify": "npm run check:core-pin && npm run check:secrets && npm run lint && npm run typecheck && npm run test && npm run build",
+    "test:e2e": "playwright test",
+    "visual:evidence": "node scripts/visual-evidence.mjs"
+  },
+  "dependencies": {
+    "@rubik/seo-geo-core": "git+https://github.com/Juanmaes83/RUBIK-SEO-GEO-CORE.git#20e4f4e1be3e8cc95c06589f60cb3ea591a3608a",
+    "next": "16.3.6",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "server-only": "0.0.1"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@playwright/test": "1.63.0",
+    "@types/node": "^22",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.6",
+    "typescript": "^5",
+    "vitest": "^4"
+  }
+}

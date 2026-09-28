@@ -1,0 +1,90 @@
+# PLATAFORMA-RUBIK-SEO-GEO — CI (CORE-9.0).
+# No secrets, no deployment, no external services beyond installing dependencies from npm,
+# the pinned public Core commit from GitHub and the Playwright Chromium build. Next.js
+# telemetry is disabled.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  verify:
+    name: verify (node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - name: Install (lockfile, Core pinned to a commit)
+        run: npm ci --no-fund --no-audit
+      - name: Core pin
+        run: npm run check:core-pin
+      - name: Secrets guard
+        run: npm run check:secrets
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm test
+      - name: Build (production, no AUTH_MODE)
+        run: npm run build
+      - name: Production smoke (demo login must be disabled)
+        run: |
+          npm start -- -p 3217 > server.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://localhost:3217/api/salud > salud.json && break; sleep 1; done
+          cat salud.json
+          node -e "const s=require('./salud.json');if(s.status!=='ok'||s.auth!=='disabled'||s.deployment!=='none'||!/^[0-9a-f]{40}$/.test(s.core.commit))process.exit(1)"
+          # Even with a forged demo cookie, production has no session: protected pages redirect.
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Cookie: rubik_demo_session=demo-owner' http://localhost:3217/proyectos)" = "307"
+      - name: AUTH_MODE=mock is refused in production
+        run: |
+          set +e
+          AUTH_MODE=mock npm run build; test $? -ne 0 || { echo "build accepted AUTH_MODE=mock"; exit 1; }
+          AUTH_MODE=mock npm start -- -p 3218; test $? -ne 0 || { echo "start wrapper accepted AUTH_MODE=mock"; exit 1; }
+          # Calling next directly (bypassing the wrapper): the instrumentation hook exits.
+          AUTH_MODE=mock timeout 60 node node_modules/next/dist/bin/next start -p 3219 > direct.log 2>&1
+          code=$?; cat direct.log
+          test $code -eq 1 || { echo "direct next start did not refuse AUTH_MODE=mock (exit $code)"; exit 1; }
+          grep -q "prohibido en producción" direct.log
+
+  ui:
+    name: ui (responsive, a11y, screenshots)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install
+        run: npm ci --no-fund --no-audit
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+      - name: Visual and responsive checks at 360, 390 and 1280 px (next dev, demo mode)
+        run: npm run test:e2e
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capturas-core-9-0
+          path: test-results/visual
+          retention-days: 14
