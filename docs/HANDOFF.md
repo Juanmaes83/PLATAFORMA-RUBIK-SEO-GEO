@@ -181,6 +181,8 @@
 | `5f67c05` | Documentación: CI de `f947e53` | [36414491097](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36414491097) | Verde |
 | `de4c3da` | Auditoría de contenido y usabilidad | [36418239963](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36418239963) | Verde (verify Node 22/24, ui 51/51) |
 | `d6e55b9` | Documentación: CI de `de4c3da` | [36418555762](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36418555762) | Verde (verify Node 22/24, ui 51/51) |
-| Commit de esta sesión | Remates de revisión | Se registra en la checklist del PR y en un comentario al terminar | — |
+| `5f17674` | Remates de revisión de contenido/usabilidad y documentación de sesión 4 | [36427600943](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36427600943) | Verde (verify Node 22/24, ui 57/57) |
+
+El commit `159e12e` actualiza ROADMAP para registrar este checkpoint. Esta actualización del HANDOFF conserva el historial por commit; los checks de los commits documentales quedan visibles en la pestaña Checks del PR.
 
 Sin merge ni despliegue.
