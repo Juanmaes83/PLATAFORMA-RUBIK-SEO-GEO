@@ -21,8 +21,9 @@
 - **Panel:** prioriza proyectos, pendientes de aprobación y actividad, y el estado y la fecha de la última observación.
   - Sin persistencia, cada hueco es un **estado vacío honesto**: «Desconocido · Sin observaciones registradas», «Sin bandeja de aprobaciones todavía», «Sin actividad registrada».
   - No se muestran cifras inventadas; una prueba lo comprueba.
-- **Datos de demostración:** todo lo que viene de `src/lib/fixtures/demo.ts` lleva el distintivo **«Demo · ficticio»**. Los nombres son genéricos y los dominios usan `.test`.
-  - Hay un usuario cliente ficticio (rol `client-approver`) que ilustra el acceso limitado a su proyecto.
+- **Datos de demostración (CORE-9.0):** lo que venía de `src/lib/fixtures/demo.ts` llevaba el distintivo «Demo · ficticio».
+  - *CORE-9.1:* los fixtures y el distintivo se eliminaron; los datos salen de la base de datos bajo RLS ([ADR 0003](0003-auth-supabase-y-tenancy.md)).
+  - Las cuentas de prueba son ficticias (`@ejemplo.test`) y solo existen en el stack local.
 - **Permisos (segunda auditoría del PR #1):** cada fila separa lo que **permite el rol** (la decisión del Core) de si **la función existe ya** en la plataforma (`src/lib/permissions.ts`).
   - Hay tres estados: «Disponible», «Permitido, aún no disponible» (con su etapa y «Hoy no se puede usar») y «No permitido».
   - Los motivos de denegación del Core se explican en lenguaje claro; el código (por ejemplo `ROLE_NOT_ALLOWED`) queda solo como «Código de diagnóstico».
@@ -33,20 +34,20 @@
 
 ## Verificación reproducible
 
-`npm run test:e2e` (Playwright con Chromium, en CI el job `ui`) recorre 10 vistas a **360, 390 y 1280 px**. Para cada una comprueba:
+`npm run test:e2e` (Playwright con Chromium; en CI, el job `e2e` desde CORE-9.1) recorre las vistas a **360, 390 y 1280 px**: 10 en CORE-9.0 y 13 en CORE-9.1. Para cada una comprueba:
 
 - un solo `<h1>`;
 - **sin desbordamiento horizontal** (`scrollWidth ≤ innerWidth`, con una autoprueba que demuestra que el control detecta un elemento de 2000 px);
 - sin violaciones axe graves o críticas;
 - objetivos táctiles ≥ 44 px en móvil;
-- el distintivo de demostración donde hay fixtures.
+- que solo las páginas de formulario (acceso, registro, organizaciones) tengan campos, y ningún control sin acción. En CORE-9.0 se comprobaba también el distintivo de demostración.
 
 Además prueba el menú móvil con teclado, el inicio y cierre de sesión con el formulario, y la ausencia de cifras en el panel. Guarda capturas de página completa.
 
 - **Capturas en el repositorio:** [`docs/visual/`](../visual/). Se regeneran con `npm run visual:evidence`.
-- **Capturas de CI:** artefacto `capturas-core-9-0` del job `ui`, generado en Linux, con tipografías distintas a las de Windows.
+- **Capturas de CI:** artefacto `capturas-core-9-1` del job `e2e` (antes `capturas-core-9-0` del job `ui`), generado en Linux, con tipografías distintas a las de Windows.
 
-Las pruebas visuales se ejecutan contra `next dev`, porque la demo solo existe en desarrollo ([ADR 0001 §5](0001-stack-y-dependencia-core.md)).
+Las pruebas visuales se ejecutan contra `next dev` conectado al stack local de Supabase, con cuentas ficticias que inician sesión por el formulario real (CORE-9.1). En CORE-9.0 se usaba la demo, que solo existía en desarrollo.
 
 ## Pendiente del propietario
 

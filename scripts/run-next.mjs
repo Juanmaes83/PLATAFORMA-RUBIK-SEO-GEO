@@ -14,6 +14,19 @@ if (["build", "start"].includes(command) && (process.env.AUTH_MODE ?? "").trim()
   process.exit(2);
 }
 
+const publicKey = (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "").trim();
+const jwtRole = (key) => {
+  try {
+    return JSON.parse(Buffer.from(key.split(".")[1] ?? "", "base64url").toString("utf8")).role ?? null;
+  } catch {
+    return null;
+  }
+};
+if (publicKey.startsWith("sb_secret_") || jwtRole(publicKey) === "service_role") {
+  console.error("Refused: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY must be the publishable key, never a secret or service_role key.");
+  process.exit(2);
+}
+
 const require = createRequire(import.meta.url);
 const nextBin = require.resolve("next/dist/bin/next");
 const result = spawnSync(process.execPath, [nextBin, command, ...rest].filter((x) => x !== undefined), {

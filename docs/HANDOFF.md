@@ -186,3 +186,216 @@
 El commit `159e12e` actualiza ROADMAP para registrar este checkpoint. Esta actualización del HANDOFF conserva el historial por commit; los checks de los commits documentales quedan visibles en la pestaña Checks del PR.
 
 Sin merge ni despliegue.
+
+**Cierre de CORE-9.0 (registrado en la sesión 5):** el propietario fusionó el PR #1 en `main` con el merge `a34746ee1e0605eaeca3de817f7badd6a0c998d1`. La CI del push a `main`, [run 36432091098](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36432091098), está en verde: `verify` en Node 22 y 24, y `ui`.
+
+## Sesión 5 — CORE-9.1: Supabase Auth, organizaciones y aislamiento (28/09/2026)
+
+**Punto de partida verificado:**
+
+- `main` en `a34746e` (merge del PR #1), con la CI [36432091098](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36432091098) en verde. No había otros PRs abiertos.
+- Rama `feat/core-9-1-supabase-auth-tenancy` creada desde ese commit.
+- **Proyecto Supabase alojado:** lo creó el propietario (`plataforma-rubik-seo-geo-dev`, organización `Rubik Sota`, plan Free, West EU / eu-west-3, saludable).
+  - Tiene la Data API activada, la exposición automática de tablas desactivada y la activación automática de RLS configurada.
+  - Sin migraciones ni datos, y sin conexión con GitHub.
+  - No consta que Auth, MFA ni migraciones estén configurados. Esta sesión **no lo ha tocado**.
+- **Versiones comprobadas antes de implementar:** `@supabase/ssr` 0.12.7, `@supabase/supabase-js` 2.117.2 y Supabase CLI 2.118.0.
+  - Se siguió la guía de Supabase para Next.js: `proxy.ts`, `getClaims()`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` y confirmación con `verifyOtp`.
+  - También la documentación de Next 16 incluida en `node_modules/next/dist/docs`. Detalle en la [ADR 0003](adr/0003-auth-supabase-y-tenancy.md).
+
+**Hecho:**
+
+- **Autenticación real en el servidor:**
+  - Supabase Auth con correo y contraseña: registro con confirmación de correo, inicio y cierre de sesión, y `/auth/confirm` con `verifyOtp`.
+  - `src/proxy.ts` refresca la sesión; cada página protegida la verifica con `getClaims()` (`requireSession()`).
+  - Solo se usa la clave publicable. Ninguna clave secreta está en el código ni en `NEXT_PUBLIC_*`, y el build y el servidor se niegan a arrancar si aparece una.
+- **Demo eliminada:**
+  - Se borraron los fixtures, la cookie `rubik_demo_session` y el selector de usuarios ficticios.
+  - `AUTH_MODE=mock` sigue prohibido en producción (build, start e instrumentación) y ya no activa nada en desarrollo.
+- **Modelo y RLS** (`supabase/migrations/20260928120000_core_9_1_tenancy.sql`):
+  - Tablas `organizations`, `organization_members`, `projects` y `project_members`.
+  - FK compuestas para la coherencia de tenant.
+  - Privilegios explícitos, por columna en `UPDATE`.
+  - Políticas solo para `authenticated`, con `USING` y `WITH CHECK`.
+  - Funciones auxiliares `SECURITY DEFINER` en el esquema no expuesto `private`.
+  - Triggers de titular inicial y de último titular.
+  - Roles de proyecto = roles humanos del Core; la organización solo tiene `owner`/`member`, con el mapeo documentado en la ADR 0003.
+- **Autorización:**
+  - RLS filtra cada consulta y mutación por organización.
+  - El Core (`authorize`/`MATRIX`) decide las acciones con el rol guardado en `project_members`.
+  - Otro tenant, un proyecto inexistente o un scope mal formado dan el mismo 404.
+- **Interfaz:**
+  - `/acceso` (inicio de sesión), `/registro`, y `/organizaciones` para crear organizaciones y, si eres titular, proyectos.
+  - Panel y proyectos leen la base de datos.
+  - «Equipo» y «Miembros» siguen como «No disponible todavía»: las invitaciones envían correos y requieren decisión del propietario.
+- **Supabase local:**
+  - `supabase/config.toml` con solo Auth, Postgres, API y Mailpit; confirmación de correo activada y contraseña de 12+ caracteres con letras y números.
+  - Plantilla de confirmación y `seed.sql` vacío.
+  - Scripts `db:start`, `db:stop`, `db:reset`, `test:db` y `test:integration`.
+  - `scripts/supabase-test-env.mjs` lee las claves locales en tiempo de ejecución y rechaza hosts no locales.
+- **CI:**
+  - `verify` (Node 22/24) comprueba sin Supabase: sin inicio de sesión, cookies falsificadas dan 307, y se rechazan `AUTH_MODE=mock` y una clave secreta en `NEXT_PUBLIC_*`.
+  - El nuevo job `e2e` levanta un stack local de Supabase y ejecuta pgTAP, un chequeo de tipos frente a las migraciones, integración, un build de producción conectado y Playwright.
+- **Documentación:** [ADR 0003](adr/0003-auth-supabase-y-tenancy.md), [SETUP-SUPABASE](SETUP-SUPABASE.md) (estado real, pruebas locales y lo que falta para el proyecto alojado), [ENVIRONMENT](ENVIRONMENT.md), [ARCHITECTURE](ARCHITECTURE.md), README, CLAUDE.md, ROADMAP y capturas nuevas en [docs/visual](visual/README.md).
+
+**Pruebas locales** (Windows, Node 24.14.1, Docker 29.2.0, Supabase CLI 2.118.0):
+
+- `npm run verify`: en verde.
+  - Pin del Core.
+  - Guard de secretos (139 ficheros).
+  - ESLint y `tsc` sin incidencias.
+  - Vitest: 7 ficheros, 39/39.
+  - `next build`: 16 rutas dinámicas y el proxy.
+- `npm run test:db` (pgTAP): 52/52.
+- `npm run test:integration`: 9/9.
+  - Registro con confirmación real vía Mailpit.
+  - Inicio y cierre de sesión, con el refresh token revocado.
+  - Contraseñas erróneas o débiles.
+  - Peticiones anónimas.
+  - Lecturas y escrituras entre tenants, y manipulación de IDs.
+  - Usuario sin pertenencia con `user_metadata` falsificado.
+  - Roles.
+  - Esquema `private` no expuesto.
+- `E2E_PORT=3227 npm run visual:evidence` (Playwright): 71 pasan y 16 se omiten.
+  - Los 8 flujos de navegador de `auth-tenancy.spec.ts` se ejecutan una vez, en escritorio, y se omiten en los dos anchos móviles.
+  - 13 vistas × 3 anchos.
+- **Mutación de comprobación:** con la política de lectura de `projects` cambiada a `using (true)`, fallan 4 aserciones pgTAP y 4 pruebas de integración. Restaurada y comprobada de nuevo (52/52).
+- **Smoke manual de producción:**
+  - Sin variables: `auth: not-configured`, y 307 en rutas protegidas incluso con cookies falsificadas.
+  - Con una clave `sb_secret_…` en `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: el build sale con 2 y `next start` con 1.
+  - Con `AUTH_MODE=mock`, `next start` sale con 1.
+  - Build conectado al stack local: `auth: supabase` y `/panel` → 307 a `/acceso`.
+
+**PR y CI:** [PR #2](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/2), abierto contra `main`, sin merge.
+
+| Commit | Contenido | Run | Resultado |
+|---|---|---|---|
+| `5db5932` | CORE-9.1 completo | [36437771145](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36437771145) | ❌ No llegó a ejecutarse: YAML inválido (nombre del job `e2e` con `: ` sin comillas) |
+| `bb8e22b` | Corrige las comillas del nombre del job | [36437992335](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36437992335) | ✅ Verde. `verify` en Node 22.23.2 y 24.21.0: Vitest 39/39, build y smoke. `e2e`: pgTAP 52/52, tipos iguales a las migraciones, integración 9/9, build conectado, Playwright 71 pasan y 16 se omiten |
+| `019fe4b` | Documentación: registra el PR #2 y sus runs | [36438699451](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36438699451) | ✅ Verde (verify Node 22/24, e2e) |
+| `120a89c` | Sesión 5b: error genérico al crear, método aprobado, flujo CLI de migración, decisiones propuestas | [36440853359](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36440853359) | ✅ Verde. `verify` en Node 22 y 24: Vitest 41/41, build y smoke. `e2e`: pgTAP 52/52, integración 9/9, Playwright 72 pasan y 18 se omiten |
+
+Los commits que solo registran runs en ROADMAP y HANDOFF tienen su CI en la pestaña Checks del PR.
+
+**Límites:**
+
+- Nada está aplicado ni probado contra el proyecto alojado.
+- No hay gestión de miembros desde la interfaz (invitaciones), ni recuperación de contraseña, MFA ni auditoría (CORE-9.2).
+- No hay OAuth, IA, conectores, datos de clientes ni despliegue.
+
+**Decisiones y tareas del propietario:**
+
+*Actualizadas en la sesión 5b; ver debajo.*
+
+**Siguiente bloque:** CORE-9.2 (persistencia, auditoría y provenance), tras la revisión de CORE-9.1.
+
+## Sesión 5b — ajustes de revisión del PR #2 (28/09/2026)
+
+**Punto de partida verificado:**
+
+- PR #2 abierto, con HEAD local y remoto en `019fe4b` y su CI [36438699451](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36438699451) en verde.
+- `main` sigue en `a34746e`.
+
+**Decisión del propietario registrada:** **correo y contraseña es el método inicial de acceso** (aprobado). Sale de la lista de decisiones pendientes en la ADR 0003, SETUP-SUPABASE, ROADMAP, este HANDOFF y la descripción del PR #2.
+
+**Hecho:**
+
+1. **Error genérico al crear.**
+   - Si falla la creación de una organización o de un proyecto, el formulario muestra siempre «No se ha podido crear. Revisa los datos o prueba con otro identificador.» (código `no-creado`).
+   - Se eliminó el mensaje «Ese identificador ya está en uso», de modo que no se confirma si un `slug` existe.
+   - Pruebas nuevas:
+     - `tests/security-static.test.ts`: la acción no distingue códigos de error, y ningún mensaje dice que un identificador esté ocupado;
+     - e2e «a taken organization identifier gets a generic error that does not confirm it exists»: una cuenta sin organizaciones intenta usar el identificador de otro tenant.
+   - El riesgo residual (se puede sospechar, pero no confirmar) queda documentado en la ADR 0003.
+2. **SETUP-SUPABASE §3:**
+   - Eliminada la opción de aplicar la migración pegándola en el SQL Editor.
+   - Documentado el flujo versionado con la CLI fijada: `link`, `migration list --linked`, inspección de `db push --dry-run`, aplicación explícita con `db push` por el propietario y comprobación posterior.
+   - Claude **no** ha ejecutado `db push` ni ha accedido al proyecto alojado.
+3. **Decisiones propuestas** registradas en la ADR 0003 §1 y §5 y en SETUP-SUPABASE:
+   - registro abierto solo para las pruebas iniciales, cerrado antes de exponer la plataforma a clientes;
+   - roles de organización `owner`/`member`;
+   - solo el rol de proyecto `owner` edita el proyecto.
+
+   No se implementan invitaciones, MFA de usuarios ni recuperación de contraseña en esta fase.
+
+**Pruebas locales** (Windows, Node 24.14.1, stack local de Supabase):
+
+- `npm run verify`: en verde, con Vitest 7 ficheros y 41/41.
+- `npm run test:db`: 52/52.
+- `npm run test:integration`: 9/9.
+- `E2E_PORT=3227 npx playwright test`: 72 pasan y 18 se omiten. Los 9 flujos de navegador se ejecutan una vez, en escritorio.
+
+**PR y CI:** en la tabla del PR #2 (sesión 5). `120a89c` → [run 36440853359](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36440853359), en verde. La descripción del PR #2 está actualizada. Sin merge ni despliegue.
+
+*Tareas actualizadas en la sesión 5c; ver debajo.*
+
+**Tareas anteriores (sustituidas):**
+
+1. ~~Revisar el PR #2 y la ADR 0003: confirmar las decisiones propuestas.~~ Aprobadas en la sesión 5c.
+2. Tras el merge, configurar Auth en el proyecto alojado y aplicar la migración él mismo con el flujo de la CLI y `--dry-run` ([SETUP-SUPABASE §3](SETUP-SUPABASE.md)). Incluye: MFA de la cuenta, confirmación de correo, URLs de redirección, plantilla de confirmación y SMTP si hace falta.
+3. Cerrar el registro abierto antes de exponer la plataforma a clientes.
+4. En fases posteriores: invitaciones, MFA de usuarios y recuperación de contraseña (requiere SMTP propio).
+5. Las tareas de hosting siguen igual ([HOSTING](HOSTING.md)).
+
+## Sesión 5c — decisiones aprobadas y URLs de Auth (28/09/2026)
+
+**Punto de partida verificado:**
+
+- PR #2 abierto, con HEAD local y remoto en `a20ef0f` y su CI [36441560553](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36441560553) en verde.
+- `main` sigue en `a34746e`.
+
+**Decisiones aprobadas por el propietario** (registradas en ADR 0003, SETUP-SUPABASE, ROADMAP y la descripción del PR #2):
+
+1. Registro abierto solo durante las pruebas iniciales; debe cerrarse antes de dar acceso a clientes.
+2. Roles de organización `owner`/`member`.
+3. Solo el rol `owner` del proyecto puede editar sus datos descriptivos.
+4. Se acepta el riesgo residual de que pueda deducirse si un identificador global está ocupado. Se mantienen el modelo actual y el mensaje genérico.
+
+Junto con el método correo y contraseña (sesión 5b), ya no queda ninguna decisión de CORE-9.1 pendiente del propietario.
+
+**SETUP-SUPABASE §3 corregido:**
+
+- **Site URL:** `http://localhost:3000`.
+- **Redirect URL permitida** para la confirmación: `http://localhost:3000/auth/confirm`, como URL exacta.
+- **Comprobación contra la documentación vigente:** [Supabase · Redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls), consultada el 28/09/2026.
+  - La Site URL es la redirección por defecto cuando no hay `redirectTo`.
+  - La lista de Redirect URLs admite URLs exactas o patrones glob, y `redirectTo` debe coincidir con ella.
+- **Coherencia con el código:** la aplicación envía `emailRedirectTo = <origen>/auth/confirm` (`src/lib/auth/actions.ts`), y `supabase/config.toml` usa los mismos valores en local.
+
+Sin cambios de código, así que las pruebas son las de la sesión 5b. `npm run verify` se ejecutó de nuevo y está en verde: secretos (139 ficheros), lint, `tsc`, Vitest 41/41 y build.
+
+**Tareas del propietario (vigentes):**
+
+1. Revisión final y merge del PR #2: autorizados a Codex por el propietario el 28/09/2026; sujetos a CI verde del HEAD final.
+2. Tras el merge, en el proyecto alojado y siguiendo [SETUP-SUPABASE §3](SETUP-SUPABASE.md):
+   - MFA de la cuenta;
+   - Email con confirmación y la política de contraseñas;
+   - Site URL `http://localhost:3000` y Redirect URL `http://localhost:3000/auth/confirm`;
+   - plantilla de confirmación;
+   - SMTP si hace falta;
+   - aplicar la migración con la CLI tras inspeccionar `db push --dry-run`.
+3. Cerrar el registro abierto antes de dar acceso a clientes.
+4. En fases posteriores: invitaciones, MFA de usuarios y recuperación de contraseña.
+5. Las tareas de hosting siguen igual ([HOSTING](HOSTING.md)).
+
+**CI:** el run del HEAD final de esta sesión se registra en la descripción del PR #2 y en su pestaña Checks, no en otro commit, para que el HEAD revisado sea el definitivo. El último run registrado en un commit es el de `120a89c` ([36440853359](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36440853359)); `a20ef0f` → [36441560553](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36441560553), también en verde.
+
+
+## Sesión 5d — actualización documental y cierre de CORE-9.1 (28/09/2026)
+
+**Autorización del propietario:** actualizar la documentación del repositorio y fusionar el PR #2 si la revisión y la CI final están correctas.
+
+**Estado verificado antes del ajuste documental:**
+
+- PR #2 abierto contra `main`, mergeable, con HEAD `05e09258c2d6e86292626539f59caeec6c714cbd`.
+- CI de ese HEAD: [run 36443119218](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36443119218), en verde en `verify` (Node 22/24) y `e2e` (pgTAP 52/52, integración 9/9, Playwright 72 pasan y 18 se omiten).
+- Las decisiones de CORE-9.1 están aprobadas y ya constan en ADR 0003, SETUP-SUPABASE y la descripción del PR.
+
+**Documentación actualizada por Codex en esta rama:**
+
+- ROADMAP: estado de CORE-9.1, último HEAD verificado, CI y los pasos manuales del propietario tras el merge.
+- HANDOFF: el punto de partida previo se conserva como historial; se añade esta sesión para reflejar autorización, revisión y cierre.
+
+**Alcance y límites:** la documentación no cambia código ni migraciones. Esta revisión no aplica migraciones, no ejecuta `db push`, no modifica el proyecto Supabase alojado y no despliega la aplicación. La configuración y prueba manual del Supabase alojado siguen siendo tareas del propietario según [SETUP-SUPABASE §3](SETUP-SUPABASE.md).
+
+**Siguiente paso:** ejecutar la CI del commit documental; fusionar el PR #2 solo si todos los checks requeridos terminan en verde y el PR continúa mergeable. Tras la fusión, verificar el commit de merge y la CI de `main`. Después, el propietario configura Auth y aplica la migración de forma controlada, siguiendo SETUP-SUPABASE §3.

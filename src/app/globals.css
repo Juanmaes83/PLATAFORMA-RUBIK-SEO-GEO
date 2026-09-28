@@ -1,5 +1,5 @@
 /*
- * Rubik SEO/GEO — CORE-9.0 visual base (D-27).
+ * Rubik SEO/GEO — visual base (D-27, CORE-9.0; forms added in CORE-9.1).
  * PROPOSAL, not the brand: neutral, replaceable design tokens. There is no official logo,
  * palette or typeface yet, so everything below is expressed as tokens that a future brand
  * decision can swap in one place. Mobile-first: base styles target 360 px; wider layouts
@@ -20,8 +20,6 @@
   --color-warn-fg: #4d3b00;
   --color-ok: #17663d;
   --color-no: #8f2525;
-  --color-demo-bg: #efe8fb;
-  --color-demo-fg: #4a2a86;
   /* shape & rhythm */
   --radius: 10px;
   --radius-sm: 6px;
@@ -51,8 +49,6 @@
     --color-warn-fg: #f3e2a2;
     --color-ok: #7ad6a0;
     --color-no: #f19999;
-    --color-demo-bg: #2b2140;
-    --color-demo-fg: #d9c8fb;
   }
 }
 
@@ -155,7 +151,6 @@ main:focus { outline: none; }
 .btn-block { width: 100%; margin-top: var(--space-3); }
 
 .badge { display: inline-flex; align-items: center; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.02em; padding: 0.1rem 0.55rem; border-radius: 999px; white-space: nowrap; }
-.badge-demo { background: var(--color-demo-bg); color: var(--color-demo-fg); }
 .pill { display: inline-flex; align-items: center; font-size: 0.78rem; font-weight: 600; padding: 0.1rem 0.55rem; border-radius: 999px; border: 1px solid var(--color-line); white-space: nowrap; }
 .pill-neutral { color: var(--color-muted); }
 .pill-warn { background: var(--color-warn-bg); color: var(--color-warn-fg); border-color: var(--color-warn-line); }
@@ -179,6 +174,21 @@ main:focus { outline: none; }
 .empty-block li { margin-bottom: var(--space-1); }
 .empty-block p { margin: 0; }
 .notice { padding: var(--space-3); border: 1px solid var(--color-warn-line); background: var(--color-warn-bg); color: var(--color-warn-fg); border-radius: var(--radius-sm); }
+.notice-error { border-color: var(--color-no); background: var(--color-surface); color: var(--color-no); font-weight: 600; }
+.notice-info { border-color: var(--color-accent); background: var(--color-accent-soft); color: var(--color-fg); }
+
+/* ── Forms (CORE-9.1: sign-in, sign-up, organizations) ───────────────────── */
+.form { display: grid; gap: var(--space-3); max-width: 32rem; }
+.form .btn-block { margin-top: var(--space-1); }
+.form-title { font-weight: 700; margin: var(--space-3) 0 0; }
+.field { display: grid; gap: var(--space-1); }
+.field label { font-weight: 600; }
+.field p { margin: 0; }
+.field input {
+  width: 100%; min-height: var(--tap); padding: 0 var(--space-3);
+  border: 1px solid var(--color-muted); border-radius: var(--radius-sm);
+  background: var(--color-surface); color: var(--color-fg); font: inherit;
+}
 .checklist { padding-left: 1.2rem; margin: 0; }
 .checklist li { margin-bottom: var(--space-2); }
 

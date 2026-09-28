@@ -9,7 +9,9 @@ const { GET } = await import("@/app/api/salud/route");
 describe("technical status endpoint", () => {
   it("reports configuration only and no connected service", async () => {
     const body = await (await GET()).json();
-    expect(body).toMatchObject({ status: "ok", stage: "CORE-9.0", persistence: "none", deployment: "none" });
+    expect(body).toMatchObject({ status: "ok", stage: "CORE-9.1", deployment: "none" });
+    expect(["supabase", "not-configured"]).toContain(body.auth);
+    expect(body.persistence).toBe(body.auth === "supabase" ? "supabase" : "none");
     expect(body.core.commit).toMatch(/^[0-9a-f]{40}$/);
     expect(body.integrations.every((i: { status: string }) => i.status !== "CONNECTED")).toBe(true);
   });
@@ -25,7 +27,8 @@ describe(".env.example", () => {
     for (const line of lines) expect(line, line).toMatch(/^[A-Z][A-Z0-9_]*=$/);
   });
 
-  it("does not declare server secrets such as a service-role key", () => {
-    expect(lines.some((l) => /SERVICE_ROLE/.test(l))).toBe(false);
+  it("declares only the two public Supabase names, never a service-role or secret key", () => {
+    expect(lines.some((l) => /SERVICE_ROLE|SECRET|ANON_KEY|AUTH_MODE/.test(l))).toBe(false);
+    expect(lines).toEqual(["NEXT_PUBLIC_SUPABASE_URL=", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="]);
   });
 });

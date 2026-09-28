@@ -1,0 +1,2 @@
+-- Intentionally empty: CORE-9.1 ships no seed data (no demo users, organizations or projects).
+-- Tests create their own fictitious users and roll back (supabase/tests, tests/integration).

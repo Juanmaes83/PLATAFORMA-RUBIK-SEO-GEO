@@ -1,11 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-/** Label for anything that comes from fixtures (D-27: demo data is always identified). */
-export function DemoBadge() {
-  return <span className="badge badge-demo" title="Datos ficticios de demostración">Demo · ficticio</span>;
-}
-
 export function StatusPill({ tone, children }: { tone: "neutral" | "warn" | "ok" | "no"; children: ReactNode }) {
   return <span className={`pill pill-${tone}`}>{children}</span>;
 }

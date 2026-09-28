@@ -15,10 +15,11 @@ export interface NavItem {
 export const WORKSPACE_NAV: readonly NavItem[] = [
   { href: "/panel", label: "Panel", available: true, description: "Proyectos, pendientes y última observación." },
   { href: "/proyectos", label: "Proyectos", available: true, description: "Proyectos a los que tienes acceso." },
+  { href: "/organizaciones", label: "Organizaciones", available: true, description: "Tus organizaciones; las titulares crean proyectos." },
   {
     href: "/revision", label: "Revisión y aprobaciones", available: false, stage: "CORE-9.6 y 9.8",
     description: "Bandeja donde una persona revisa borradores y aprueba, o rechaza, cada acción externa antes de que ocurra.",
-    requires: ["Cuentas reales con roles (CORE-9.1)", "Persistencia y auditoría de aprobaciones (CORE-9.2)", "Borradores y acciones propuestas (CORE-9.6)"],
+    requires: ["Persistencia y auditoría de aprobaciones (CORE-9.2)", "Borradores y acciones propuestas (CORE-9.6)"],
     nextStep: "Abrir cada elemento pendiente, revisar su evidencia y aprobarlo o rechazarlo con un motivo.",
   },
   {
@@ -29,15 +30,15 @@ export const WORKSPACE_NAV: readonly NavItem[] = [
   },
   { href: "/conectores", label: "Conectores", available: true, description: "Servicios externos previstos. Ninguno conectado." },
   {
-    href: "/equipo", label: "Equipo y permisos", available: false, stage: "CORE-9.1",
-    description: "Miembros de la organización, sus roles y los proyectos a los que acceden.",
-    requires: ["Supabase Auth configurado por el propietario (proyecto de prueba, MFA)", "Tablas de organizaciones y pertenencias con RLS"],
+    href: "/equipo", label: "Equipo y permisos", available: false,
+    description: "Miembros de la organización, sus roles y los proyectos a los que acceden. Las tablas y sus reglas de acceso ya existen; falta la pantalla para gestionarlos.",
+    requires: ["Invitaciones por correo, que el propietario debe aprobar porque envían mensajes a terceros", "Registro de auditoría de cambios de rol (CORE-9.2)"],
     nextStep: "Invitar a miembros y asignarles un rol por proyecto.",
   },
   {
-    href: "/configuracion", label: "Configuración", available: false, stage: "CORE-9.1",
+    href: "/configuracion", label: "Configuración", available: false,
     description: "Datos de la organización, seguridad de acceso y preferencias.",
-    requires: ["Supabase Auth (CORE-9.1)", "Decisión de hosting y región por el propietario"],
+    requires: ["MFA y política de sesiones decididas por el propietario", "Decisión de hosting y región por el propietario"],
     nextStep: "Revisar los datos de la organización y la configuración de seguridad.",
   },
 ];
@@ -74,7 +75,7 @@ export const PROJECT_SECTIONS: readonly ProjectSection[] = [
   {
     slug: "aprobaciones", label: "Aprobaciones", stage: "CORE-9.6 y 9.8",
     description: "Aprobación humana de las acciones externas de este proyecto.",
-    requires: ["Cuentas reales con rol de aprobación (CORE-9.1)", "Registro auditado de aprobaciones (CORE-9.2)"],
+    requires: ["Registro auditado de aprobaciones (CORE-9.2)", "Acciones propuestas (CORE-9.6)"],
     nextStep: "Aprobar o rechazar cada acción con un motivo. Sin aprobación no se ejecuta nada.",
   },
   {
@@ -84,9 +85,9 @@ export const PROJECT_SECTIONS: readonly ProjectSection[] = [
     nextStep: "Conectar Search Console o Bing Webmaster en modo de solo lectura y comprobar la primera lectura.",
   },
   {
-    slug: "miembros", label: "Miembros", stage: "CORE-9.1",
-    description: "Quién tiene acceso a este proyecto y con qué rol.",
-    requires: ["Supabase Auth y pertenencias con RLS (CORE-9.1)"],
+    slug: "miembros", label: "Miembros", stage: "una etapa posterior, sin planificar",
+    description: "Quién tiene acceso a este proyecto y con qué rol. Los roles ya se guardan y se aplican; falta la pantalla para gestionarlos.",
+    requires: ["Invitaciones por correo aprobadas por el propietario", "Registro de auditoría de cambios de rol (CORE-9.2)"],
     nextStep: "Invitar a miembros del equipo o del cliente con el rol adecuado.",
   },
 ];

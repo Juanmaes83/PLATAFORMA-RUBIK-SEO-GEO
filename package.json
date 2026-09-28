@@ -17,10 +17,17 @@
     "check:secrets": "node scripts/check-no-secrets.mjs",
     "verify": "npm run check:core-pin && npm run check:secrets && npm run lint && npm run typecheck && npm run test && npm run build",
     "test:e2e": "playwright test",
-    "visual:evidence": "node scripts/visual-evidence.mjs"
+    "visual:evidence": "node scripts/visual-evidence.mjs",
+    "db:start": "npx --yes supabase@2.118.0 start -x postgres-meta,imgproxy,vector,logflare,supavisor,studio,realtime,storage-api,edge-runtime",
+    "db:stop": "npx --yes supabase@2.118.0 stop",
+    "db:reset": "npx --yes supabase@2.118.0 db reset",
+    "test:db": "npx --yes supabase@2.118.0 test db",
+    "test:integration": "vitest run --config vitest.integration.config.mts"
   },
   "dependencies": {
     "@rubik/seo-geo-core": "git+https://github.com/Juanmaes83/RUBIK-SEO-GEO-CORE.git#20e4f4e1be3e8cc95c06589f60cb3ea591a3608a",
+    "@supabase/ssr": "0.12.7",
+    "@supabase/supabase-js": "2.117.2",
     "next": "16.3.6",
     "react": "19.2.8",
     "react-dom": "19.2.8",

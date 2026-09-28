@@ -1,54 +1,49 @@
-import { signInAsDemoUser, signOut } from "@/lib/auth/actions";
-import { DemoBadge, EmptyState, PageHead } from "@/components/ui";
+import Link from "next/link";
+import { Notice } from "@/components/Notice";
+import { EmptyState, PageHead } from "@/components/ui";
+import { signIn, signOut } from "@/lib/auth/actions";
+import { ACCESS_ERRORS, ACCESS_NOTICES, pick } from "@/lib/auth/messages";
 import { currentUser, requestAuthMode } from "@/lib/auth/session";
-import { DEMO_USERS } from "@/lib/fixtures/demo";
-import { roleLabel } from "@/lib/labels";
 
-export default async function AccessPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
-  const [{ error }, user, auth] = await Promise.all([searchParams, currentUser(), requestAuthMode()]);
+export default async function AccessPage({ searchParams }: { searchParams: Promise<{ error?: string; aviso?: string }> }) {
+  const [{ error, aviso }, user, auth] = await Promise.all([searchParams, currentUser(), requestAuthMode()]);
 
   return (
     <>
-      <PageHead title="Acceso">{auth.canSignIn && <DemoBadge />}</PageHead>
-      {error === "usuario" && <p className="notice" role="alert">Usuario de demostración desconocido.</p>}
-      {!auth.canSignIn && (
-        <EmptyState title="Inicio de sesión no disponible">
+      <PageHead title="Acceso" />
+      <Notice tone="error" text={pick(ACCESS_ERRORS, error)} />
+      <Notice tone="info" text={pick(ACCESS_NOTICES, aviso)} />
+      {!auth.canSignIn ? (
+        <EmptyState
+          title="Inicio de sesión no disponible"
+          requires={["Un proyecto Supabase (el local de desarrollo, o el alojado cuando el propietario lo autorice) y sus variables públicas"]}
+          nextStep="Entrar con correo y contraseña."
+        >
           <p>{auth.notice}</p>
         </EmptyState>
-      )}
-      {user && (
+      ) : user ? (
         <form action={signOut} className="card">
-          <p>Sesión de demostración activa: <strong>{user.displayName}</strong>.</p>
-          <button type="submit" className="btn btn-ghost">Cerrar sesión</button>
+          <p>Has iniciado sesión como <strong>{user.email}</strong>.</p>
+          <div className="actions">
+            <Link className="btn" href="/panel">Ir al panel</Link>
+            <button type="submit" className="btn btn-ghost">Cerrar sesión</button>
+          </div>
         </form>
-      )}
-      {auth.canSignIn && (
-        <section aria-labelledby="demo" className="section">
-          <h2 id="demo">Usuarios ficticios</h2>
-          <p>
-            Elige un usuario ficticio para recorrer la navegación según su rol. No es autenticación real, solo existe en
-            desarrollo: Supabase Auth llega en CORE-9.1.
-          </p>
-          <ul className="cards">
-            {DEMO_USERS.map((u) => (
-              <li key={u.id} className="card">
-                <form action={signInAsDemoUser}>
-                  <input type="hidden" name="userId" value={u.id} />
-                  <div className="card-head">
-                    <h3>{u.displayName}</h3>
-                    <DemoBadge />
-                  </div>
-                  <ul className="plain small muted">
-                    {u.memberships.map((m) => (
-                      <li key={`${m.tenantId}/${m.projectId}`}>{roleLabel(m.role)} · {m.tenantId}/{m.projectId}</li>
-                    ))}
-                  </ul>
-                  <button type="submit" className="btn btn-block">Entrar como {u.displayName}</button>
-                </form>
-              </li>
-            ))}
-          </ul>
-        </section>
+      ) : (
+        <>
+          <form action={signIn} className="card form">
+            <div className="field">
+              <label htmlFor="email">Correo</label>
+              <input id="email" name="email" type="email" autoComplete="email" required />
+            </div>
+            <div className="field">
+              <label htmlFor="password">Contraseña</label>
+              <input id="password" name="password" type="password" autoComplete="current-password" required />
+            </div>
+            <button type="submit" className="btn btn-block">Entrar</button>
+          </form>
+          <p>¿No tienes cuenta? <Link href="/registro">Crear una cuenta</Link></p>
+        </>
       )}
     </>
   );

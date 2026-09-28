@@ -1,10 +1,9 @@
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
-import { accessibleProjects } from "@/lib/access";
+import { projectAccess } from "@/lib/access";
 import { connectorView, hasConsentCopy, hasCopy } from "@/lib/connectors";
 import { platform } from "@/lib/core";
-import { DEMO_USERS } from "@/lib/fixtures/demo";
 import { DENIAL_EXPLANATIONS, FUNCTION_FOR_ACTION, explainDenial, permissionView } from "@/lib/permissions";
 
 const require = createRequire(import.meta.url);
@@ -34,15 +33,19 @@ describe("permission presentation: role grant vs function availability", () => {
   });
 
   it("never shows an unbuilt function as usable, even when the Core grants the permission", () => {
-    for (const user of DEMO_USERS) {
-      for (const access of accessibleProjects(user)) {
-        for (const { action, decision } of access.permissions) {
-          const view = permissionView(action, decision, access.role);
-          if (view.state === "available") expect(FUNCTION_FOR_ACTION[action].available, `${user.id} ${action}`).toBe(true);
-          if (decision.allowed && !FUNCTION_FOR_ACTION[action].available) {
-            expect(view.state).toBe("granted-not-built");
-            expect(view.explanation).toMatch(/Hoy no se puede usar/);
-          }
+    for (const role of ["owner", "account-manager", "analyst", "client-approver", "viewer"]) {
+      const access = projectAccess({
+        userId: "00000000-0000-4000-8000-00000000000a",
+        role,
+        project: { tenantId: "agencia-a", tenantName: "Agencia A", projectId: "proyecto-a1", name: "Proyecto A1", domain: null, vertical: null },
+      });
+      expect(access, role).not.toBeNull();
+      for (const { action, decision } of access!.permissions) {
+        const view = permissionView(action, decision, access!.role);
+        if (view.state === "available") expect(FUNCTION_FOR_ACTION[action].available, `${role} ${action}`).toBe(true);
+        if (decision.allowed && !FUNCTION_FOR_ACTION[action].available) {
+          expect(view.state).toBe("granted-not-built");
+          expect(view.explanation).toMatch(/Hoy no se puede usar/);
         }
       }
     }

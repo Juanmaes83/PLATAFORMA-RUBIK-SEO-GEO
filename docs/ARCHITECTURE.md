@@ -1,35 +1,53 @@
-# Arquitectura (CORE-9.0)
+# Arquitectura (CORE-9.1)
 
 ```text
 Navegador ──HTTP──▶ Next.js (servidor Node)
-                      ├─ src/app/…            páginas, Server Actions, /api/salud
-                      ├─ src/lib/auth/…       modo de autenticación (solo mock en 9.0)
-                      ├─ src/lib/access.ts    usuario → decisiones del Core por proyecto
-                      ├─ src/lib/core/…       único punto de entrada al Core (server-only)
-                      └─ src/lib/fixtures/…   datos FICTICIOS de demostración
-                              │ require (serverExternalPackages)
-                              ▼
-            node_modules/@rubik/seo-geo-core  ← RUBIK-SEO-GEO-CORE @ commit fijado
+                      ├─ src/proxy.ts         refresca la sesión de Supabase (getClaims); no autoriza
+                      ├─ src/app/…            páginas, Server Actions, /auth/confirm, /api/salud
+                      ├─ src/lib/auth/…       configuración, sesión verificada (getClaims), acciones de Auth
+                      ├─ src/lib/supabase/…   cliente de servidor @supabase/ssr (clave publicable) y tipos
+                      ├─ src/lib/tenancy*.ts  consultas y altas de organizaciones y proyectos (bajo RLS)
+                      ├─ src/lib/access.ts    pertenencia guardada → decisiones del Core por proyecto
+                      └─ src/lib/core/…       único punto de entrada al Core (server-only)
+                              │                                   │
+                              │ require (serverExternalPackages)  │ HTTPS · Data API y Auth, como el usuario
+                              ▼                                   ▼
+            node_modules/@rubik/seo-geo-core           Supabase (Auth + Postgres con RLS)
+            ← RUBIK-SEO-GEO-CORE @ commit fijado       local: supabase start · alojado: no conectado
 ```
 
-- **Datos:** no hay base de datos ni persistencia. Los proyectos y usuarios son fixtures ficticios con dominios `.test`.
-- **Autorización:** `src/lib/access.ts` construye el actor de una pertenencia y pregunta al Core (`platform.authorize`) por cada acción de `platform.ACTIONS`. Un proyecto de otro tenant, o inexistente, responde 404 igual en ambos casos, así que no revela nada. `execute-approved-action` siempre queda denegado, porque en 9.0 no existen aprobaciones humanas registradas.
+- **Datos:**
+  - Postgres de Supabase, esquema `public`: `organizations`, `organization_members`, `projects` y `project_members`, todas con RLS.
+  - Funciones auxiliares en el esquema no expuesto `private`.
+  - Migraciones en `supabase/migrations`, aplicadas solo al stack local y en la CI.
+  - Modelo, políticas y mapeo de roles en la [ADR 0003](adr/0003-auth-supabase-y-tenancy.md).
+- **Identidad:** Supabase Auth con correo y contraseña, solo desde el servidor.
+  - `currentUser()` usa `getClaims()`, que verifica el JWT. Nunca `getSession()` ni metadatos del usuario.
+  - No hay cliente de Supabase en el navegador.
+- **Autorización, en dos capas:**
+  1. **RLS** decide qué filas existen para el usuario: aislamiento por organización en cada consulta y mutación, y privilegios por columna.
+  2. `src/lib/access.ts` construye el actor del Core con el **rol guardado** en `project_members` y le pregunta (`platform.authorize`) por cada acción de `platform.ACTIONS`.
+  - Un proyecto de otro tenant, uno inexistente o un scope mal formado dan el mismo 404.
+  - `execute-approved-action` siempre queda denegado, porque aún no hay aprobaciones humanas registradas.
 - **Límite de responsabilidades:** el Project State, Studio, Media Library y Page Registry siguen en cada host (D-05/D-20 del Core). La plataforma guardará referencias y resultados de servicio a partir de CORE-9.2.
 
 ## Rutas
 
 | Ruta | Qué muestra | Acceso |
 |---|---|---|
-| `/` | Estado del entorno, commit del Core y catálogo de conectores del Core (todos sin implementar) | Público en local |
-| `/acceso` | Elección de usuario ficticio (modo demostración) y cierre de sesión | Público en local |
-| `/proyectos` | Proyectos en los que el usuario tiene pertenencia | Sesión de demostración (si no, 307 a `/acceso`) |
-| `/proyectos/[tenantId]/[projectId]` | Permisos según el Core y módulos pendientes | Pertenencia al proyecto (si no, 404) |
-| `/panel` | Panel: proyectos, pendientes de aprobación y actividad (estados vacíos honestos), y la última observación | Sesión de demostración |
-| `/proyectos/[tenantId]/[projectId]/[seccion]` | Mediciones, acciones, borradores, aprobaciones, conectores y miembros: «No disponible todavía», con su etapa | Pertenencia al proyecto (si no, 404) |
-| `/revision`, `/borradores`, `/equipo`, `/configuracion` | Áreas del espacio de trabajo aún no construidas: «No disponible todavía» | Sesión de demostración |
-| `/conectores` | Catálogo de conectores del Core, ninguno conectado | Público en local |
-| `/api/salud` | JSON con el estado técnico: etapa, modo de autenticación, commit del Core y conectores | Público en local; sin secretos ni valores de entorno |
+| `/` | Estado de esta versión y commit del Core | Pública |
+| `/acceso` | Inicio de sesión (correo y contraseña); con sesión, cierre de sesión | Pública |
+| `/registro` | Alta de cuenta con confirmación de correo | Pública |
+| `/auth/confirm` | Verifica el enlace de confirmación (`verifyOtp`) y crea la sesión | Pública; enlace inválido → `/acceso?error=enlace` |
+| `/panel` | Proyectos del usuario (base de datos), pendientes y actividad como estados vacíos honestos | Sesión (si no, 307 a `/acceso`) |
+| `/proyectos` | Proyectos en los que el usuario tiene rol | Sesión |
+| `/organizaciones` | Organizaciones del usuario; crear organización; si es titular, crear proyectos | Sesión; RLS decide cada alta |
+| `/proyectos/[tenantId]/[projectId]` | Permisos según el Core para el rol guardado, y el estado de medición | Pertenencia al proyecto (si no, 404) |
+| `/proyectos/[tenantId]/[projectId]/[seccion]` | Secciones del proyecto: «No disponible todavía», con su etapa | Pertenencia al proyecto (si no, 404) |
+| `/revision`, `/borradores`, `/equipo`, `/configuracion` | Áreas aún no construidas: «No disponible todavía» | Sesión |
+| `/conectores` | Catálogo de conectores del Core, ninguno conectado | Pública |
+| `/api/salud` | JSON técnico: etapa, modo de Auth (`supabase`/`not-configured`), commit del Core y conectores | Pública; sin secretos, valores de entorno ni consultas |
 
-La navegación y el diseño mobile-first (D-27) están en la [ADR 0002](adr/0002-ux-mobile-first.md), y las capturas en [docs/visual](visual/README.md). En producción no hay sesión posible en CORE-9.0: el modo demo solo existe en desarrollo.
+`tenantId` y `projectId` en las URLs son los `slug` de la organización y del proyecto (formato de `scope()` del Core). Son solo una clave de búsqueda: el acceso lo decide la base de datos.
 
-Todas las rutas se renderizan por petición (`connection()`), de modo que el modo de autenticación nunca queda fijado en el build.
+La navegación y el diseño mobile-first (D-27) están en la [ADR 0002](adr/0002-ux-mobile-first.md), y las capturas en [docs/visual](visual/README.md). Todas las rutas se renderizan por petición (`connection()`).

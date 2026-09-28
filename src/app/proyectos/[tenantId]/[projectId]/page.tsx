@@ -1,15 +1,17 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { PermissionTable } from "@/components/PermissionTable";
 import { ProjectNav } from "@/components/ProjectNav";
-import { DemoBadge, EmptyState, PageHead, StatusPill } from "@/components/ui";
+import { EmptyState, PageHead, StatusPill } from "@/components/ui";
 import { projectAccess } from "@/lib/access";
-import { currentUser } from "@/lib/auth/session";
+import { requireSession } from "@/lib/auth/session";
 import { MEASUREMENT_STATES, roleLabel } from "@/lib/labels";
+import { myProjectMembership } from "@/lib/tenancy";
 
 export default async function ProjectPage({ params }: { params: Promise<{ tenantId: string; projectId: string }> }) {
-  const [{ tenantId, projectId }, user] = await Promise.all([params, currentUser()]);
-  if (!user) redirect("/acceso");
-  const access = projectAccess(user, tenantId, projectId);
+  const [{ tenantId, projectId }, { user, supabase }] = await Promise.all([params, requireSession()]);
+  // The slugs in the URL are only a lookup key: RLS returns the row only to a member, and the
+  // Core decides the permissions for that membership's role.
+  const access = projectAccess(await myProjectMembership(supabase, user.id, tenantId, projectId));
   // Unknown project and no membership look the same: no information about other tenants leaks.
   if (!access) notFound();
   const { project, role, permissions } = access;
@@ -17,8 +19,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ tenant
 
   return (
     <>
-      <PageHead title={project.name}><DemoBadge /></PageHead>
-      <p className="muted small">{project.domain} · {project.vertical} · tu rol: {roleLabel(role)}</p>
+      <PageHead title={project.name} />
+      <p className="muted small">{project.tenantName}{project.domain ? ` · ${project.domain}` : ""} · tu rol: {roleLabel(role)}</p>
       <ProjectNav base={base} current={null} />
 
       <section aria-labelledby="s-estado" className="section">
@@ -44,7 +46,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ tenant
 
       <section aria-labelledby="s-permisos" className="section">
         <h2 id="s-permisos">Tus permisos en este proyecto</h2>
-        <p className="muted small">Los decide el servidor con los contratos del Core; ocultar un botón no es autorización.</p>
+        <p className="muted small">Los decide el servidor con tu rol guardado en la base de datos y los contratos del Core; ocultar un botón no es autorización.</p>
         <PermissionTable permissions={permissions} role={role} />
       </section>
     </>
