@@ -24,6 +24,15 @@
 
   La CI levanta ese stack en cada ejecución (job `e2e`).
 
+### Decisiones
+
+- **Aprobada por el propietario:** correo y contraseña como método inicial de acceso.
+- **Propuestas, pendientes de revisión** ([ADR 0003 §1 y §5](adr/0003-auth-supabase-y-tenancy.md)):
+  - registro abierto solo para las pruebas iniciales, cerrado antes de exponer la plataforma a clientes;
+  - roles de organización `owner`/`member`;
+  - solo el rol de proyecto `owner` edita el proyecto.
+- **Fuera de esta fase:** invitaciones, MFA de usuarios y recuperación de contraseña.
+
 ## 2. Probar en local (sin tocar el proyecto alojado)
 
 Requisitos: Docker en marcha y Node ≥ 22.12.
@@ -52,12 +61,24 @@ Son pasos **del propietario** y ninguno está hecho. Sin ellos la aplicación no
    - Contraseñas: longitud mínima 12 y requisito «letters and digits», los mismos valores que `supabase/config.toml`.
    - **Site URL** y **Redirect URLs:** solo `http://localhost:3000/auth/confirm` mientras no haya despliegue.
    - **Plantilla «Confirm signup»:** el enlace debe ser `{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=email`, como `supabase/templates/confirmation.html`. Con la plantilla por defecto el enlace no pasa por `/auth/confirm` y la sesión no se crea en el servidor.
-   - **Registro abierto o por invitación:** decidirlo. En el plan Free, el SMTP integrado tiene límites de envío muy bajos. Para más que pruebas puntuales hace falta un SMTP propio, lo que implica un proveedor externo y otra decisión.
-4. **Aplicar la migración.** Elegir una opción y hacerlo el propietario:
-   - **SQL Editor:** pegar `supabase/migrations/20260928120000_core_9_1_tenancy.sql` completo.
-   - **CLI desde su máquina:** `supabase login`, `supabase link --project-ref <ref>` y después `supabase db push`, revisando antes `supabase db push --dry-run`.
+   - **Registro abierto (decisión propuesta):** solo durante las pruebas iniciales. **Antes de exponer la plataforma a clientes hay que cerrarlo**: desactivar «Allow new users to sign up» en Authentication y pasar a invitaciones en una fase posterior.
+     - En el plan Free, el SMTP integrado tiene límites de envío muy bajos. Para más que pruebas puntuales hace falta un SMTP propio, que implica un proveedor externo y otra decisión.
+4. **Aplicar la migración, solo con el flujo versionado de la Supabase CLI.**
+   - No se usa el SQL Editor para cambios de esquema. Una migración pegada a mano no queda registrada en el historial de migraciones del proyecto, y el alojado y el repositorio dejarían de coincidir.
+   - El propietario ejecuta estos pasos desde su máquina, con la CLI fijada en el repositorio y el PR de CORE-9.1 ya fusionado en `main`. Claude no los ejecuta.
 
-   Después, en **Database → Advisors**, revisar que no haya avisos de seguridad (RLS, `search_path`, funciones expuestas).
+   ```bash
+   git switch main && git pull                      # migraciones revisadas y fusionadas
+   npx supabase@2.118.0 login                       # sesión del propietario en el navegador
+   npx supabase@2.118.0 link --project-ref <ref>    # <ref> del proyecto plataforma-rubik-seo-geo-dev
+   npx supabase@2.118.0 migration list --linked     # historial local frente al remoto
+   npx supabase@2.118.0 db push --dry-run           # SOLO muestra qué se aplicaría
+   ```
+
+   1. **Inspeccionar la salida de `--dry-run`** antes de continuar. Debe listar únicamente `20260928120000_core_9_1_tenancy.sql`. No debe proponer seed (no uses `--include-seed`) ni migraciones desconocidas; si aparece algo más, se para y se revisa.
+   2. **Aplicación explícita por el propietario:** `npx supabase@2.118.0 db push`. La CLI pide confirmación antes de aplicar.
+   3. **Comprobar:** `npx supabase@2.118.0 migration list --linked` debe mostrar la migración en local y en remoto. En el panel, **Database → Advisors** no debe tener avisos de seguridad (RLS, `search_path`, funciones expuestas).
+   4. **Contraseña de la base de datos:** la CLI puede pedirla. Se escribe solo en la terminal del propietario: nunca en el repositorio, en `.env*`, en el chat ni en un PR.
 5. **Comprobación manual en el proyecto alojado:**
    1. Poner la URL del proyecto y la **clave publicable** (`sb_publishable_…`, en Settings → API Keys) en el `.env.local` de su máquina. Nunca la secreta.
    2. Ejecutar `npm run dev`.

@@ -283,13 +283,52 @@ El commit siguiente solo registra estos runs en ROADMAP y HANDOFF; su CI consta 
 
 **Decisiones y tareas del propietario:**
 
-1. Revisar el PR de CORE-9.1 y la [ADR 0003](adr/0003-auth-supabase-y-tenancy.md). En particular:
-   - el método **correo y contraseña**;
-   - el mapeo de roles (roles de organización `owner`/`member`; edición del proyecto solo para `owner`);
-   - si el registro es abierto o por invitación;
-   - que los identificadores (`slug`) sean globales.
-2. Configurar Auth en el proyecto alojado y aplicar la migración él mismo, siguiendo [SETUP-SUPABASE §3](SETUP-SUPABASE.md): MFA de la cuenta, confirmación de correo, URLs de redirección, plantilla de confirmación y SMTP si hace falta.
-3. Decidir MFA para usuarios y la recuperación de contraseña (requiere SMTP propio).
-4. Las tareas de hosting siguen igual ([HOSTING](HOSTING.md)).
+*Actualizadas en la sesión 5b; ver debajo.*
 
 **Siguiente bloque:** CORE-9.2 (persistencia, auditoría y provenance), tras la revisión de CORE-9.1.
+
+## Sesión 5b — ajustes de revisión del PR #2 (28/09/2026)
+
+**Punto de partida verificado:**
+
+- PR #2 abierto, con HEAD local y remoto en `019fe4b` y su CI [36438699451](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36438699451) en verde.
+- `main` sigue en `a34746e`.
+
+**Decisión del propietario registrada:** **correo y contraseña es el método inicial de acceso** (aprobado). Sale de la lista de decisiones pendientes en la ADR 0003, SETUP-SUPABASE, ROADMAP, este HANDOFF y la descripción del PR #2.
+
+**Hecho:**
+
+1. **Error genérico al crear.**
+   - Si falla la creación de una organización o de un proyecto, el formulario muestra siempre «No se ha podido crear. Revisa los datos o prueba con otro identificador.» (código `no-creado`).
+   - Se eliminó el mensaje «Ese identificador ya está en uso», de modo que no se confirma si un `slug` existe.
+   - Pruebas nuevas:
+     - `tests/security-static.test.ts`: la acción no distingue códigos de error, y ningún mensaje dice que un identificador esté ocupado;
+     - e2e «a taken organization identifier gets a generic error that does not confirm it exists»: una cuenta sin organizaciones intenta usar el identificador de otro tenant.
+   - El riesgo residual (se puede sospechar, pero no confirmar) queda documentado en la ADR 0003.
+2. **SETUP-SUPABASE §3:**
+   - Eliminada la opción de aplicar la migración pegándola en el SQL Editor.
+   - Documentado el flujo versionado con la CLI fijada: `link`, `migration list --linked`, inspección de `db push --dry-run`, aplicación explícita con `db push` por el propietario y comprobación posterior.
+   - Claude **no** ha ejecutado `db push` ni ha accedido al proyecto alojado.
+3. **Decisiones propuestas** registradas en la ADR 0003 §1 y §5 y en SETUP-SUPABASE:
+   - registro abierto solo para las pruebas iniciales, cerrado antes de exponer la plataforma a clientes;
+   - roles de organización `owner`/`member`;
+   - solo el rol de proyecto `owner` edita el proyecto.
+
+   No se implementan invitaciones, MFA de usuarios ni recuperación de contraseña en esta fase.
+
+**Pruebas locales** (Windows, Node 24.14.1, stack local de Supabase):
+
+- `npm run verify`: en verde, con Vitest 7 ficheros y 41/41.
+- `npm run test:db`: 52/52.
+- `npm run test:integration`: 9/9.
+- `E2E_PORT=3227 npx playwright test`: 72 pasan y 18 se omiten. Los 9 flujos de navegador se ejecutan una vez, en escritorio.
+
+**PR y CI:** se registran en la tabla del PR #2, debajo.
+
+**Decisiones y tareas del propietario (vigentes):**
+
+1. Revisar el PR #2 y la [ADR 0003](adr/0003-auth-supabase-y-tenancy.md): confirmar o cambiar las tres decisiones propuestas y aceptar el riesgo residual de los identificadores globales.
+2. Tras el merge, configurar Auth en el proyecto alojado y aplicar la migración él mismo con el flujo de la CLI y `--dry-run` ([SETUP-SUPABASE §3](SETUP-SUPABASE.md)). Incluye: MFA de la cuenta, confirmación de correo, URLs de redirección, plantilla de confirmación y SMTP si hace falta.
+3. Cerrar el registro abierto antes de exponer la plataforma a clientes.
+4. En fases posteriores: invitaciones, MFA de usuarios y recuperación de contraseña (requiere SMTP propio).
+5. Las tareas de hosting siguen igual ([HOSTING](HOSTING.md)).

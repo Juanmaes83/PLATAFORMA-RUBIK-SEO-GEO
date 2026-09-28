@@ -20,7 +20,8 @@ export const SIGNUP_ERRORS: Record<string, string> = {
 export const TENANCY_ERRORS: Record<string, string> = {
   "datos-organizacion": "Revisa el nombre y el identificador de la organización.",
   "datos-proyecto": "Revisa el nombre, el identificador y el dominio del proyecto.",
-  "identificador-ocupado": "Ese identificador ya está en uso. Elige otro.",
+  // Generic on purpose: it must not reveal whether an identifier already exists elsewhere.
+  "no-creado": "No se ha podido crear. Revisa los datos o prueba con otro identificador.",
   "no-permitido": "No tienes permiso para hacer eso en esa organización.",
 };
 

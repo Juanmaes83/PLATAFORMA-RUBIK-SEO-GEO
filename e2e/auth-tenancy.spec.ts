@@ -124,6 +124,23 @@ test("an owner creates a project; a manipulated organization field is rejected b
   await expect(page.getByText("Intruso")).toHaveCount(0);
 });
 
+test("a taken organization identifier gets a generic error that does not confirm it exists", async ({ page }) => {
+  await signIn(page, "newcomer");
+  await page.goto("/organizaciones");
+  const form = page.locator("form", { has: page.getByRole("button", { name: "Crear organización" }) });
+  // OTHER_TENANT exists in another tenant that the newcomer cannot see.
+  await form.getByLabel("Nombre").fill("Intento");
+  await form.getByLabel("Identificador").fill(OTHER_TENANT);
+  await form.getByRole("button", { name: "Crear organización" }).click();
+  const alert = page.locator("main").getByRole("alert");
+  await expect(alert).toHaveText("No se ha podido crear. Revisa los datos o prueba con otro identificador.");
+  await expect(alert).not.toContainText(/en uso|existe|ocupad|ya hay/i);
+  await expect(page).toHaveURL(/\/organizaciones\?error=no-creado$/);
+  // Nothing was created and nothing about the other tenant is shown.
+  await expect(page.getByText("Todavía no perteneces a ninguna organización.")).toBeVisible();
+  await expect(page.getByText("Otra agencia")).toHaveCount(0);
+});
+
 test("a member who is not an owner gets no creation form and cannot create projects", async ({ page }) => {
   await signIn(page, "analyst");
   await page.goto("/organizaciones");

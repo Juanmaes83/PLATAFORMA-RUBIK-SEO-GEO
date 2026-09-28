@@ -9,6 +9,8 @@ import { isSlug, normalizeDomain } from "./tenancy-rules";
 // signed-in user may insert (anyone signed in can create an organization and becomes its
 // owner; only an organization owner can create projects in it). A manipulated hidden field
 // pointing at another organization is rejected by the database, not by this code.
+// A failed insert always gives the same generic error: in particular, a taken identifier
+// (unique violation) is not reported as such, so the form never confirms that a slug exists.
 const field = (formData: FormData, name: string) => String(formData.get(name) ?? "").trim();
 
 export async function createOrganization(formData: FormData): Promise<void> {
@@ -18,7 +20,7 @@ export async function createOrganization(formData: FormData): Promise<void> {
   const name = field(formData, "name");
   if (!isSlug(slug) || !name || name.length > 120) redirect("/organizaciones?error=datos-organizacion");
   const { error } = await supabase.from("organizations").insert({ slug, name });
-  if (error) redirect(`/organizaciones?error=${error.code === "23505" ? "identificador-ocupado" : "no-permitido"}`);
+  if (error) redirect("/organizaciones?error=no-creado");
   redirect("/organizaciones?creada=organizacion");
 }
 
@@ -36,6 +38,6 @@ export async function createProject(formData: FormData): Promise<void> {
   const { data: org } = await supabase.from("organizations").select("id").eq("slug", organizationSlug).maybeSingle();
   if (!org) redirect("/organizaciones?error=no-permitido");
   const { error } = await supabase.from("projects").insert({ organization_id: org.id, slug, name, domain });
-  if (error) redirect(`/organizaciones?error=${error.code === "23505" ? "identificador-ocupado" : "no-permitido"}`);
+  if (error) redirect("/organizaciones?error=no-creado");
   redirect(`/proyectos/${organizationSlug}/${slug}`);
 }

@@ -12,6 +12,21 @@ const read = (f: string) => readFileSync(f, "utf8");
 const rel = (f: string) => relative(root, f).replace(/\\/g, "/");
 const migrations = readdirSync(join(root, "supabase", "migrations")).filter((f) => f.endsWith(".sql")).map((f) => read(join(root, "supabase", "migrations", f))).join("\n");
 
+describe("creation errors never confirm that an identifier exists", () => {
+  it("a failed insert maps to one generic code, whatever the database error was", () => {
+    const actions = read(join(root, "src", "lib", "tenancy-actions.ts"));
+    expect(actions).not.toMatch(/23505|identificador-ocupado|error\.code/);
+    expect(actions.match(/if \(error\) redirect\("\/organizaciones\?error=no-creado"\);/g)).toHaveLength(2);
+  });
+
+  it("no tenancy message says an identifier is taken", async () => {
+    const { TENANCY_ERRORS } = await import("@/lib/auth/messages");
+    expect(Object.keys(TENANCY_ERRORS)).not.toContain("identificador-ocupado");
+    expect(TENANCY_ERRORS["no-creado"]).toBe("No se ha podido crear. Revisa los datos o prueba con otro identificador.");
+    for (const text of Object.values(TENANCY_ERRORS)) expect(text).not.toMatch(/en uso|existe|ocupad|ya hay/i);
+  });
+});
+
 describe("no fictitious access path remains", () => {
   it("the demo fixtures and demo cookie are gone", () => {
     expect(existsSync(join(root, "src", "lib", "fixtures"))).toBe(false);

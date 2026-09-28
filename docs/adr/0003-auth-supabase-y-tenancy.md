@@ -1,6 +1,11 @@
 # ADR 0003 · Supabase Auth, organizaciones, proyectos y aislamiento por organización
 
-**Estado:** propuesta en CORE-9.1 (pendiente de revisión del propietario). **Fecha:** 28/09/2026.
+**Estado:** en revisión en CORE-9.1 ([PR #2](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/2)).
+
+- **Aprobado por el propietario:** correo y contraseña como método inicial de acceso (§1).
+- **Propuesto, pendiente de revisión:** el resto (§1, «Decisiones propuestas»).
+
+**Fecha:** 28/09/2026.
 **Sustituye:** el §5 de la [ADR 0001](0001-stack-y-dependencia-core.md) (autenticación de demostración de CORE-9.0).
 
 ## Versiones y documentación comprobadas (28/09/2026)
@@ -22,18 +27,23 @@ Patrones adoptados de esa documentación, sin APIs obsoletas:
 
 ## Decisiones
 
-### 1. Método de acceso: correo y contraseña
+### 1. Método de acceso: correo y contraseña (aprobado por el propietario)
 
+- **Aprobación:** el propietario aprobó en el PR #2 el correo y contraseña como **método inicial** de acceso.
 - **Por qué:** es el método más sencillo de probar de principio a fin en local y en CI, con el Mailpit del stack local para el correo de confirmación.
 - **Qué incluye:**
   - Registro, confirmación de correo obligatoria (como en el proyecto alojado), inicio y cierre de sesión.
   - Mínimo de 12 caracteres con letras y números, en `supabase/config.toml` y también en el formulario.
-- **Qué queda fuera:**
+- **Qué queda fuera de esta fase** (no se implementa en CORE-9.1):
   - Proveedores OAuth.
   - Enlace mágico.
-  - MFA. Qué factores ofrece cada plan de Supabase se comprueba en su panel antes de decidir. Queda como decisión del propietario.
+  - Invitaciones: envían correos a terceros.
+  - MFA de usuarios. Qué factores ofrece cada plan de Supabase se comprueba en su panel antes de decidir.
   - Recuperación de contraseña. Envía correos y necesita SMTP propio en el proyecto alojado.
-- **Pendiente de confirmar por el propietario:** este método, la política de registro abierto o por invitación, y MFA.
+- **Decisiones propuestas, pendientes de revisión del propietario:**
+  1. **Registro abierto solo para las pruebas iniciales.** Cualquiera puede crear una cuenta (y una organización) mientras la plataforma solo se usa en pruebas. **Se cierra antes de exponer la plataforma a clientes**, por ejemplo desactivando el registro en Supabase Auth y pasando a invitaciones en una fase posterior. Ese cierre es un requisito previo a cualquier acceso de clientes.
+  2. **Roles de organización `owner`/`member`** (§5).
+  3. **Solo el rol de proyecto `owner` edita el proyecto** (§5).
 
 ### 2. Toda la autenticación ocurre en el servidor
 
@@ -99,8 +109,8 @@ Con estas FK compuestas, una fila no puede mezclar un proyecto de una organizaci
   - `project_members.role` guarda **exactamente** los roles humanos de `platform-contracts` `ROLES`: `owner`, `account-manager`, `analyst`, `client-approver` y `viewer`.
   - `system` e `ai` no se asignan a personas (lo impide un `CHECK`). Los usarán procesos de servidor en etapas posteriores.
 - **Permisos por acción:** los decide **el Core** (`authorize`/`MATRIX`) con un actor construido desde la fila de la base de datos: `{ role, id: auth uid, memberships: [{ tenantId: org.slug, projectId: project.slug }] }`. La plataforma no mantiene una matriz propia.
-- **Rol de organización** (`owner` | `member`): el Core no lo define. Es solo **administrativo**: crear proyectos y gestionar quién pertenece. No da acceso a los datos de ningún proyecto. Se corresponde con la acción `manage-members` del Core, que `MATRIX` reserva a `owner`.
-- **Edición de los datos descriptivos del proyecto:** el Core no tiene una acción específica. Se limita a quien tiene rol de proyecto `owner`, el único con `manage-members`, `manage-connectors` y `delete-data`. Es la opción más restrictiva compatible.
+- **Rol de organización** (`owner` | `member`), *decisión propuesta*: el Core no lo define. Es solo **administrativo**: crear proyectos y gestionar quién pertenece. No da acceso a los datos de ningún proyecto. Se corresponde con la acción `manage-members` del Core, que `MATRIX` reserva a `owner`.
+- **Edición de los datos descriptivos del proyecto**, *decisión propuesta*: el Core no tiene una acción específica. Se limita a quien tiene rol de proyecto `owner`, el único con `manage-members`, `manage-connectors` y `delete-data`. Es la opción más restrictiva compatible.
 - **Aprobaciones:** `execute-approved-action` sigue denegado siempre, porque no existen aprobaciones humanas registradas (CORE-9.2/9.8).
 - **Doble barrera:** RLS decide **qué filas existen** para el usuario, y el Core decide **qué acciones** permite su rol. Un proyecto de otro tenant, uno inexistente o un scope mal formado dan el mismo 404.
 
@@ -110,7 +120,7 @@ Con estas FK compuestas, una fila no puede mezclar un proyecto de una organizaci
 |---|---|---|
 | pgTAP (52 aserciones) | `supabase/tests/rls_tenancy.test.sql` · `npm run test:db` | RLS en todas las tablas; `anon` sin privilegios; `WITH CHECK`; ninguna política sobre metadatos; lecturas y escrituras entre tenants; manipulación de IDs (FK compuestas); usuario sin pertenencia con `user_metadata` falsificado; roles; último titular |
 | Integración (9) | `tests/integration` · `npm run test:integration` | Registro con confirmación real vía Mailpit, inicio y cierre de sesión (refresh token revocado), contraseñas débiles o erróneas, peticiones anónimas, lecturas y escrituras cruzadas y manipulación de IDs por la Data API, roles, esquema `private` no expuesto |
-| E2E (Playwright) | `e2e/auth-tenancy.spec.ts`, `e2e/visual.spec.ts` | Formularios reales; rutas protegidas sin sesión; cookies falsificadas; 404 idéntico entre otro tenant e inexistente; campo oculto manipulado rechazado por RLS; permisos según el rol guardado; comprobaciones visuales y de accesibilidad a 360, 390 y 1280 px |
+| E2E (Playwright) | `e2e/auth-tenancy.spec.ts`, `e2e/visual.spec.ts` | Formularios reales; rutas protegidas sin sesión; cookies falsificadas; 404 idéntico entre otro tenant e inexistente; campo oculto manipulado rechazado por RLS; error genérico al usar un identificador de otro tenant; permisos según el rol guardado; comprobaciones visuales y de accesibilidad a 360, 390 y 1280 px |
 | Unitarias y estáticas | `tests/*.test.ts` · `npm test` | Configuración y rechazo de claves secretas, redirecciones seguras, mapeo de rol a decisiones del Core, ausencia de fixtures, metadatos o claves secretas en el código |
 
 Una mutación de comprobación (política de lectura de `projects` cambiada a `using (true)`) hace fallar 4 aserciones pgTAP y 4 pruebas de integración.
@@ -120,15 +130,18 @@ Una mutación de comprobación (política de lectura de `projects` cambiada a `u
 - **Migraciones versionadas en el repositorio:**
   - Solo se aplican al stack local (`supabase start` / `db reset`) y en la CI.
   - **No se han aplicado al proyecto alojado**, ni se ha ejecutado `db push`.
-  - Aplicarlas es un paso manual del propietario ([SETUP-SUPABASE](../SETUP-SUPABASE.md)).
+  - Aplicarlas es un paso manual del propietario, con la CLI versionada y una revisión previa de `supabase db push --dry-run` ([SETUP-SUPABASE §3](../SETUP-SUPABASE.md)).
 - **Pendiente para etapas posteriores:**
   - Gestionar miembros desde la interfaz (invitaciones por correo).
   - Recuperar contraseña.
-  - MFA.
+  - MFA de usuarios.
   - Auditoría (CORE-9.2).
 - **Identificadores (`slug`):**
   - Son globales y aparecen en las URLs.
-  - Crear una organización con un identificador ya usado revela que existe (error 23505), aunque no qué contiene. Es un riesgo menor, aceptado para esta fase.
+  - Si falla la creación de una organización o de un proyecto, el formulario muestra siempre el mismo error genérico: «No se ha podido crear. Revisa los datos o prueba con otro identificador.».
+    - No distingue un identificador ocupado (23505) de otros fallos, así que no confirma que exista.
+    - Lo comprueban `tests/security-static.test.ts` y el e2e «a taken organization identifier…».
+  - **Riesgo residual:** alguien que envía un identificador válido y ve fallar la creación puede sospechar que está ocupado, aunque la aplicación no lo confirme y no muestre nada de la otra organización. Eliminarlo del todo exigiría identificadores no globales, un cambio de modelo que queda fuera de esta fase.
 
 ## Reversibilidad
 
