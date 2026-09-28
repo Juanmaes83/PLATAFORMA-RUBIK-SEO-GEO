@@ -1,15 +1,15 @@
 # Supabase: estado real, pruebas locales y pasos manuales del propietario (CORE-9.1)
 
-**Nadie debe pegar claves en el chat, en issues ni en PRs.** Claude no crea proyectos, no cambia la configuración de la cuenta, no aplica migraciones al proyecto alojado y no ejecuta `db push`.
+**Nadie debe pegar claves en el chat, en issues ni en PRs.** El propietario administra el proyecto alojado y aplica las migraciones versionadas desde su terminal; Codex/Claude no reciben claves ni ejecutan `db push`.
 
 ## 1. Estado a 28/09/2026
 
-### Proyecto alojado (lo ha creado el propietario; Claude no lo ha tocado)
+### Proyecto alojado (administrado por el propietario; estado actualizado el 28/09/2026)
 
-- **Proyecto:** `plataforma-rubik-seo-geo-dev`, en la organización `Rubik Sota`. Plan Free, región West EU (Paris / eu-west-3), estado saludable. CORE-9.1 ya está fusionado en `main` mediante PR #2 (`debbb7078ea1af4931dea59d2169f8eda7a9967b`); su CI posterior al merge [36445304853](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36445304853) pasó. **Según el propietario** (no verificado por Claude, que no accede al proyecto alojado), la migración de CORE-9.1 `20260928120000_core_9_1_tenancy.sql` ya está aplicada en el proyecto alojado. `db advisors --linked --type security --level info` informa de `public.rls_auto_enable()`, detallado en §5.
+- **Proyecto:** `plataforma-rubik-seo-geo-dev`, en la organización `Rubik Sota`. Plan Free, región West EU (Paris / eu-west-3), estado saludable. CORE-9.1 ya está fusionado en `main` mediante PR #2 (`debbb7078ea1af4931dea59d2169f8eda7a9967b`); su CI posterior al merge [36445304853](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36445304853) pasó. Según las salidas de CLI compartidas por el propietario el 28/09/2026, las migraciones `20260928120000_core_9_1_tenancy.sql` y `20260928150000_rls_auto_enable_privileges.sql` están aplicadas en el proyecto alojado. Tras la segunda, `db advisors --linked --type security --level info` devuelve **No issues found**. Codex no accedió directamente al proyecto.
 - **Data API:** activada. La exposición automática de tablas está desactivada y la activación automática de RLS está configurada.
 - **Lo que todavía no tiene:** datos de clientes ni conexión con GitHub.
-- **Pendiente de aplicar:** la migración `20260928150000_rls_auto_enable_privileges.sql` (§5). La aplica el propietario.
+- **Aplicada y verificada:** la migración `20260928150000_rls_auto_enable_privileges.sql` (§5), por el propietario con Supabase CLI. El historial remoto coincide con el local y el Security Advisor no reporta incidencias.
 - **Lo que no consta como configurado:** Auth (métodos, URLs de redirección, SMTP, plantillas) y MFA de la cuenta. Este documento no afirma que lo estén.
 
 ### Implementado y probado solo en local (CORE-9.1 fusionado en `main`)
@@ -53,7 +53,7 @@ npx supabase@2.118.0 status -o env   # API_URL y PUBLISHABLE_KEY para .env.local
 
 ## 3. Qué falta para probar Auth contra el proyecto alojado
 
-Son pasos **del propietario** y ninguno está hecho. Sin ellos la aplicación no se ha probado contra el proyecto alojado.
+La migración de seguridad descrita en §5 ya está aplicada. Siguen pendientes las tareas de cuenta/Auth y la prueba manual de aislamiento; hasta completarlas, la aplicación no se considera validada de extremo a extremo contra el proyecto alojado.
 
 1. **CORE-9.1 ya está fusionado.** Confirma que tu copia está en `main` y actualizada antes de seguir; la migración `20260928120000_core_9_1_tenancy.sql` ya debe estar en `supabase/migrations/`.
 2. **Seguridad de la cuenta:** activar MFA en la cuenta de Supabase y revisar quién tiene acceso a la organización `Rubik Sota`.
@@ -68,22 +68,7 @@ Son pasos **del propietario** y ninguno está hecho. Sin ellos la aplicación no
    - **Plantilla «Confirm signup»:** el enlace debe ser `{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=email`, como `supabase/templates/confirmation.html`. Con la plantilla por defecto el enlace no pasa por `/auth/confirm` y la sesión no se crea en el servidor.
    - **Registro abierto (decisión aprobada):** solo durante las pruebas iniciales. **Antes de exponer la plataforma a clientes hay que cerrarlo**: desactivar «Allow new users to sign up» en Authentication y pasar a invitaciones en una fase posterior.
      - En el plan Free, el SMTP integrado tiene límites de envío muy bajos. Para más que pruebas puntuales hace falta un SMTP propio, que implica un proveedor externo y otra decisión.
-4. **Aplicar la migración, solo con el flujo versionado de la Supabase CLI.**
-   - No se usa el SQL Editor para cambios de esquema. Una migración pegada a mano no queda registrada en el historial de migraciones del proyecto, y el alojado y el repositorio dejarían de coincidir.
-   - El propietario ejecuta estos pasos desde su máquina, con la CLI fijada en el repositorio y el PR de CORE-9.1 ya fusionado en `main`. Claude no los ejecuta.
-
-   ```bash
-   git switch main && git pull                      # migraciones revisadas y fusionadas
-   npx supabase@2.118.0 login                       # sesión del propietario en el navegador
-   npx supabase@2.118.0 link --project-ref <ref>    # <ref> del proyecto plataforma-rubik-seo-geo-dev
-   npx supabase@2.118.0 migration list --linked     # historial local frente al remoto
-   npx supabase@2.118.0 db push --dry-run           # SOLO muestra qué se aplicaría
-   ```
-
-   1. **Inspeccionar la salida de `--dry-run`** antes de continuar. Debe listar únicamente las migraciones del repositorio que aún no estén en remoto (en este momento, `20260928150000_rls_auto_enable_privileges.sql`; la de CORE-9.1 ya consta como aplicada). No debe proponer seed (no uses `--include-seed`) ni migraciones desconocidas; si aparece algo más, se para y se revisa.
-   2. **Aplicación explícita por el propietario:** `npx supabase@2.118.0 db push`. La CLI pide confirmación antes de aplicar.
-   3. **Comprobar:** `npx supabase@2.118.0 migration list --linked` debe mostrar la migración en local y en remoto. En el panel, **Database → Advisors** no debe tener avisos de seguridad (RLS, `search_path`, funciones expuestas).
-   4. **Contraseña de la base de datos:** la CLI puede pedirla. Se escribe solo en la terminal del propietario: nunca en el repositorio, en `.env*`, en el chat ni en un PR.
+4. **Migración de seguridad aplicada:** el propietario ejecutó `npx supabase@2.118.0 db push` el 28/09/2026 después de comprobar que `--dry-run` proponía únicamente `20260928150000_rls_auto_enable_privileges.sql`. `migration list --linked` muestra las versiones `20260928120000` y `20260928150000` tanto en local como en remoto; `db advisors --linked --type security --level info` devuelve **No issues found**. La salida compartida confirma la ejecución; Codex no accedió al proyecto alojado.
 5. **Comprobación manual en el proyecto alojado:**
    1. Poner la URL del proyecto y la **clave publicable** (`sb_publishable_…`, en Settings → API Keys) en el `.env.local` de su máquina. Nunca la secreta.
    2. Ejecutar `npm run dev`.
@@ -125,18 +110,18 @@ Son pasos **del propietario** y ninguno está hecho. Sin ellos la aplicación no
 - **`service_role`:** conserva `EXECUTE`, porque la corrección pedida no lo incluye. La aplicación no usa ese rol. Revocárselo sería otra migración, si el propietario lo decide.
 - **Recrear la función desde Studio:** si alguien la borra y la vuelve a crear, recupera los permisos abiertos. `CREATE OR REPLACE` conserva el ACL.
 
-### Aplicarla (propietario, con el flujo de §3.4)
+### Aplicación y verificación (completadas por el propietario el 28/09/2026)
 
-1. `migration list --linked`: debe verse la de CORE-9.1 en remoto y `20260928150000` solo en local.
-2. `db push --dry-run`: debe proponer solo `20260928150000_rls_auto_enable_privileges.sql`.
-3. `db push`, con aplicación explícita.
-4. `npx supabase@2.118.0 db advisors --linked --type security --level info`: el aviso de `public.rls_auto_enable()` debe desaparecer.
+1. `migration list --linked`: el propietario confirmó que `20260928120000` y `20260928150000` aparecen en local y remoto.
+2. `db push --dry-run`: propuso únicamente `20260928150000_rls_auto_enable_privileges.sql`.
+3. `db push`: terminó con `Applying migration ...` y `Finished supabase db push`.
+4. `npx supabase@2.118.0 db advisors --linked --type security --level info`: resultado **No issues found**; desaparecieron los avisos sobre `public.rls_auto_enable()`.
 5. **Comprobación opcional en el SQL Editor**, solo lectura:
 
    ```sql
    select proacl from pg_proc where oid = 'public.rls_auto_enable()'::regprocedure;
    ```
 
-   Debe mostrar `{postgres=X/postgres,service_role=X/postgres}`.
+   Se espera `{postgres=X/postgres,service_role=X/postgres}`.
 
 **Nota:** `db advisors --local` de la CLI 2.118.0 no informa de este aviso ni siquiera con la plantilla abierta (comprobado el 28/09/2026). Por eso la comprobación automática es pgTAP, y la CI reproduce el estado de Studio antes de aplicar la migración.
