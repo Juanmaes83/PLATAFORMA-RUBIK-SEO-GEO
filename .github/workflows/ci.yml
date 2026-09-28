@@ -79,7 +79,7 @@ jobs:
           test $code -eq 1 || { echo "direct next start accepted a secret key (exit $code)"; exit 1; }
 
   e2e:
-    name: e2e (local Supabase: RLS, auth, responsive, a11y)
+    name: "e2e (local Supabase: RLS, auth, responsive, a11y)"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
