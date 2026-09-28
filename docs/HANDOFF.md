@@ -455,6 +455,14 @@ Sin cambios de código, así que las pruebas son las de la sesión 5b. `npm run 
 - `E2E_PORT=3227 npx playwright test`: 72 pasan y 18 se omiten.
 - `db advisors --local --type security --level info` (CLI 2.118.0) **no** detecta este aviso, ni siquiera con la plantilla abierta. Por eso no se usa como prueba.
 
+**PR y CI:** [PR #3](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/3) contra `main`, sin merge.
+
+| Commit | Contenido | Run | Resultado |
+|---|---|---|---|
+| `32fcfd5` | Migración, pgTAP, fixture de Studio, paso de CI y documentación | [36470062130](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36470062130) | ✅ Verde. `verify` en Node 22 y 24. En `e2e`: pgTAP 74/74; con el estado de Studio, pgTAP falla como se espera (tests 9–11, 13–14 y 19); tras la migración aplicada dos veces, 74/74; integración y Playwright 72 pasan y 18 se omiten |
+
+El commit que registra este run solo cambia ROADMAP y HANDOFF. Su CI, la del HEAD final, consta en la descripción del PR #3 y en su pestaña Checks.
+
 **No hecho, a propósito:** la migración nueva no se ha aplicado al proyecto alojado, no se ha ejecutado `db push`, no se ha accedido al proyecto alojado, y no hay merge ni despliegue.
 
 **Tareas del propietario:**
