@@ -36,7 +36,7 @@
   - con una cookie de usuario desconocido, 307.
 - `GIT_SSH_COMMAND=false npm ci` con la caché vacía instala el Core por HTTPS.
 
-**CI:** consta en el PR (se actualiza al terminar el run).
+**CI:** PR [#1](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/1), [run 36411911462](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36411911462) del HEAD `728ac7d` en verde. Jobs Node 22.23.2 y 24.21.0: instalación con `npm ci` (el Core se instala por HTTPS), pin, secretos, lint, typecheck, 19/19 pruebas, build y smoke de `/api/salud`, 307 y 404.
 
 **Límites:**
 

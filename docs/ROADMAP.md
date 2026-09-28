@@ -4,7 +4,7 @@ Fuente de estado de este repositorio. El plan global y sus criterios están en [
 
 | Etapa | Estado | Notas |
 |---|---|---|
-| **CORE-9.0 · Descubrimiento y base** | 🟡 PR abierto (`feat/core-9-0-bootstrap`), pendiente de CI y revisión | Next.js 16, Core fijado en `20e4f4e`, autenticación mock, usuarios ficticios, sin persistencia ni servicios. Ver [HANDOFF](HANDOFF.md) |
+| **CORE-9.0 · Descubrimiento y base** | 🟡 [PR #1](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/1) abierto (`feat/core-9-0-bootstrap`); CI [run 36411911462](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36411911462) en verde con Node 22/24; pendiente de revisión del propietario | Next.js 16, Core fijado en `20e4f4e`, autenticación mock, usuarios ficticios, sin persistencia ni servicios. Ver [HANDOFF](HANDOFF.md) |
 | CORE-9.1 · Identidad, organizaciones y aislamiento | ⏳ Bloqueada por tareas del propietario | Supabase: proyecto de prueba, región, plan, MFA y RLS ([SETUP-SUPABASE](SETUP-SUPABASE.md)) |
 | CORE-9.2 · Persistencia, auditoría y provenance productiva | ⏳ | Depende de 9.1 y de la decisión de claves y retención |
 | CORE-9.3 · Importación manual | ⏳ | Primer flujo con datos (fixtures anonimizados) |
