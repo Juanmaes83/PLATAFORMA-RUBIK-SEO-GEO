@@ -149,4 +149,4 @@
 
 **Pendiente de revisión visual:** en móvil la lista de permisos es larga (13 bloques). Se puede compactar si el propietario lo pide.
 
-**CI:** pendiente del run de este push. Se registra en el PR.
+**CI:** [run 36418239963](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36418239963) del HEAD `de4c3da` en verde: `verify` en Node 22.23.2 y 24.21.0, y `ui` 51/51 con el artefacto de capturas. El commit siguiente solo registra este run en la documentación; su CI consta en el PR.
