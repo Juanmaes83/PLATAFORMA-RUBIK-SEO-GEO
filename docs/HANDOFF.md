@@ -150,3 +150,37 @@
 **Pendiente de revisión visual:** en móvil la lista de permisos es larga (13 bloques). Se puede compactar si el propietario lo pide.
 
 **CI:** [run 36418239963](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36418239963) del HEAD `de4c3da` en verde: `verify` en Node 22.23.2 y 24.21.0, y `ui` 51/51 con el artefacto de capturas. El commit siguiente solo registra este run en la documentación; su CI consta en el PR.
+
+## Sesión 4 — remates de revisión del PR #1 (28/09/2026)
+
+**Punto de partida verificado:** HEAD remoto `d6e55b9`, igual al local, con el PR #1 abierto. Su CI, [run 36418555762](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36418555762), está **en verde**: `verify` en Node 22 y 24, y `ui` 51/51.
+
+**Hecho:**
+
+1. **Resumen del proyecto:** el texto principal del estado vacío de mediciones queda en «Desconocido · Este proyecto aún no tiene observaciones.». Las etapas (CORE-9.3, 9.4 y 9.5) solo aparecen en «Qué necesitará», y «Cuando esté disponible» se mantiene.
+2. **`/proyectos`:** `NOT_A_MEMBER_OF_SCOPE` ya no está en el texto dirigido al usuario. Queda como «Información técnica», un `<details>` plegado y secundario debajo de la explicación.
+3. **Pruebas e2e nuevas:**
+   - en `/proyectos` el código está oculto por defecto y solo dentro de `details.tech`;
+   - el estado vacío de mediciones no repite las etapas.
+
+   El control plegable se añadió a la comprobación de objetivos táctiles.
+4. Capturas regeneradas en [docs/visual](visual/README.md): cambian las vistas 04, 05 y 06, en los tres anchos.
+
+**Pruebas locales** (Windows, Node 24.14.1):
+
+- `npm run verify` en verde: pin, secretos (102 ficheros), lint, `tsc`, 28/28 pruebas unitarias y build.
+- `npm run visual:evidence` (Playwright): 57/57, las 51 anteriores más 2 nuevas en cada uno de los 3 anchos.
+
+### Historial de CI del PR #1 (commit → run)
+
+| Commit | Contenido | Run | Resultado |
+|---|---|---|---|
+| `728ac7d` | Base CORE-9.0 | [36411911462](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36411911462) | Verde (verify Node 22/24) |
+| `14d88b6` | Documentación: CI de `728ac7d` | [36412082623](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36412082623) | Verde |
+| `f947e53` | D-27, demo solo en desarrollo, CI visual | [36414209120](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36414209120) | Verde (verify Node 22/24, ui 42/42) |
+| `5f67c05` | Documentación: CI de `f947e53` | [36414491097](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36414491097) | Verde |
+| `de4c3da` | Auditoría de contenido y usabilidad | [36418239963](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36418239963) | Verde (verify Node 22/24, ui 51/51) |
+| `d6e55b9` | Documentación: CI de `de4c3da` | [36418555762](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36418555762) | Verde (verify Node 22/24, ui 51/51) |
+| Commit de esta sesión | Remates de revisión | Se registra en la checklist del PR y en un comentario al terminar | — |
+
+Sin merge ni despliegue.

@@ -75,7 +75,7 @@ for (const p of PAGES) {
     expect(serious.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual([]);
 
     if (info.project.name.startsWith("movil")) {
-      const small = await page.$$eval(".btn, button, .nav-link, .mobile-nav > summary, .subnav a, .legend > summary", (els) =>
+      const small = await page.$$eval(".btn, button, .nav-link, .mobile-nav > summary, .subnav a, .legend > summary, .tech > summary", (els) =>
         els
           .filter((el) => (el as HTMLElement).offsetParent !== null)
           .map((el) => ({ text: (el.textContent ?? "").trim().slice(0, 30), h: el.getBoundingClientRect().height }))
@@ -162,4 +162,26 @@ test("unavailable areas explain what they will need and the next step", async ({
   }
   await page.goto("/panel");
   await expect(page.getByText("Qué necesitará")).toHaveCount(2);
+});
+
+test("projects page: the Core denial code is only secondary technical information", async ({ page, baseURL }) => {
+  await signInWithCookie(page, "demo-owner", baseURL!);
+  await page.goto("/proyectos");
+  const code = page.getByText("NOT_A_MEMBER_OF_SCOPE");
+  await expect(code).toHaveCount(1);
+  await expect(code).toBeHidden();
+  expect(await code.evaluate((el) => !!el.closest("details.tech") && !el.closest("main > p"))).toBe(true);
+  await page.getByText("Información técnica").click();
+  await expect(code).toBeVisible();
+});
+
+test("project summary: the measurements empty state does not repeat the stages", async ({ page, baseURL }) => {
+  await signInWithCookie(page, "demo-analyst", baseURL!);
+  await page.goto("/proyectos/agencia-demo/restaurante-demo");
+  const empty = page.locator("section#s-estado, section[aria-labelledby=s-estado]").locator(".empty");
+  await expect(empty.locator(".empty-body")).toHaveText(/^\s*Desconocido\s+Este proyecto aún no tiene observaciones\.\s*$/);
+  // Stages appear once, in "Qué necesitará", not repeated in the main text.
+  const text = await empty.innerText();
+  expect(text.match(/CORE-9\.3/g)?.length).toBe(1);
+  expect(text.match(/CORE-9\.4/g)?.length).toBe(1);
 });

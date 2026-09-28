@@ -29,8 +29,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ tenant
           nextStep="Registrar la primera observación. A partir de ahí aparecerán aquí su fecha, su fuente y su estado de medición."
         >
           <p>
-            <StatusPill tone="neutral">Desconocido</StatusPill> Este proyecto no tiene observaciones. La importación manual llega en
-            CORE-9.3, y los conectores de solo lectura en 9.4 y 9.5.
+            <StatusPill tone="neutral">Desconocido</StatusPill> Este proyecto aún no tiene observaciones.
           </p>
         </EmptyState>
         <details className="legend">

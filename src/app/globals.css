@@ -183,6 +183,10 @@ main:focus { outline: none; }
 .checklist li { margin-bottom: var(--space-2); }
 
 .legend { margin-top: var(--space-3); }
+/* Secondary technical detail (diagnostic codes): collapsed, below the user-facing text. */
+.tech { margin: 0 0 var(--space-3); }
+.tech > summary { cursor: pointer; min-height: var(--tap); display: flex; align-items: center; font-size: 0.85rem; color: var(--color-muted); }
+.tech .diag { margin: 0; }
 .legend > summary { cursor: pointer; min-height: var(--tap); display: flex; align-items: center; font-weight: 600; color: var(--color-accent); }
 .legend dl { margin: 0; display: grid; gap: var(--space-2); }
 .legend dt { font-weight: 700; }

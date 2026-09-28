@@ -16,8 +16,11 @@ export default async function ProjectsPage() {
       <p>
         Solo ves los proyectos de los que <strong>{user.displayName}</strong> es miembro. Los demás no aparecen, y si
         alguien intenta abrirlos obtiene la misma página que para un proyecto inexistente.
-        <span className="diag">Código de diagnóstico al denegar: <code>NOT_A_MEMBER_OF_SCOPE</code></span>
       </p>
+      <details className="tech">
+        <summary>Información técnica</summary>
+        <p className="diag">Código que devuelve el Core al denegar el acceso: <code>NOT_A_MEMBER_OF_SCOPE</code></p>
+      </details>
       {projects.length === 0 ? (
         <EmptyState
           title="Sin proyectos"
