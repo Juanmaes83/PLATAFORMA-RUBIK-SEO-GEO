@@ -79,7 +79,7 @@
   - en producción queda siempre desactivado;
   - `build` y `start` se niegan;
   - `src/instrumentation.ts` sale con código 1 si `next start` se lanza directamente con `AUTH_MODE=mock`.
-- **Node 20:** fecha de fin de vida corregida al 24/03/2026 en la ADR 0001, citando nodejs.org y señalando que `schedule.json` indica 2026-04-30.
+- **Node 20:** fecha de fin de vida cambiada al 24/03/2026 en la ADR 0001. *Corregido en la sesión 3: el EOL es el 30/04/2026 según el calendario de releases; el 24/03/2026 es la fecha «Last updated».*
 - **CI:**
   - el job `verify` (Node 22/24) hace el smoke de producción sin sesión posible y prueba que `AUTH_MODE=mock` se rechaza en build, start y arranque directo;
   - el nuevo job `ui` ejecuta Playwright con Chromium y sube las capturas como artefacto.
@@ -108,3 +108,45 @@
 3. Las tareas de Supabase y hosting siguen igual (sesión 1).
 
 **Siguiente bloque:** CORE-9.1, tras la revisión y aprobación del PR #1.
+
+## Sesión 3 — auditoría de contenido y usabilidad del PR #1 (28/09/2026)
+
+**Punto de partida:** PR #1, con HEAD `5f67c05` y CI en verde, sin cambios remotos nuevos.
+
+**Correcciones de la auditoría:**
+
+1. **Permisos frente a disponibilidad** (`src/lib/permissions.ts`, `PermissionTable`): cada fila separa lo que permite el rol (la decisión del Core, sin cambios) de si la función existe ya.
+   - Tres estados: «Disponible», «Permitido, aún no disponible» (con su etapa y «Hoy no se puede usar») y «No permitido».
+   - Un resumen con los recuentos va encima de la tabla.
+   - Una función no construida nunca aparece como utilizable.
+2. **Motivos comprensibles:** los 10 códigos que puede devolver `authorize` en el Core fijado tienen su explicación en español, por ejemplo «El rol Analista no incluye esta acción», o, para ejecutar, «la ejecución la hará el sistema, y solo tras una aprobación humana registrada».
+   - El código técnico queda solo como «Código de diagnóstico».
+   - En `/proyectos`, `NOT_A_MEMBER_OF_SCOPE` ya no aparece en el texto.
+3. **Conectores** (`src/lib/connectors.ts`):
+   - nombres y categorías en español, con qué aportará cada uno, desarrollo y etapa, coste y autorización necesaria;
+   - todos muestran «No conectado»;
+   - la página dice explícitamente que no pide ni guarda credenciales, y no tiene formularios.
+4. **Estados vacíos:** cada área no construida, el panel, el resumen del proyecto y la lista de proyectos indican «Qué necesitará» y «Cuando esté disponible». No hay botones sin acción.
+5. **ADR 0001:** el EOL de Node 20 es el **30/04/2026** según el calendario de releases; el 24/03/2026 es la fecha «Last updated» de la tabla de nodejs.org.
+
+**Pruebas:**
+
+- **Vitest:** 28/28. Las nuevas cubren:
+  - que cada acción del Core tiene una función asociada;
+  - que cada código de denegación de `authorize`, leído del código fuente del Core fijado, tiene explicación sin jerga;
+  - que nada se muestra como disponible sin serlo;
+  - los textos de conectores y consentimientos, y que todos los conectores figuran como «No conectado».
+- **Playwright:** 51/51, con estas comprobaciones nuevas en todas las vistas y anchos:
+  - ningún control sin acción;
+  - ningún campo de entrada visible;
+  - ningún código técnico fuera de un detalle de diagnóstico.
+
+  Además, pruebas específicas de permisos, conectores y estados vacíos.
+- `npm run verify` en verde: 102 ficheros revisados por el guard de secretos, y build correcto.
+- Capturas regeneradas en [docs/visual](visual/README.md).
+
+**Nota local:** el puerto 3217 estaba ocupado por otro servidor de desarrollo lanzado desde otra copia del repositorio (`C:\Users\temp123\PLATAFORMA-RUBIK-SEO-GEO`), probablemente del propietario o de otro agente. No se detuvo: Playwright se ejecutó con `E2E_PORT=3227`.
+
+**Pendiente de revisión visual:** en móvil la lista de permisos es larga (13 bloques). Se puede compactar si el propietario lo pide.
+
+**CI:** pendiente del run de este push. Se registra en el PR.

@@ -173,6 +173,11 @@ main:focus { outline: none; }
 .empty { border: 1px dashed var(--color-line); border-radius: var(--radius); padding: var(--space-4); background: var(--color-surface); }
 .empty-title { font-weight: 700; margin-bottom: var(--space-2); }
 .empty-body p:last-child { margin-bottom: 0; }
+.empty-block { margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--color-line); }
+.empty-label { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-muted); margin-bottom: var(--space-1); }
+.empty-block ul { margin: 0; padding-left: 1.2rem; }
+.empty-block li { margin-bottom: var(--space-1); }
+.empty-block p { margin: 0; }
 .notice { padding: var(--space-3); border: 1px solid var(--color-warn-line); background: var(--color-warn-bg); color: var(--color-warn-fg); border-radius: var(--radius-sm); }
 .checklist { padding-left: 1.2rem; margin: 0; }
 .checklist li { margin-bottom: var(--space-2); }
@@ -197,8 +202,11 @@ main:focus { outline: none; }
 .rtable th[scope="row"] { font-weight: 700; text-align: left; margin-bottom: var(--space-1); }
 .rtable td { display: flex; justify-content: space-between; gap: var(--space-3); padding: 0.15rem 0; text-align: right; }
 .rtable td::before { content: attr(data-label); color: var(--color-muted); text-align: left; font-size: 0.88rem; font-weight: 400; }
-.permissions tr[data-allowed="true"] td:nth-of-type(1) { color: var(--color-ok); font-weight: 700; }
-.permissions tr[data-allowed="false"] td:nth-of-type(1) { color: var(--color-no); }
+/* Long explanatory cells: label above the text on mobile instead of side by side. */
+.rtable td.explain { display: block; text-align: left; }
+.rtable td.explain::before { display: block; margin-bottom: 0.1rem; }
+.diag { display: block; margin-top: 0.2rem; font-size: 0.8rem; color: var(--color-muted); font-weight: 400; }
+.explain > span:first-child { display: block; }
 
 @media (min-width: 640px) {
   h1 { font-size: 1.8rem; }
@@ -210,6 +218,7 @@ main:focus { outline: none; }
   .rtable tr { display: table-row; background: none; border: 0; border-radius: 0; padding: 0; margin: 0; }
   .rtable th, .rtable td { display: table-cell; text-align: left; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--color-line); }
   .rtable td::before { content: none; }
+  .rtable td.explain { display: table-cell; }
   .rtable thead th { font-size: 0.85rem; color: var(--color-muted); }
 }
 

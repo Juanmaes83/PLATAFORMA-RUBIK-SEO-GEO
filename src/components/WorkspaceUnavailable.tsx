@@ -8,5 +8,5 @@ export async function WorkspaceUnavailable({ href }: { href: string }) {
   if (!(await currentUser())) redirect("/acceso");
   const item = findUnavailable(href);
   if (!item) notFound();
-  return <Unavailable title={item.label} stage={item.stage} description={item.description} back={{ href: "/panel", label: "Volver al panel" }} />;
+  return <Unavailable title={item.label} stage={item.stage} description={item.description} requires={item.requires} nextStep={item.nextStep} back={{ href: "/panel", label: "Volver al panel" }} />;
 }

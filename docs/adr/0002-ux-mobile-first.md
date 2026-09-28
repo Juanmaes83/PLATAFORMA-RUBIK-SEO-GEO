@@ -23,6 +23,11 @@
   - No se muestran cifras inventadas; una prueba lo comprueba.
 - **Datos de demostración:** todo lo que viene de `src/lib/fixtures/demo.ts` lleva el distintivo **«Demo · ficticio»**. Los nombres son genéricos y los dominios usan `.test`.
   - Hay un usuario cliente ficticio (rol `client-approver`) que ilustra el acceso limitado a su proyecto.
+- **Permisos (segunda auditoría del PR #1):** cada fila separa lo que **permite el rol** (la decisión del Core) de si **la función existe ya** en la plataforma (`src/lib/permissions.ts`).
+  - Hay tres estados: «Disponible», «Permitido, aún no disponible» (con su etapa y «Hoy no se puede usar») y «No permitido».
+  - Los motivos de denegación del Core se explican en lenguaje claro; el código (por ejemplo `ROLE_NOT_ALLOWED`) queda solo como «Código de diagnóstico».
+- **Conectores:** nombres y categorías en español (`src/lib/connectors.ts`), con qué aportará cada uno, desarrollo y etapa, coste y autorización necesaria. Todos muestran «No conectado», y la página no pide ni guarda credenciales.
+- **Estados vacíos:** cada área no construida indica «Qué necesitará» (información o configuración) y «Cuando esté disponible» (el siguiente paso). No hay botones sin función: la CI lo comprueba.
 - **Honestidad de datos:** la vista de proyecto anticipa los cuatro estados de medición (observado, estimado, no verificado y desconocido) y muestra hoy «Desconocido».
 - **Accesibilidad:** enlace «Saltar al contenido», un solo `<h1>` por página, landmarks, foco visible, objetivos táctiles de 44 px y contraste comprobado con axe (WCAG 2.1 A/AA).
 

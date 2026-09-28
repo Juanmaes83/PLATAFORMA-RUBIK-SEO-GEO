@@ -17,7 +17,7 @@ export default async function ProjectSectionPage({ params }: { params: Promise<{
     <>
       <p className="muted small">{access.project.name}</p>
       <ProjectNav base={base} current={section.slug} />
-      <Unavailable title={section.label} stage={section.stage} description={section.description} back={{ href: base, label: "Volver al resumen" }} />
+      <Unavailable title={section.label} stage={section.stage} description={section.description} requires={section.requires} nextStep={section.nextStep} back={{ href: base, label: "Volver al resumen" }} />
     </>
   );
 }

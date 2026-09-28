@@ -14,12 +14,17 @@ export default async function ProjectsPage() {
     <>
       <PageHead title="Proyectos"><DemoBadge /></PageHead>
       <p>
-        Solo aparecen los proyectos en los que <strong>{user.displayName}</strong> tiene pertenencia; el Core deniega el
-        resto (<code>NOT_A_MEMBER_OF_SCOPE</code>).
+        Solo ves los proyectos de los que <strong>{user.displayName}</strong> es miembro. Los demás no aparecen, y si
+        alguien intenta abrirlos obtiene la misma página que para un proyecto inexistente.
+        <span className="diag">Código de diagnóstico al denegar: <code>NOT_A_MEMBER_OF_SCOPE</code></span>
       </p>
       {projects.length === 0 ? (
-        <EmptyState title="Sin proyectos">
-          <p>Este usuario no tiene pertenencia a ningún proyecto.</p>
+        <EmptyState
+          title="Sin proyectos"
+          requires={["Que una persona con rol de titular te añada a un proyecto (Equipo y permisos, CORE-9.1)"]}
+          nextStep="Cuando te añadan, el proyecto aparecerá aquí con tu rol."
+        >
+          <p>Este usuario no es miembro de ningún proyecto.</p>
         </EmptyState>
       ) : (
         <ul className="cards">

@@ -43,13 +43,21 @@ export default async function PanelPage() {
       <div className="grid-2">
         <section aria-labelledby="p-aprobaciones" className="section">
           <h2 id="p-aprobaciones">Pendiente de aprobación</h2>
-          <EmptyState title="Sin bandeja de aprobaciones todavía">
+          <EmptyState
+            title="Sin bandeja de aprobaciones todavía"
+            requires={["Cuentas reales con rol de aprobación (CORE-9.1)", "Registro auditado de aprobaciones (CORE-9.2)", "Borradores y acciones propuestas (CORE-9.6)"]}
+            nextStep="Aquí aparecerá cada borrador o acción externa que espera una decisión, con enlace a su evidencia."
+          >
             <p>No se muestra ningún pendiente porque la revisión y aprobación humana se construyen en CORE-9.6 y 9.8.</p>
           </EmptyState>
         </section>
         <section aria-labelledby="p-actividad" className="section">
           <h2 id="p-actividad">Actividad reciente</h2>
-          <EmptyState title="Sin actividad registrada">
+          <EmptyState
+            title="Sin actividad registrada"
+            requires={["Persistencia y registro de auditoría (CORE-9.2)"]}
+            nextStep="Aquí se verán las importaciones, las revisiones y las aprobaciones recientes de tus proyectos, con fecha y autor."
+          >
             <p>CORE-9.0 no guarda datos ni auditoría. El historial llega con la persistencia (CORE-9.2).</p>
           </EmptyState>
         </section>

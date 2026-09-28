@@ -51,6 +51,25 @@ for (const p of PAGES) {
 
     if ("demo" in p && p.demo) await expect(page.getByText("Demo · ficticio").first()).toBeVisible();
 
+    // No dead controls: every button submits a form with a server action, every link-button
+    // has a destination, and no page asks for credentials (no inputs other than hidden ones).
+    // Scoped to the app shell (header, navigation, main): excludes the Next.js dev overlay.
+    const dead = await page.$$eval(".topbar button, .topbar a.btn, nav button, main button, main a.btn", (els) =>
+      els
+        .filter((el) => (el.tagName === "BUTTON" ? !el.closest("form[action]") : !(el as HTMLAnchorElement).getAttribute("href")))
+        .map((el) => (el.textContent ?? "").trim()),
+    );
+    expect(dead, "controls without a working action").toEqual([]);
+    await expect(page.locator("main input:not([type=hidden]), main textarea, main select")).toHaveCount(0);
+
+    // Core codes such as ROLE_NOT_ALLOWED may only appear as a small diagnostic detail.
+    const rawCodes = await page.$$eval("main *", (els) =>
+      els
+        .filter((el) => el.children.length === 0 && /\b[A-Z]{2,}_[A-Z_]{2,}\b/.test(el.textContent ?? "") && !el.closest(".diag"))
+        .map((el) => (el.textContent ?? "").trim()),
+    );
+    expect(rawCodes, "technical codes outside diagnostic details").toEqual([]);
+
     const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
     const serious = axe.violations.filter((v) => v.impact === "serious" || v.impact === "critical");
     expect(serious.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual([]);
@@ -111,4 +130,36 @@ test("the overflow check detects a too-wide element (self-test)", async ({ page 
   });
   const overflow = await horizontalOverflow(page);
   expect(overflow.scroll).toBeGreaterThan(overflow.width);
+});
+
+test("permissions: granted but unbuilt functions never look usable; denials are explained", async ({ page, baseURL }) => {
+  await signInWithCookie(page, "demo-analyst", baseURL!);
+  await page.goto("/proyectos/agencia-demo/restaurante-demo");
+  const row = (name: string) => page.locator("tr", { has: page.getByRole("rowheader", { name, exact: true }) });
+  await expect(row("Leer")).toHaveAttribute("data-state", "available");
+  await expect(row("Redactar borradores")).toHaveAttribute("data-state", "granted-not-built");
+  await expect(row("Redactar borradores")).toContainText("Permitido, aún no disponible");
+  await expect(row("Redactar borradores")).toContainText("Hoy no se puede usar");
+  await expect(row("Aprobar acciones externas")).toHaveAttribute("data-state", "denied");
+  await expect(row("Aprobar acciones externas")).toContainText("El rol Analista no incluye esta acción.");
+  await expect(row("Aprobar acciones externas").locator(".diag")).toContainText("ROLE_NOT_ALLOWED");
+});
+
+test("connectors: Spanish names, all not connected, no credential fields", async ({ page }) => {
+  await page.goto("/conectores");
+  await expect(page.getByRole("rowheader", { name: /Google Search Console/ })).toBeVisible();
+  await expect(page.locator("tbody tr")).toHaveCount(7);
+  await expect(page.locator("tbody tr .pill-warn", { hasText: "No conectado" })).toHaveCount(7);
+  await expect(page.locator("form, input, textarea")).toHaveCount(0);
+});
+
+test("unavailable areas explain what they will need and the next step", async ({ page, baseURL }) => {
+  await signInWithCookie(page, "demo-owner", baseURL!);
+  for (const path of ["/revision", "/borradores", "/equipo", "/configuracion", "/proyectos/agencia-demo/restaurante-demo/mediciones"]) {
+    await page.goto(path);
+    await expect(page.getByText("Qué necesitará"), path).toBeVisible();
+    await expect(page.getByText("Cuando esté disponible"), path).toBeVisible();
+  }
+  await page.goto("/panel");
+  await expect(page.getByText("Qué necesitará")).toHaveCount(2);
 });

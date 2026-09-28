@@ -23,7 +23,11 @@ export default async function ProjectPage({ params }: { params: Promise<{ tenant
 
       <section aria-labelledby="s-estado" className="section">
         <h2 id="s-estado">Estado de medición</h2>
-        <EmptyState title="Sin mediciones">
+        <EmptyState
+          title="Sin mediciones"
+          requires={["Una importación manual con fuente, fecha y estado de revisión (CORE-9.3)", "O un conector de solo lectura que el cliente autorice (Search Console o Bing Webmaster, CORE-9.4 y 9.5)"]}
+          nextStep="Registrar la primera observación. A partir de ahí aparecerán aquí su fecha, su fuente y su estado de medición."
+        >
           <p>
             <StatusPill tone="neutral">Desconocido</StatusPill> Este proyecto no tiene observaciones. La importación manual llega en
             CORE-9.3, y los conectores de solo lectura en 9.4 y 9.5.
@@ -42,7 +46,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ tenant
       <section aria-labelledby="s-permisos" className="section">
         <h2 id="s-permisos">Tus permisos en este proyecto</h2>
         <p className="muted small">Los decide el servidor con los contratos del Core; ocultar un botón no es autorización.</p>
-        <PermissionTable permissions={permissions} />
+        <PermissionTable permissions={permissions} role={role} />
       </section>
     </>
   );

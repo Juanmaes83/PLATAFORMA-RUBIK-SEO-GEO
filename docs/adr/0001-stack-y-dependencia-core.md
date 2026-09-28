@@ -17,10 +17,8 @@ El 28/09/2026 este repositorio estaba **vacío**: sin commits, sin ramas, sin PR
   - No tiene coste: todo es software libre instalado desde npm.
 - **Versiones:** las que fija `create-next-app@16.3.6`: `next` 16.3.6, `react`/`react-dom` 19.2.8, TypeScript 5 y ESLint 9 (configuración flat de `eslint-config-next`). `package-lock.json` fija el árbol completo.
 - **Node:** ≥ 22.12 (`.nvmrc` = 22). La CI prueba Node 22 y 24.
-  - Node 20 ya no se soporta. Su fin de vida es el **24 de marzo de 2026** (corregido en la revisión del PR #1). Además, Vitest 4 requiere Node ≥ 22.
-    - [nodejs.org · previous releases](https://nodejs.org/en/about/previous-releases) lista v20 como EOL, con fecha de última actualización 24/03/2026 (consultado el 28/09/2026).
-    - El calendario del proyecto ([nodejs/Release schedule.json](https://github.com/nodejs/Release/blob/main/schedule.json)) indica 2026-04-30 como fin del periodo de mantenimiento.
-    - En cualquiera de los dos casos, Node 20 está fuera de soporte a la fecha de esta ADR.
+  - Node 20 ya no se soporta: su fin de vida (EOL) fue el **30/04/2026**, según el calendario oficial de releases ([nodejs/Release schedule.json](https://github.com/nodejs/Release/blob/main/schedule.json), `end: 2026-04-30`). Además, Vitest 4 requiere Node ≥ 22.
+    - El 24/03/2026 que aparece en [nodejs.org · previous releases](https://nodejs.org/en/about/previous-releases) es la columna «Last updated» de esa tabla (la última actualización publicada de v20), no la fecha de fin de vida. Corregido en la segunda auditoría del PR #1; ambas fuentes se consultaron el 28/09/2026.
   - El Core sigue probándose en Node 20/22 en su propio repositorio; eso no cambia.
 - **Estructura:** `src/app` (rutas), `src/lib` (código de servidor), `src/components` (presentación) y `tests/` (Vitest).
 
