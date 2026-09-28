@@ -366,7 +366,7 @@ Sin cambios de código, así que las pruebas son las de la sesión 5b. `npm run 
 
 **Tareas del propietario (vigentes):**
 
-1. Revisión final (Codex) y merge del PR #2 por el propietario.
+1. Revisión final y merge del PR #2: autorizados a Codex por el propietario el 28/09/2026; sujetos a CI verde del HEAD final.
 2. Tras el merge, en el proyecto alojado y siguiendo [SETUP-SUPABASE §3](SETUP-SUPABASE.md):
    - MFA de la cuenta;
    - Email con confirmación y la política de contraseñas;
@@ -379,3 +379,23 @@ Sin cambios de código, así que las pruebas son las de la sesión 5b. `npm run 
 5. Las tareas de hosting siguen igual ([HOSTING](HOSTING.md)).
 
 **CI:** el run del HEAD final de esta sesión se registra en la descripción del PR #2 y en su pestaña Checks, no en otro commit, para que el HEAD revisado sea el definitivo. El último run registrado en un commit es el de `120a89c` ([36440853359](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36440853359)); `a20ef0f` → [36441560553](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36441560553), también en verde.
+
+
+## Sesión 5d — actualización documental y cierre de CORE-9.1 (28/09/2026)
+
+**Autorización del propietario:** actualizar la documentación del repositorio y fusionar el PR #2 si la revisión y la CI final están correctas.
+
+**Estado verificado antes del ajuste documental:**
+
+- PR #2 abierto contra `main`, mergeable, con HEAD `05e09258c2d6e86292626539f59caeec6c714cbd`.
+- CI de ese HEAD: [run 36443119218](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36443119218), en verde en `verify` (Node 22/24) y `e2e` (pgTAP 52/52, integración 9/9, Playwright 72 pasan y 18 se omiten).
+- Las decisiones de CORE-9.1 están aprobadas y ya constan en ADR 0003, SETUP-SUPABASE y la descripción del PR.
+
+**Documentación actualizada por Codex en esta rama:**
+
+- ROADMAP: estado de CORE-9.1, último HEAD verificado, CI y los pasos manuales del propietario tras el merge.
+- HANDOFF: el punto de partida previo se conserva como historial; se añade esta sesión para reflejar autorización, revisión y cierre.
+
+**Alcance y límites:** la documentación no cambia código ni migraciones. Esta revisión no aplica migraciones, no ejecuta `db push`, no modifica el proyecto Supabase alojado y no despliega la aplicación. La configuración y prueba manual del Supabase alojado siguen siendo tareas del propietario según [SETUP-SUPABASE §3](SETUP-SUPABASE.md).
+
+**Siguiente paso:** ejecutar la CI del commit documental; fusionar el PR #2 solo si todos los checks requeridos terminan en verde y el PR continúa mergeable. Tras la fusión, verificar el commit de merge y la CI de `main`. Después, el propietario configura Auth y aplica la migración de forma controlada, siguiendo SETUP-SUPABASE §3.
