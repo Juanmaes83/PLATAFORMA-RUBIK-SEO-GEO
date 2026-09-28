@@ -107,6 +107,15 @@ Con estas FK compuestas, una fila no puede mezclar un proyecto de una organizaci
 - **Borrado:**
   - No se concede `DELETE` sobre organizaciones ni proyectos en esta fase.
   - Sí sobre pertenencias, solo a titulares.
+- **Excepción documentada: `public.rls_auto_enable()`** (añadida después del merge de CORE-9.1).
+  - Es la función del event trigger `ensure_rls`, que activa RLS en las tablas nuevas de `public`. La crea Supabase Studio al activar la RLS automática, no este repositorio.
+  - Está en `public` y es `SECURITY DEFINER` con `search_path = pg_catalog`.
+  - La migración `20260928150000_rls_auto_enable_privileges.sql`:
+    - la conserva donde existe y la crea con la misma plantilla donde no existe;
+    - revoca `EXECUTE` a PUBLIC, `anon` y `authenticated`.
+  - Disparar un event trigger no comprueba `EXECUTE`, así que la RLS automática sigue funcionando.
+  - **Pruebas:** `supabase/tests/rls_auto_enable.test.sql` y `tests/security-static.test.ts` (única función `SECURITY DEFINER` expuesta permitida, sin `EXECUTE` para esos roles).
+  - **Detalle:** [SETUP-SUPABASE §5](../SETUP-SUPABASE.md).
 
 ### 5. Mapeo de roles con el Core (sin permisos nuevos)
 

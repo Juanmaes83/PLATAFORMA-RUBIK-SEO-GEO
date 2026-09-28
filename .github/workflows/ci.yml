@@ -91,8 +91,24 @@ jobs:
         run: npm ci --no-fund --no-audit
       - name: Start the local Supabase stack (migrations applied, no seed data)
         run: $SUPABASE_CLI start -x $SUPABASE_EXCLUDE
-      - name: RLS and tenant isolation (pgTAP)
+      - name: RLS, tenant isolation and automatic-RLS privileges (pgTAP)
         run: $SUPABASE_CLI test db
+      - name: Hosted-like automatic-RLS state (Studio template) is fixed by the migration
+        run: |
+          DB="docker exec -i supabase_db_plataforma-rubik-seo-geo psql -U postgres -v ON_ERROR_STOP=1 -q"
+          # Recreate the function and event trigger exactly as Supabase Studio does (open ACL).
+          echo "drop event trigger ensure_rls; drop function public.rls_auto_enable();" | $DB
+          $DB < supabase/fixtures/studio-rls-auto-enable.sql
+          set +e
+          $SUPABASE_CLI test db > open.log 2>&1; code=$?
+          set -e
+          cat open.log
+          test $code -ne 0 || { echo "pgTAP passed on the open Studio state"; exit 1; }
+          grep -q 'Failed test .*"PUBLIC cannot execute it"' open.log
+          # Apply the migration on the existing objects, twice (idempotent), then everything passes.
+          $DB < supabase/migrations/20260928150000_rls_auto_enable_privileges.sql
+          $DB < supabase/migrations/20260928150000_rls_auto_enable_privileges.sql
+          $SUPABASE_CLI test db
       - name: Migrations match the committed database types
         run: |
           $SUPABASE_CLI gen types typescript --local --schema public > /tmp/types.ts

@@ -93,12 +93,27 @@ describe("migrations: RLS and least privilege", () => {
     expect(migrations).toMatch(/revoke all on public\.organizations, public\.organization_members, public\.projects, public\.project_members\s+from public, anon, authenticated;/);
   });
 
+  // The function header runs from `create function` to the start of its body (`as $…$`).
+  const definers = [...migrations.matchAll(/create function ([\w.]+)\(([\s\S]*?)\bas \$/g)]
+    .filter(([, , header]) => /security definer/.test(header))
+    .map(([, name, header]) => ({ name, header }));
+
   it("SECURITY DEFINER functions live outside exposed schemas with an empty search_path", () => {
-    const definers = [...migrations.matchAll(/create function ([\w.]+)\([\s\S]*?security definer([^\n]*)/g)];
     expect(definers.length).toBeGreaterThan(0);
-    for (const [, name, rest] of definers) {
+    for (const { name, header } of definers) {
+      if (name === "public.rls_auto_enable") continue; // documented exception, checked below
       expect(name, name).toMatch(/^private\./);
-      expect(rest, name).toMatch(/set search_path = ''/);
+      expect(header, name).toMatch(/set search_path = ''/);
     }
+  });
+
+  it("the only exposed SECURITY DEFINER function is the automatic-RLS event trigger, and nobody but its owner can run it", () => {
+    // Created by Supabase Studio on the hosted project; the migration only reproduces it locally.
+    const exposed = definers.filter(({ name }) => !name.startsWith("private."));
+    expect(exposed.map(({ name }) => name)).toEqual(["public.rls_auto_enable"]);
+    expect(exposed[0].header).toMatch(/returns event_trigger/);
+    expect(exposed[0].header).toMatch(/set search_path = pg_catalog/);
+    expect(migrations).toMatch(/revoke execute on function public\.rls_auto_enable\(\) from public, anon, authenticated;/);
+    expect(migrations).not.toMatch(/grant execute on function public\.rls_auto_enable/i);
   });
 });
