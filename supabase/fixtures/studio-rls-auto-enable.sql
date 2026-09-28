@@ -7,7 +7,7 @@
 -- The template creates the function in `public` as SECURITY DEFINER and revokes nothing, so
 -- PUBLIC (and, through the schema's default privileges, anon and authenticated) can execute it.
 --
--- Used by CI (and locally) to check that migration 20260929090000 fixes that state:
+-- Used by CI (and locally) to check that migration 20260928150000 fixes that state:
 --   docker exec -i supabase_db_plataforma-rubik-seo-geo psql -U postgres -v ON_ERROR_STOP=1 < this file
 -- followed by re-running that migration and the pgTAP suite. Never run it against the hosted project.
 
