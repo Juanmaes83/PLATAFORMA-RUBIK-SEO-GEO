@@ -57,6 +57,8 @@ El 28/09/2026 este repositorio estaba **vacío**: sin commits, sin ramas, sin PR
 
 ### 5. Autenticación en CORE-9.0: demostración local, solo en desarrollo
 
+> **Sustituido en CORE-9.1** por la [ADR 0003](0003-auth-supabase-y-tenancy.md): la demostración, sus fixtures y su cookie se eliminaron y el acceso es solo con Supabase Auth. La prohibición de `AUTH_MODE=mock` en producción (barreras 2 y 3) se mantiene. Se conserva el texto original como registro.
+
 - Supabase Auth está aprobado (D-26), pero se implementa en CORE-9.1. Hasta entonces:
   - **`AUTH_MODE=mock` es solo para desarrollo y demo local.** En `next dev` (el valor por defecto, o `AUTH_MODE=mock`) activa usuarios **ficticios**: la cookie guarda el id del usuario, sin firma ni verificación. No es seguridad.
   - **No puede habilitarse en producción** (`NODE_ENV=production`), con tres barreras probadas:

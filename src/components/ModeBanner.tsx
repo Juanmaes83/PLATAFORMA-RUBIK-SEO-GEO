@@ -1,12 +1,12 @@
 import type { AuthModeInfo } from "@/lib/auth/mode";
 
-/** Always-visible notice: nothing in CORE-9.0 is connected or real. */
+/** Always-visible notice about what this environment is and is not. */
 export function ModeBanner({ auth, coreCommit }: { auth: AuthModeInfo; coreCommit: string }) {
   return (
     <div className="banner" role="status">
       <p>
-        <strong>Entorno local · CORE-9.0.</strong> {auth.notice} Sin servicios conectados, datos reales ni
-        despliegue. <span className="nowrap">Core <code>{coreCommit}</code>.</span>
+        <strong>CORE-9.1 · sin desplegar.</strong> {auth.notice} Sin conectores, IA ni datos de clientes.{" "}
+        <span className="nowrap">Core <code>{coreCommit}</code>.</span>
       </p>
     </div>
   );

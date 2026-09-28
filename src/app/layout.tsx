@@ -10,7 +10,7 @@ import { corePin } from "@/lib/core";
 // System fonts only: next/font/google would download fonts from Google at build time.
 export const metadata: Metadata = {
   title: "Plataforma Rubik SEO/GEO",
-  description: "Base local de la plataforma SEO/GEO (CORE-9.0). Sin servicios conectados.",
+  description: "Plataforma SEO/GEO de Rubik (CORE-9.1). Sin conectores, IA ni datos de clientes.",
   robots: { index: false, follow: false },
 };
 
@@ -30,7 +30,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <div className="topbar-actions">
             {user ? (
               <form action={signOut} className="user-chip">
-                <span className="user-name">{user.displayName}</span>
+                <span className="user-name">{user.email}</span>
                 <button type="submit" className="btn btn-ghost">Salir</button>
               </form>
             ) : (

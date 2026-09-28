@@ -12,5 +12,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.test.{ts,tsx}"],
+    // Needs the local Supabase stack: npm run test:integration (vitest.integration.config.mts).
+    exclude: ["tests/integration/**", "node_modules/**"],
   },
 });

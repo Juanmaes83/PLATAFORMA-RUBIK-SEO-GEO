@@ -1,7 +1,9 @@
-# PLATAFORMA-RUBIK-SEO-GEO — CI (CORE-9.0).
-# No secrets, no deployment, no external services beyond installing dependencies from npm,
-# the pinned public Core commit from GitHub and the Playwright Chromium build. Next.js
-# telemetry is disabled.
+# PLATAFORMA-RUBIK-SEO-GEO — CI (CORE-9.1).
+# No repository secrets, no deployment and no hosted Supabase. External downloads: npm
+# dependencies, the pinned public Core commit from GitHub, the pinned Supabase CLI and its
+# local Docker images, and the Playwright Chromium build. The `e2e` job runs a throw-away
+# LOCAL Supabase stack inside the runner; its development keys are read at run time with
+# `supabase status` and never stored. Next.js telemetry is disabled.
 name: ci
 
 on:
@@ -18,6 +20,8 @@ concurrency:
 
 env:
   NEXT_TELEMETRY_DISABLED: "1"
+  SUPABASE_CLI: npx --yes supabase@2.118.0
+  SUPABASE_EXCLUDE: postgres-meta,imgproxy,vector,logflare,supavisor,studio,realtime,storage-api,edge-runtime
 
 jobs:
   verify:
@@ -45,17 +49,19 @@ jobs:
         run: npm run typecheck
       - name: Unit tests
         run: npm test
-      - name: Build (production, no AUTH_MODE)
+      - name: Build (production, without Supabase settings)
         run: npm run build
-      - name: Production smoke (demo login must be disabled)
+      - name: Production smoke (no Supabase settings = no sign-in; forged cookies do nothing)
         run: |
           npm start -- -p 3217 > server.log 2>&1 &
           for i in $(seq 1 30); do curl -sf http://localhost:3217/api/salud > salud.json && break; sleep 1; done
           cat salud.json
-          node -e "const s=require('./salud.json');if(s.status!=='ok'||s.auth!=='disabled'||s.deployment!=='none'||!/^[0-9a-f]{40}$/.test(s.core.commit))process.exit(1)"
-          # Even with a forged demo cookie, production has no session: protected pages redirect.
-          test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Cookie: rubik_demo_session=demo-owner' http://localhost:3217/proyectos)" = "307"
-      - name: AUTH_MODE=mock is refused in production
+          node -e "const s=require('./salud.json');if(s.status!=='ok'||s.auth!=='not-configured'||s.persistence!=='none'||s.deployment!=='none'||!/^[0-9a-f]{40}$/.test(s.core.commit))process.exit(1)"
+          for path in /panel /proyectos /organizaciones /proyectos/agencia/proyecto /revision; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -H 'Cookie: rubik_demo_session=demo-owner; sb-localhost-auth-token=forged' "http://localhost:3217$path")
+            test "$code" = "307" || { echo "$path answered $code"; exit 1; }
+          done
+      - name: Forbidden configurations are refused (AUTH_MODE=mock, secret key in NEXT_PUBLIC_*)
         run: |
           set +e
           AUTH_MODE=mock npm run build; test $? -ne 0 || { echo "build accepted AUTH_MODE=mock"; exit 1; }
@@ -65,9 +71,15 @@ jobs:
           code=$?; cat direct.log
           test $code -eq 1 || { echo "direct next start did not refuse AUTH_MODE=mock (exit $code)"; exit 1; }
           grep -q "prohibido en producción" direct.log
+          # A secret-shaped key (built here, never stored) in the public variable.
+          FAKE="sb_""secret_$(head -c 24 /dev/zero | tr '\0' 'x')"
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$FAKE" npm run build; test $? -ne 0 || { echo "build accepted a secret key"; exit 1; }
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$FAKE" timeout 60 node node_modules/next/dist/bin/next start -p 3220 > secret.log 2>&1
+          code=$?; cat secret.log
+          test $code -eq 1 || { echo "direct next start accepted a secret key (exit $code)"; exit 1; }
 
-  ui:
-    name: ui (responsive, a11y, screenshots)
+  e2e:
+    name: e2e (local Supabase: RLS, auth, responsive, a11y)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -77,14 +89,38 @@ jobs:
           cache: npm
       - name: Install
         run: npm ci --no-fund --no-audit
+      - name: Start the local Supabase stack (migrations applied, no seed data)
+        run: $SUPABASE_CLI start -x $SUPABASE_EXCLUDE
+      - name: RLS and tenant isolation (pgTAP)
+        run: $SUPABASE_CLI test db
+      - name: Migrations match the committed database types
+        run: |
+          $SUPABASE_CLI gen types typescript --local --schema public > /tmp/types.ts
+          tail -n +4 src/lib/supabase/database.types.ts | diff - /tmp/types.ts
+      - name: Auth and isolation through the Data API (integration)
+        run: npm run test:integration
+      - name: Production build connected to the local stack
+        run: |
+          eval "$($SUPABASE_CLI status -o env | grep -E '^(API_URL|PUBLISHABLE_KEY)=')"
+          export NEXT_PUBLIC_SUPABASE_URL="$API_URL" NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY"
+          npm run build
+          npm start -- -p 3221 > server.log 2>&1 &
+          server=$!
+          for i in $(seq 1 30); do curl -sf http://localhost:3221/api/salud > salud.json && break; sleep 1; done
+          node -e "const s=require('./salud.json');if(s.auth!=='supabase'||s.deployment!=='none')process.exit(1)"
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3221/panel)" = "307"
+          kill $server
       - name: Install Chromium for Playwright
         run: npx playwright install --with-deps chromium
-      - name: Visual and responsive checks at 360, 390 and 1280 px (next dev, demo mode)
+      - name: Browser flows and visual checks at 360, 390 and 1280 px (next dev + local stack)
         run: npm run test:e2e
       - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: capturas-core-9-0
+          name: capturas-core-9-1
           path: test-results/visual
           retention-days: 14
+      - name: Stop the local stack
+        if: always()
+        run: $SUPABASE_CLI stop --no-backup

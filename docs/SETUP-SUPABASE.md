@@ -1,18 +1,76 @@
-# Supabase: pasos manuales del propietario (para CORE-9.1)
+# Supabase: estado real, pruebas locales y pasos manuales del propietario (CORE-9.1)
 
-**Nada de esto está hecho ni conectado.** CORE-9.0 funciona solo con usuarios ficticios. Estos pasos los hace el propietario en su cuenta, antes de que Claude implemente CORE-9.1. No hay que pegar claves en el chat, en issues ni en PRs.
+**Nadie debe pegar claves en el chat, en issues ni en PRs.** Claude no crea proyectos, no cambia la configuración de la cuenta, no aplica migraciones al proyecto alojado y no ejecuta `db push`.
 
-1. **Organización y proyecto:** crear, o elegir, la organización de Supabase y un proyecto **de desarrollo o prueba**, separado del futuro de producción.
-2. **Región y plan:** elegir la región (preferiblemente en la UE si se tratarán datos de clientes europeos), revisar el plan y sus límites (usuarios de Auth, tamaño de la base de datos, pausa por inactividad de los planes gratuitos) y la política de backups del plan. Anotar la decisión, no los valores secretos.
-3. **Seguridad de la cuenta:** activar MFA en la cuenta y revisar quién tiene acceso a la organización.
-4. **Auth:**
-   - Decidir los métodos de acceso (por ejemplo, email/contraseña o enlace mágico).
-   - Configurar las URL de redirección, al principio solo `http://localhost:3000`.
-   - No activar proveedores OAuth de terceros sin una decisión aparte.
-5. **Claves:**
-   - La URL del proyecto y la clave pública (anon/publishable) se configurarán como `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY` en `.env.local` o en el hosting.
-   - La **service-role/secret key no se comparte**: ni con Claude o Codex, ni en el navegador, ni en el repositorio.
-6. **RLS:** se activará en todas las tablas desde su creación (CORE-9.1 y 9.2). Las migraciones se versionarán en este repositorio y se probarán contra Supabase local (CLI y Docker) o contra el proyecto de prueba aislado.
+## 1. Estado a 28/09/2026
+
+### Proyecto alojado (lo ha creado el propietario; Claude no lo ha tocado)
+
+- **Proyecto:** `plataforma-rubik-seo-geo-dev`, en la organización `Rubik Sota`. Plan Free, región West EU (Paris / eu-west-3), estado saludable.
+- **Data API:** activada. La exposición automática de tablas está desactivada y la activación automática de RLS está configurada.
+- **Lo que todavía no tiene:**
+  - migraciones (ni tablas de la plataforma) ni datos;
+  - conexión con GitHub.
+- **Lo que no consta como configurado:** Auth (métodos, URLs de redirección, SMTP, plantillas), MFA de la cuenta y migraciones. Este documento no afirma que lo estén.
+
+### Implementado y probado solo en local (rama `feat/core-9-1-supabase-auth-tenancy`)
+
+- **Auth:** Supabase Auth con correo y contraseña en el servidor ([ADR 0003](adr/0003-auth-supabase-y-tenancy.md)).
+- **Datos:** organizaciones, proyectos, pertenencias y roles, con RLS. Migración en `supabase/migrations/`.
+- **Pruebas:** contra el **stack local** de Supabase (Docker):
+  - pgTAP (`supabase/tests`);
+  - integración (`tests/integration`);
+  - e2e (`e2e/`).
+
+  La CI levanta ese stack en cada ejecución (job `e2e`).
+
+## 2. Probar en local (sin tocar el proyecto alojado)
+
+Requisitos: Docker en marcha y Node ≥ 22.12.
+
+```bash
+npm ci
+npm run db:start          # supabase start (solo Auth, Postgres, API y Mailpit); aplica las migraciones
+npm run test:db           # pgTAP: RLS y aislamiento
+npm run test:integration  # Auth y aislamiento por la Data API
+npx supabase@2.118.0 status -o env   # API_URL y PUBLISHABLE_KEY para .env.local
+```
+
+1. **Variables:** copia `API_URL` como `NEXT_PUBLIC_SUPABASE_URL` y `PUBLISHABLE_KEY` como `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` en `.env.local`. Git ignora ese fichero. **Nunca** copies `SECRET_KEY` ni `SERVICE_ROLE_KEY`.
+2. **Arranque:** ejecuta `npm run dev` y abre `http://localhost:3000/registro`. El correo de confirmación llega al Mailpit local (`MAILPIT_URL`, normalmente `http://127.0.0.1:54324`).
+3. **E2E:** `npm run test:e2e` levanta su propio `next dev` conectado al stack local y crea cuentas ficticias `@ejemplo.test`. Si el puerto 3217 está ocupado, usa `E2E_PORT=<puerto>`, que debe estar en `additional_redirect_urls` de `supabase/config.toml` para que funcione el enlace de confirmación.
+4. **Parar el stack:** `npm run db:stop`. Para volver a una base limpia: `npm run db:reset`.
+
+## 3. Qué falta para probar Auth contra el proyecto alojado
+
+Son pasos **del propietario** y ninguno está hecho. Sin ellos la aplicación no se ha probado contra el proyecto alojado.
+
+1. **Revisar y fusionar** el PR de CORE-9.1. Hasta entonces la migración no está en `main`.
+2. **Seguridad de la cuenta:** activar MFA en la cuenta de Supabase y revisar quién tiene acceso a la organización `Rubik Sota`.
+3. **Auth en el panel** (Authentication):
+   - Método **Email** con **Confirm email** activado (es el valor por defecto) y ningún proveedor OAuth.
+   - Contraseñas: longitud mínima 12 y requisito «letters and digits», los mismos valores que `supabase/config.toml`.
+   - **Site URL** y **Redirect URLs:** solo `http://localhost:3000/auth/confirm` mientras no haya despliegue.
+   - **Plantilla «Confirm signup»:** el enlace debe ser `{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=email`, como `supabase/templates/confirmation.html`. Con la plantilla por defecto el enlace no pasa por `/auth/confirm` y la sesión no se crea en el servidor.
+   - **Registro abierto o por invitación:** decidirlo. En el plan Free, el SMTP integrado tiene límites de envío muy bajos. Para más que pruebas puntuales hace falta un SMTP propio, lo que implica un proveedor externo y otra decisión.
+4. **Aplicar la migración.** Elegir una opción y hacerlo el propietario:
+   - **SQL Editor:** pegar `supabase/migrations/20260928120000_core_9_1_tenancy.sql` completo.
+   - **CLI desde su máquina:** `supabase login`, `supabase link --project-ref <ref>` y después `supabase db push`, revisando antes `supabase db push --dry-run`.
+
+   Después, en **Database → Advisors**, revisar que no haya avisos de seguridad (RLS, `search_path`, funciones expuestas).
+5. **Comprobación manual en el proyecto alojado:**
+   1. Poner la URL del proyecto y la **clave publicable** (`sb_publishable_…`, en Settings → API Keys) en el `.env.local` de su máquina. Nunca la secreta.
+   2. Ejecutar `npm run dev`.
+   3. Registrar dos cuentas de prueba con correos propios. Crear una organización y un proyecto con cada una.
+   4. Comprobar que ninguna ve el proyecto de la otra, ni en `/proyectos` ni abriendo su URL (debe dar 404).
+   5. Cerrar sesión y comprobar que `/panel` redirige a `/acceso`.
+
+   Las pruebas automáticas (`test:integration`, `test:e2e`) están limitadas a propósito al stack local y **no** deben apuntarse al proyecto alojado.
+6. **Sin despliegues automáticos:** no conectar GitHub a Supabase (branching o migraciones automáticas) ni el hosting, salvo decisión expresa. La CI no tiene ni necesita secretos de Supabase.
 7. **Legal:** antes de datos reales, revisar el DPA y los subencargados de Supabase, y la retención aprobada como propuesta de producto (PLATFORM-SPEC §4.3), con asesoría legal.
 
-Cuando estos puntos estén decididos, el siguiente prompt de CORE-9.1 indicará qué entorno de prueba usar. Claude no crea proyectos ni cambia la configuración de la cuenta.
+## 4. Reglas que no cambian
+
+- La aplicación solo usa la **clave publicable**. La **clave secreta o `service_role` no se comparte** con Claude ni con Codex, no va al navegador ni a variables `NEXT_PUBLIC_*`, y no entra en el repositorio. El build y el servidor se niegan a arrancar si aparece en `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
+- Toda tabla nueva en un esquema expuesto llega con RLS, políticas explícitas de mínimo privilegio, `WITH CHECK` en las actualizaciones y privilegios concedidos a mano. Así lo exigen `tests/security-static.test.ts` y la suite pgTAP.
+- La autorización nunca usa `user_metadata`.

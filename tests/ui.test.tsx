@@ -45,9 +45,10 @@ describe("presentational components", () => {
     expect(html).not.toMatch(/<button|<a /);
   });
 
-  it("the banner always states that nothing is connected", () => {
+  it("the banner always states what is not connected or deployed", () => {
     const html = renderToStaticMarkup(<ModeBanner auth={resolveAuthMode({ NODE_ENV: "development" })} coreCommit="20e4f4e" />);
-    expect(html).toContain("Sin servicios conectados, datos reales ni despliegue");
+    expect(html).toContain("sin desplegar");
+    expect(html).toContain("Sin conectores, IA ni datos de clientes");
     expect(html).toContain("20e4f4e");
   });
 });

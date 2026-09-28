@@ -1,12 +1,16 @@
 import { defineConfig } from "@playwright/test";
+import { localSupabaseEnv } from "./scripts/supabase-test-env.mjs";
 
-// Visual/responsive checks (D-27). They run against `next dev` because the demo login
-// (AUTH_MODE=mock) exists only in development; production refuses it by design.
+// End-to-end, visual and responsive checks (D-27) against `next dev` connected to the LOCAL
+// Supabase stack (npm run db:start). Accounts are fictitious and created by global-setup.
+// Only the publishable key reaches the app; the helper refuses any non-local host.
 const port = Number(process.env.E2E_PORT ?? 3217);
+const supabase = localSupabaseEnv();
 
 export default defineConfig({
   testDir: "e2e",
   outputDir: "test-results/playwright",
+  globalSetup: "./e2e/global-setup.ts",
   fullyParallel: false,
   workers: 1,
   retries: 0,
@@ -28,6 +32,10 @@ export default defineConfig({
     url: `http://localhost:${port}/api/salud`,
     reuseExistingServer: false,
     timeout: 120_000,
-    env: { AUTH_MODE: "", NEXT_TELEMETRY_DISABLED: "1" },
+    env: {
+      NEXT_TELEMETRY_DISABLED: "1",
+      NEXT_PUBLIC_SUPABASE_URL: supabase.apiUrl,
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: supabase.publishableKey,
+    },
   },
 });

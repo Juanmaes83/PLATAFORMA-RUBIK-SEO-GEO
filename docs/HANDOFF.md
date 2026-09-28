@@ -186,3 +186,103 @@
 El commit `159e12e` actualiza ROADMAP para registrar este checkpoint. Esta actualización del HANDOFF conserva el historial por commit; los checks de los commits documentales quedan visibles en la pestaña Checks del PR.
 
 Sin merge ni despliegue.
+
+**Cierre de CORE-9.0 (registrado en la sesión 5):** el propietario fusionó el PR #1 en `main` con el merge `a34746ee1e0605eaeca3de817f7badd6a0c998d1`. La CI del push a `main`, [run 36432091098](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36432091098), está en verde: `verify` en Node 22 y 24, y `ui`.
+
+## Sesión 5 — CORE-9.1: Supabase Auth, organizaciones y aislamiento (28/09/2026)
+
+**Punto de partida verificado:**
+
+- `main` en `a34746e` (merge del PR #1), con la CI [36432091098](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36432091098) en verde. No había otros PRs abiertos.
+- Rama `feat/core-9-1-supabase-auth-tenancy` creada desde ese commit.
+- **Proyecto Supabase alojado:** lo creó el propietario (`plataforma-rubik-seo-geo-dev`, organización `Rubik Sota`, plan Free, West EU / eu-west-3, saludable).
+  - Tiene la Data API activada, la exposición automática de tablas desactivada y la activación automática de RLS configurada.
+  - Sin migraciones ni datos, y sin conexión con GitHub.
+  - No consta que Auth, MFA ni migraciones estén configurados. Esta sesión **no lo ha tocado**.
+- **Versiones comprobadas antes de implementar:** `@supabase/ssr` 0.12.7, `@supabase/supabase-js` 2.117.2 y Supabase CLI 2.118.0.
+  - Se siguió la guía de Supabase para Next.js: `proxy.ts`, `getClaims()`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` y confirmación con `verifyOtp`.
+  - También la documentación de Next 16 incluida en `node_modules/next/dist/docs`. Detalle en la [ADR 0003](adr/0003-auth-supabase-y-tenancy.md).
+
+**Hecho:**
+
+- **Autenticación real en el servidor:**
+  - Supabase Auth con correo y contraseña: registro con confirmación de correo, inicio y cierre de sesión, y `/auth/confirm` con `verifyOtp`.
+  - `src/proxy.ts` refresca la sesión; cada página protegida la verifica con `getClaims()` (`requireSession()`).
+  - Solo se usa la clave publicable. Ninguna clave secreta está en el código ni en `NEXT_PUBLIC_*`, y el build y el servidor se niegan a arrancar si aparece una.
+- **Demo eliminada:**
+  - Se borraron los fixtures, la cookie `rubik_demo_session` y el selector de usuarios ficticios.
+  - `AUTH_MODE=mock` sigue prohibido en producción (build, start e instrumentación) y ya no activa nada en desarrollo.
+- **Modelo y RLS** (`supabase/migrations/20260928120000_core_9_1_tenancy.sql`):
+  - Tablas `organizations`, `organization_members`, `projects` y `project_members`.
+  - FK compuestas para la coherencia de tenant.
+  - Privilegios explícitos, por columna en `UPDATE`.
+  - Políticas solo para `authenticated`, con `USING` y `WITH CHECK`.
+  - Funciones auxiliares `SECURITY DEFINER` en el esquema no expuesto `private`.
+  - Triggers de titular inicial y de último titular.
+  - Roles de proyecto = roles humanos del Core; la organización solo tiene `owner`/`member`, con el mapeo documentado en la ADR 0003.
+- **Autorización:**
+  - RLS filtra cada consulta y mutación por organización.
+  - El Core (`authorize`/`MATRIX`) decide las acciones con el rol guardado en `project_members`.
+  - Otro tenant, un proyecto inexistente o un scope mal formado dan el mismo 404.
+- **Interfaz:**
+  - `/acceso` (inicio de sesión), `/registro`, y `/organizaciones` para crear organizaciones y, si eres titular, proyectos.
+  - Panel y proyectos leen la base de datos.
+  - «Equipo» y «Miembros» siguen como «No disponible todavía»: las invitaciones envían correos y requieren decisión del propietario.
+- **Supabase local:**
+  - `supabase/config.toml` con solo Auth, Postgres, API y Mailpit; confirmación de correo activada y contraseña de 12+ caracteres con letras y números.
+  - Plantilla de confirmación y `seed.sql` vacío.
+  - Scripts `db:start`, `db:stop`, `db:reset`, `test:db` y `test:integration`.
+  - `scripts/supabase-test-env.mjs` lee las claves locales en tiempo de ejecución y rechaza hosts no locales.
+- **CI:**
+  - `verify` (Node 22/24) comprueba sin Supabase: sin inicio de sesión, cookies falsificadas dan 307, y se rechazan `AUTH_MODE=mock` y una clave secreta en `NEXT_PUBLIC_*`.
+  - El nuevo job `e2e` levanta un stack local de Supabase y ejecuta pgTAP, un chequeo de tipos frente a las migraciones, integración, un build de producción conectado y Playwright.
+- **Documentación:** [ADR 0003](adr/0003-auth-supabase-y-tenancy.md), [SETUP-SUPABASE](SETUP-SUPABASE.md) (estado real, pruebas locales y lo que falta para el proyecto alojado), [ENVIRONMENT](ENVIRONMENT.md), [ARCHITECTURE](ARCHITECTURE.md), README, CLAUDE.md, ROADMAP y capturas nuevas en [docs/visual](visual/README.md).
+
+**Pruebas locales** (Windows, Node 24.14.1, Docker 29.2.0, Supabase CLI 2.118.0):
+
+- `npm run verify`: en verde.
+  - Pin del Core.
+  - Guard de secretos (139 ficheros).
+  - ESLint y `tsc` sin incidencias.
+  - Vitest: 7 ficheros, 39/39.
+  - `next build`: 16 rutas dinámicas y el proxy.
+- `npm run test:db` (pgTAP): 52/52.
+- `npm run test:integration`: 9/9.
+  - Registro con confirmación real vía Mailpit.
+  - Inicio y cierre de sesión, con el refresh token revocado.
+  - Contraseñas erróneas o débiles.
+  - Peticiones anónimas.
+  - Lecturas y escrituras entre tenants, y manipulación de IDs.
+  - Usuario sin pertenencia con `user_metadata` falsificado.
+  - Roles.
+  - Esquema `private` no expuesto.
+- `E2E_PORT=3227 npm run visual:evidence` (Playwright): 71 pasan y 16 se omiten.
+  - Los 8 flujos de navegador de `auth-tenancy.spec.ts` se ejecutan una vez, en escritorio, y se omiten en los dos anchos móviles.
+  - 13 vistas × 3 anchos.
+- **Mutación de comprobación:** con la política de lectura de `projects` cambiada a `using (true)`, fallan 4 aserciones pgTAP y 4 pruebas de integración. Restaurada y comprobada de nuevo (52/52).
+- **Smoke manual de producción:**
+  - Sin variables: `auth: not-configured`, y 307 en rutas protegidas incluso con cookies falsificadas.
+  - Con una clave `sb_secret_…` en `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: el build sale con 2 y `next start` con 1.
+  - Con `AUTH_MODE=mock`, `next start` sale con 1.
+  - Build conectado al stack local: `auth: supabase` y `/panel` → 307 a `/acceso`.
+
+**PR y CI:** se registran al final de esta sesión, debajo.
+
+**Límites:**
+
+- Nada está aplicado ni probado contra el proyecto alojado.
+- No hay gestión de miembros desde la interfaz (invitaciones), ni recuperación de contraseña, MFA ni auditoría (CORE-9.2).
+- No hay OAuth, IA, conectores, datos de clientes ni despliegue.
+
+**Decisiones y tareas del propietario:**
+
+1. Revisar el PR de CORE-9.1 y la [ADR 0003](adr/0003-auth-supabase-y-tenancy.md). En particular:
+   - el método **correo y contraseña**;
+   - el mapeo de roles (roles de organización `owner`/`member`; edición del proyecto solo para `owner`);
+   - si el registro es abierto o por invitación;
+   - que los identificadores (`slug`) sean globales.
+2. Configurar Auth en el proyecto alojado y aplicar la migración él mismo, siguiendo [SETUP-SUPABASE §3](SETUP-SUPABASE.md): MFA de la cuenta, confirmación de correo, URLs de redirección, plantilla de confirmación y SMTP si hace falta.
+3. Decidir MFA para usuarios y la recuperación de contraseña (requiere SMTP propio).
+4. Las tareas de hosting siguen igual ([HOSTING](HOSTING.md)).
+
+**Siguiente bloque:** CORE-9.2 (persistencia, auditoría y provenance), tras la revisión de CORE-9.1.

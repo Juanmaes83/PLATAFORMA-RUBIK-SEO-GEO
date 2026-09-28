@@ -21,7 +21,14 @@
 - Una rama y un PR por unidad coherente, con base en `main` verificada.
 - `npm run verify` debe pasar (pin del Core, guard de secretos, lint, typecheck, tests y build), y la CI debe estar en verde antes de pedir revisión.
 - Las decisiones técnicas reversibles se registran en `docs/adr/`. Si un contrato del Core no basta, documentar el caso y proponer el cambio en el repositorio Core por separado; nunca duplicarlo ni cambiarlo aquí en silencio.
-- `AUTH_MODE=mock` es solo para desarrollo/demo: no debe poder habilitarse en producción. No relajar las barreras de `src/lib/auth/mode.ts`, `scripts/run-next.mjs` ni `src/instrumentation.ts`, ni sus pruebas y pasos de CI.
+- El acceso es solo con Supabase Auth ([ADR 0003](docs/adr/0003-auth-supabase-y-tenancy.md)). La demo de CORE-9.0 se eliminó; `AUTH_MODE=mock` sigue prohibido en producción. No relajar las barreras de `src/lib/auth/mode.ts`, `scripts/run-next.mjs` ni `src/instrumentation.ts` (incluido el rechazo de claves secretas en `NEXT_PUBLIC_*`), ni sus pruebas y pasos de CI.
+- Supabase:
+  - la aplicación solo usa la clave publicable;
+  - la autorización nunca usa `user_metadata`;
+  - toda tabla en un esquema expuesto llega con RLS, políticas explícitas de mínimo privilegio, `WITH CHECK` en las actualizaciones y privilegios concedidos a mano;
+  - cada cambio de esquema es una migración nueva en `supabase/migrations` con pruebas pgTAP, y `src/lib/supabase/database.types.ts` se regenera;
+  - las pruebas usan solo el stack local (`npm run db:start`);
+  - **nunca** aplicar migraciones al proyecto alojado, ejecutar `db push` ni cambiar su configuración: lo hace el propietario ([SETUP-SUPABASE](docs/SETUP-SUPABASE.md)).
 - Cambios visuales: seguir D-27 y la [ADR 0002](docs/adr/0002-ux-mobile-first.md) (mobile-first a 360 px, sin scroll horizontal, estados vacíos honestos, fixtures marcados), ejecutar `npm run test:e2e` y regenerar las capturas con `npm run visual:evidence`.
 - No afirmar que la autenticación, la base de datos o una integración están conectadas si solo hay mocks o configuración local.
 - Al terminar un bloque: actualizar `docs/ROADMAP.md` y `docs/HANDOFF.md` con fecha, rama/PR, HEAD, pruebas exactas, CI, bloqueos y el siguiente paso.
