@@ -472,3 +472,19 @@ El commit que registra este run solo cambia ROADMAP y HANDOFF. Su CI, la del HEA
 3. Decidir si `service_role` también debe perder `EXECUTE`.
 4. Siguen pendientes las tareas anteriores de SETUP-SUPABASE §3: Auth, URLs, plantilla, SMTP, prueba con dos cuentas y cerrar el registro antes de dar acceso a clientes.
 
+## Sesión 7 — migración alojada aplicada y Advisor limpio (28/09/2026)
+
+**Cierre de CORE-9.1 y su seguimiento:**
+
+- PR #3 se fusionó en `main` mediante el merge `c1567d7ef3c8502aa4a5ed9dd02224da40d6b9e7`.
+- HEAD revisado: `0429a793749f65e8b84b0e7b5cd469f7daddb850`. CI [run 36472096880](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36472096880) terminó en verde: verify Node 22, verify Node 24 y e2e local Supabase.
+- El propietario actualizó su copia de `main`; el pull avanzó de `5ab1af4` a `c1567d7` e incluyó la migración.
+- Antes de aplicarla, `migration list --linked` mostraba `20260928150000` solo en local y `db push --dry-run` proponía únicamente `20260928150000_rls_auto_enable_privileges.sql`.
+- El propietario confirmó el prompt de `db push`. La CLI informó `Applying migration 20260928150000_rls_auto_enable_privileges.sql...` y `Finished supabase db push.`.
+- Después, `migration list --linked` mostró `20260928120000` y `20260928150000` aplicadas tanto en local como en remoto.
+- La comprobación `npx supabase@2.118.0 db advisors --linked --type security --level info` devolvió **No issues found**.
+
+Esta verificación procede de la salida de terminal compartida por el propietario el 28/09/2026; Codex no accedió directamente al Supabase alojado. No se desplegó la aplicación.
+
+**Siguiente trabajo:** completar la prueba manual de Auth contra el proyecto alojado con dos cuentas distintas (registro, confirmación de correo, creación de organizaciones/proyectos y aislamiento entre tenants), revisar el envío y la plantilla de confirmación y cerrar el registro abierto antes de dar acceso a clientes. Después, iniciar CORE-9.2 según el [plan de ejecución del Core](https://github.com/Juanmaes83/RUBIK-SEO-GEO-CORE/blob/main/docs/core-9/EXECUTION-PLAN.md).
+
