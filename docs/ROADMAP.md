@@ -4,7 +4,7 @@ Fuente de estado de este repositorio. El plan global y sus criterios están en [
 
 | Etapa | Estado | Notas |
 |---|---|---|
-| **CORE-9.0 · Descubrimiento y base** | 🟡 [PR #1](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/1) abierto (`feat/core-9-0-bootstrap`); D-27 aplicada; pendiente de CI del último push y de la revisión del propietario | Next.js 16, Core fijado en `20e4f4e`, demo solo en desarrollo (bloqueada en producción), estructura mobile-first con capturas ([ADR 0002](adr/0002-ux-mobile-first.md), [docs/visual](visual/README.md)), sin persistencia ni servicios. Ver [HANDOFF](HANDOFF.md) |
+| **CORE-9.0 · Descubrimiento y base** | 🟡 [PR #1](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/1) abierto (`feat/core-9-0-bootstrap`); D-27 aplicada; CI [run 36414209120](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36414209120) en verde (verify Node 22/24 y ui); pendiente de la revisión del propietario | Next.js 16, Core fijado en `20e4f4e`, demo solo en desarrollo (bloqueada en producción), estructura mobile-first con capturas ([ADR 0002](adr/0002-ux-mobile-first.md), [docs/visual](visual/README.md)), sin persistencia ni servicios. Ver [HANDOFF](HANDOFF.md) |
 | CORE-9.1 · Identidad, organizaciones y aislamiento | ⏳ Bloqueada por tareas del propietario | Supabase: proyecto de prueba, región, plan, MFA y RLS ([SETUP-SUPABASE](SETUP-SUPABASE.md)) |
 | CORE-9.2 · Persistencia, auditoría y provenance productiva | ⏳ | Depende de 9.1 y de la decisión de claves y retención |
 | CORE-9.3 · Importación manual | ⏳ | Primer flujo con datos (fixtures anonimizados) |

@@ -94,7 +94,12 @@
   - `run-next build` sale con 2.
 - Capturas en [docs/visual](visual/README.md).
 
-**CI:** pendiente del run de este push. Se registra en el PR.
+**CI:** [run 36414209120](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36414209120) del HEAD `f947e53` en verde.
+
+- `verify` en Node 22.23.2 y 24.21.0:
+  - el smoke de producción da `auth: disabled` y 307 con una cookie de demo;
+  - `AUTH_MODE=mock` queda rechazado en build (código 2), en start (código 2) y en el arranque directo (código 1, «prohibido en producción»).
+- `ui` en Node 22.23.2: 42/42, con el artefacto `capturas-core-9-0` (3,3 MB).
 
 **Tareas del propietario:**
 
