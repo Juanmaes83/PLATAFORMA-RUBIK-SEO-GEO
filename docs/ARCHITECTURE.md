@@ -13,13 +13,13 @@ Navegador ──HTTP──▶ Next.js (servidor Node)
                               │ require (serverExternalPackages)  │ HTTPS · Data API y Auth, como el usuario
                               ▼                                   ▼
             node_modules/@rubik/seo-geo-core           Supabase (Auth + Postgres con RLS)
-            ← RUBIK-SEO-GEO-CORE @ commit fijado       local: supabase start · alojado: no conectado
+            ← RUBIK-SEO-GEO-CORE @ commit fijado       local: supabase start · alojado: migraciones aplicadas por el propietario; prueba de Auth pendiente
 ```
 
 - **Datos:**
   - Postgres de Supabase, esquema `public`: `organizations`, `organization_members`, `projects` y `project_members`, todas con RLS.
   - Funciones auxiliares en el esquema no expuesto `private`.
-  - Migraciones en `supabase/migrations`, aplicadas solo al stack local y en la CI.
+  - Migraciones en `supabase/migrations`, aplicadas en el stack local y la CI; las versiones CORE-9.1 y de privilegios también constan aplicadas en el proyecto alojado según la salida de CLI compartida por el propietario (28/09/2026).
   - Modelo, políticas y mapeo de roles en la [ADR 0003](adr/0003-auth-supabase-y-tenancy.md).
 - **Identidad:** Supabase Auth con correo y contraseña, solo desde el servidor.
   - `currentUser()` usa `getClaims()`, que verifica el JWT. Nunca `getSession()` ni metadatos del usuario.
