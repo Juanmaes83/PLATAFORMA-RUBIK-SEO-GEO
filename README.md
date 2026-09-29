@@ -2,7 +2,7 @@
 
 Aplicación de la plataforma SEO/GEO de Rubik (CORE-9). Consume [RUBIK-SEO-GEO-CORE](https://github.com/Juanmaes83/RUBIK-SEO-GEO-CORE) como dependencia fijada a un commit; no copia su código. El repositorio de aplicación lo designó el propietario (decisión D-26 del Core).
 
-> **Estado: CORE-9.1, en revisión.** Acceso real con Supabase Auth (correo y contraseña), organizaciones y proyectos aislados por organización con RLS. Implementado y probado **solo contra el stack local de Supabase**; nada está aplicado ni configurado en el proyecto alojado. Sin conectores, sin IA, sin datos de clientes y sin despliegue. Detalle en [docs/ROADMAP.md](docs/ROADMAP.md) y [docs/HANDOFF.md](docs/HANDOFF.md).
+> **Estado: CORE-9.1 fusionado.** La app tiene Auth con correo/contraseña y aislamiento por RLS. Las dos migraciones constan aplicadas en el Supabase alojado y el Security Advisor respondió «No issues found» (salida del propietario, 28/09/2026). El flujo de Auth de la aplicación todavía no se ha probado manualmente contra el proyecto alojado. Sin conectores funcionales, sin IA, sin datos de clientes y sin despliegue. Detalle en [docs/ROADMAP.md](docs/ROADMAP.md) y [docs/HANDOFF.md](docs/HANDOFF.md).
 
 ## Requisitos
 
