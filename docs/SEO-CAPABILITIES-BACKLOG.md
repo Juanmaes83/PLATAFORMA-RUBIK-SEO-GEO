@@ -102,3 +102,55 @@ El Core es una librería, no una suite SEO con interfaz ni datos propios. Tiene 
 - Estado operativo y fases de la plataforma: [ROADMAP.md](ROADMAP.md).
 - Plan de ejecución detallado: [CORE-9 EXECUTION-PLAN](https://github.com/Juanmaes83/RUBIK-SEO-GEO-CORE/blob/main/docs/core-9/EXECUTION-PLAN.md).
 - Alcance del Core SEO/GEO: [RUBIK-SEO-GEO-CORE README](https://github.com/Juanmaes83/RUBIK-SEO-GEO-CORE#propósito-y-límites).
+
+
+## 14. Patrones de arquitectura SaaS y checklist GEO (insumo visual, 30/09/2026)
+
+**Estado:** incorporado al catálogo como oportunidad de producto; no implementado. Las imágenes son referencias de principios, no especificaciones técnicas ni garantías de ranking. Se debe decidir el alcance por fase y por tipo de proyecto.
+
+### 14.1 Arquitectura SEO para las páginas públicas de un SaaS
+
+La primera imagen propone separar páginas de producto y adquisición por intención:
+
+| Grupo de páginas | Ejemplos de rutas | Intención |
+|---|---|---|
+| Funcionalidades | `/features`, `/features/[feature]` | Qué hace el producto |
+| Casos de uso | `/use-cases/[audience]` | Cómo resuelve una necesidad |
+| Comparativas | `/compare/[product]-vs-[competitor]`, `/[competitor]-alternative` | Evaluación comercial |
+| Integraciones | `/integrations/[provider]` | Compatibilidad |
+| Contenido | `/blog/[topic]` | Aprendizaje y descubrimiento |
+| Herramientas | `/tools/[tool]` | Utilidad gratuita y adquisición |
+| Conversión | `/pricing` | Intención de compra |
+
+Principios que sí conviene convertir en capacidades: arquitectura de URL estable; enlaces contextuales entre contenido informativo, funcionalidades y conversión; páginas descubribles desde enlaces internos; detectar páginas huérfanas; y revisar profundidad de clics. “Tres clics máximo” se registra como heurística de auditoría, no como regla universal ni requisito rígido. Las comparativas deben ser exactas, actualizadas y transparentes.
+
+**Límite de aplicación:** este mapa describe el sitio público de marketing de Rubik (si se prioriza captar demanda orgánica para el SaaS), o sitios de clientes cuando el proyecto configure una arquitectura equivalente. No se debe imponer a la aplicación autenticada ni sustituir las rutas/datos de cada tenant. Páginas de competidores, integraciones y herramientas solo se crearán si existe contenido útil y verificable para ellas; evitar páginas programáticas vacías o repetitivas.
+
+**Futuras funciones de Rubik:** editor visual de arquitectura/árbol de URLs; mapa de intención a página; detector de páginas huérfanas y profundidad; sugerencias de enlaces internos con destino y contexto; comprobación de enlaces entre grupos; y revisión de canibalización/duplicados antes de publicar. Cualquier escritura o publicación requiere autorización del usuario.
+
+### 14.2 GEO: checklist convertido en flujo verificable
+
+| Área | Capacidad que podría ofrecer Rubik | Estado / matiz |
+|---|---|---|
+| Acceso y rastreo | Comprobar robots.txt, directivas noindex/canonical, sitemap, respuestas HTTP y bloqueos conocidos del CDN; revisar contenido renderizado | Pendiente. Permitir bots de IA es decisión del propietario del sitio; no recomendar permitirlos todos por defecto. robots.txt expresa directivas, no es control de acceso. |
+| Descubrimiento | Validar sitemap y, si se configura, enviar URLs mediante IndexNow | Pendiente. IndexNow comunica cambios a buscadores participantes; no garantiza indexación ni sustituye otras medidas. |
+| Contenido extraíble | Evaluar si las páginas clave entregan texto útil en HTML/renderizado; detectar preguntas sin respuesta clara, comparativas pobres y falta de enlaces internos | Pendiente. Preguntas H2, respuesta breve inicial y secciones comprensibles por separado son patrones a probar, no formato obligatorio para cada página. |
+| Evidencia y confianza | Revisar datos originales, fuentes, autoría, fecha de actualización, ejemplos/capturas, precios públicos y consistencia de marca | Pendiente. Rubik puede señalar faltantes; no debe inventar pruebas, opiniones, credenciales o testimonios. |
+| Cobertura de menciones | Proponer oportunidades de presencia en comunidades, directorios, reseñas, medios y páginas que ya citan fuentes del sector | Parcial en contratos del Core; datos/proveedores y flujo de trabajo pendientes. Contactar, publicar o solicitar reseñas requiere aprobación humana. |
+| Observación GEO | Guardar un conjunto versionado de consultas representativas, registrar fecha, motor, respuesta, URL y cita observada, comparar competidores y atribuir referencias verificables | Pendiente. “20 prompts” es un punto inicial configurable, no un estándar. Las respuestas pueden variar por usuario, región, idioma y fecha; la medición no representa ranking universal. |
+| Tráfico y conversión | Analizar referencias de IA, sesiones y conversiones solo donde analítica y consentimiento lo permitan | Pendiente de integración y política de datos. Search Console/Bing pueden ofrecer informes específicos según disponibilidad de propiedad/producto; además, los informes y métricas cambian. |
+
+### 14.3 Criterios de seguridad editorial y medición
+
+- Ninguna función fabricará consenso, sembrará menciones, publicará reseñas falsas, enviará spam a Reddit/foros ni comprará enlaces.
+- Las recomendaciones de acceso a crawlers deben mostrar qué agente se permitiría, qué rutas puede rastrear y el efecto sobre privacidad/licencias; la decisión pertenece al propietario.
+- Una cita LLM observada es evidencia puntual con fuente, consulta, fecha, idioma/región y método; no se presentará como garantía, cuota de mercado ni ranking.
+- Las sugerencias editoriales serán borradores. Publicar, editar el sitio del cliente, contactar a terceros o realizar envíos exigirá aprobación explícita y trazabilidad.
+- Los informes distinguirán: comprobación técnica automatizable, recomendación editorial, trabajo de marketing externo y decisión del propietario.
+
+### Referencias de plataforma para diseñar estas funciones
+
+- [Google Search Central: AI features and your website](https://developers.google.com/search/docs/appearance/ai-features): aplicar las prácticas generales de SEO; la elegibilidad no garantiza aparecer en funciones de IA.
+- [Google Search Central: JavaScript SEO basics](https://developers.google.com/search/docs/crawling-indexing/javascript/javascript-seo-basics): comprobar contenido y enlaces tras el renderizado.
+- [IndexNow: FAQ](https://www.indexnow.org/faq): el envío notifica URLs a buscadores participantes; cada motor decide su tratamiento.
+- [Bing Webmaster Blog: AI Performance report](https://blogs.bing.com/webmaster/February-2026/Introducing-AI-Performance-in-Bing-Webmaster-Tools): referencia para observar citas en experiencias de IA de Bing; la disponibilidad puede cambiar.
