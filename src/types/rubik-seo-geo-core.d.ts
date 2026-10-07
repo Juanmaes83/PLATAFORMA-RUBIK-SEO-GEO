@@ -48,6 +48,45 @@ declare module "@rubik/seo-geo-core/platform-contracts" {
     openQuestions?: string[];
   }
 
+  /** Digest injected into signed provenance (D-28). Production uses {alg:'sha256'}. */
+  export interface Digest {
+    alg: string;
+    hash(text: string): string;
+  }
+
+  export interface ProvenanceSigner {
+    sign(canonical: string, options: { keyId: string | null }): string;
+    verify(canonical: string, signature: string, options: { keyId: string | null }): boolean;
+  }
+
+  export interface SignedProvenance {
+    payload: Record<string, unknown> & { dataHash: string; dataHashAlg: string };
+    keyId: string | null;
+    signature: string;
+  }
+
+  export interface ProvenanceVerification {
+    trust: "SIGNED_PROVENANCE" | "UNTRUSTED";
+    verified: boolean;
+    reason: string | null;
+    keyId?: string | null;
+    dataHashAlg?: string;
+    result?: Record<string, unknown>;
+  }
+
+  export interface AuditEvent {
+    seq: number;
+    at: string;
+    actor: { role: Role; id: string | null };
+    action: string;
+    scope: Scope & { key: string };
+    target: string | null;
+    outcome: "allowed" | "denied" | "error";
+    details: Record<string, string | number | boolean | null>;
+    prevHash: string | null;
+    hash: string;
+  }
+
   interface PlatformContracts {
     readonly ROLES: readonly Role[];
     readonly ACTIONS: readonly string[];
@@ -63,8 +102,56 @@ declare module "@rubik/seo-geo-core/platform-contracts" {
       scope: Scope;
       approval?: Approval | null;
     }): Decision;
+    canonicalJson(value: unknown): string;
+    auditEvent(
+      previous: AuditEvent | null,
+      input: {
+        at: string;
+        actor: { role: Role; id?: string | null };
+        scope: { tenantId: string; projectId: string };
+        action: string;
+        target?: string | null;
+        outcome?: "allowed" | "denied" | "error";
+        details?: Record<string, string | number | boolean | null>;
+      },
+      options: { providers: unknown; hasher?: (text: string) => string },
+    ): { ok: true; event: AuditEvent } | { ok: false; error: { code: string; [k: string]: unknown } };
+    verifyAuditChain(
+      events: AuditEvent[],
+      options?: { hasher?: (text: string) => string },
+    ): { valid: true; length: number } | { valid: false; brokenAt: number; reason: "SEQUENCE" | "LINK" | "HASH" };
+    signProvenance(
+      result: unknown,
+      options: { providers: unknown; signer: ProvenanceSigner; keyId?: string | null; digest?: Digest },
+    ): { ok: true; signed: SignedProvenance } | { ok: false; error: { code: string } };
+    verifyProvenance(
+      signed: SignedProvenance,
+      options: { signer: ProvenanceSigner; data?: unknown; envelope?: unknown; digest?: Digest },
+    ): ProvenanceVerification;
+    isVerifiedProvenance(value: unknown): boolean;
   }
 
   const api: PlatformContracts;
+  export = api;
+}
+
+declare module "@rubik/seo-geo-core/providers" {
+  interface Providers {
+    redact(text: string): string;
+    isTrustedResult(value: unknown): boolean;
+    runProviderRequest(input: Record<string, unknown>): Promise<Record<string, unknown> & { data: unknown }>;
+  }
+  const api: Providers;
+  export = api;
+}
+
+declare module "@rubik/seo-geo-core/offpage" {
+  interface Offpage {
+    measurement(
+      input: unknown,
+      options: { providers: unknown; dimension?: string; platform?: unknown },
+    ): { status: string; trust: string; verified: boolean; method: string; rows: unknown[]; [k: string]: unknown };
+  }
+  const api: Offpage;
   export = api;
 }

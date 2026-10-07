@@ -5,7 +5,11 @@ import { defineConfig } from "vitest/config";
 // `npm test` / `npm run verify`, which must pass without Docker.
 export default defineConfig({
   resolve: {
-    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+      // Same stand-in as vitest.config.mts: outside Next, `server-only` is a no-op marker.
+      "server-only": fileURLToPath(new URL("./tests/support/server-only.ts", import.meta.url)),
+    },
   },
   test: {
     environment: "node",

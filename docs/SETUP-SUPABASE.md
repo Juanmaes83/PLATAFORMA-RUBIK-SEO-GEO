@@ -125,3 +125,21 @@ La migración de seguridad descrita en §5 ya está aplicada. Siguen pendientes 
    Se espera `{postgres=X/postgres,service_role=X/postgres}`.
 
 **Nota:** `db advisors --local` de la CLI 2.118.0 no informa de este aviso ni siquiera con la plantilla abierta (comprobado el 28/09/2026). Por eso la comprobación automática es pgTAP, y la CI reproduce el estado de Studio antes de aplicar la migración.
+
+## 6. CORE-9.2 · Migración `20261007120000_core_9_2_audit_and_provenance.sql` (pendiente del propietario)
+
+Estado a 07/10/2026: probada **solo en local** (pgTAP 113/113 y la integración). **No** se ha aplicado al proyecto alojado. Detalle en la [ADR 0004](adr/0004-persistencia-auditoria-y-provenance.md).
+
+Antes de aplicarla:
+
+1. Fusionar el PR de CORE-9.2 y el PR #19 del Core del que depende.
+2. Decidir la custodia de las claves de firma (variables del hosting o KMS). Generarlas fuera del chat y del repositorio, por ejemplo con `openssl rand -base64 32` por clave. Configurar `PROVENANCE_SIGNING_KEYS` y `PROVENANCE_ACTIVE_KEY_ID` solo en el servidor.
+3. Guardar una copia de seguridad de las claves fuera del repositorio. Sin ellas, la auditoría y los resultados guardados dejan de ser verificables.
+
+Aplicación, con el mismo flujo de §3/§5:
+
+1. Ejecutar `migration list --linked`.
+2. Ejecutar `db push --dry-run` y comprobar que solo propone `20261007120000`.
+3. Ejecutar `db push`.
+4. Repetir `db advisors --linked --type security --level info`.
+

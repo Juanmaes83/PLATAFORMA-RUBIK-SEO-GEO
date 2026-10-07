@@ -488,3 +488,54 @@ Esta verificación procede de la salida de terminal compartida por el propietari
 
 **Siguiente trabajo:** completar la prueba manual de Auth contra el proyecto alojado con dos cuentas distintas (registro, confirmación de correo, creación de organizaciones/proyectos y aislamiento entre tenants), revisar el envío y la plantilla de confirmación y cerrar el registro abierto antes de dar acceso a clientes. Después, iniciar CORE-9.2 según el [plan de ejecución del Core](https://github.com/Juanmaes83/RUBIK-SEO-GEO-CORE/blob/main/docs/core-9/EXECUTION-PLAN.md).
 
+
+## Sesión 8 — CORE-9.2, unidad 1: auditoría append-only y resultados firmados (07/10/2026)
+
+**Punto de partida verificado:**
+
+- `main@610256d`, sin cambios locales.
+- Baseline `npm run verify`: secretos (143 ficheros), lint, `tsc`, Vitest 42/42 y build, en verde.
+- En el Core, `main@f276837`: 314/314.
+
+**Core (PR separado):** [PR #19](https://github.com/Juanmaes83/RUBIK-SEO-GEO-CORE/pull/19), D-28, HEAD `a243ae0`.
+
+- Digest inyectable y firmado (`dataHashAlg`), sin downgrade al mock.
+- `canonicalJson` exportado.
+- El firmante recibe `keyId`.
+- `offpage.measurement` acepta con `platform` el resultado que reconstruye `verifyProvenance`.
+- 321/321 pruebas.
+
+El pin de este repo apunta a ese HEAD hasta el merge. **Tras el merge, cambiar el pin al commit fusionado.**
+
+**Hecho (rama `feat/core-9-2-persistence-provenance`, [ADR 0004](adr/0004-persistencia-auditoria-y-provenance.md)):**
+
+- Migración `20261007120000_core_9_2_audit_and_provenance.sql`:
+  - `audit_events`: encadenado, actor real e inmutabilidad en BD, bloqueo por proyecto, sin filtrar datos de cadenas ajenas;
+  - `provider_results`: solo `sha256`, columnas iguales al payload firmado, inmutable, borrado solo por `owner`.
+- `src/lib/provenance/`:
+  - keyring HMAC con rotación;
+  - auditoría (Core `auditEvent`/`verifyAuditChain` con SHA-256, más HMAC);
+  - sellado y apertura de resultados (Core `signProvenance`/`verifyProvenance`);
+  - repositorio Supabase con reintento ante concurrencia, exportación y borrado.
+- Variables `PROVENANCE_SIGNING_KEYS`/`PROVENANCE_ACTIVE_KEY_ID`, solo de servidor, documentadas en ENVIRONMENT.
+- Tipos de BD regenerados.
+
+**Pruebas locales** (Linux, Node 22.22.0, Docker 29.8.2, Supabase CLI 2.118.0):
+
+- `npm run verify`: en verde; secretos (152 ficheros) y Vitest 53/53 (9 de provenance y 2 estáticas nuevas).
+- `npm run test:db`: 113/113 (39 nuevas).
+- `npm run test:integration`: 18/18 (9 nuevas). Repetida 3 veces sin fallos, incluida la prueba de concurrencia.
+- Playwright **no ejecutado en local**: el Chromium preinstalado del contenedor no corresponde a `@playwright/test` 1.63 y no se descargan navegadores. Esta unidad no cambia la interfaz. El job `e2e` de la CI lo ejecuta.
+- Un hallazgo de pgTAP se corrigió antes del commit: el trigger revelaba la longitud de la cadena a un no miembro.
+
+**No hecho, a propósito:**
+
+- No se aplicó la migración al proyecto alojado ni se usaron claves reales.
+- No hay merge ni despliegue.
+
+**Siguiente paso:**
+
+1. Revisar y fusionar el Core PR #19 y luego este PR, con el pin actualizado.
+2. El propietario decide la custodia de claves y aplica la migración ([SETUP-SUPABASE §6](SETUP-SUPABASE.md)).
+3. Siguiente unidad de 9.2: consentimientos y ledger de gasto.
+4. Después, CORE-9.3: importación manual con las mismas garantías.
