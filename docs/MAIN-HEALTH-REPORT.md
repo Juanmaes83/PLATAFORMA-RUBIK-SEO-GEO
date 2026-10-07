@@ -1,5 +1,7 @@
 # Salud de `main` tras CORE-9.2 y CORE-9.3
 
+> **Nota de vigencia (2026-10-07, posterior):** este informe se tomó sobre `main@2beed3a`, antes del PR [#7](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/7), que ya está **FUSIONADO** en `main` con el merge `fd8ef5600b6757d995afff33655c17ee4285a227`. La CI del push a `main` ([run 37655703584](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37655703584)) terminó en **success**. El texto siguiente se conserva como fotografía histórica tomada antes del merge.
+
 **Fecha:** 2026-10-07.
 
 ## CI posterior al merge (GitHub Actions, evento `push` a `main`)
