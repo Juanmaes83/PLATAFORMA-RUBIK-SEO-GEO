@@ -525,8 +525,10 @@ El pin de este repo apunta a ese HEAD hasta el merge. **Tras el merge, cambiar e
 - `npm run verify`: en verde; secretos (152 ficheros) y Vitest 53/53 (9 de provenance y 2 estáticas nuevas).
 - `npm run test:db`: 113/113 (39 nuevas).
 - `npm run test:integration`: 18/18 (9 nuevas). Repetida 3 veces sin fallos, incluida la prueba de concurrencia.
-- Playwright **no ejecutado en local**: el Chromium preinstalado del contenedor no corresponde a `@playwright/test` 1.63 y no se descargan navegadores. Esta unidad no cambia la interfaz. El job `e2e` de la CI lo ejecuta.
+- Playwright: con la configuración del repositorio no arranca en el contenedor, porque su Chromium preinstalado (build 1194) no es el que espera `@playwright/test` 1.63 y no se descargan navegadores. Ejecutado después con una configuración local no versionada que solo cambia `executablePath` a ese Chromium: **72 pasan y 18 se omiten**, el mismo resultado que la CI.
 - Un hallazgo de pgTAP se corrigió antes del commit: el trigger revelaba la longitud de la cadena a un no miembro.
+
+**PR y CI:** [PR #5](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/5). HEAD `9c8fd87` → [run 37613715959](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37613715959), en verde: verify Node 22/24 y e2e (pgTAP, integración y Playwright). El Core PR #19 tiene su CI en verde en Node 20/22: [run 37612032208](https://github.com/Juanmaes83/RUBIK-SEO-GEO-CORE/actions/runs/37612032208).
 
 **No hecho, a propósito:**
 
