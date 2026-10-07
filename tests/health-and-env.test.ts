@@ -27,8 +27,14 @@ describe(".env.example", () => {
     for (const line of lines) expect(line, line).toMatch(/^[A-Z][A-Z0-9_]*=$/);
   });
 
-  it("declares only the two public Supabase names, never a service-role or secret key", () => {
+  it("declares the two public Supabase names and the server-only signing key names, never a Supabase secret", () => {
     expect(lines.some((l) => /SERVICE_ROLE|SECRET|ANON_KEY|AUTH_MODE/.test(l))).toBe(false);
-    expect(lines).toEqual(["NEXT_PUBLIC_SUPABASE_URL=", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="]);
+    expect(lines).toEqual([
+      "NEXT_PUBLIC_SUPABASE_URL=",
+      "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=",
+      "PROVENANCE_SIGNING_KEYS=",
+      "PROVENANCE_ACTIVE_KEY_ID=",
+    ]);
+    expect(lines.filter((l) => l.startsWith("NEXT_PUBLIC_") && /PROVENANCE/.test(l))).toEqual([]);
   });
 });

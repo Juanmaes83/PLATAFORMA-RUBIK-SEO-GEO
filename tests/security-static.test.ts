@@ -117,3 +117,20 @@ describe("migrations: RLS and least privilege", () => {
     expect(migrations).not.toMatch(/grant execute on function public\.rls_auto_enable/i);
   });
 });
+
+describe("CORE-9.2 signing keys stay on the server (ADR 0004)", () => {
+  it("signing keys are read only by the server-only keyring and never through NEXT_PUBLIC_*", () => {
+    const users = sources.filter((f) => /PROVENANCE_(SIGNING_KEYS|ACTIVE_KEY_ID)/.test(read(f))).map(rel);
+    expect(users).toEqual(["src/lib/provenance/keyring.ts"]);
+    for (const f of sources) expect(read(f), rel(f)).not.toMatch(/NEXT_PUBLIC_PROVENANCE/);
+    for (const f of sources.filter((f) => rel(f).startsWith("src/lib/provenance/"))) {
+      expect(read(f), rel(f)).toMatch(/^import "server-only";/);
+    }
+  });
+
+  it("the provenance tables only accept the production digest and refuse UPDATE", () => {
+    expect(migrations).toMatch(/data_hash_alg text not null check \(data_hash_alg = 'sha256'\)/);
+    expect(migrations).toMatch(/create trigger audit_events_immutable before update or delete on public\.audit_events/);
+    expect(migrations).toMatch(/create trigger provider_results_immutable before update on public\.provider_results/);
+  });
+});

@@ -8,7 +8,26 @@ export type Database = {
   
   "public": {
           Tables: {
-            "organization_members": {
+            "audit_events": {
+                  Row: {
+                    "action": string,"actor_id": string,"actor_role": string,"at": string,"created_at": string,"details": NonNullable<Json>,"hash": string,"key_id": string,"organization_id": string,"outcome": string,"prev_hash": string | null,"project_id": string,"seq": number,"signature": string,"target": string | null
+                  }
+                  Insert: {
+                    "action": string,"actor_id"?: string,"actor_role": string,"at": string,"created_at"?: string,"details"?: NonNullable<Json>,"hash": string,"key_id": string,"organization_id": string,"outcome": string,"prev_hash"?: string | null,"project_id": string,"seq": number,"signature": string,"target"?: string | null
+                  }
+                  Update: {
+                    "action"?: string,"actor_id"?: string,"actor_role"?: string,"at"?: string,"created_at"?: string,"details"?: NonNullable<Json>,"hash"?: string,"key_id"?: string,"organization_id"?: string,"outcome"?: string,"prev_hash"?: string | null,"project_id"?: string,"seq"?: number,"signature"?: string,"target"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "audit_events_project_id_organization_id_fkey"
+      columns: ["project_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "projects"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
+                },"organization_members": {
                   Row: {
                     "created_at": string,"organization_id": string,"role": string,"user_id": string
                   }
@@ -82,6 +101,25 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "organizations"
       referencedColumns: ["id"]
+    }
+                  ]
+                },"provider_results": {
+                  Row: {
+                    "captured_at": string | null,"created_at": string,"created_by": string,"data": Json | null,"data_hash": string,"data_hash_alg": string,"id": string,"key_id": string,"operation": string,"organization_id": string,"project_id": string,"provider": string,"signature": string,"signed_payload": NonNullable<Json>,"status": string
+                  }
+                  Insert: {
+                    "captured_at"?: string | null,"created_at"?: string,"created_by"?: string,"data"?: Json | null,"data_hash": string,"data_hash_alg": string,"id"?: string,"key_id": string,"operation": string,"organization_id": string,"project_id": string,"provider": string,"signature": string,"signed_payload": NonNullable<Json>,"status": string
+                  }
+                  Update: {
+                    "captured_at"?: string | null,"created_at"?: string,"created_by"?: string,"data"?: Json | null,"data_hash"?: string,"data_hash_alg"?: string,"id"?: string,"key_id"?: string,"operation"?: string,"organization_id"?: string,"project_id"?: string,"provider"?: string,"signature"?: string,"signed_payload"?: NonNullable<Json>,"status"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "provider_results_project_id_organization_id_fkey"
+      columns: ["project_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "projects"
+      referencedColumns: ["id","organization_id"]
     }
                   ]
                 }
