@@ -139,7 +139,7 @@ Antes de aplicarla:
 Aplicación, con el mismo flujo de §3/§5:
 
 1. Ejecutar `migration list --linked`.
-2. Ejecutar `db push --dry-run` y comprobar que solo propone `20261007120000`.
+2. Ejecutar `db push --dry-run` y comprobar que solo propone `20261007120000`. *(Nota del 08/10/2026: esto vale si se aplica antes que §7. Si §6 y §7 se aplican en la misma sesión, el dry-run propondrá las dos, `20261007120000` y `20261007150000`, y hay que comprobar que sean exactamente esas dos.)*
 3. Ejecutar `db push`.
 4. Repetir `db advisors --linked --type security --level info`.
 
