@@ -143,3 +143,7 @@ Aplicación, con el mismo flujo de §3/§5:
 3. Ejecutar `db push`.
 4. Repetir `db advisors --linked --type security --level info`.
 
+## 7. CORE-9.3 · Migración `20261007150000_core_9_3_manual_imports.sql` (pendiente del propietario)
+
+Probada **solo en local**: pgTAP 137/137 e integración 24/24 ([ADR 0005](adr/0005-importacion-manual.md)). Requiere antes la migración de §6 y las claves de firma, porque cada importación se audita. Se aplica con el mismo flujo: `migration list --linked`, `db push --dry-run` (solo `20261007150000`), `db push` y Security Advisor.
+

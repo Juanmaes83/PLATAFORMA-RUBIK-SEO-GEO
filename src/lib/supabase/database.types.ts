@@ -27,6 +27,25 @@ isOneToOne: false
       referencedColumns: ["id","organization_id"]
     }
                   ]
+                },"imports": {
+                  Row: {
+                    "captured_at": string,"created_at": string,"created_by": string,"error_count": number,"errors": NonNullable<Json>,"file_bytes": number,"file_sha256": string,"finding_count": number,"findings": NonNullable<Json>,"format": string,"id": string,"organization_id": string,"period_end": string | null,"period_start": string | null,"project_id": string,"source_kind": string,"source_label": string,"source_tool": string | null,"source_url": string | null,"status": string
+                  }
+                  Insert: {
+                    "captured_at": string,"created_at"?: string,"created_by"?: string,"error_count": number,"errors": NonNullable<Json>,"file_bytes": number,"file_sha256": string,"finding_count": number,"findings": NonNullable<Json>,"format": string,"id"?: string,"organization_id": string,"period_end"?: string | null,"period_start"?: string | null,"project_id": string,"source_kind": string,"source_label": string,"source_tool"?: string | null,"source_url"?: string | null,"status": string
+                  }
+                  Update: {
+                    "captured_at"?: string,"created_at"?: string,"created_by"?: string,"error_count"?: number,"errors"?: NonNullable<Json>,"file_bytes"?: number,"file_sha256"?: string,"finding_count"?: number,"findings"?: NonNullable<Json>,"format"?: string,"id"?: string,"organization_id"?: string,"period_end"?: string | null,"period_start"?: string | null,"project_id"?: string,"source_kind"?: string,"source_label"?: string,"source_tool"?: string | null,"source_url"?: string | null,"status"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "imports_project_id_organization_id_fkey"
+      columns: ["project_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "projects"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
                 },"organization_members": {
                   Row: {
                     "created_at": string,"organization_id": string,"role": string,"user_id": string

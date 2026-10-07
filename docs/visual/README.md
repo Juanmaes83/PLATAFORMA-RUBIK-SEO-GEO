@@ -2,7 +2,10 @@
 
 - **Cómo se generan:** capturas de página completa con `npm run visual:evidence`: Playwright con Chromium contra `next dev`, conectado al **stack local de Supabase**, en tema claro.
 - **Datos:** las cuentas, organizaciones y proyectos son **ficticios** (`@ejemplo.test`). Los crea `e2e/global-setup.ts` en la base de datos local a través de RLS.
-- **Entornos:** las de este repositorio se generaron en Windows con las fuentes del sistema. La CI genera las suyas en Linux (artefacto `capturas-core-9-1` del job `e2e`).
+- **Entornos:**
+  - Las capturas 01–14 se generaron en Windows con las fuentes del sistema.
+  - Las 15–17 (CORE-9.3) se generaron en Linux, en el contenedor de Claude Code, con su Chromium preinstalado. Las capturas 07–09 son anteriores a la pestaña «Importaciones» del menú del proyecto: no se regeneraron para no mezclar entornos.
+  - La CI genera sus propias capturas en Linux (artefacto del job `e2e`).
 - **Criterios y pruebas:** en la [ADR 0002](../adr/0002-ux-mobile-first.md).
 
 | Vista | 360 px | 390 px | 1280 px |
@@ -21,3 +24,6 @@
 | Proyecto de otro tenant (404) | [360](movil-360/12-otro-tenant-404.png) | [390](movil-390/12-otro-tenant-404.png) | [1280](escritorio-1280/12-otro-tenant-404.png) |
 | Panel de una cuenta sin proyectos | [360](movil-360/13-panel-sin-proyectos.png) | [390](movil-390/13-panel-sin-proyectos.png) | [1280](escritorio-1280/13-panel-sin-proyectos.png) |
 | Menú móvil abierto | [360](movil-360/14-menu-movil-abierto.png) | [390](movil-390/14-menu-movil-abierto.png) | — (barra lateral) |
+| Importaciones (analista, con formulario) · CORE-9.3 | [360](movil-360/15-importaciones-analista.png) | [390](movil-390/15-importaciones-analista.png) | [1280](escritorio-1280/15-importaciones-analista.png) |
+| Importaciones (cliente, solo lectura) · CORE-9.3 | [360](movil-360/16-importaciones-cliente.png) | [390](movil-390/16-importaciones-cliente.png) | [1280](escritorio-1280/16-importaciones-cliente.png) |
+| Detalle de una importación parcial · CORE-9.3 | — | — | [1280](escritorio-1280/17-importacion-detalle.png) |

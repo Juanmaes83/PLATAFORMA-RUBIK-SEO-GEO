@@ -541,3 +541,51 @@ El pin de este repo apunta a ese HEAD hasta el merge. **Tras el merge, cambiar e
 2. El propietario decide la custodia de claves y aplica la migración ([SETUP-SUPABASE §6](SETUP-SUPABASE.md)).
 3. Siguiente unidad de 9.2: consentimientos y ledger de gasto.
 4. Después, CORE-9.3: importación manual con las mismas garantías.
+
+## Sesión 9 — CORE-9.3: importación manual (07/10/2026)
+
+**Base:** rama `feat/core-9-3-manual-import`, creada desde `feat/core-9-2-persistence-provenance` (`73ffbd1`, PR #5). Está apilada: su PR apunta a la rama de 9.2 para que el diff sea solo de 9.3.
+
+**Hecho** ([ADR 0005](adr/0005-importacion-manual.md)):
+
+- Contrato `rubik-import-v1`:
+  - rechazo del fichero entero, sin guardar nada;
+  - errores por fila sin el valor rechazado;
+  - estados `complete`, `partial`, `failed` y `empty`.
+- Migración `20261007150000`, tabla `imports`:
+  - un único `INSERT`;
+  - SHA-256 único por proyecto;
+  - fechas de captura y de importación separadas;
+  - restricciones de coherencia, RLS por rol e inmutable.
+- Repositorio: importar, listar, abrir, buscar por URL y borrar. Cada fichero, aceptado o rechazado, queda en la auditoría firmada. La exportación del proyecto incluye las importaciones.
+- Interfaz:
+  - sección «Importaciones» con lista, formulario (solo roles con `draft`), detalle y borrado con confirmación (solo `owner`);
+  - ruta `/exportar` (solo `export-data`, 404 en cualquier otro caso).
+- Banner y `/api/salud` pasan a «CORE-9.3».
+- Playwright arranca el servidor de pruebas con una clave HMAC aleatoria por ejecución.
+
+**Defectos encontrados por las pruebas y corregidos antes del commit:**
+
+1. `Intl.DateTimeFormat` no admite `dateStyle`/`timeStyle` junto con `timeZoneName`: la página fallaba al renderizar.
+2. La guarda estática detectó que el texto de la interfaz nombraba la variable de la clave.
+3. Los selectores e2e eran ambiguos con el anunciador de rutas de Next.
+
+**Pruebas locales** (Linux, Node 22.22.0, Supabase CLI 2.118.0):
+
+- `npm run verify`: en verde, Vitest 78/78.
+- `npm run test:db`: 137/137 (24 nuevas).
+- `npm run test:integration`: 24/24 (6 nuevas).
+- Playwright con el Chromium del contenedor y la configuración local que solo cambia `executablePath`: 81 pasan y 24 se omiten. El flujo de importación se repitió 3 veces sin fallos.
+
+**No hecho:**
+
+- No se aplicó nada en el entorno alojado.
+- No se importaron datos reales de clientes.
+- No hay merge.
+
+**Siguiente paso:**
+
+1. Revisar y fusionar #5 y luego este PR, previo cambio del pin del Core tras el merge de Core#19.
+2. Con un proyecto autorizado para Sarah, importar la auditoría de su preview (repo madre, documento 08) como primer caso real.
+3. Después, la auditoría live con OpenSEO (unidad 3), según el plan.
+

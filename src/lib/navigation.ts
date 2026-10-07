@@ -45,6 +45,8 @@ export const WORKSPACE_NAV: readonly NavItem[] = [
 
 export interface ProjectSection {
   slug: string;
+  /** Built sections have their own route; the rest render the honest "not available" page. */
+  available?: boolean;
   label: string;
   stage: string;
   description: string;
@@ -52,8 +54,14 @@ export interface ProjectSection {
   nextStep: string;
 }
 
-/** Project sub-sections; the summary is the project page itself. None is built in 9.0. */
+/** Project sub-sections; the summary is the project page itself. Only Importaciones is built (CORE-9.3). */
 export const PROJECT_SECTIONS: readonly ProjectSection[] = [
+  {
+    slug: "importaciones", label: "Importaciones", stage: "CORE-9.3", available: true,
+    description: "Hallazgos importados manualmente con su fuente y su fecha (rubik-import-v1).",
+    requires: [],
+    nextStep: "Importar un fichero y revisar sus hallazgos.",
+  },
   {
     slug: "mediciones", label: "Mediciones", stage: "CORE-9.3 a 9.5",
     description: "Mediciones SEO, off-page y GEO con fuente, fecha, estado (observado, estimado, no verificado, desconocido) y comparabilidad.",
@@ -93,4 +101,4 @@ export const PROJECT_SECTIONS: readonly ProjectSection[] = [
 ];
 
 export const findUnavailable = (href: string) => WORKSPACE_NAV.find((i) => i.href === href && !i.available) ?? null;
-export const findProjectSection = (slug: string) => PROJECT_SECTIONS.find((s) => s.slug === slug) ?? null;
+export const findProjectSection = (slug: string) => PROJECT_SECTIONS.find((s) => s.slug === slug && !s.available) ?? null;
