@@ -2,7 +2,7 @@
 
 **Estado:** propuesta en PR para revisión del propietario.
 **Fecha:** 07/10/2026.
-**Depende de:** Core D-28 ([PR #19 del Core](https://github.com/Juanmaes83/RUBIK-SEO-GEO-CORE/pull/19)). Mientras ese PR no se fusione, el pin apunta a su HEAD `a243ae0`. Tras el merge, se cambia al commit fusionado.
+**Depende de:** Core D-28 ([PR #19 del Core](https://github.com/Juanmaes83/RUBIK-SEO-GEO-CORE/pull/19)). El PR se fusionó con merge commit `8a1f808` (07/10/2026), y el pin apunta a ese commit de `main` del Core.
 
 ## Contexto
 

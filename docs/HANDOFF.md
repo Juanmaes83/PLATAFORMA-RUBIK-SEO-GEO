@@ -541,3 +541,18 @@ El pin de este repo apunta a ese HEAD hasta el merge. **Tras el merge, cambiar e
 2. El propietario decide la custodia de claves y aplica la migración ([SETUP-SUPABASE §6](SETUP-SUPABASE.md)).
 3. Siguiente unidad de 9.2: consentimientos y ledger de gasto.
 4. Después, CORE-9.3: importación manual con las mismas garantías.
+
+## Sesión 9 — pin del Core tras el merge de Core#19 (07/10/2026)
+
+**Punto de partida:** Core PR #19 fusionado en `main` del Core con merge commit `8a1f80883b83536d02301d073259b010f696409b`. Su árbol es idéntico al de `a243ae0` (`git diff a243ae0 8a1f808` vacío).
+
+**Hecho (rama `feat/core-9-2-persistence-provenance`, PR #5):**
+
+- `package.json` y `package-lock.json` fijan el Core a `8a1f808`. En el lockfile solo cambian las dos referencias del commit y la integridad del paquete git; no se tocó ninguna otra dependencia.
+- ADR 0004 y ROADMAP actualizados.
+
+**Pruebas locales** (Linux, Node 22.22.0, npm 10.9.4): `npm ci` limpio y `npm run verify` en verde: `core pin ok: 8a1f808…`, Vitest 53/53, build correcto. pgTAP, integración y Playwright no se repitieron en local porque el código no cambia; los ejecuta la CI del HEAD.
+
+**No hecho, a propósito:** merge de #5 y #6 (requiere autorización del propietario según este CLAUDE.md), migraciones alojadas y claves reales.
+
+**Siguiente paso:** con la CI de este HEAD en verde y la autorización del propietario, fusionar #5 y cambiar la base de #6 a `main`.
