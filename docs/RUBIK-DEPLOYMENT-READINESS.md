@@ -2,6 +2,8 @@
 
 **Fecha:** 2026-10-07.
 
+> **Nota de vigencia (2026-10-07, tras el PR #8):** la evidencia «`main@2beed3a`» de la fila «Código de aplicación» es la fotografía original. `main` está ahora en `377fa73` (merge de [#8](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/8), precedido por [#7](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/7), `fd8ef56`), con CI [run 37688821356](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37688821356) en **success** y reproducción local en verde (verify 84/84, pgTAP 137/137, integración 25/25). El estado de despliegue no cambia: **NOT DEPLOYED**, y las migraciones `20261007120000` y `20261007150000` siguen sin aplicar en el proyecto alojado.
+
 **Estado: NOT DEPLOYED.** No hay hosting, URL, dominio ni build desplegada ([HOSTING](HOSTING.md)). Que las pruebas locales y la CI estén en verde no significa que la plataforma esté operativa.
 
 Clasificación: `READY` · `NEEDS_CONFIGURATION` · `NEEDS_SECRET` · `NEEDS_DEPLOYMENT` · `NEEDS_OWNER_DECISION` · `BLOCKED`.
