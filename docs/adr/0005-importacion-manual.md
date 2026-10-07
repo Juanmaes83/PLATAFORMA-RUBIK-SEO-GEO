@@ -90,6 +90,19 @@ Ejemplo:
 | Integración | 6: parcial, duplicado, scope ajeno, búsqueda por URL, visor y otro tenant, exportación y borrado auditados |
 | Playwright | 3 flujos (escritorio) y 2 vistas nuevas a 360, 390 y 1280 px con axe, sin overflow y con objetivos táctiles de 44 px |
 
+## Normalizador de Lighthouse (07/10/2026)
+
+`src/lib/imports/lighthouse.ts` convierte un informe JSON de Lighthouse en un fichero `rubik-import-v1`, y `scripts/lighthouse-to-import.mjs` lo ejecuta sobre uno o varios informes locales. No usa red, base de datos ni secretos.
+
+- **Qué se convierte en hallazgo:** solo las auditorías con peso en su categoría y puntuación inferior a 0,9. Una auditoría sin puntuar (`score: null`) se omite; no se convierte en fallo ni en cero.
+- **`ruleId`:** `lh.<formFactor>.<auditId>`. Así, móvil y escritorio de la misma URL no colisionan como filas duplicadas.
+- **Gravedad:** `high` si la puntuación es menor que 0,5; `medium` en otro caso.
+- **Riesgos aceptados:** las reglas que indique el propietario (por ejemplo, `noindex` en una preview) se marcan como `accepted-risk`.
+- **Entorno:** `LOCAL`, `PREVIEW`, `PRODUCTION` o `PAGESPEED`. Va en la etiqueta y en cada observación. Las puntuaciones de entornos distintos no se comparan entre sí.
+- **URL:** una medición local mide `http://localhost…`, que el contrato rechaza. El CLI exige mapear ese origen al origen público que representa la build (`--map-origin`). La URL medida se conserva en la observación.
+
+Pruebas: 6 de Vitest, una de ellas comprueba que la salida pasa `parseImport` como `complete`. Una de integración recorre el flujo completo contra el stack local: normalizar, importar, auditar, releer y exportar.
+
 ## Pendiente
 
 - Mapeo CSV, cuando exista una fuente concreta.
