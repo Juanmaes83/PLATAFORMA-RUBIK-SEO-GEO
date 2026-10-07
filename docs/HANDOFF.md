@@ -626,3 +626,27 @@ Salud de `main` en local (Linux, Node 22.22.0, Docker 29.8.2, Supabase CLI 2.118
 **Evidencia de uso:** sobre 12 informes de Lighthouse 13.5.0 de una build local de la web de Sarah, el CLI produjo 32 hallazgos que `parseImport` acepta como `complete`. **No se importaron datos de Sarah en ninguna instancia.**
 
 **Siguiente paso:** importar en un proyecto autorizado cuando exista una instancia desplegada.
+
+## Sesión 11 — estado tras el merge del PR #7 (07/10/2026)
+
+**Punto de partida:** `origin/main@fd8ef5600b6757d995afff33655c17ee4285a227`, merge del [PR #7](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/7) (normalizador Lighthouse y documentos de consolidación). Core fijado en `8a1f808`.
+
+**CI de `main`:** [run 37655703584](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37655703584) del push de `fd8ef56`, **completed / success**: verify (Node 22), verify (Node 24) y e2e (pgTAP, tipos, integración, build conectado al stack local y Playwright).
+
+**Reproducción local** (worktree limpio de `origin/main`, Linux, Node 22.22.0, Supabase CLI 2.118.0, solo stack local):
+
+| Comando | Resultado |
+|---|---|
+| `npm ci` | correcto |
+| `npm run verify` | `core pin ok: 8a1f808…`, secretos 181 ficheros, Vitest 84/84 (11 ficheros), build correcto |
+| `npm run db:start` y `npm run db:reset` | migraciones aplicadas al stack local |
+| `npm run test:db` | pgTAP 137/137 |
+| `npm run test:integration` | 25/25 (4 ficheros), incluido `lighthouse-import.integration.test.ts` |
+| `node scripts/lighthouse-to-import.mjs … <informe ficticio>` | 2 hallazgos; el fichero resultante se importó, auditó, releyó y exportó en el stack local con una prueba temporal no versionada |
+| `npm run db:stop` | stack detenido |
+
+**Hecho (rama `docs/post-7-merge-status`):** notas de vigencia fechadas en `RUBIK-CONSOLIDATION-AUDIT.md` y `MAIN-HEALTH-REPORT.md` (el texto histórico no se reescribe) y estado de #7 en ROADMAP (fila CORE-9.3).
+
+**No hecho, a propósito:** merge, despliegue, migraciones alojadas, borrado de ramas e importación de datos de Sarah.
+
+**Siguiente paso:** revisión del propietario del PR draft de esta rama; después, la siguiente unidad de CORE-9.2 o el piloto cuando se autorice.
