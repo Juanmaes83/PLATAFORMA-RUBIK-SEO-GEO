@@ -603,3 +603,26 @@ El pin de este repo apunta a ese HEAD hasta el merge. **Tras el merge, cambiar e
 **No hecho, a propósito:** merge de #5 y #6 (requiere autorización del propietario según este CLAUDE.md), migraciones alojadas y claves reales.
 
 **Siguiente paso:** con la CI de este HEAD en verde y la autorización del propietario, fusionar #5 y cambiar la base de #6 a `main`.
+
+## Sesión 10 — normalizador Lighthouse → `rubik-import-v1` (07/10/2026)
+
+**Punto de partida:** `main@2beed3a`, con CORE-9.2 (PR #5) y CORE-9.3 (PR #6) fusionados.
+
+Salud de `main` en local (Linux, Node 22.22.0, Docker 29.8.2, Supabase CLI 2.118.0):
+
+| Comprobación | Resultado |
+|---|---|
+| `npm ci` y `npm run verify` | 78/78 y build correcto |
+| `npm run test:db` | 137/137 |
+| `npm run test:integration` | 24/24 |
+
+**Hecho (rama `feat/lighthouse-import-normaliser`):**
+
+- `src/lib/imports/lighthouse.ts`, el CLI `scripts/lighthouse-to-import.mjs` y la sección «Normalizador de Lighthouse» de la ADR 0005.
+- ROADMAP: CORE-9.2 unidad 1 y CORE-9.3 pasan a fusionadas.
+
+**Pruebas locales:** verify 84/84 (6 nuevas) e integración 25/25 (1 nueva: el recorrido normalizar, importar, auditar, releer y exportar).
+
+**Evidencia de uso:** sobre 12 informes de Lighthouse 13.5.0 de una build local de la web de Sarah, el CLI produjo 32 hallazgos que `parseImport` acepta como `complete`. **No se importaron datos de Sarah en ninguna instancia.**
+
+**Siguiente paso:** importar en un proyecto autorizado cuando exista una instancia desplegada.
