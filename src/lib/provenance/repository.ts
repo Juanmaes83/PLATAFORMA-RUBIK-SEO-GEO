@@ -75,6 +75,8 @@ export interface ProjectExport {
   scope: ProjectRef["scope"];
   audit: { rows: AuditRow[]; verification: AuditVerification };
   results: { row: ProviderResultRow; verification: { trust: string; verified: boolean; reason: string | null } }[];
+  /** CORE-9.3 manual imports: DECLARED data, exported as stored (findings and row errors included). */
+  imports: unknown[];
 }
 
 /** Full export of the project's persisted CORE-9.2 data, with the verification of each part. */
@@ -87,7 +89,9 @@ export async function exportProject(client: Client, project: ProjectRef, keyring
     const v = openProviderResult(row, keyring);
     return { row, verification: { trust: v.trust, verified: v.verified, reason: v.reason } };
   });
-  return { ok: true, export: { format: "rubik-project-export-v1", exportedAt: at, scope: project.scope, audit: { rows: audit.rows, verification: audit.verification }, results } };
+  const imports = await client.from("imports").select("*").eq("project_id", project.projectId).order("created_at");
+  if (imports.error) return { ok: false, error: "READ_FAILED" };
+  return { ok: true, export: { format: "rubik-project-export-v1", exportedAt: at, scope: project.scope, audit: { rows: audit.rows, verification: audit.verification }, results, imports: imports.data } };
 }
 
 /**

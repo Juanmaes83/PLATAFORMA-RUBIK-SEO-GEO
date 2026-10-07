@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { defineConfig } from "@playwright/test";
 import { localSupabaseEnv } from "./scripts/supabase-test-env.mjs";
 
@@ -6,6 +7,9 @@ import { localSupabaseEnv } from "./scripts/supabase-test-env.mjs";
 // Only the publishable key reaches the app; the helper refuses any non-local host.
 const port = Number(process.env.E2E_PORT ?? 3217);
 const supabase = localSupabaseEnv();
+// CORE-9.2/9.3: a throwaway HMAC key generated for each run, so audited imports work in e2e.
+// It exists only in this process and the dev server it starts; it signs nothing real.
+const signingKey = randomBytes(32).toString("base64");
 
 export default defineConfig({
   testDir: "e2e",
@@ -36,6 +40,8 @@ export default defineConfig({
       NEXT_TELEMETRY_DISABLED: "1",
       NEXT_PUBLIC_SUPABASE_URL: supabase.apiUrl,
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: supabase.publishableKey,
+      PROVENANCE_SIGNING_KEYS: `k-e2e:${signingKey}`,
+      PROVENANCE_ACTIVE_KEY_ID: "k-e2e",
     },
   },
 });
