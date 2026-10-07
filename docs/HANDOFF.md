@@ -650,3 +650,30 @@ Salud de `main` en local (Linux, Node 22.22.0, Docker 29.8.2, Supabase CLI 2.118
 **No hecho, a propósito:** merge, despliegue, migraciones alojadas, borrado de ramas e importación de datos de Sarah.
 
 **Siguiente paso:** revisión del propietario del PR draft de esta rama; después, la siguiente unidad de CORE-9.2 o el piloto cuando se autorice.
+
+## Sesión 12 — estado tras el merge del PR #8 (07/10/2026)
+
+**Punto de partida:** `origin/main@377fa731344108b1ce0aaae81b18c5cedd296908`, merge del [PR #8](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/8) (notas de vigencia tras #7). Core `main@8a1f808`, igual al pin. Sin PRs abiertos en ninguno de los dos repos.
+
+**Nota de vigencia:** el «Siguiente paso» de la sesión 11 (revisión del PR draft de `docs/post-7-merge-status`) queda **superado**: ese PR es el #8 y está fusionado.
+
+**CI de `main`:** [run 37688821356](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37688821356) del push de `377fa73`, **completed / success**.
+
+**Reproducción local** (worktree limpio de `origin/main`, Linux, Node 22.22.0, Supabase CLI 2.118.0, solo stack local):
+
+| Comando | Resultado |
+|---|---|
+| `npm ci` | correcto |
+| `npm run verify` | `core pin ok: 8a1f808…`, secretos 181 ficheros, Vitest 84/84 (11 ficheros), build correcto |
+| `npm run db:start` y `npm run db:reset` | las 4 migraciones aplicadas al stack local |
+| `npm run test:db` | pgTAP 137/137 (4 ficheros) |
+| `npm run test:integration` | 25/25 (4 ficheros) |
+| `npm run db:stop` | stack detenido |
+
+**Hecho (rama `docs/post-8-merge-status`):** notas de vigencia fechadas en `MAIN-HEALTH-REPORT.md`, `RUBIK-CONSOLIDATION-AUDIT.md` y `RUBIK-DEPLOYMENT-READINESS.md`, y estado de #8 en ROADMAP (fila CORE-9.3). El texto histórico no se reescribe.
+
+**No hecho, a propósito:** merge, despliegue, migraciones alojadas, `db push`, borrado de ramas e importación de datos de Sarah.
+
+**Bloqueos (propietario):** hosting compatible con uso comercial, claves de firma en el hosting, migraciones `20261007120000` y `20261007150000` en el proyecto alojado, configuración de Auth alojado y prueba con dos cuentas ([RUBIK-DEPLOYMENT-READINESS](RUBIK-DEPLOYMENT-READINESS.md) §3).
+
+**Siguiente paso:** revisión del propietario del PR draft de esta rama; después, la siguiente unidad de CORE-9.2 o el piloto cuando se autorice.
