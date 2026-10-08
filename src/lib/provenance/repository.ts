@@ -94,7 +94,7 @@ export async function loadProviderResult(client: Client, project: ProjectRef, id
   if (error) return { ok: false, error: "READ_FAILED" };
   if (!data || data.project_id !== project.projectId || data.organization_id !== project.organizationId) return { ok: false, error: "NOT_FOUND" };
   const row = data as ProviderResultRow;
-  return { ok: true, row, verification: openProviderResult(row, keyring) };
+  return { ok: true, row, verification: openProviderResult(row, project, keyring) };
 }
 
 export interface ProjectExport {
@@ -111,10 +111,10 @@ export interface ProjectExport {
 export async function exportProject(client: Client, project: ProjectRef, keyring: Keyring, at: string): Promise<{ ok: true; export: ProjectExport } | Failure> {
   const audit = await readAuditTrail(client, project, keyring);
   if (!audit.ok) return audit;
-  const res = await client.from("provider_results").select("*").eq("project_id", project.projectId).order("created_at");
+  const res = await client.from("provider_results").select("*").eq("project_id", project.projectId).eq("organization_id", project.organizationId).order("created_at");
   if (res.error) return { ok: false, error: "READ_FAILED" };
   const results = (res.data as ProviderResultRow[]).map((row) => {
-    const v = openProviderResult(row, keyring);
+    const v = openProviderResult(row, project, keyring);
     return { row, verification: { trust: v.trust, verified: v.verified, reason: v.reason } };
   });
   const imports = await client.from("imports").select("*").eq("project_id", project.projectId).order("created_at");

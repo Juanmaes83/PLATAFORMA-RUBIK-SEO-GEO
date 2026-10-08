@@ -71,6 +71,8 @@ declare module "@rubik/seo-geo-core/platform-contracts" {
     reason: string | null;
     keyId?: string | null;
     dataHashAlg?: string;
+    scopeVersion?: 1;
+    scope?: { tenantId: string; projectId: string };
     result?: Record<string, unknown>;
   }
 
@@ -122,11 +124,11 @@ declare module "@rubik/seo-geo-core/platform-contracts" {
     ): { valid: true; length: number } | { valid: false; brokenAt: number; reason: "SEQUENCE" | "LINK" | "HASH" };
     signProvenance(
       result: unknown,
-      options: { providers: unknown; signer: ProvenanceSigner; keyId?: string | null; digest?: Digest },
+      options: { providers: unknown; signer: ProvenanceSigner; keyId?: string | null; digest?: Digest; scope?: { tenantId: string; projectId: string } },
     ): { ok: true; signed: SignedProvenance } | { ok: false; error: { code: string } };
     verifyProvenance(
       signed: SignedProvenance,
-      options: { signer: ProvenanceSigner; data?: unknown; envelope?: unknown; digest?: Digest },
+      options: { signer: ProvenanceSigner; data?: unknown; envelope?: unknown; digest?: Digest; scope?: { tenantId: string; projectId: string } },
     ): ProvenanceVerification;
     isVerifiedProvenance(value: unknown): boolean;
   }

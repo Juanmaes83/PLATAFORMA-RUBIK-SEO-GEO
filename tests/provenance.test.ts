@@ -118,7 +118,8 @@ describe("signed provider results", () => {
     if (!sealed.ok) throw new Error(sealed.error);
     expect(sealed.row).toMatchObject({ provider: "dataforseo", operation: "backlinks", data_hash_alg: "sha256", key_id: "k-a" });
     const stored = JSON.parse(JSON.stringify(sealed.row));
-    const opened = openProviderResult(stored, keyring);
+    const opened = openProviderResult(stored, project, keyring);
+    expect(opened.scope).toEqual({ tenantId: project.organizationId, projectId: project.projectId });
     expect([opened.trust, opened.verified, opened.reason]).toEqual(["SIGNED_PROVENANCE", true, null]);
     // The rebuilt result is accepted by the Core's offpage only with the platform module injected.
     const m = offpage.measurement(opened.result, { providers, dimension: "backlinks", platform });
@@ -132,10 +133,46 @@ describe("signed provider results", () => {
     const sealed = sealProviderResult(r, project, keyring);
     if (!sealed.ok) throw new Error(sealed.error);
     const row = sealed.row;
-    expect(openProviderResult({ ...row, data: [] }, keyring).reason).toBe("DATA_CHANGED");
-    expect(openProviderResult({ ...row, signed_payload: { ...(row.signed_payload as object), status: "EMPTY", cached: true } }, keyring).reason).toBe("BAD_SIGNATURE");
-    expect(openProviderResult({ ...row, key_id: "k-b" }, keyring).reason).toBe("BAD_SIGNATURE");
-    expect(openProviderResult({ ...row, signature: "0".repeat(64) }, keyring).reason).toBe("BAD_SIGNATURE");
-    expect(openProviderResult(row, ring("k-a", `k-a:${k()}`)).reason).toBe("BAD_SIGNATURE");
+    expect(openProviderResult({ ...row, data: [] }, project, keyring).reason).toBe("DATA_CHANGED");
+    expect(openProviderResult({ ...row, signed_payload: { ...(row.signed_payload as object), status: "EMPTY", cached: true } }, project, keyring).reason).toBe("BAD_SIGNATURE");
+    expect(openProviderResult({ ...row, key_id: "k-b" }, project, keyring).reason).toBe("BAD_SIGNATURE");
+    expect(openProviderResult({ ...row, signature: "0".repeat(64) }, project, keyring).reason).toBe("BAD_SIGNATURE");
+    expect(openProviderResult(row, project, ring("k-a", `k-a:${k()}`)).reason).toBe("BAD_SIGNATURE");
+  });
+});
+
+
+describe("provider result project binding", () => {
+  it("refuses a copied signed result even if its mutable row IDs are reassigned", async () => {
+    const keyring = ring("k-a"), sealed = sealProviderResult(await liveResult(), project, keyring);
+    if (!sealed.ok) throw new Error(sealed.error);
+    for (const other of [{ ...project, projectId: "44444444-4444-4444-8444-444444444444" }, { ...project, organizationId: "55555555-5555-4555-8555-555555555555" }]) {
+      expect(openProviderResult(sealed.row, other, keyring).reason).toBe("ROW_SCOPE_MISMATCH");
+      const reassigned = { ...sealed.row, project_id: other.projectId, organization_id: other.organizationId };
+      expect(openProviderResult(reassigned, other, keyring)).toMatchObject({ trust: "UNTRUSTED", verified: false, reason: "SCOPE_MISMATCH" });
+    }
+  });
+
+  it("uses stable UUIDs so renaming slugs does not invalidate the signature", async () => {
+    const keyring = ring("k-a"), sealed = sealProviderResult(await liveResult(), project, keyring);
+    if (!sealed.ok) throw new Error(sealed.error);
+    expect(openProviderResult(sealed.row, { ...project, scope: { tenantId: "renamed-org", projectId: "renamed-project" } }, keyring).verified).toBe(true);
+  });
+
+  it("refuses valid legacy signatures that do not bind the expected identity", async () => {
+    const keyring = ring("k-a"), result = await liveResult();
+    const sealed = sealProviderResult(result, project, keyring);
+    const legacy = platform.signProvenance(result, { providers, signer: keyring.signer, keyId: keyring.activeKeyId, digest: sha256 });
+    if (!sealed.ok || !legacy.ok) throw new Error("fixture refused");
+    const row = { ...sealed.row, signed_payload: legacy.signed.payload, signature: legacy.signed.signature };
+    expect(openProviderResult(row, project, keyring).reason).toBe("SCOPE_REQUIRED");
+  });
+
+  it("does not seal or verify with invalid database identity", async () => {
+    const keyring = ring("k-a"), result = await liveResult(), bad = { ...project, projectId: "not-a-uuid" };
+    expect(sealProviderResult(result, bad, keyring)).toEqual({ ok: false, error: "INVALID_SCOPE" });
+    const sealed = sealProviderResult(result, project, keyring);
+    if (!sealed.ok) throw new Error(sealed.error);
+    expect(openProviderResult(sealed.row, bad, keyring).reason).toBe("INVALID_SCOPE");
   });
 });

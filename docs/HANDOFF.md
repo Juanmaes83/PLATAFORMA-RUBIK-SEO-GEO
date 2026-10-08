@@ -761,3 +761,12 @@ Pruebas:177 unitarias, ESLint, TypeScript y secretos pasan. Nueva prueba de inte
 Límite: esto prepara el repositorio de historial y acota la lectura; todavía no guarda auditorías OpenSEO, no añade pantalla de historial ni bloquea trabajos simultáneos. Las firmas existentes validan el resultado del Core, no deben presentarse como vinculación criptográfica adicional de los IDs externos de fila. Migraciones9.2/9.3 y claves HMAC alojadas siguen pendientes. Trabajo restante en issues17/18.
 
 CI inicial de esta entrega: verify Node22/24 pasa; integración falló al crear fixture de segundo proyecto con INSERT RETURNING antes de estar disponible su pertenencia bajo RLS. Fixture corregido: insert y lectura separados, como el flujo existente. No se modifica ni relaja RLS. Pendiente CI del commit corregido.
+
+
+## 09/10/2026 — contexto criptográfico del resultado de proveedor
+
+- PR #19 fusionado en `2d6c7a6`: verify Node22/24 y e2e/Supabase local correctos. Vercel confirmó producción READY con ese SHA (`dpl_CHEY4xTg35rnY74fGDoAZrKCzQUT`). Historial acotado y lectura por UUID de proyecto/organización, sin schema nuevo.
+- Core PR #22 fusionado en `bd1b9e92e9c9cc68e2a6d8b71cabe9f0dfc65e32`, CI Node20/22 y 331 pruebas correctos. Firma opcional `scopeVersion:1` y contexto estable; se rechaza un resultado vinculado sin contexto esperado o bajo otro proyecto.
+- Rama `feat/provider-signed-scope`: pin y tipos actualizados. Se firma `{tenantId:organizationId, projectId:projectId}` con los UUID; lectura y exportación pasan el proyecto autorizado, nunca confían en los UUID de la fila por sí solos. Slugs renombrados no invalidan la firma. Las firmas legacy sin contexto quedan UNTRUSTED (`SCOPE_REQUIRED`); no se re-firman automáticamente.
+- Local: 181 pruebas, ESLint, TypeScript, pin, secretos y diff--check correctos. Cuatro regresiones nuevas (replay tenant/proyecto, slugs, legacy, UUID inválido) y prueba de integración que copia una firma genuina a una fila de otro proyecto del mismo titular. Build/DB/e2e pendientes CI; Docker no disponible localmente.
+- Todavía pendientes: migraciones alojadas 9.2/9.3 y claves HMAC, captura persistida de auditorías OpenSEO, UI de historial y exclusión atómica de auditorías concurrentes. No se han lanzado llamadas live/de pago ni modificado contenido/indexación de Sarah.

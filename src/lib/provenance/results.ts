@@ -4,6 +4,10 @@ import { platform, providers, type ProvenanceVerification, type SignedProvenance
 import { sha256, type Keyring } from "./keyring";
 import type { ProjectRef } from "./audit";
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const validProject = (p: ProjectRef) => UUID.test(p.organizationId) && UUID.test(p.projectId);
+const signedScope = (p: ProjectRef) => ({ tenantId: p.organizationId, projectId: p.projectId });
+
 // Signed provider results (ADR 0004, Core D-28). Only a result the Core's CORE-7 module
 // issued in this process can be sealed; reading verifies signature, digest algorithm and data
 // and returns the result rebuilt by the Core, which offpage accepts with `platform` injected.
@@ -30,7 +34,8 @@ export function sealProviderResult(
   project: ProjectRef,
   keyring: Keyring,
 ): { ok: true; row: ProviderResultRow } | { ok: false; error: string } {
-  const sealed = platform.signProvenance(result, { providers, signer: keyring.signer, keyId: keyring.activeKeyId, digest: sha256 });
+  if (!validProject(project)) return { ok: false, error: "INVALID_SCOPE" };
+  const sealed = platform.signProvenance(result, { providers, signer: keyring.signer, keyId: keyring.activeKeyId, digest: sha256, scope: signedScope(project) });
   if (!sealed.ok) return { ok: false, error: sealed.error.code };
   const { payload, signature } = sealed.signed;
   const p = payload as SignedProvenance["payload"] & { provider: string; operation: string; status: string; provenance?: { capturedAt?: string } };
@@ -54,11 +59,14 @@ export function sealProviderResult(
   };
 }
 
-export function openProviderResult(row: ProviderResultRow, keyring: Keyring): ProvenanceVerification {
+/** Expected identity comes from the authorized project, never from the stored row alone. */
+export function openProviderResult(row: ProviderResultRow, project: ProjectRef, keyring: Keyring): ProvenanceVerification {
+  if (!validProject(project)) return { trust: "UNTRUSTED", verified: false, reason: "INVALID_SCOPE" };
+  if (row.project_id !== project.projectId || row.organization_id !== project.organizationId) return { trust: "UNTRUSTED", verified: false, reason: "ROW_SCOPE_MISMATCH" };
   const signed: SignedProvenance = {
     payload: row.signed_payload as SignedProvenance["payload"],
     keyId: row.key_id,
     signature: row.signature,
   };
-  return platform.verifyProvenance(signed, { signer: keyring.signer, data: row.data, digest: sha256 });
+  return platform.verifyProvenance(signed, { signer: keyring.signer, data: row.data, digest: sha256, scope: signedScope(project) });
 }

@@ -79,3 +79,19 @@ Esta primera unidad cubre dos puertos: la **auditoría** y los **resultados de p
 - **Bloqueo de producción:** el propietario elige la custodia de claves (variables del hosting frente a KMS), genera las claves fuera del chat y del repositorio, y aplica la migración en el proyecto alojado con el flujo de SETUP-SUPABASE.
 - **Siguientes unidades de 9.2:** consentimientos, ledger de gasto y fact book/snapshots/acciones/borradores con los mismos patrones.
 - **Reversible:** las tablas son nuevas y no modifican CORE-9.1.
+
+
+## Adenda 09/10/2026 — identidad estable incluida en la firma
+
+Core PR #22 (`bd1b9e92e9c9cc68e2a6d8b71cabe9f0dfc65e32`) amplía el
+contrato con `scopeVersion:1` y `{tenantId,projectId}` firmados. El consumidor
+usa UUID de organización/proyecto, no sus slugs. Al abrir/exportar, el proyecto
+autorizado es un argumento obligatorio y el Core compara esa identidad con
+el payload firmado. RLS y filtros de consulta permanecen; la firma protege
+frente a copiar un resultado legítimo a otra fila/proyecto accesible al actor.
+
+Las firmas sin contexto no acreditan aislamiento y quedan UNTRUSTED en este
+consumidor. No se les asigna confianza re-firmando UUID de una fila mutable.
+Si existen datos legacy, deben recuperarse desde su origen autorizado antes
+de volver a emitir un resultado vinculado. La infraestructura alojada aún no
+tiene las tablas/claves 9.2 activas según la última comprobación documentada.
