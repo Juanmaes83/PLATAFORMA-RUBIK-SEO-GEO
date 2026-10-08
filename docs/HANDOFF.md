@@ -657,7 +657,7 @@ Salud de `main` en local (Linux, Node 22.22.0, Docker 29.8.2, Supabase CLI 2.118
 - `main@377fa73` (merge de #8), con CORE-9.2 unidad 1, CORE-9.3 y el normalizador Lighthouse fusionados.
 - Core fijado en `8a1f808`. Su `docs/integrations/OPENSEO.md` (CORE-7.1, D-22) se leyó antes de editar.
 
-**Hecho** (rama `feat/openseo-bridge-site-audit`, PR Draft; [ADR 0006](adr/0006-puente-openseo.md)):
+**Hecho** (rama `feat/openseo-bridge-site-audit`, [PR #10](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/10) en Draft; [ADR 0006](adr/0006-puente-openseo.md)):
 
 - `src/lib/openseo/mcp-client.ts`: cliente MCP Streamable HTTP solo de servidor.
   - Protocolo: `initialize`, `notifications/initialized` y `tools/call`, con respuesta JSON o SSE, sesión, timeout y sin redirecciones.
