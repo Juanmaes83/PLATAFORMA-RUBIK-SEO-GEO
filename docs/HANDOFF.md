@@ -650,3 +650,33 @@ Salud de `main` en local (Linux, Node 22.22.0, Docker 29.8.2, Supabase CLI 2.118
 **No hecho, a propósito:** merge, despliegue, migraciones alojadas, borrado de ramas e importación de datos de Sarah.
 
 **Siguiente paso:** revisión del propietario del PR draft de esta rama; después, la siguiente unidad de CORE-9.2 o el piloto cuando se autorice.
+
+## Sesión 11 — puente OpenSEO, primer tramo (08/10/2026)
+
+**Punto de partida verificado:**
+- `main@377fa73` (merge de #8), con CORE-9.2 unidad 1, CORE-9.3 y el normalizador Lighthouse fusionados.
+- Core fijado en `8a1f808`. Su `docs/integrations/OPENSEO.md` (CORE-7.1, D-22) se leyó antes de editar.
+
+**Hecho** (rama `feat/openseo-bridge-site-audit`, PR Draft; [ADR 0006](adr/0006-puente-openseo.md)):
+
+- `src/lib/openseo/mcp-client.ts`: cliente MCP Streamable HTTP solo de servidor.
+  - Protocolo: `initialize`, `notifications/initialized` y `tools/call`, con respuesta JSON o SSE, sesión, timeout y sin redirecciones.
+  - **Lista blanca:** `whoami`, `run_site_audit`, `get_audit_status`, `get_audit_issues` y `get_audit_pages`. Todo lo demás se rechaza antes de la red: keywords, SERP, backlinks, rank tracking, Lighthouse, listar o borrar auditorías, y proyectos.
+  - `run_site_audit` exige `runLighthouse:false` y `maxPages` dentro del límite.
+- `src/lib/openseo/config.ts`: variables solo de servidor, validadas.
+  - Rechaza datos de OpenSEO en `NEXT_PUBLIC_*`.
+  - Rechaza previews, IP y `localhost` como hosts auditables.
+  - Límite de páginas entre 10 y 500.
+- `src/lib/openseo/bridge.ts`: usa el Core sin copiarlo.
+  - Prueba de conexión: `OpenSEOAdapter.connectivity()` (health) más `providers.openseoConnectivity` con el verificador de `whoami`.
+  - Auditoría manual (`trigger:"manual"`, `runLighthouse:false`) restringida al dominio del proyecto.
+  - Seguimiento con `auditStatus` y, si termina, `auditIssues` y `auditPages` normalizados por el Core. Las filas de otros dominios se ocultan y se cuentan.
+- Interfaz:
+  - `src/lib/openseo/actions.ts`: Server Actions con sesión, RLS y `manage-connectors`.
+  - `src/components/OpenSeoConsole.tsx`: tres pasos con un clic cada uno; la auditoría pide una casilla de confirmación.
+  - Página `/proyectos/…/auditoria-tecnica`: no llama a OpenSEO al renderizar.
+- Documentación y guardas:
+  - `.env.example` y `docs/ENVIRONMENT.md`: solo nombres de variables.
+  - Guarda de secretos: detecta claves `oseo_…`.
+  - Catálogo de conectores: el texto de OpenSEO indica que no hay conexión verificada.
+  - e2e: la sección nueva en las rutas protegidas, en el aislamiento entre tenants y en la batería visual (capturas 18 y 19).

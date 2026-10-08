@@ -14,7 +14,7 @@ const COPY: Readonly<Record<string, ConnectorCopy>> = {
   "bing-webmaster": { name: "Bing Webmaster Tools", provides: "Estado de las URL en Bing, solo lectura.", stage: "CORE-9.5" },
   indexnow: { name: "IndexNow", provides: "Aviso a buscadores de URL nuevas o cambiadas. Cada envío requiere aprobación humana, y enviar no significa quedar indexado.", stage: "CORE-9.8" },
   dataforseo: { name: "DataForSEO", provides: "Palabras clave, resultados de búsqueda y enlaces de un proveedor externo. Son estimaciones de terceros, no mediciones propias.", stage: "Sin etapa asignada" },
-  "openseo-mcp": { name: "OpenSEO (auditoría técnica)", provides: "Auditorías técnicas del sitio lanzadas manualmente.", stage: "Sin etapa asignada" },
+  "openseo-mcp": { name: "OpenSEO (auditoría técnica)", provides: "Auditorías técnicas del sitio lanzadas manualmente desde la sección «Auditoría técnica» de cada proyecto, sin Lighthouse ni funciones de pago. Puente de servidor listo; sin credenciales configuradas ni conexión verificada.", stage: "Puente de servidor (ADR 0006)" },
   "ga4-referrals": { name: "Google Analytics 4 · tráfico de referencia", provides: "Visitas que llegan desde otros sitios y asistentes de IA. Todavía sin diseñar.", stage: "Sin etapa asignada" },
   "ai-model": { name: "Modelo de IA", provides: "Borradores y análisis a partir de evidencia aprobada y minimizada, siempre con revisión humana. El propietario elegirá proveedor y modelo.", stage: "CORE-9.7" },
 };

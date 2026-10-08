@@ -54,13 +54,19 @@ export interface ProjectSection {
   nextStep: string;
 }
 
-/** Project sub-sections; the summary is the project page itself. Only Importaciones is built (CORE-9.3). */
+/** Project sub-sections; the summary is the project page itself. Built: Importaciones (CORE-9.3) and Auditoría técnica (ADR 0006). */
 export const PROJECT_SECTIONS: readonly ProjectSection[] = [
   {
     slug: "importaciones", label: "Importaciones", stage: "CORE-9.3", available: true,
     description: "Hallazgos importados manualmente con su fuente y su fecha (rubik-import-v1).",
     requires: [],
     nextStep: "Importar un fichero y revisar sus hallazgos.",
+  },
+  {
+    slug: "auditoria-tecnica", label: "Auditoría técnica", stage: "OpenSEO (ADR 0006)", available: true,
+    description: "Auditoría técnica del sitio con OpenSEO, lanzada a mano desde el servidor, sin Lighthouse ni funciones de pago.",
+    requires: [],
+    nextStep: "Probar la conexión, lanzar una auditoría manual y consultar sus incidencias.",
   },
   {
     slug: "mediciones", label: "Mediciones", stage: "CORE-9.3 a 9.5",

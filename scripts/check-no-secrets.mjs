@@ -13,6 +13,7 @@ const PATTERNS = [
   ["JWT", /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/],
   ["provider API key", /\b(sk-(proj-|ant-)?[A-Za-z0-9_-]{20,}|AIza[0-9A-Za-z_-]{30,}|ghp_[A-Za-z0-9]{30,}|xox[abp]-[A-Za-z0-9-]{10,})/],
   ["Supabase secret key", /\bsb_secret_[A-Za-z0-9_-]{10,}/],
+  ["OpenSEO API key", /\boseo_[A-Za-z0-9_-]{16,}/],
   ["assigned secret", /\b(SERVICE_ROLE_KEY|SECRET|PASSWORD|API_KEY|TOKEN)[A-Z0-9_]*\s*=\s*['"]?[A-Za-z0-9/+_.-]{8,}/],
 ];
 const SKIP = /(^|\/)(package-lock\.json|node_modules\/)|\.(ico|png|jpg|jpeg|gif|webp|woff2?)$/;
