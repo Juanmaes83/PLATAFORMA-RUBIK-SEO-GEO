@@ -1,5 +1,16 @@
 # Handoff
 
+## Verificación real OpenSEO — 2026-10-08/09
+
+- Login de Rubik recuperado corrigiendo la URL de Supabase en Vercel. Organización Rubik y proyecto Sarah creados por el propietario.
+- Prueba MCP real: CONNECTED, salud correcta y autenticación verificada con el campo userEmail. No se registran identidad ni claves.
+- OPENSEO_PROJECT_ID contrastado con la URL real y corregido: se había omitido un carácter. Despliegue de configuración READY.
+- Primera auditoría real iniciada: `348a6c58-8aab-4756-a518-25e6b6367bfe`, máximo 10 páginas, Lighthouse desactivado. No relanzar para validar el seguimiento.
+- El seguimiento devolvió INVALID_RESPONSE. OpenSEO usa `{ status: { status, currentPhase, pagesCrawled, pagesTotal } }`; el mock antiguo y el Core esperaban campos planos.
+- Corrección centralizada en Core PR #20, con compatibilidad del formato anterior. 31/31 pruebas locales y CI de Core en Node 20/22 en verde. La plataforma fija el commit `56867f845dc63a118ae5f8cd5c302440acf5c557` y sus pruebas usan el envoltorio real.
+- Pendiente de prueba tras despliegue: consultar la misma auditoría, observar el estado real y configurar el vocabulario de estados en Vercel. No se declara todavía informe recuperado ni auditoría completada. El encabezado «Configurada, sin verificar» es una descripción inicial; el resultado de la prueba real ya dice CONNECTED.
+
+
 ## Sesión 1 — CORE-9.0, base local (28/09/2026)
 
 **Punto de partida verificado:**
