@@ -53,3 +53,5 @@ El desarrollo, las pruebas locales, la preparación de migraciones y los PR pued
 Registro operativo por entrega: [OPERATIONS-STATUS](OPERATIONS-STATUS.md).
 
 Contrato de herramientas, límites y costes contrastados: [OPENSEO-API-CAPABILITIES](OPENSEO-API-CAPABILITIES.md). El servicio alojado puede consumir créditos también para auditorías; el código abierto no implica datos de proveedores gratuitos.
+
+Avance de prioridad2: lectura de resultados con scope de proyecto/organización y lista paginada de metadatos preparados con pruebas unitarias; integración pendiente de CI. No equivale al guardado/historial operativo de OpenSEO. Véase HANDOFF e issue17.
