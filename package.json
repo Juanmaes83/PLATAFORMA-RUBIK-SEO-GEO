@@ -25,7 +25,7 @@
     "test:integration": "vitest run --config vitest.integration.config.mts"
   },
   "dependencies": {
-    "@rubik/seo-geo-core": "git+https://github.com/Juanmaes83/RUBIK-SEO-GEO-CORE.git#8a1f80883b83536d02301d073259b010f696409b",
+    "@rubik/seo-geo-core": "git+https://github.com/Juanmaes83/RUBIK-SEO-GEO-CORE.git#56867f845dc63a118ae5f8cd5c302440acf5c557",
     "@supabase/ssr": "0.12.7",
     "@supabase/supabase-js": "2.117.2",
     "next": "16.3.6",
