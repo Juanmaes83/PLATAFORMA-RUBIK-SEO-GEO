@@ -29,10 +29,10 @@ export default async function TechnicalAuditPage({ params }: { params: Promise<{
       <p className="muted small">{project.name}</p>
       <ProjectNav base={base} current="auditoria-tecnica" />
       <PageHead title="Auditoría técnica">
-        <StatusPill tone={view.state === "configured" ? "warn" : "neutral"}>{view.state === "configured" ? "Configurada, sin verificar" : "No conectada"}</StatusPill>
+        <StatusPill tone={view.state === "configured" ? "warn" : "neutral"}>{view.state === "configured" ? "Configuración disponible" : "No conectada"}</StatusPill>
       </PageHead>
       <p>
-        Rastreo técnico del sitio con OpenSEO, lanzado a mano y sin Lighthouse ni funciones de pago. La conexión se hace solo
+        Rastreo técnico del sitio con OpenSEO, lanzado a mano y sin Lighthouse. El consumo de créditos depende del plan de la instancia de OpenSEO. La conexión se hace solo
         desde el servidor: las credenciales nunca llegan al navegador ni se guardan en el proyecto. La plataforma no da la
         conexión por buena hasta que una prueba con credenciales reales la verifica.
       </p>

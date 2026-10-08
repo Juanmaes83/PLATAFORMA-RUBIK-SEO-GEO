@@ -40,7 +40,7 @@ Docker local ausente: pgTAP, integración y e2e completas requieren CI/otro ento
 
 | Prioridad | Unidad | Entrega verificable | Dependencias / límites |
 |---|---|---|---|
-| 1 | Estabilizar el flujo OpenSEO | ID seleccionado inequívoco, doble envío controlado, informe con hosts explícitos y contadores correctos, estados comprensibles; pruebas negativas de dominio | No ampliar automáticamente el scope a todos los subdominios. No lanzar auditorías nuevas para probar cambios de interfaz |
+| 1 | Estabilizar el flujo OpenSEO | PR #14 integrado y desplegado con CI completa: selección del ID nuevo, controles de envío en la consola, www/apex explícito y contadores separados; pruebas negativas de dominio | No ampliar automáticamente el scope a todos los subdominios. No lanzar auditorías nuevas para probar cambios de interfaz |
 | 2 | Persistencia del informe y un trabajo activo por proyecto | Guardado firmado del resultado original del Core, historial/recarga, idempotencia y adquisición atómica del trabajo | Migraciones alojadas de 9.2/9.3 pendientes; comprobar firmante y custodia/recuperación de claves. Sin esas piezas, no anunciar guardado operativo |
 | 3 | Conectores y consentimiento por cliente | Referencia OpenSEO por proyecto bajo RLS, conexión/revocación/scope propios; pruebas entre clientes | Sustituir el proyecto global; secretos siguen en servidor. Consentimientos y ledger de gasto de 9.2 |
 | 4 | Search Console y Bing, lectura | Implementación, mocks, tratamiento de 401/403/429, provenance y desconexión | La prueba live necesita OAuth/acceso a una propiedad autorizada; no inventar acceso ni pedir claves por chat |
@@ -49,3 +49,7 @@ Docker local ausente: pgTAP, integración y e2e completas requieren CI/otro ento
 | 7 | IA asistida, IndexNow, piloto completo y operación comercial | Borradores respaldados por evidencia; aprobaciones por acción; recuperación y límites por cliente | Modelo/presupuesto y OAuth pendientes de configuración específica. La plataforma funcionando no demuestra estas fases terminadas |
 
 El desarrollo, las pruebas locales, la preparación de migraciones y los PR pueden continuar sin mantener al propietario delante de la pantalla. Un bloqueo de OAuth, custodia de firma o decisión de coste se documenta y se continúa con otra unidad independiente. No se declara que Claude Code esté trabajando si no existe una sesión accesible y confirmada.
+
+Registro operativo por entrega: [OPERATIONS-STATUS](OPERATIONS-STATUS.md).
+
+Contrato de herramientas, límites y costes contrastados: [OPENSEO-API-CAPABILITIES](OPENSEO-API-CAPABILITIES.md). El servicio alojado puede consumir créditos también para auditorías; el código abierto no implica datos de proveedores gratuitos.
