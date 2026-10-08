@@ -1,8 +1,8 @@
 # ADR 0006 · Puente OpenSEO: auditoría técnica manual desde el servidor
 
-**Estado:** propuesta en PR Draft para revisión del propietario.
+**Estado:** primer tramo integrado y verificado contra OpenSEO real. Actualización operativa: 09/10/2026.
 **Fecha:** 08/10/2026.
-**Depende de:** contrato del Core CORE-7.1 (D-22, `docs/integrations/OPENSEO.md` y `src/rubik-seo-geo-providers.js`) en el commit fijado `8a1f808`.
+**Depende de:** contrato del Core CORE-7.1 (D-22, `docs/integrations/OPENSEO.md` y `src/rubik-seo-geo-providers.js`) inicialmente fijado en `8a1f808`; las correcciones de formato real y el pin vigente constan en HANDOFF.
 
 ## Contexto
 
@@ -17,7 +17,7 @@ El Core deja a CORE-9:
 - el verificador de `whoami`;
 - el vocabulario de estados de `get_audit_status`.
 
-OpenSEO no documenta la forma de `whoami` ni los valores de estado.
+La forma real se contrastó durante el piloto: `whoami` ofrece `userEmail` y el estado llega dentro de `{ status: { status, currentPhase, pagesCrawled, pagesTotal } }`. El Core admite ese envoltorio y el contrato anterior; el estado observado al terminar fue `completed`. Los estados no observados no se adivinan.
 
 ## Decisiones
 
@@ -113,10 +113,16 @@ El inicio pasa por el Core con estas entradas:
 
 - **Sin persistencia.** Los resultados se muestran y no se guardan. El siguiente tramo los persistirá con la auditoría firmada (ADR 0004) y con un único job activo por proyecto (`activeJob` del Core). Mientras tanto, la doble ejecución la frena OpenSEO con `AUDIT_ALREADY_RUNNING`.
 - **Una sola instancia y un solo proyecto de OpenSEO por servidor.** El enlace de cada proyecto con su propio `projectId` de OpenSEO (un id opaco en `seo.integrations.openseo`) llegará con la persistencia.
-- **Sin conexión real verificada.** Todo se ha probado con un servidor MCP simulado. El estado `CONNECTED` solo existirá cuando el propietario configure las credenciales en el servidor y la prueba lo confirme.
-- **Pendientes de la primera prueba real:**
-  - el verificador de `whoami`;
-  - el vocabulario de estados;
-  - la forma de `get_audit_pages`.
+- **Conexión real verificada.** Producción devuelve `CONNECTED`, salud correcta y autorización verificada. El propietario consultó la auditoría `02f2f04d-c7ea-4fe9-bb05-be1c39509938`: completada, 10/10 páginas y dos incidencias visibles. No se declaran persistencia ni piloto completo.
+- **Pendientes tras la primera prueba real:**
+  - clasificación de las nueve filas ocultas: no se han observado sus URLs; el filtro estricto de hostname puede requerir alias explícitos del mismo sitio, sin admitir dominios arbitrarios;
+  - persistencia firmada y trabajo activo único; las migraciones 9.2/9.3 aún no están aplicadas en Supabase alojado;
+  - mapeo por proyecto, consentimiento y presupuesto para funcionamiento multicliente.
 
-  Si la realidad contradice el contrato del Core, se documenta y se propone el cambio en el Core; no se cambia aquí.
+  Si la realidad contradice un contrato del Core, se documenta y se corrige en el Core; no se copia su lógica en esta aplicación.
+
+## Continuidad y evidencia
+
+El resultado real compartido por el propietario verifica identidad, arranque y lectura de una auditoría finalizada; no verifica todos los errores posibles, scopes adicionales ni un servicio multicliente. Las pruebas automatizadas conservan mocks sin utilizar credenciales reales. El encabezado inicial «Configurada, sin verificar» describía la configuración antes de pulsar la prueba; no debe contradecir el resultado de conexión observado en esa sesión.
+
+Competidores, backlinks y rank tracking quedan en el catálogo por fases. Activarlos exige contrastar API, plan y cuotas y ampliar contratos, políticas y transporte de manera revisable. No se habilitan por esta ADR.

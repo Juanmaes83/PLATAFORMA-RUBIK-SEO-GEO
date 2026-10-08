@@ -1,8 +1,8 @@
 # Catálogo objetivo de capacidades SEO/GEO
 
 **Estado:** inventario de capacidades deseadas por el propietario, pendiente de priorización y de entrega por fases.  
-**Actualizado:** 29/09/2026.  
-**Estado del producto:** CORE-9.0 y CORE-9.1 están fusionados; la seguridad de las migraciones de Supabase está aplicada y verificada por el propietario. La app aún no ha completado la prueba manual de Auth contra el Supabase alojado, no tiene proveedores SEO conectados y no está desplegada.
+**Actualizado:** 09/10/2026.
+**Estado del producto:** producción Vercel, acceso real Supabase y primer cliente Sarah Katerina comprobados. OpenSEO está conectado y una auditoría real terminó con 10/10 páginas. El informe aún no se persiste; el conector usa un proyecto OpenSEO global. CORE-9.2/9.3 existe en código, pero sus migraciones no están aplicadas en el Supabase alojado. El resto del catálogo conserva su estado por capacidad.
 
 > **Interpretación:** esta lista registra lo que el propietario quiere que la plataforma pueda cubrir con el tiempo. No significa que ya exista, que todo deba entrar en una única entrega, ni que toda tarea sea automatizable. El orden, los límites, las fuentes de datos, los costes y las aprobaciones se concretarán antes de implementar cada bloque.
 
@@ -15,12 +15,12 @@
 
 ## Qué existe hoy en el Core y qué no
 
-El Core es una librería, no una suite SEO con interfaz ni datos propios. Tiene piezas reutilizables para metadatos por página, title/description/H1, Page Registry, schema.org por vertical, SEO de medios, canonical/hreflang, HTML inicial, sitemap y robots.txt; también contratos de conectores/proveedores, autoridad/citas, snapshots y borradores de acciones. La plataforma actual no conecta esas piezas a un sitio de cliente ni presenta auditorías SEO. Las integraciones reales, la persistencia productiva y la medición externa siguen pendientes.
+El Core es una librería, no una suite SEO con interfaz ni datos propios. Tiene piezas reutilizables para metadatos por página, title/description/H1, Page Registry, schema.org por vertical, SEO de medios, canonical/hreflang, HTML inicial, sitemap y robots.txt; también contratos de conectores/proveedores, autoridad/citas, snapshots y borradores de acciones. La plataforma presenta ya una auditoría técnica real de OpenSEO para Sarah Katerina; eso no conecta automáticamente las demás piezas a su sitio ni implementa todo este catálogo. Persistencia productiva, otras integraciones y medición externa siguen pendientes.
 
 ## Catálogo deseado
 
 ### 1. SEO técnico
-**Estado de plataforma:** no implementado. **Core:** parcial en generación de metadata, canonical/hreflang, sitemap, robots, schema y HTML inicial; no hay rastreador ni auditor del sitio.
+**Estado de plataforma:** auditoría manual de OpenSEO disponible y verificada, sin Lighthouse, sin persistencia y con límite de páginas. No equivale a cubrir todos los controles siguientes. **Core:** parcial en generación de metadata, canonical/hreflang, sitemap, robots, schema y HTML inicial; el rastreo lo realiza OpenSEO.
 
 **Capacidades objetivo:** indexación e indexabilidad; mapas del sitio XML; robots.txt; etiquetas canónicas; arquitectura del sitio y estructura de URL; HTTPS/SSL; Core Web Vitals (LCP, INP, CLS); velocidad de página; amigabilidad móvil/diseño responsivo; datos estructurados/Schema.org (JSON-LD); hreflang y segmentación internacional; paginación; renderizado JavaScript (SSR frente a CSR); contenido duplicado; redirecciones (301, 302 y cadenas); códigos HTTP y errores (404, 5xx); análisis de logs; presupuesto de rastreo/indexación; navegación facetada; CDN y rendimiento del alojamiento; optimización de imágenes (compresión, WebP, carga diferida); detección de páginas huérfanas.
 
@@ -90,7 +90,7 @@ El Core es una librería, no una suite SEO con interfaz ni datos propios. Tiene 
 
 ## Dependencias y puertas antes de activar capacidades
 
-1. Completar prueba manual de Auth y aislamiento con dos cuentas contra el Supabase alojado.
+1. Primer acceso real comprobado; completar aislamiento con dos cuentas alojadas antes de incorporar clientes adicionales.
 2. Definir CORE-9.2: persistencia, auditoría, provenance, retención y política de claves; validar requisitos legales antes de datos reales.
 3. Priorizar por vertical/cliente y decidir qué áreas de negocio (SaaS SEO, e-commerce, afiliación, directorios, monetización) pertenecen realmente a Rubik.
 4. Para cada integración: proveedor, permisos mínimos, consentimiento por proyecto, secreto server-side, presupuesto/cuotas y fuente verificable.
@@ -154,3 +154,36 @@ Principios que sí conviene convertir en capacidades: arquitectura de URL establ
 - [Google Search Central: JavaScript SEO basics](https://developers.google.com/search/docs/crawling-indexing/javascript/javascript-seo-basics): comprobar contenido y enlaces tras el renderizado.
 - [IndexNow: FAQ](https://www.indexnow.org/faq): el envío notifica URLs a buscadores participantes; cada motor decide su tratamiento.
 - [Bing Webmaster Blog: AI Performance report](https://blogs.bing.com/webmaster/February-2026/Introducing-AI-Performance-in-Bing-Webmaster-Tools): referencia para observar citas en experiencias de IA de Bing; la disponibilidad puede cambiar.
+
+## 15. Competidores, backlinks y rank tracking por fases
+
+El propietario solicitó estas tres capacidades para una plataforma con muchos clientes. **Plan aprobado como objetivo; funcionalidades no activadas.** La lista blanca actual del cliente MCP solo permite identidad y auditoría técnica. Tener una clave con scopes amplios no habilita herramientas adicionales en Rubik.
+
+### Fase A · Contrato, disponibilidad y costes
+
+- Revisar la documentación oficial y el esquema real de herramientas de la instancia de OpenSEO: herramientas disponibles, argumentos, fuentes/subproveedores, planes, cuotas, paginación, retención y errores. Registrar fecha y evidencia; no inferir gratuidad del repositorio abierto ni de una auditoría sin Lighthouse.
+- Distinguir análisis de competidores SEO, comparación de auditorías y comparación de visibilidad GEO. Ninguno sustituye a los demás ni aporta rankings sin una fuente que los mida.
+- Para backlinks: verificar cobertura, fechas, frescura, límites, datos de dominios/URLs y condiciones de reutilización. No afirmar exhaustividad ni equiparar ausencia de datos con cero enlaces.
+- Para rank tracking: comprobar país, idioma, ubicación/dispositivo, motor, SERP, cadencia admitida y unidades por consulta; comparar el coste de keywords × proyectos × ubicaciones × frecuencia.
+- Entrega: matriz de capacidades/contratos y costes con estados confirmado/no confirmado, decisión de fuente y alcance. Hasta entonces no hay llamadas live ni ampliación silenciosa de la lista blanca.
+
+### Fase B · Base multicliente y consultas manuales
+
+| Capacidad | Primera entrega | Criterio |
+|---|---|---|
+| Competidores | Lista aprobada por proyecto y consultas de comparación manuales según datos disponibles | Dominio/cliente correcto, método y fecha, datos faltantes explícitos, permisos y aislamiento negativos |
+| Backlinks | Consulta manual, paginación e informe persistido con provenance | Coverage/límites visibles, deduplicación, fuente, retención y exportación; no automatizar construcción de enlaces |
+| Rank tracking | Conjunto versionado de keywords y contexto; una medición manual persistida | Guardar posición o desconocido con método, fecha, motor, país, idioma/dispositivo y configuración comparable |
+
+Dependencias comunes: mapeo del proveedor por proyecto, RLS, consentimiento, límites finitos de gasto/cuotas y confirmación del coste donde proceda. El Core debe incorporar contratos compartidos; la aplicación implementa transporte, persistencia e interfaz sin copiarlos.
+
+### Fase C · Histórico y programación
+
+- Snapshots e historial por proyecto; comparar únicamente series con método/contexto compatible.
+- Para rank tracking: consultas periódicas mediante job runner, programación explícita, idempotencia, un trabajo activo, reintentos acotados, manejo 429, cancelación/revocación y presupuesto por tenant/proveedor/periodo.
+- Para competidores/backlinks: refresco configurable únicamente si fuente, cuota y presupuesto lo permiten; no forzar una frecuencia común.
+- Entrega: pruebas de aislamiento entre clientes, concurrencia, repetición, fallo parcial, límites y cancelación; observación programada sin publicación ni gasto fuera del presupuesto autorizado.
+
+### Fase D · Piloto y escalado
+
+Validar primero Sarah con fuente autorizada y un conjunto pequeño; revisar calidad/latencia/coste real, exportación, borrado y recuperación. Ampliar después a otros clientes y planes compatibles. No presentar la fase como operativa por existir solo código, mocks o un contrato.
