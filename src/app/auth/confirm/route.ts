@@ -4,18 +4,33 @@ import type { NextRequest } from "next/server";
 import { safeNextPath } from "@/lib/auth/redirect";
 import { createClient } from "@/lib/supabase/server";
 
-// E-mail confirmation link (supabase/templates/confirmation.html): the token hash is verified
-// on the server with verifyOtp, which also creates the session cookies.
+// Custom e-mail links use verifyOtp; standard PKCE callbacks exchange a code using
+// the verifier stored by this request-scoped SSR client. Both write session cookies.
+// URL-fragment access tokens never reach this server handler; implicit-flow templates
+// still need an appropriate hosted configuration. Recovery/invites are not enabled here.
 const TYPES: readonly EmailOtpType[] = ["email", "signup"];
 
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type") as EmailOtpType | null;
+  const code = searchParams.get("code");
+  const flowId = searchParams.get("sb_flow_id");
   const supabase = await createClient();
-  if (supabase && tokenHash && type && TYPES.includes(type)) {
-    const { error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });
-    if (!error) redirect(safeNextPath(searchParams.get("next")));
+  let verified = false;
+  if (supabase && (!type || TYPES.includes(type))) {
+    try {
+      if (tokenHash && type) {
+        const { error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });
+        verified = !error;
+      } else if (!tokenHash && code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code, flowId !== null ? { flowId } : undefined);
+        verified = !error;
+      }
+    } catch {
+      // Return the same generic failure without exposing auth codes, tokens or errors.
+    }
   }
+  if (verified) redirect(safeNextPath(searchParams.get("next")));
   redirect("/acceso?error=enlace");
 }
