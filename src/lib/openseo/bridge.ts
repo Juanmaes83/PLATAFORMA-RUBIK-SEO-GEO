@@ -20,7 +20,7 @@ export interface BridgeDeps {
   clock?: () => Date;
 }
 
-export type BridgeError = { code: string; message: string; retryable: boolean };
+export type BridgeError = { code: string; message: string; retryable: boolean; diagnostic?: string };
 
 const AUDIT_ID = /^[A-Za-z0-9_-]{1,100}$/;
 const ISSUE_LIMIT = 200;
@@ -225,6 +225,23 @@ export interface AuditFollowUp {
   report: AuditReport | null;
 }
 
+
+/** Only field names and types; no values, raw MCP text, URLs, IDs or credentials. */
+export function auditResponseShape(value: unknown): string {
+  const entries: string[] = [];
+  const visit = (v: unknown, path: string, depth: number) => {
+    const type = v === null ? "null" : Array.isArray(v) ? "array" : typeof v;
+    entries.push(path + "=" + type);
+    if (type !== "object" || depth >= 2 || !v) return;
+    for (const key of Object.keys(v).sort().slice(0, 20)) {
+      if (!/^[A-Za-z][A-Za-z0-9_]{0,39}$/.test(key) || providers.redact(key) !== key || /oseo_/i.test(key)) continue;
+      visit((v as Record<string, unknown>)[key], path + "." + key, depth + 1);
+    }
+  };
+  visit(value, "root", 0);
+  return entries.join("; ").slice(0, 1000);
+}
+
 const partialOf = (r: ProviderResult) => (r.partial ? { reason: r.partial.reason, rejected: r.partial.rejected, truncated: r.partial.truncated } : null);
 
 /**
@@ -241,7 +258,16 @@ export async function followSiteAudit(auditIdRaw: string, projectDomain: string 
   if (!AUDIT_ID.test(auditId)) return empty({ code: "INVALID_AUDIT_ID", message: "Identificador de auditoría no válido.", retryable: false });
 
   return withClient(config, deps, async (mcp) => {
-    const base = { provider: "openseo", mcp, clock: deps.clock };
+    let responseShape = "";
+    const observed = {
+      kind: mcp.kind,
+      callTool: async (name: string, args: Record<string, unknown>) => {
+        const result = await mcp.callTool(name, args);
+        if (name === "get_audit_status") responseShape = auditResponseShape(result.structuredContent);
+        return result;
+      },
+    };
+    const base = { provider: "openseo", mcp: observed, clock: deps.clock };
     const s = await providers.runProviderRequest({ ...base, operation: "auditStatus", input: { projectId: config.projectId, auditId }, statusVocabulary: config.statusVocabulary });
     const row = (s.data[0] ?? null) as { state?: string; providerStatus?: string; phase?: string | null; pagesCrawled?: number | null; pagesTotal?: number | null } | null;
     const progress: AuditProgress = {
@@ -254,6 +280,7 @@ export async function followSiteAudit(auditIdRaw: string, projectDomain: string 
       checkedAt: s.provenance?.capturedAt ?? null,
       error: cleanError(s.errors[0]),
     };
+    if (progress.error?.code === "INVALID_RESPONSE") progress.error.diagnostic = responseShape;
     if (row?.state !== "COMPLETED") return { progress, report: null };
 
     const issues = await providers.runProviderRequest({ ...base, operation: "auditIssues", input: { projectId: config.projectId, auditId, limit: ISSUE_LIMIT } });
