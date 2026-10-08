@@ -5,7 +5,7 @@ export function ModeBanner({ auth, coreCommit }: { auth: AuthModeInfo; coreCommi
   return (
     <div className="banner" role="status">
       <p>
-        <strong>CORE-9.3 · sin desplegar.</strong> {auth.notice} Sin conectores, IA ni datos de clientes; solo importación manual de datos declarados.{" "}
+        <strong>Rubik SEO/GEO.</strong> {auth.notice} Importación manual y auditoría técnica OpenSEO cuando el servidor esté configurado.{" "}
         <span className="nowrap">Core <code>{coreCommit}</code>.</span>
       </p>
     </div>

@@ -10,7 +10,7 @@ import { corePin } from "@/lib/core";
 // System fonts only: next/font/google would download fonts from Google at build time.
 export const metadata: Metadata = {
   title: "Plataforma Rubik SEO/GEO",
-  description: "Plataforma SEO/GEO de Rubik (CORE-9.3). Sin conectores, IA ni datos de clientes.",
+  description: "Plataforma de proyectos SEO/GEO de Rubik con importación manual y auditoría técnica OpenSEO.",
   robots: { index: false, follow: false },
 };
 

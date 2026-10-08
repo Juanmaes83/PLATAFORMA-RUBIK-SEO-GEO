@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState } from "react";
 import { StatusPill } from "@/components/ui";
 import { followAuditAction, startAuditAction, testConnectionAction } from "@/lib/openseo/actions";
 import { AUDIT_STATE_LABELS, CONNECTION_LABELS, REASON_TEXT, SEVERITY_LABELS, errorText } from "@/lib/openseo/labels";
@@ -29,9 +29,7 @@ export function OpenSeoConsole({ tenant, project, defaultUrl, maxPages }: { tena
   const [conn, testConnection, testing] = useActionState(testConnectionAction, null);
   const [start, startAudit, starting] = useActionState(startAuditAction, null);
   const [follow, followAudit, following] = useActionState(followAuditAction, null);
-  const [auditId, setAuditId] = useState("");
   const startedId = start && !("denied" in start) && start.ok ? start.auditId ?? "" : "";
-  const shownId = auditId || startedId;
   const hidden = (
     <>
       <input type="hidden" name="tenant" value={tenant} />
@@ -88,7 +86,7 @@ export function OpenSeoConsole({ tenant, project, defaultUrl, maxPages }: { tena
             <input id="o-confirm" name="confirm" type="checkbox" required />
             <label htmlFor="o-confirm">Confirmo que lanzo esta auditoría a mano y que el sitio es del cliente de este proyecto</label>
           </div>
-          <button type="submit" className="btn btn-block" disabled={starting}>{starting ? "Lanzando…" : "Lanzar auditoría"}</button>
+          <button type="submit" className="btn btn-block" disabled={starting || following}>{starting ? "Lanzando…" : "Lanzar auditoría"}</button>
         </form>
         {start && ("denied" in start ? <Denied /> : start.ok ? (
           <p className="notice notice-info" role="status">
@@ -104,9 +102,9 @@ export function OpenSeoConsole({ tenant, project, defaultUrl, maxPages }: { tena
           {hidden}
           <div className="field">
             <label htmlFor="o-audit">Identificador de auditoría</label>
-            <input id="o-audit" name="auditId" type="text" required pattern="[A-Za-z0-9_\-]{1,100}" value={shownId} onChange={(e) => setAuditId(e.target.value)} autoComplete="off" />
+            <input id="o-audit" name="auditId" type="text" required key={startedId} pattern="[A-Za-z0-9_\-]{1,64}" maxLength={64} defaultValue={startedId} onFocus={(e) => e.currentTarget.select()} autoComplete="off" />
           </div>
-          <button type="submit" className="btn btn-block" disabled={following}>{following ? "Consultando…" : "Consultar estado"}</button>
+          <button type="submit" className="btn btn-block" disabled={following || starting}>{following ? "Consultando…" : "Consultar estado"}</button>
         </form>
         {follow && ("denied" in follow ? <Denied /> : (
           <div className="card" role="status">
@@ -116,6 +114,7 @@ export function OpenSeoConsole({ tenant, project, defaultUrl, maxPages }: { tena
                 <StatusPill tone={AUDIT_STATE_LABELS[follow.progress.state]?.tone ?? "neutral"}>{AUDIT_STATE_LABELS[follow.progress.state]?.label ?? follow.progress.state}</StatusPill>
               )}
             </div>
+            {startedId && startedId !== follow.auditId && <p className="notice notice-info">Este resultado pertenece a una auditoría anterior. La última iniciada es <code>{startedId}</code>; puedes consultar la última iniciada con ese identificador.</p>}
             {follow.progress.error && <Problem code={follow.progress.error.code} message={follow.progress.error.message} diagnostic={follow.progress.error.diagnostic} />}
             <dl className="facts">
               <div><dt>Estado en OpenSEO</dt><dd>{follow.progress.providerStatus ?? "Desconocido"}{follow.progress.phase ? ` · ${follow.progress.phase}` : ""}</dd></div>
@@ -139,7 +138,7 @@ export function OpenSeoConsole({ tenant, project, defaultUrl, maxPages }: { tena
                 <p className="muted small">
                   Páginas del dominio en el informe: {follow.report.pages.length}
                   {follow.report.pagesTotal !== null ? ` de ${follow.report.pagesTotal}` : ""}.
-                  {follow.report.outsideProject > 0 ? ` Se han ocultado ${follow.report.outsideProject} filas de otros dominios.` : ""}
+                  {follow.report.outsideProject > 0 ? ` Fuera del ámbito del proyecto: ${follow.report.hiddenPages} páginas y ${follow.report.hiddenIssues} incidencias ocultas.` : ""}
                   {" "}Resultados sin guardar: la persistencia firmada llega en el siguiente tramo.
                 </p>
                 {follow.report.errors.map((e) => <Problem key={e.code} code={e.code} message={e.message} />)}

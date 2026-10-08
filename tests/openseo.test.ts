@@ -339,9 +339,36 @@ describe("audit follow-up and normalization through the Core", () => {
     expect(r.report?.pages).toEqual([{ url: `https://${DOMAIN}/a` }]);
     expect(r.report?.pagesTotal).toBe(2);
     expect(r.report?.outsideProject).toBe(2);
+    expect(r.report?.hiddenPages).toBe(1);
+    expect(r.report?.hiddenIssues).toBe(1);
     expect(r.report?.method).toBe("api");
     noLeak(r);
     expect(mock.toolCalls().map((c) => c.name)).toEqual(["get_audit_status", "get_audit_issues", "get_audit_pages"]);
+  });
+
+  it.each([false, true])("includes the www/apex companion only with explicit authorization (%s)", async (allowCompanion) => {
+    const companion = DOMAIN.slice(4);
+    const mock = mockOpenSeo({
+      get_audit_status: status("completed"),
+      get_audit_issues: () => ({ structuredContent: { issues: [] } }),
+      get_audit_pages: () => ({ structuredContent: { pages: [
+        { url: `https://${DOMAIN}/` }, { url: `https://${companion}/about` },
+        { url: `https://shop.${companion}/` }, { url: "https://other.example/" },
+      ], total: 4 } }),
+    });
+    const env = { ...ENV, OPENSEO_AUDIT_ALLOWED_HOSTS: allowCompanion ? `${DOMAIN},${companion},shop.${companion}` : DOMAIN };
+    const r = await followSiteAudit("aud_1", DOMAIN, { env, fetchImpl: mock.fetchImpl });
+    expect(r.report?.pages).toEqual(allowCompanion ? [{ url: `https://${DOMAIN}/` }, { url: `https://${companion}/about` }] : [{ url: `https://${DOMAIN}/` }]);
+    expect(r.report?.hiddenPages).toBe(allowCompanion ? 2 : 3);
+    noLeak(r);
+  });
+
+  it("rejects two pasted UUIDs before making a network request", async () => {
+    const mock = mockOpenSeo({});
+    const id = "02f2f04d-c7ea-4fe9-bb05-be1c39509938";
+    const r = await followSiteAudit(id + id, DOMAIN, { env: ENV, fetchImpl: mock.fetchImpl });
+    expect(r.progress.error?.code).toBe("INVALID_AUDIT_ID");
+    expect(mock.calls).toHaveLength(0);
   });
 
   it("refuses a malformed audit id without calling OpenSEO", async () => {

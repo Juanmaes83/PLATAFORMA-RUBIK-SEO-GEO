@@ -8,8 +8,28 @@
 - Primera auditoría real iniciada: `348a6c58-8aab-4756-a518-25e6b6367bfe`, máximo 10 páginas, Lighthouse desactivado. No relanzar para validar el seguimiento.
 - El seguimiento devolvió INVALID_RESPONSE. OpenSEO usa `{ status: { status, currentPhase, pagesCrawled, pagesTotal } }`; el mock antiguo y el Core esperaban campos planos.
 - Corrección centralizada en Core PR #20, con compatibilidad del formato anterior. 31/31 pruebas locales y CI de Core en Node 20/22 en verde. La plataforma fija el commit `56867f845dc63a118ae5f8cd5c302440acf5c557` y sus pruebas usan el envoltorio real.
-- Pendiente de prueba tras despliegue: consultar la misma auditoría, observar el estado real y configurar el vocabulario de estados en Vercel. No se declara todavía informe recuperado ni auditoría completada. El encabezado «Configurada, sin verificar» es una descripción inicial; el resultado de la prueba real ya dice CONNECTED.
+- **Resultado real confirmado el 09/10/2026 (Europe/Madrid):** el propietario consultó `02f2f04d-c7ea-4fe9-bb05-be1c39509938` y recibió `Terminada`, estado `completed`, 10/10 páginas. Informe con dos incidencias de portada (`meta-description-too-long`, `title-too-long`), una página visible y nueve filas ocultas. Las URLs ocultas no se han compartido; no inferir qué hosts contienen. Resultados sin guardar.
 
+
+## Continuación autónoma — checkpoint 09/10/2026
+
+**Base comprobada:** `main@80d0b9b`, tras las correcciones de lectura/diagnóstico OpenSEO. Vercel, Supabase Auth y primer proyecto real funcionan. El propietario autoriza avanzar, documentar el estado y revisar al día siguiente; no necesita permanecer conectado para desarrollo y pruebas.
+
+**Comprobación alojada de persistencia:** Supabase registra únicamente las migraciones `20260928120000` y `20260928150000` y cuatro tablas de tenancy (`organizations`, `organization_members`, `projects`, `project_members`). No están aplicadas las migraciones CORE-9.2/9.3. La existencia/configuración del firmante necesita verificarse por metadatos y comportamiento seguro: valores vacíos devueltos para secretos no demuestran que falten.
+
+**Implementación preparada en esta continuación (sin declarar despliegue):** selección del ID se sustituye al iniciar otra auditoría y el campo selecciona su contenido al enfocar; límite de 64 caracteres en cliente/servidor rechaza dos UUID concatenados. Lanzamiento y seguimiento se bloquean mutuamente mientras hay una petición en curso. El informe separa páginas/incidencias ocultas y admite solo la pareja `www`/dominio base si el host compañero está autorizado explícitamente en el servidor; no incorpora otros subdominios. Banner y metadata dejan de afirmar «sin conectores». Nuevas pruebas preparadas para alias autorizados, exclusión de subdominios y doble ID. **Pendientes:** `npm run verify`, CI y PR del checkpoint. No se declara nueva consulta real ni resultado de las nueve URLs.
+
+**Limitación del entorno de prueba:** Docker no está disponible localmente en este entorno; las pruebas de Supabase local (pgTAP, integración y e2e completas) deberán ejecutarse en CI o en un entorno con Docker. Este límite no se convierte en aprobación de migraciones alojadas ni sustituye sus pruebas.
+
+**Orden de continuación:** estabilizar selección del ID y el informe/scope; persistir resultados originales firmados y un trabajo activo por proyecto; añadir mapeo OpenSEO por proyecto/consentimiento; desarrollar conectores de lectura y observación con límites. Competidores, backlinks y rank tracking se han desglosado en el backlog como plan, sin activar herramientas ni consumo.
+
+**Límites actuales:** sin persistencia OpenSEO, sin enlace OpenSEO distinto por cliente, sin OAuth GSC/Bing verificado, sin IA ni consultas periódicas de ranking. Auditoría real finalizada no cierra el piloto completo.
+
+**Coordinación con Claude Code:** no hay una sesión Claude Code accesible/activa confirmada desde este entorno. No se afirma trabajo paralelo de Claude. Otro agente puede retomar desde este checkpoint y revisar diff/CI, conservando ramas y sin duplicar la misma unidad. Fuente de tareas: ROADMAP y backlog; comprobar SHA, PR, CI y cambios locales antes de comenzar.
+
+**Para cerrar persistencia alojada:** preparar y probar migraciones nuevas/pendientes con RLS; comprobar custodia y recuperación de claves de firma, aplicar mediante el flujo autorizado de Supabase y verificar exportación/rehidratación. Hasta tener evidencia de esos pasos, no marcar datos guardados como disponibles. OAuth y decisiones de presupuesto se registran como bloqueos específicos y no detienen documentación, pruebas ni unidades independientes.
+
+Los resultados de las pruebas y el PR de esta continuación se añadirán por quien integre el cambio; este checkpoint no inventa pruebas todavía no ejecutadas.
 
 ## Sesión 1 — CORE-9.0, base local (28/09/2026)
 
@@ -715,3 +735,10 @@ Salud de `main` en local (Linux, Node 22.22.0, Docker 29.8.2, Supabase CLI 2.118
 **Siguiente paso:**
 1. El propietario configura las credenciales y pulsa «Probar conexión»; después, una auditoría de 10 a 20 páginas sobre un dominio autorizado.
 2. Siguiente tramo: persistencia firmada de los resultados (ADR 0004), un job activo por proyecto (`activeJob`) y el enlace de cada proyecto con su `projectId` de OpenSEO.
+
+### Verificación de este checkpoint
+
+- Comprobación del pin, secretos, ESLint, TypeScript y 148 pruebas unitarias: pasan.
+- Build local: bloqueado por `uv_resident_set_memory` (`ENOENT`) en el runtime de este workspace al arrancar Turbopack, después de pasar tests. Pendiente verificar build en CI; no se declara `npm run verify` completo en verde.
+- Docker no está disponible en este workspace; las pruebas de PostgreSQL/Supabase y Playwright del cambio deben ejecutarse en CI.
+- Revisión periódica solicitada por el propietario: automatización horaria creada para leer estado GitHub, retomar trabajo autorizado y documentar cambios/bloqueos; no es un proceso continuo de Claude Code.

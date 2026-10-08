@@ -22,7 +22,7 @@ export interface BridgeDeps {
 
 export type BridgeError = { code: string; message: string; retryable: boolean; diagnostic?: string };
 
-const AUDIT_ID = /^[A-Za-z0-9_-]{1,100}$/;
+const AUDIT_ID = /^[A-Za-z0-9_-]{1,64}$/;
 const ISSUE_LIMIT = 200;
 
 const noRedirectFetch = (fetchImpl?: FetchLike): FetchLike => (input, init) =>
@@ -216,6 +216,8 @@ export interface AuditReport {
   method: string | null;
   /** Rows dropped because their host is not the project's domain. */
   outsideProject: number;
+  hiddenIssues: number;
+  hiddenPages: number;
   errors: BridgeError[];
 }
 
@@ -288,7 +290,13 @@ export async function followSiteAudit(auditIdRaw: string, projectDomain: string 
     const host = hostOf(projectDomain);
     const onProject = (url: string) => {
       try {
-        return !!host && new URL(url).hostname.toLowerCase() === host;
+        const rowHost = new URL(url).hostname.toLowerCase();
+        if (!host) return false;
+        if (rowHost === host) return true;
+        // Only the explicit www/apex companion can join this project's report.
+        // Arbitrary subdomains and other clients remain excluded.
+        const companion = host.startsWith("www.") ? host.slice(4) : `www.${host}`;
+        return rowHost === companion && config.allowedHosts.includes(companion);
       } catch {
         return false;
       }
@@ -302,6 +310,8 @@ export async function followSiteAudit(auditIdRaw: string, projectDomain: string 
       severity: i.severity,
       crawlAccess: i.evidence?.crawlAccess ?? null,
     }));
+    const hiddenIssues = allIssues.filter((i) => i.url && !onProject(i.url)).length;
+    const hiddenPages = allPages.filter((p) => !onProject(p.url)).length;
     const report: AuditReport = {
       status: issues.status,
       issues: issueRows,
@@ -311,7 +321,9 @@ export async function followSiteAudit(auditIdRaw: string, projectDomain: string 
       pagesPartial: partialOf(pages),
       capturedAt: issues.provenance?.capturedAt ?? null,
       method: issues.provenance?.method ?? null,
-      outsideProject: allIssues.filter((i) => i.url && !onProject(i.url)).length + allPages.filter((p) => !onProject(p.url)).length,
+      outsideProject: hiddenIssues + hiddenPages,
+      hiddenIssues,
+      hiddenPages,
       errors: [...issues.errors, ...pages.errors].map((e) => cleanError(e)).filter((e): e is BridgeError => e !== null),
     };
     return { progress, report };
