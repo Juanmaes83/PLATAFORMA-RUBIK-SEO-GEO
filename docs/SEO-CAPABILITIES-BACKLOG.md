@@ -154,3 +154,15 @@ Principios que sí conviene convertir en capacidades: arquitectura de URL establ
 - [Google Search Central: JavaScript SEO basics](https://developers.google.com/search/docs/crawling-indexing/javascript/javascript-seo-basics): comprobar contenido y enlaces tras el renderizado.
 - [IndexNow: FAQ](https://www.indexnow.org/faq): el envío notifica URLs a buscadores participantes; cada motor decide su tratamiento.
 - [Bing Webmaster Blog: AI Performance report](https://blogs.bing.com/webmaster/February-2026/Introducing-AI-Performance-in-Bing-Webmaster-Tools): referencia para observar citas en experiencias de IA de Bing; la disponibilidad puede cambiar.
+## 15. Integración OpenSEO en Rubik: fases y límites verificados (08/10/2026)
+
+**Estado:** el primer puente MCP está fusionado por PR #10. En `main` solo está habilitada la auditoría técnica manual; la conexión de producción aún necesita credenciales y una prueba real. El contrato de OpenSEO MCP confirma grupos de herramientas para investigación de competidores, perfiles/enlaces entrantes y seguimiento de posiciones. OpenSEO documenta que las consultas de keywords, dominio, rankings y backlinks consumen créditos; en la implementación se comprobarán el plan y los límites vigentes, sin fijar precios que pueden cambiar.
+
+| Fase | Alcance en Rubik | Control de gasto y seguridad |
+|---|---|---|
+| 3.1 Auditoría técnica | Completar conexión real, guardar resultado firmado/provenance, estado e historial; un job activo por proyecto. | `runLighthouse:false` por defecto. Revisar el consumo del rastreo/renderizado en la cuenta; nunca incluir previews. |
+| 3.2 Competidores | Resúmenes de dominio, keywords posicionadas y competidores SERP; evidencia de fuente, consulta, país/idioma y fecha. | Consultas manuales iniciadas por el usuario, presupuesto por proyecto, caché, cuota y ledger; no consultar al cargar pantallas. |
+| 3.3 Backlinks | Resumen y perfil de backlinks/referring domains; evolución solo si se guardan snapshots comparables. | Lectura acotada y de pago bajo consentimiento/presupuesto. Prospectos/outreach quedan como borrador; cualquier contacto o publicación requiere aprobación humana específica. |
+| 3.4 Rank tracking | Configurar dominio, ubicación, dispositivo y conjunto de keywords; historial de posiciones y cambios. | Llamar primero a `estimate_rank_tracker_cost`; mostrar estimación y exigir aceptación. Scheduler opt-in, presupuesto, pausa/cancelación y ledger. OpenSEO usa intervalo semanal por defecto: Rubik no lo activa sin consentimiento explícito. |
+
+**No incluido por ahora:** ampliar la allowlist MCP de Rubik, automatizar consultas pagadas o ejecutar outreach. Antes de cada fase: revalidar nombres/esquemas de herramientas contra OpenSEO real, términos, plan/cuotas/costes; completar aislamiento por tenant y el ledger de CORE-9.2; definir retención mínima; pruebas negativas sin permiso y con presupuesto agotado. La presencia de una herramienta en la API no equivale a una función ya implementada en Rubik.
