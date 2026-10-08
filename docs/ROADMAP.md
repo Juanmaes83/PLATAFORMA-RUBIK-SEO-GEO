@@ -55,3 +55,13 @@ Registro operativo por entrega: [OPERATIONS-STATUS](OPERATIONS-STATUS.md).
 Contrato de herramientas, límites y costes contrastados: [OPENSEO-API-CAPABILITIES](OPENSEO-API-CAPABILITIES.md). El servicio alojado puede consumir créditos también para auditorías; el código abierto no implica datos de proveedores gratuitos.
 
 Avance de prioridad2: lectura de resultados con scope de proyecto/organización y lista paginada de metadatos preparados con pruebas unitarias; integración pendiente de CI. No equivale al guardado/historial operativo de OpenSEO. Véase HANDOFF e issue17.
+
+
+### 09/10/2026 — aislamiento criptográfico antes de persistencia OpenSEO
+
+Core PR #22 ya ofrece firmas vinculadas a UUID de cliente/proyecto. La rama
+`feat/provider-signed-scope` integra el contrato y rechaza firmas reasignadas
+o sin contexto, también en exportación. 181 pruebas locales correctas; DB/e2e
+del consumidor pendientes CI. PR #19 (historial por proyecto) ya integrado y
+desplegado. Esto no completa #17/#18: faltan almacenamiento de auditorías,
+historial visible, jobs exclusivos y mapping/configuración por cliente.

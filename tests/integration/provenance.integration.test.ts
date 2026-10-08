@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { Database } from "@/lib/supabase/database.types";
+import type { Database, Json } from "@/lib/supabase/database.types";
 import { providers } from "@/lib/core";
 import { loadKeyring, type Keyring } from "@/lib/provenance/keyring";
 import type { ProjectRef } from "@/lib/provenance/audit";
@@ -123,6 +123,22 @@ describe("CORE-9.2 signed provider results through the Data API", () => {
     expect(second.ok && second.rows.map((r) => r.id)).toEqual([stored.id]);
     expect(first.ok && Object.keys(first.rows[0]).sort()).toEqual(["captured_at", "created_at", "id", "operation", "provider", "status"]);
     expect(await listProviderResults(b, pa)).toEqual({ ok: true, rows: [] });
+  });
+
+  it("does not trust a genuine signature copied into another project by its owner", async () => {
+    const original = await loadProviderResult(a, pa, id, keyring);
+    if (!original.ok) throw new Error(original.error);
+    const row = original.row;
+    const { data, error } = await a.from("provider_results").insert({
+      project_id: pa2.projectId, organization_id: pa2.organizationId,
+      provider: row.provider, operation: row.operation, status: row.status, captured_at: row.captured_at,
+      signed_payload: row.signed_payload as NonNullable<Json>, data: row.data as Json,
+      data_hash_alg: row.data_hash_alg, data_hash: row.data_hash, key_id: row.key_id, signature: row.signature,
+    }).select("id").single();
+    expect(error).toBeNull();
+    const copied = await loadProviderResult(a, pa2, data!.id, keyring);
+    if (!copied.ok) throw new Error(copied.error);
+    expect(copied.verification).toMatchObject({ verified: false, trust: "UNTRUSTED", reason: "SCOPE_MISMATCH" });
   });
 
   it("another tenant cannot read it; nobody can update it", async () => {
