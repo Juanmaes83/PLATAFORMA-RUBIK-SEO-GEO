@@ -691,6 +691,8 @@ Salud de `main` en local (Linux, Node 22.22.0, Docker 29.8.2, Supabase CLI 2.118
 | Capturas | 18 y 19 regeneradas a 360, 390 y 1280 px |
 | pgTAP e integración | No se repitieron: no hay cambios de esquema ni de repositorio de datos |
 
+**CI:** en verde en `970df17` ([run 37830756873](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37830756873)): verify Node 22, verify Node 24 y e2e con Supabase local. Este commit solo añade esta línea.
+
 **Todas las pruebas de OpenSEO usan un servidor MCP simulado en memoria.** No se hizo ninguna llamada real a OpenSEO.
 
 **Bloqueado por el propietario:**
