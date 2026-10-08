@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { checkAuditTarget, followSiteAudit, startSiteAudit, testOpenSeoConnection, whoamiVerifier } from "@/lib/openseo/bridge";
+import { auditResponseShape, checkAuditTarget, followSiteAudit, startSiteAudit, testOpenSeoConnection, whoamiVerifier } from "@/lib/openseo/bridge";
 import { MAX_PAGES_CEILING, describeOpenSeoConfig, publicOpenSeoLeak, readOpenSeoConfig } from "@/lib/openseo/config";
 import { ALLOWED_TOOLS, OpenSeoTransportError, createOpenSeoMcpClient } from "@/lib/openseo/mcp-client";
 
@@ -392,5 +392,30 @@ describe("static guarantees", () => {
       "OPENSEO_AUDIT_STATUS_PENDING",
     ]);
     for (const l of lines) expect(l, l).toMatch(/^[A-Z_]+=$/);
+  });
+});
+
+describe("safe diagnostics for real audit status contract mismatches", () => {
+  it("reports only bounded field names and types, never values", () => {
+    const result = auditResponseShape({ status: { status: KEY, userEmail: "private@example.test", pagesCrawled: 10 }, meta: { projectId: OSEO_PROJECT, url: ENDPOINT }, [KEY]: "hidden" });
+    expect(result).toContain("root.status.status=string");
+    expect(result).toContain("root.status.pagesCrawled=number");
+    expect(result).not.toContain("private@example.test");
+    noLeak(result);
+    expect(result.length).toBeLessThanOrEqual(1000);
+  });
+  it("adds shape only to INVALID_RESPONSE and makes just one status call", async () => {
+    const mock = mockOpenSeo({ get_audit_status: () => ({ structuredContent: { data: { state: KEY, pagesCrawled: 3 }, meta: { projectId: OSEO_PROJECT } } }) });
+    const result = await followSiteAudit("aud_1", DOMAIN, { env: ENV, fetchImpl: mock.fetchImpl });
+    expect(result.progress.error).toMatchObject({ code: "INVALID_RESPONSE", diagnostic: expect.stringContaining("root.data.state=string") });
+    expect(result.report).toBeNull();
+    expect(mock.toolCalls()).toHaveLength(1);
+    noLeak(result);
+  });
+  it("preserves valid status without exposing any diagnostic", async () => {
+    const mock = mockOpenSeo({ get_audit_status: () => ({ structuredContent: { status: { status: "running", pagesCrawled: 3 } } }) });
+    const result = await followSiteAudit("aud_1", DOMAIN, { env: ENV, fetchImpl: mock.fetchImpl });
+    expect(result.progress.state).toBe("SYNCING");
+    expect(result.progress.error).toBeNull();
   });
 });
