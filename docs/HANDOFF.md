@@ -749,3 +749,15 @@ Salud de `main` en local (Linux, Node 22.22.0, Docker 29.8.2, Supabase CLI 2.118
 - PR #15 prepara callback PKCE `code`/`sb_flow_id` con 19 pruebas nuevas (167 total), sin activar recuperación/invitaciones. Estado y límites alojados detallados en [OPERATIONS-STATUS](OPERATIONS-STATUS.md). No declarar validado el flujo de correo live hasta observarlo.
 
 - Revisión de API/costes OpenSEO en fork `0ffff93101043aad7600a3b6a499a0cd2887ef49`: [OPENSEO-API-CAPABILITIES](OPENSEO-API-CAPABILITIES.md). Herramientas, límites, scopes y consumo de competidores/backlinks/rank contrastados sin llamadas live. La tarifa alojada también incluye auditorías entre las funciones que usan créditos; se corrige la frase «sin funciones de pago» del encabezado para no prometer gratuidad del hosted. Lista blanca del puente intacta.
+
+## Continuación — lectura e historial de resultados por proyecto (09/10/2026)
+
+Base revisada: main `c1a1839e7a160f3be889861f44827e466863cb42`; PR14/15/16 integrados. Solo siguen abiertos los PR documentales históricos9/11; sin otra rama activa sobre esta tarea observada.
+
+Entrega preparada: `loadProviderResult` exige ProjectRef y filtra por resultado, proyecto y organización, con validación de identificadores previa. Una persona con acceso a varios proyectos no puede reabrir el informe de otro pasando su ID al proyecto actual. `listProviderResults` añade lectura paginada de metadatos (25 por defecto,1–100 por página,offset máximo10000), orden estable fecha+ID y error explícito si la lectura falla. La lista no demuestra confianza criptográfica: cada detalle debe verificarse al abrirlo. No incluye data,signed_payload,key_id ni signature.
+
+Pruebas:177 unitarias, ESLint, TypeScript y secretos pasan. Nueva prueba de integración del mismo titular en dos proyectos más aislamiento entre tenants; requiere CI/Supabase local. Docker ausente en workspace y fallo conocido del build local uv_resident_set_memory: no declarar verify/e2e locales completos. No cambia schema ni migraciones.
+
+Límite: esto prepara el repositorio de historial y acota la lectura; todavía no guarda auditorías OpenSEO, no añade pantalla de historial ni bloquea trabajos simultáneos. Las firmas existentes validan el resultado del Core, no deben presentarse como vinculación criptográfica adicional de los IDs externos de fila. Migraciones9.2/9.3 y claves HMAC alojadas siguen pendientes. Trabajo restante en issues17/18.
+
+CI inicial de esta entrega: verify Node22/24 pasa; integración falló al crear fixture de segundo proyecto con INSERT RETURNING antes de estar disponible su pertenencia bajo RLS. Fixture corregido: insert y lectura separados, como el flujo existente. No se modifica ni relaja RLS. Pendiente CI del commit corregido.

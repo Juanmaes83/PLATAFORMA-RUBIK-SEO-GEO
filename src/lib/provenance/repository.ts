@@ -61,10 +61,38 @@ export async function storeProviderResult(client: Client, project: ProjectRef, r
   return { ok: true, id: data.id };
 }
 
-export async function loadProviderResult(client: Client, id: string, keyring: Keyring): Promise<{ ok: true; row: ProviderResultRow; verification: ProvenanceVerification } | Failure> {
-  const { data, error } = await client.from("provider_results").select("*").eq("id", id).maybeSingle();
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const validProject = (project: ProjectRef) => UUID.test(project.projectId) && UUID.test(project.organizationId);
+
+/** Metadata only. A list is not proof that the signed contents verify: load each result first. */
+export interface ProviderResultSummary {
+  id: string;
+  provider: string;
+  operation: string;
+  status: string;
+  captured_at: string | null;
+  created_at: string;
+}
+
+/** Bounded history for one project, through the user's RLS client. No payloads or signatures. */
+export async function listProviderResults(client: Client, project: ProjectRef, { limit = 25, offset = 0 }: { limit?: number; offset?: number } = {}): Promise<{ ok: true; rows: ProviderResultSummary[] } | Failure> {
+  if (!validProject(project)) return { ok: false, error: "INVALID_SCOPE" };
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100 || !Number.isSafeInteger(offset) || offset < 0 || offset > 10_000) return { ok: false, error: "INVALID_PAGE" };
+  const { data, error } = await client.from("provider_results")
+    .select("id, provider, operation, status, captured_at, created_at")
+    .eq("project_id", project.projectId).eq("organization_id", project.organizationId)
+    .order("created_at", { ascending: false }).order("id", { ascending: false })
+    .range(offset, offset + limit - 1);
   if (error) return { ok: false, error: "READ_FAILED" };
-  if (!data) return { ok: false, error: "NOT_FOUND" };
+  return { ok: true, rows: data.map(({ id, provider, operation, status, captured_at, created_at }) => ({ id, provider, operation, status, captured_at, created_at })) };
+}
+
+/** Requires the expected project even when the user belongs to several projects. */
+export async function loadProviderResult(client: Client, project: ProjectRef, id: string, keyring: Keyring): Promise<{ ok: true; row: ProviderResultRow; verification: ProvenanceVerification } | Failure> {
+  if (!UUID.test(id) || !validProject(project)) return { ok: false, error: "NOT_FOUND" };
+  const { data, error } = await client.from("provider_results").select("*").eq("project_id", project.projectId).eq("organization_id", project.organizationId).eq("id", id).maybeSingle();
+  if (error) return { ok: false, error: "READ_FAILED" };
+  if (!data || data.project_id !== project.projectId || data.organization_id !== project.organizationId) return { ok: false, error: "NOT_FOUND" };
   const row = data as ProviderResultRow;
   return { ok: true, row, verification: openProviderResult(row, keyring) };
 }

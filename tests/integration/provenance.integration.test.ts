@@ -5,7 +5,7 @@ import type { Database } from "@/lib/supabase/database.types";
 import { providers } from "@/lib/core";
 import { loadKeyring, type Keyring } from "@/lib/provenance/keyring";
 import type { ProjectRef } from "@/lib/provenance/audit";
-import { appendAudit, eraseProviderResults, exportProject, loadProviderResult, readAuditTrail, storeProviderResult } from "@/lib/provenance/repository";
+import { appendAudit, eraseProviderResults, exportProject, listProviderResults, loadProviderResult, readAuditTrail, storeProviderResult } from "@/lib/provenance/repository";
 import { RUN, createConfirmedUser, deleteOrganizations, deleteUsers, signedIn } from "./support";
 
 // CORE-9.2 end to end against the LOCAL Supabase stack, as signed-in fictitious users with the
@@ -15,7 +15,7 @@ type Client = SupabaseClient<Database>;
 const orgA = `agencia-a-${RUN}`, orgB = `agencia-b-${RUN}`;
 const users: string[] = [];
 let a: Client, b: Client, c: Client;
-let pa: ProjectRef, pb: ProjectRef;
+let pa: ProjectRef, pa2: ProjectRef, pb: ProjectRef;
 const loaded = loadKeyring({ PROVENANCE_SIGNING_KEYS: `k-int:${randomBytes(32).toString("base64")}`, PROVENANCE_ACTIVE_KEY_ID: "k-int" });
 if (!loaded.ok) throw new Error(loaded.error);
 const keyring: Keyring = loaded.keyring;
@@ -44,6 +44,11 @@ beforeAll(async () => {
   expect((await a.from("organization_members").insert({ organization_id: oa, user_id: users[2], role: "member" })).error).toBeNull();
   expect((await a.from("project_members").insert({ project_id: a1, organization_id: oa, user_id: users[2], role: "analyst" })).error).toBeNull();
   pa = { projectId: a1, organizationId: oa, scope: { tenantId: orgA, projectId: "proyecto-a1" } };
+  // Membership is granted after INSERT; read in a second request, as for the first project.
+  expect((await a.from("projects").insert({ organization_id: oa, slug: "proyecto-a2", name: "A2" })).error).toBeNull();
+  const second = await a.from("projects").select("id").eq("organization_id", oa).eq("slug", "proyecto-a2").single();
+  expect(second.error).toBeNull();
+  pa2 = { projectId: second.data!.id, organizationId: oa, scope: { tenantId: orgA, projectId: "proyecto-a2" } };
   pb = { projectId: b1, organizationId: ob, scope: { tenantId: orgB, projectId: "proyecto-b1" } };
 }, 60_000);
 
@@ -102,13 +107,26 @@ describe("CORE-9.2 signed provider results through the Data API", () => {
     const stored = await storeProviderResult(c, pa, await liveResult(), keyring);
     if (!stored.ok) throw new Error(stored.error);
     id = stored.id;
-    const loadedResult = await loadProviderResult(a, id, keyring);
+    const loadedResult = await loadProviderResult(a, pa, id, keyring);
     if (!loadedResult.ok) throw new Error(loadedResult.error);
     expect([loadedResult.row.data_hash_alg, loadedResult.verification.trust, loadedResult.verification.verified]).toEqual(["sha256", "SIGNED_PROVENANCE", true]);
   });
 
+  it("keeps reports separate when the same owner belongs to two projects", async () => {
+    const stored = await storeProviderResult(a, pa2, await liveResult(), keyring);
+    if (!stored.ok) throw new Error(stored.error);
+    expect(await loadProviderResult(a, pa, stored.id, keyring)).toEqual({ ok: false, error: "NOT_FOUND" });
+    expect(await loadProviderResult(a, pa2, id, keyring)).toEqual({ ok: false, error: "NOT_FOUND" });
+    const first = await listProviderResults(a, pa);
+    const second = await listProviderResults(a, pa2);
+    expect(first.ok && first.rows.map((r) => r.id)).toEqual([id]);
+    expect(second.ok && second.rows.map((r) => r.id)).toEqual([stored.id]);
+    expect(first.ok && Object.keys(first.rows[0]).sort()).toEqual(["captured_at", "created_at", "id", "operation", "provider", "status"]);
+    expect(await listProviderResults(b, pa)).toEqual({ ok: true, rows: [] });
+  });
+
   it("another tenant cannot read it; nobody can update it", async () => {
-    expect(await loadProviderResult(b, id, keyring)).toEqual({ ok: false, error: "NOT_FOUND" });
+    expect(await loadProviderResult(b, pa, id, keyring)).toEqual({ ok: false, error: "NOT_FOUND" });
     expect((await a.from("provider_results").update({ status: "OK" }).eq("id", id)).error?.code).toBe("42501");
     expect(await storeProviderResult(b, pa, await liveResult(), keyring)).toEqual({ ok: false, error: "NOT_ALLOWED" });
   });
