@@ -759,3 +759,5 @@ Entrega preparada: `loadProviderResult` exige ProjectRef y filtra por resultado,
 Pruebas:177 unitarias, ESLint, TypeScript y secretos pasan. Nueva prueba de integración del mismo titular en dos proyectos más aislamiento entre tenants; requiere CI/Supabase local. Docker ausente en workspace y fallo conocido del build local uv_resident_set_memory: no declarar verify/e2e locales completos. No cambia schema ni migraciones.
 
 Límite: esto prepara el repositorio de historial y acota la lectura; todavía no guarda auditorías OpenSEO, no añade pantalla de historial ni bloquea trabajos simultáneos. Las firmas existentes validan el resultado del Core, no deben presentarse como vinculación criptográfica adicional de los IDs externos de fila. Migraciones9.2/9.3 y claves HMAC alojadas siguen pendientes. Trabajo restante en issues17/18.
+
+CI inicial de esta entrega: verify Node22/24 pasa; integración falló al crear fixture de segundo proyecto con INSERT RETURNING antes de estar disponible su pertenencia bajo RLS. Fixture corregido: insert y lectura separados, como el flujo existente. No se modifica ni relaja RLS. Pendiente CI del commit corregido.

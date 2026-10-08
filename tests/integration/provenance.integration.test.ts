@@ -44,7 +44,9 @@ beforeAll(async () => {
   expect((await a.from("organization_members").insert({ organization_id: oa, user_id: users[2], role: "member" })).error).toBeNull();
   expect((await a.from("project_members").insert({ project_id: a1, organization_id: oa, user_id: users[2], role: "analyst" })).error).toBeNull();
   pa = { projectId: a1, organizationId: oa, scope: { tenantId: orgA, projectId: "proyecto-a1" } };
-  const second = await a.from("projects").insert({ organization_id: oa, slug: "proyecto-a2", name: "A2" }).select("id").single();
+  // Membership is granted after INSERT; read in a second request, as for the first project.
+  expect((await a.from("projects").insert({ organization_id: oa, slug: "proyecto-a2", name: "A2" })).error).toBeNull();
+  const second = await a.from("projects").select("id").eq("organization_id", oa).eq("slug", "proyecto-a2").single();
   expect(second.error).toBeNull();
   pa2 = { projectId: second.data!.id, organizationId: oa, scope: { tenantId: orgA, projectId: "proyecto-a2" } };
   pb = { projectId: b1, organizationId: ob, scope: { tenantId: orgB, projectId: "proyecto-b1" } };
