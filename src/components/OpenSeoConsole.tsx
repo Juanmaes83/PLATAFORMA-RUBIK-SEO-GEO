@@ -13,11 +13,12 @@ function Code({ code }: { code: string | null | undefined }) {
   return code ? <span className="diag">Código: {code}</span> : null;
 }
 
-function Problem({ code, message }: { code: string; message?: string }) {
+function Problem({ code, message, diagnostic }: { code: string; message?: string; diagnostic?: string }) {
   return (
     <p className="notice notice-error" role="alert">
       {errorText(code) || message}
       <Code code={code} />
+      {diagnostic && <span className="diag">Estructura recibida (sin valores): {diagnostic}</span>}
     </p>
   );
 }
@@ -115,7 +116,7 @@ export function OpenSeoConsole({ tenant, project, defaultUrl, maxPages }: { tena
                 <StatusPill tone={AUDIT_STATE_LABELS[follow.progress.state]?.tone ?? "neutral"}>{AUDIT_STATE_LABELS[follow.progress.state]?.label ?? follow.progress.state}</StatusPill>
               )}
             </div>
-            {follow.progress.error && <Problem code={follow.progress.error.code} message={follow.progress.error.message} />}
+            {follow.progress.error && <Problem code={follow.progress.error.code} message={follow.progress.error.message} diagnostic={follow.progress.error.diagnostic} />}
             <dl className="facts">
               <div><dt>Estado en OpenSEO</dt><dd>{follow.progress.providerStatus ?? "Desconocido"}{follow.progress.phase ? ` · ${follow.progress.phase}` : ""}</dd></div>
               <div><dt>Páginas rastreadas</dt><dd>{follow.progress.pagesCrawled ?? "Desconocido"}{follow.progress.pagesTotal !== null ? ` de ${follow.progress.pagesTotal}` : ""}</dd></div>
