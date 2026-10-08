@@ -680,3 +680,25 @@ Salud de `main` en local (Linux, Node 22.22.0, Docker 29.8.2, Supabase CLI 2.118
   - Guarda de secretos: detecta claves `oseo_…`.
   - Catálogo de conectores: el texto de OpenSEO indica que no hay conexión verificada.
   - e2e: la sección nueva en las rutas protegidas, en el aislamiento entre tenants y en la batería visual (capturas 18 y 19).
+
+**Pruebas locales** (Linux, Node 22.22.0, Supabase CLI 2.118.0, Docker 29.8.2):
+
+| Comprobación | Resultado |
+|---|---|
+| `npm run verify` | En verde: core pin `8a1f808`, secrets ok, lint, typecheck, Vitest 13 ficheros / 142 pruebas (58 nuevas de OpenSEO), build |
+| Bundle del navegador | `.next/static` sin `OPENSEO_`, `oseo_` ni `run_site_audit` |
+| Playwright | Contra el stack local, con el Chromium del contenedor (configuración local que solo cambia `executablePath`, no commiteada): **87 pasan, 24 se omiten, 0 fallan** |
+| Capturas | 18 y 19 regeneradas a 360, 390 y 1280 px |
+| pgTAP e integración | No se repitieron: no hay cambios de esquema ni de repositorio de datos |
+
+**Todas las pruebas de OpenSEO usan un servidor MCP simulado en memoria.** No se hizo ninguna llamada real a OpenSEO.
+
+**Bloqueado por el propietario:**
+- Credenciales y variables en el servidor ([ENVIRONMENT](ENVIRONMENT.md)).
+- Elegir el campo de `whoami` y el vocabulario de estados tras la primera prueba real.
+- Autorizar, o no, el dominio de producción de Sarah. Nunca la preview.
+- Revisión y merge del PR.
+
+**Siguiente paso:**
+1. El propietario configura las credenciales y pulsa «Probar conexión»; después, una auditoría de 10 a 20 páginas sobre un dominio autorizado.
+2. Siguiente tramo: persistencia firmada de los resultados (ADR 0004), un job activo por proyecto (`activeJob`) y el enlace de cada proyecto con su `projectId` de OpenSEO.
