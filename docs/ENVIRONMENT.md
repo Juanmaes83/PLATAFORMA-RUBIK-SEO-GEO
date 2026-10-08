@@ -22,10 +22,10 @@ Sin las dos variables de Supabase la aplicación arranca, pero **no hay inicio d
 
 ## Claves secretas
 
-- **La aplicación no usa ninguna clave secreta ni `service_role`.** No existe una variable para ella.
+- **La aplicación no usa claves secretas de Supabase ni `service_role`.** Usa la clave publicable y la sesión del usuario bajo RLS.
 - Si `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` contiene una clave secreta (`sb_secret_…`) o un JWT con rol `service_role`, `scripts/run-next.mjs` se niega a ejecutar Next.js y `src/instrumentation.ts` corta el arranque del servidor. Las variables `NEXT_PUBLIC_*` se incrustan en el JavaScript del navegador.
 - Las pruebas de integración y e2e contra el **stack local** leen sus claves en tiempo de ejecución con `supabase status -o env` (`scripts/supabase-test-env.mjs`). Son las claves de desarrollo del contenedor local, no se escriben en ningún fichero y no sirven para el proyecto alojado.
-- La única clave secreta de servidor es la de firma HMAC de CORE-9.2 (`PROVENANCE_SIGNING_KEYS`, [ADR 0004](adr/0004-persistencia-auditoria-y-provenance.md)). No es una clave de Supabase y no da acceso a datos. Las pruebas generan claves aleatorias en memoria en cada ejecución.
+- Las claves secretas de servidor son la clave OpenSEO y la de firma HMAC de CORE-9.2 (`PROVENANCE_SIGNING_KEYS`, [ADR 0004](adr/0004-persistencia-auditoria-y-provenance.md)). No es una clave de Supabase y no da acceso a datos. Las pruebas generan claves aleatorias en memoria en cada ejecución.
 
 ## Build y variables `NEXT_PUBLIC_*`
 

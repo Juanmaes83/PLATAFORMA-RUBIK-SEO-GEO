@@ -742,3 +742,10 @@ Salud de `main` en local (Linux, Node 22.22.0, Docker 29.8.2, Supabase CLI 2.118
 - Build local: bloqueado por `uv_resident_set_memory` (`ENOENT`) en el runtime de este workspace al arrancar Turbopack, después de pasar tests. Pendiente verificar build en CI; no se declara `npm run verify` completo en verde.
 - Docker no está disponible en este workspace; las pruebas de PostgreSQL/Supabase y Playwright del cambio deben ejecutarse en CI.
 - Revisión periódica solicitada por el propietario: automatización horaria creada para leer estado GitHub, retomar trabajo autorizado y documentar cambios/bloqueos; no es un proceso continuo de Claude Code.
+
+### Entregas posteriores del checkpoint
+
+- PR #14 integrado en `main` (`c2789b9e60e748eab9cee3ea832be740a4d1ff65`) tras CI completa en verde del head `630e946`: verify Node22/24 y e2e Supabase, run37855323689. Preview y producción READY (`dpl_7JMi11kCJotvpnFp3ShGpL5EEvAP`, alias público comprobado). La corrección permite solo companion www/apex autorizado y selecciona la auditoría nueva; no activa persistencia ni multicliente.
+- PR #15 prepara callback PKCE `code`/`sb_flow_id` con 19 pruebas nuevas (167 total), sin activar recuperación/invitaciones. Estado y límites alojados detallados en [OPERATIONS-STATUS](OPERATIONS-STATUS.md). No declarar validado el flujo de correo live hasta observarlo.
+
+- Revisión de API/costes OpenSEO en fork `0ffff93101043aad7600a3b6a499a0cd2887ef49`: [OPENSEO-API-CAPABILITIES](OPENSEO-API-CAPABILITIES.md). Herramientas, límites, scopes y consumo de competidores/backlinks/rank contrastados sin llamadas live. La tarifa alojada también incluye auditorías entre las funciones que usan créditos; se corrige la frase «sin funciones de pago» del encabezado para no prometer gratuidad del hosted. Lista blanca del puente intacta.
