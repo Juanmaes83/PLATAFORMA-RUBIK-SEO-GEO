@@ -285,7 +285,8 @@ describe("manual site audit", () => {
 });
 
 describe("audit follow-up and normalization through the Core", () => {
-  const status = (s: string) => () => ({ structuredContent: { status: s, phase: "crawl", pagesCrawled: 12, pagesTotal: 40 } });
+  // Mirrors src/server/mcp/tools/site-audit-tools.ts in OpenSEO: the audit row is nested.
+  const status = (s: string) => () => ({ structuredContent: { status: { status: s, currentPhase: "crawl", pagesCrawled: 12, pagesTotal: 40 } } });
 
   it("an audit in progress stays SYNCING and fetches no results", async () => {
     const mock = mockOpenSeo({ get_audit_status: status("running") });
