@@ -6,7 +6,7 @@ import { OTHER_PROJECT, OTHER_TENANT, TEST_PASSPHRASE, PROJECT, TENANT, USERS, s
 // flows do not depend on the viewport, so they run once (desktop project).
 test.beforeEach(({}, info) => test.skip(info.project.name !== "escritorio-1280", "viewport-independent"));
 
-const PROTECTED = ["/panel", "/proyectos", "/organizaciones", `/proyectos/${TENANT}/${PROJECT}`, `/proyectos/${TENANT}/${PROJECT}/mediciones`, "/revision", "/equipo"];
+const PROTECTED = ["/panel", "/proyectos", "/organizaciones", `/proyectos/${TENANT}/${PROJECT}`, `/proyectos/${TENANT}/${PROJECT}/mediciones`, `/proyectos/${TENANT}/${PROJECT}/auditoria-tecnica`, "/revision", "/equipo"];
 
 test("sign-up with e-mail confirmation, then sign-out", async ({ page }) => {
   const { mailpitUrl } = localSupabaseEnv();
@@ -85,7 +85,7 @@ test("another tenant's project is indistinguishable from a missing one", async (
   expect(missing?.status()).toBe(404);
   expect(otherText).toBe(missingText);
   // Tenant/project mismatch and malformed ids too.
-  for (const path of [`/proyectos/${OTHER_TENANT}/${PROJECT}`, `/proyectos/${TENANT}/${OTHER_PROJECT}`, `/proyectos/${TENANT.toUpperCase()}/${PROJECT}`, `/proyectos/${OTHER_TENANT}/${OTHER_PROJECT}/mediciones`]) {
+  for (const path of [`/proyectos/${OTHER_TENANT}/${PROJECT}`, `/proyectos/${TENANT}/${OTHER_PROJECT}`, `/proyectos/${TENANT.toUpperCase()}/${PROJECT}`, `/proyectos/${OTHER_TENANT}/${OTHER_PROJECT}/mediciones`, `/proyectos/${OTHER_TENANT}/${OTHER_PROJECT}/auditoria-tecnica`]) {
     expect((await page.goto(path))?.status(), path).toBe(404);
   }
   await page.goto("/proyectos");

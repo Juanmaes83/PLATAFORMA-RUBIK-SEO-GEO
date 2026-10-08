@@ -27,14 +27,23 @@ describe(".env.example", () => {
     for (const line of lines) expect(line, line).toMatch(/^[A-Z][A-Z0-9_]*=$/);
   });
 
-  it("declares the two public Supabase names and the server-only signing key names, never a Supabase secret", () => {
+  it("declares the two public Supabase names and the server-only signing and OpenSEO names, never a Supabase secret", () => {
     expect(lines.some((l) => /SERVICE_ROLE|SECRET|ANON_KEY|AUTH_MODE/.test(l))).toBe(false);
     expect(lines).toEqual([
       "NEXT_PUBLIC_SUPABASE_URL=",
       "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=",
       "PROVENANCE_SIGNING_KEYS=",
       "PROVENANCE_ACTIVE_KEY_ID=",
+      "OPENSEO_ENDPOINT=",
+      "OPENSEO_API_KEY=",
+      "OPENSEO_PROJECT_ID=",
+      "OPENSEO_AUDIT_ALLOWED_HOSTS=",
+      "OPENSEO_AUDIT_MAX_PAGES=",
+      "OPENSEO_WHOAMI_IDENTITY_FIELD=",
+      "OPENSEO_AUDIT_STATUS_COMPLETED=",
+      "OPENSEO_AUDIT_STATUS_FAILED=",
+      "OPENSEO_AUDIT_STATUS_PENDING=",
     ]);
-    expect(lines.filter((l) => l.startsWith("NEXT_PUBLIC_") && /PROVENANCE/.test(l))).toEqual([]);
+    expect(lines.filter((l) => l.startsWith("NEXT_PUBLIC_") && /PROVENANCE|OPENSEO/.test(l))).toEqual([]);
   });
 });

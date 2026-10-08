@@ -139,7 +139,39 @@ declare module "@rubik/seo-geo-core/providers" {
   interface Providers {
     redact(text: string): string;
     isTrustedResult(value: unknown): boolean;
-    runProviderRequest(input: Record<string, unknown>): Promise<Record<string, unknown> & { data: unknown }>;
+    runProviderRequest(input: Record<string, unknown>): Promise<ProviderResult>;
+    openseoConnectivity(input: {
+      health: unknown;
+      mcp?: unknown;
+      clock?: () => Date;
+      whoamiAuthenticated?: (structuredContent: Readonly<Record<string, unknown>>) => boolean;
+    }): Promise<OpenSeoConnectivity>;
+  }
+  export interface ProviderError {
+    code: string;
+    message: string;
+    retryable: boolean;
+    retryAfterSeconds?: number | null;
+  }
+  export interface ProviderResult {
+    provider: string;
+    operation: string;
+    status: string;
+    data: unknown[];
+    partial: { reason: string | null; received: number; expected: number | null; rejected: number; capped: number; truncated: boolean } | null;
+    errors: ProviderError[];
+    connection: "VERIFIED" | "NOT_VERIFIED";
+    provenance: { capturedAt: string; requestedAt: string; method: string; evidence: Record<string, unknown> } | null;
+    [k: string]: unknown;
+  }
+  export interface OpenSeoConnectivity {
+    status: "NOT_CONFIGURED" | "NOT_CONNECTED" | "CONNECTED" | "ERROR";
+    health: string | null;
+    authorization: "VERIFIED" | "NOT_VERIFIED" | "REJECTED";
+    reason?: string;
+    checkedAt?: string | null;
+    failingChecks?: string[];
+    error?: ProviderError | string | null;
   }
   const api: Providers;
   export = api;
@@ -153,5 +185,24 @@ declare module "@rubik/seo-geo-core/offpage" {
     ): { status: string; trust: string; verified: boolean; method: string; rows: unknown[]; [k: string]: unknown };
   }
   const api: Offpage;
+  export = api;
+}
+
+declare module "@rubik/seo-geo-core/intelligence" {
+  interface OpenSEOHealth {
+    status: string;
+    health?: string;
+    failingChecks?: string[];
+    error?: string;
+    [k: string]: unknown;
+  }
+  interface Intelligence {
+    OpenSEOAdapter: new (options: {
+      endpoint: string;
+      fetchImpl?: (input: string, init: RequestInit) => Promise<Response>;
+      timeout?: number;
+    }) => { connectivity(): Promise<OpenSEOHealth> };
+  }
+  const api: Intelligence;
   export = api;
 }

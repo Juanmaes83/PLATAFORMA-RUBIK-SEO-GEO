@@ -5,6 +5,7 @@
 - **Entornos:**
   - Las capturas 01–14 se generaron en Windows con las fuentes del sistema.
   - Las 15–17 (CORE-9.3) se generaron en Linux, en el contenedor de Claude Code, con su Chromium preinstalado. Las capturas 07–09 son anteriores a la pestaña «Importaciones» del menú del proyecto: no se regeneraron para no mezclar entornos.
+  - Las 18–19 (ADR 0006, auditoría técnica) se generaron igual que las 15–17. Las demás capturas de páginas de proyecto no muestran todavía la pestaña «Auditoría técnica»: no se regeneraron para no mezclar entornos.
   - La CI genera sus propias capturas en Linux (artefacto del job `e2e`).
 - **Criterios y pruebas:** en la [ADR 0002](../adr/0002-ux-mobile-first.md).
 
@@ -27,3 +28,5 @@
 | Importaciones (analista, con formulario) · CORE-9.3 | [360](movil-360/15-importaciones-analista.png) | [390](movil-390/15-importaciones-analista.png) | [1280](escritorio-1280/15-importaciones-analista.png) |
 | Importaciones (cliente, solo lectura) · CORE-9.3 | [360](movil-360/16-importaciones-cliente.png) | [390](movil-390/16-importaciones-cliente.png) | [1280](escritorio-1280/16-importaciones-cliente.png) |
 | Detalle de una importación parcial · CORE-9.3 | — | — | [1280](escritorio-1280/17-importacion-detalle.png) |
+| Auditoría técnica (titular, OpenSEO sin configurar) · ADR 0006 | [360](movil-360/18-auditoria-tecnica-titular.png) | [390](movil-390/18-auditoria-tecnica-titular.png) | [1280](escritorio-1280/18-auditoria-tecnica-titular.png) |
+| Auditoría técnica (analista, sin permiso) · ADR 0006 | [360](movil-360/19-auditoria-tecnica-analista.png) | [390](movil-390/19-auditoria-tecnica-analista.png) | [1280](escritorio-1280/19-auditoria-tecnica-analista.png) |

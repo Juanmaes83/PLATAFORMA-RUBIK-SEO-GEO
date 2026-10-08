@@ -246,3 +246,9 @@ main:focus { outline: none; }
   .side-nav .nav-link { flex-direction: column; align-items: flex-start; justify-content: center; gap: 0.15rem; }
   main { padding: var(--space-6) 2rem 3rem; }
 }
+
+/* OpenSEO console (ADR 0006): checkbox with its label on one comfortable row. */
+.field-check { grid-template-columns: auto 1fr; align-items: center; gap: var(--space-2); }
+.field-check input[type=checkbox] { width: 1.5rem; height: var(--tap); min-height: var(--tap); margin: 0; }
+.field-check label { font-weight: 400; min-height: var(--tap); display: flex; align-items: center; }
+.break { overflow-wrap: anywhere; }

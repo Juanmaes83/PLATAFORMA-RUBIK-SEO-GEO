@@ -650,3 +650,57 @@ Salud de `main` en local (Linux, Node 22.22.0, Docker 29.8.2, Supabase CLI 2.118
 **No hecho, a propósito:** merge, despliegue, migraciones alojadas, borrado de ramas e importación de datos de Sarah.
 
 **Siguiente paso:** revisión del propietario del PR draft de esta rama; después, la siguiente unidad de CORE-9.2 o el piloto cuando se autorice.
+
+## Sesión 11 — puente OpenSEO, primer tramo (08/10/2026)
+
+**Punto de partida verificado:**
+- `main@377fa73` (merge de #8), con CORE-9.2 unidad 1, CORE-9.3 y el normalizador Lighthouse fusionados.
+- Core fijado en `8a1f808`. Su `docs/integrations/OPENSEO.md` (CORE-7.1, D-22) se leyó antes de editar.
+
+**Hecho** (rama `feat/openseo-bridge-site-audit`, [PR #10](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/10) en Draft; [ADR 0006](adr/0006-puente-openseo.md)):
+
+- `src/lib/openseo/mcp-client.ts`: cliente MCP Streamable HTTP solo de servidor.
+  - Protocolo: `initialize`, `notifications/initialized` y `tools/call`, con respuesta JSON o SSE, sesión, timeout y sin redirecciones.
+  - **Lista blanca:** `whoami`, `run_site_audit`, `get_audit_status`, `get_audit_issues` y `get_audit_pages`. Todo lo demás se rechaza antes de la red: keywords, SERP, backlinks, rank tracking, Lighthouse, listar o borrar auditorías, y proyectos.
+  - `run_site_audit` exige `runLighthouse:false` y `maxPages` dentro del límite.
+- `src/lib/openseo/config.ts`: variables solo de servidor, validadas.
+  - Rechaza datos de OpenSEO en `NEXT_PUBLIC_*`.
+  - Rechaza previews, IP y `localhost` como hosts auditables.
+  - Límite de páginas entre 10 y 500.
+- `src/lib/openseo/bridge.ts`: usa el Core sin copiarlo.
+  - Prueba de conexión: `OpenSEOAdapter.connectivity()` (health) más `providers.openseoConnectivity` con el verificador de `whoami`.
+  - Auditoría manual (`trigger:"manual"`, `runLighthouse:false`) restringida al dominio del proyecto.
+  - Seguimiento con `auditStatus` y, si termina, `auditIssues` y `auditPages` normalizados por el Core. Las filas de otros dominios se ocultan y se cuentan.
+- Interfaz:
+  - `src/lib/openseo/actions.ts`: Server Actions con sesión, RLS y `manage-connectors`.
+  - `src/components/OpenSeoConsole.tsx`: tres pasos con un clic cada uno; la auditoría pide una casilla de confirmación.
+  - Página `/proyectos/…/auditoria-tecnica`: no llama a OpenSEO al renderizar.
+- Documentación y guardas:
+  - `.env.example` y `docs/ENVIRONMENT.md`: solo nombres de variables.
+  - Guarda de secretos: detecta claves `oseo_…`.
+  - Catálogo de conectores: el texto de OpenSEO indica que no hay conexión verificada.
+  - e2e: la sección nueva en las rutas protegidas, en el aislamiento entre tenants y en la batería visual (capturas 18 y 19).
+
+**Pruebas locales** (Linux, Node 22.22.0, Supabase CLI 2.118.0, Docker 29.8.2):
+
+| Comprobación | Resultado |
+|---|---|
+| `npm run verify` | En verde: core pin `8a1f808`, secrets ok, lint, typecheck, Vitest 13 ficheros / 142 pruebas (58 nuevas de OpenSEO), build |
+| Bundle del navegador | `.next/static` sin `OPENSEO_`, `oseo_` ni `run_site_audit` |
+| Playwright | Contra el stack local, con el Chromium del contenedor (configuración local que solo cambia `executablePath`, no commiteada): **87 pasan, 24 se omiten, 0 fallan** |
+| Capturas | 18 y 19 regeneradas a 360, 390 y 1280 px |
+| pgTAP e integración | No se repitieron: no hay cambios de esquema ni de repositorio de datos |
+
+**CI:** en verde en `970df17` ([run 37830756873](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37830756873)): verify Node 22, verify Node 24 y e2e con Supabase local. Este commit solo añade esta línea.
+
+**Todas las pruebas de OpenSEO usan un servidor MCP simulado en memoria.** No se hizo ninguna llamada real a OpenSEO.
+
+**Bloqueado por el propietario:**
+- Credenciales y variables en el servidor ([ENVIRONMENT](ENVIRONMENT.md)).
+- Elegir el campo de `whoami` y el vocabulario de estados tras la primera prueba real.
+- Autorizar, o no, el dominio de producción de Sarah. Nunca la preview.
+- Revisión y merge del PR.
+
+**Siguiente paso:**
+1. El propietario configura las credenciales y pulsa «Probar conexión»; después, una auditoría de 10 a 20 páginas sobre un dominio autorizado.
+2. Siguiente tramo: persistencia firmada de los resultados (ADR 0004), un job activo por proyecto (`activeJob`) y el enlace de cada proyecto con su `projectId` de OpenSEO.
