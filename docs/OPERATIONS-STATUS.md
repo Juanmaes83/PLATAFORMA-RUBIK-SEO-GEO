@@ -7,6 +7,8 @@ Este registro separa lo observado de lo pendiente; las autorizaciones del propie
 - PR #14: selección de la auditoría recién iniciada, rechazo de UUID concatenados antes de llamar a OpenSEO, variante www/apex solo con allowlist explícita y contadores separados de exclusión. Revisión independiente y 148 tests locales. CI Node22/24 y e2e Supabase pasan ([run 37855323689](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37855323689)); integrado en main como `c2789b9e60e748eab9cee3ea832be740a4d1ff65`. Preview Vercel READY. Producción Vercel READY `dpl_7JMi11kCJotvpnFp3ShGpL5EEvAP`, alias público y SHA del merge comprobados.
 - [PR #15](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/15), callback de confirmación: preparado soporte PKCE `code` y `sb_flow_id` además de `token_hash` de email/signup. 19 tests nuevos; suite total 167 tests, ESLint y TypeScript pasan. Prueba alojada de este flujo todavía pendiente.
 - La prueba real anterior de OpenSEO terminó con 10/10 páginas. No se ha lanzado otra auditoría para verificar estos cambios.
+- PR #19/#20: historial acotado y firma vinculada a UUID de cliente/proyecto, integrados y desplegados con CI completa; una firma genuina copiada entre proyectos queda `SCOPE_MISMATCH`.
+- PR #21: frontera para reutilizar un `activeJob` y rechazar un `auditId` no vinculado antes de MCP. CI completa verde (`37864049883`) y producción READY en `35277d8` (`dpl_F82HEYtPYntCHAgMmq2pAzBjkJoK`). Todavía no existe repositorio operativo de jobs ni persistencia OpenSEO.
 
 ## Comprobaciones alojadas de solo lectura
 
