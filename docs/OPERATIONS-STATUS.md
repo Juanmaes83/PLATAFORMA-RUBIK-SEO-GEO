@@ -6,6 +6,8 @@ Este registro separa lo observado de lo pendiente; las autorizaciones del propie
 
 **Estado vigente (09/10/2026, tras aplicar el paquete de migraciones). Las viñetas siguientes son el histórico de cada entrega; prevalece este bloque.**
 
+PR #45–#47 integradas. Producción mostró el nuevo texto del límite y el panel a 390/1280 px sin escritura; la revisión humana del panel y la prueba del límite tras una acción real siguen pendientes. La evidencia visual y SQL del guardado `legacy` permanece comprobada por separado. `project` no está activo. ADR 0010 y Preview aislada esperan decisión de Juanma; la CI del último SHA y el responsable del relevo constan en [HANDOFF](HANDOFF.md).
+
 Supabase Rubik `yvdgmklgwlshizzgefpv`: el propietario aplicó con su CLI las cuatro migraciones del paquete. El relevo anterior confirmó **nueve versiones sincronizadas** y RLS sin privilegios directos en las tablas privadas. La verificación SQL alojada posterior del `auditId` de Sarah fue de solo lectura; no se repitieron migraciones. Ver [HANDOFF](HANDOFF.md) para separar su resultado de la prueba visual comunicada por Juanma.
 
 | Área | Integrado en `main` | Alojado / desplegado | Verificación real | Siguiente acción |

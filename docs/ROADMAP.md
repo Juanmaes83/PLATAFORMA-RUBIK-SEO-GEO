@@ -8,6 +8,8 @@ El catálogo de capacidades SEO/GEO que el propietario quiere cubrir, con el est
 
 **Estado vigente (09/10/2026). El historial de checkpoints se conserva más abajo; prevalecen este bloque y la agrupación operativa.**
 
+#45 (límite de páginas del formulario), #46 (seis fases y estados) y #47 (checkpoint) están integradas. La prueba técnica de #45 no incluye una nueva auditoría real: Juanma aún debe revisar el panel/formulario; el guardado `legacy` anterior sí está comprobado. La CI del SHA de cierre y las decisiones pendientes constan en [HANDOFF](HANDOFF.md). Responsables: Codex entrega y detiene ediciones; Juanma valida y decide; Claude Code puede retomar tras este relevo.
+
 Supabase Rubik `yvdgmklgwlshizzgefpv`: el propietario aplicó con su CLI las cuatro migraciones del paquete. Codex confirmó que `migration list` muestra **nueve versiones sincronizadas** y que las tres tablas privadas nuevas o modificadas (`openseo_project_connections`, `openseo_project_jobs`, `webmaster_properties`) tienen RLS sin privilegios directos para `anon`/`authenticated`. Esa evidencia de migraciones procede del propietario y del relevo; la comprobación SQL alojada del guardado del 09/10/2026 se hizo después y queda detallada en HANDOFF.
 
 | Área | Integrado en `main` | Alojado / desplegado | Verificación real | Siguiente acción |
