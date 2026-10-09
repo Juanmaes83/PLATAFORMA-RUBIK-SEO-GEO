@@ -954,3 +954,10 @@ CI inicial de esta entrega: verify Node22/24 pasa; integración falló al crear 
   - `npm run verify`: 225/225.
 - Orden: fusionar y aplicar la cadena OpenSEO #31–#36 antes que #37 y esta rama, para que las versiones de migración se apliquen en orden.
 - Siguiente: la fase D (lectura manual, snapshot firmado e interfaz) depende de la fase B (OAuth y almacén de secretos) y de la propuesta al Core sobre el contexto de la consulta.
+
+## 09/10/2026 — previews aisladas e integraciones (rama `claude/previews-integraciones`)
+
+- [PREVIEWS-E-INTEGRACIONES](PREVIEWS-E-INTEGRACIONES.md):
+  - Recomendación: un segundo proyecto Supabase «rubik-preview» para las variables *Preview*. El coste está por verificar si no queda una plaza gratuita. Pasos para el propietario.
+  - Estado real de cada integración, distinguiendo entre invitación, código y conexión.
+- Sin cambios de configuración. Siguiente paso: decisión del propietario sobre la opción A.
