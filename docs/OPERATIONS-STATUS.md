@@ -1,4 +1,6 @@
-# Estado operativo comprobado — 09/10/2026
+# Estado operativo comprobado — 10/10/2026
+
+**Corte vigente:** #60 integrado en `main@cc5bba4d6ccaf3ebcf68b765429ad583efc27758`; [CI del PR completa verde](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/38000342768), [CI posterior de main en curso en la última consulta](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/38000964284). El merge provoca despliegue automático, pero la asociación de propiedades no tiene lector de producción y su migración solo se aplicó en una base local desechable. `feat/google-manual-read` prueba un servicio servidor con proveedor simulado, fuente autorizada y límites; no tiene pantalla, persistencia ni lecturas reales. Producción sigue en OpenSEO `legacy`, sin asociación real de Sarah ni activación de Google. Validación humana de panel/formulario: pendiente; guardado `legacy`: validado visualmente y por SQL en #44. ADR 0010 y Preview aislada: decisión pendiente. La fase histórica 4 web/Studio de Sarah se trasladó fuera de Rubik, no se completó.
 
 Este registro separa lo observado de lo pendiente; las autorizaciones del propietario para avanzar permanecen vigentes. No hay que volver a pedir permiso para preparar cambios de código, pruebas o PR dentro del alcance autorizado.
 

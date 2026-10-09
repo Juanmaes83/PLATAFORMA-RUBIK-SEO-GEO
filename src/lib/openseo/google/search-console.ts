@@ -1,5 +1,6 @@
 import "server-only";
 import { mapSearchAnalyticsRows, searchConsolePropertyFor, validateSearchAnalyticsInput } from "@/lib/search-console/transport";
+import { isResolvedGoogleSource, type GoogleSource } from "./properties";
 
 // Search Console through OpenSEO (owner decision of 09/10/2026; docs/GSC-GA4-OPENSEO.md). A
 // transport for the Core's existing `search-console.searchAnalytics` operation: the Core still
@@ -52,13 +53,21 @@ export function createOpenSeoSearchConsoleTransport(opts: {
   /** The property confirmed for this project (sc-domain:… or https://…/). */
   expectedSiteUrl: string;
   projectDomain: string | null;
+  /** Server-resolved association permits an explicitly consented property on another TLD. */
+  resolvedSource?: GoogleSource;
 }) {
   return {
     kind: "live" as const,
     async request(operation: string, input: unknown): Promise<TransportReply> {
       if (operation !== "searchAnalytics") return { httpStatus: 400, message: "Operation not allowed by the platform transport" };
       if (!/^[A-Za-z0-9_-]{1,128}$/.test(opts.openseoProjectId)) return { httpStatus: 401, message: "Sin conexión de OpenSEO del proyecto" };
-      if (!searchConsolePropertyFor(opts.projectDomain, opts.expectedSiteUrl)) return { httpStatus: 403, message: "Property outside the project domain" };
+      const authorizedBinding = isResolvedGoogleSource(opts.resolvedSource)
+        && opts.resolvedSource.provider === "search-console"
+        && opts.resolvedSource.externalPropertyId === opts.expectedSiteUrl
+        && opts.resolvedSource.openseoProjectId === opts.openseoProjectId;
+      if (!searchConsolePropertyFor(opts.projectDomain, opts.expectedSiteUrl) && !authorizedBinding) {
+        return { httpStatus: 403, message: "Property has no authorized project binding" };
+      }
       if (!validateSearchAnalyticsInput(input)) return { httpStatus: 400, message: "Invalid Search Analytics request" };
       if (input.siteUrl !== opts.expectedSiteUrl) return { httpStatus: 403, message: "Property does not match the request" };
       if (input.dimensions.length < 1 || input.dimensions.length > 4) return { httpStatus: 400, message: "OpenSEO requires between 1 and 4 dimensions" };
