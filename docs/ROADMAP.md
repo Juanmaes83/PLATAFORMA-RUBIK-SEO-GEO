@@ -4,9 +4,11 @@ Fuente de estado de este repositorio. El plan global y sus criterios están en [
 
 El catálogo de capacidades SEO/GEO que el propietario quiere cubrir, con el estado actual, piezas parciales del Core y dependencias, está en [SEO-CAPABILITIES-BACKLOG.md](SEO-CAPABILITIES-BACKLOG.md).
 
-## Continuación GA4 y alcance — 09/10/2026
+## Estado vigente — 10/10/2026
 
-Core #27 se corrigió e integró en `main@18fd72cc72640b7138198504d07b86f317816059`; su CI posterior está verde. Plataforma #57 añadió el flag separado de catálogo, apagado por defecto, y se integró en `main@83d5fd0240f536d57a2d10ffabdc2423ae9abde8`: CI del PR y [CI posterior de main](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37978890623) completas verdes. Plataforma #58 se actualiza sobre main con pin del Core integrado y validación semántica/paginación GA4; no se debe integrar hasta superar su nueva CI. Google sigue sin lectura ni persistencia real desde Rubik. La fase histórica 4 se trasladó al frente web de Sarah, **no se completó**; no bloquea el desarrollo funcional de Rubik.
+Core #27 se corrigió e integró en `main@18fd72cc72640b7138198504d07b86f317816059`. Plataforma #57 se integró en `83d5fd0`; #58, con el pin del Core corregido, validación semántica/paginación GA4, catálogo por capacidad y separación del frente web de Sarah, se integró en `main@739627df166ba9b493a75968535f80fa9965dfab`. Su [CI posterior de main](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37980479269) terminó verde. Google sigue sin lectura ni persistencia real desde Rubik; los flags de catálogo y lectura están apagados. La fase histórica 4 se trasladó al frente web de Sarah, **no se completó**; no bloquea el desarrollo funcional de Rubik.
+
+**Siguiente unidad en desarrollo, aún no integrada ni alojada:** asociación explícita y revocable de propiedad GSC/GA4 por proyecto y conexión OpenSEO. Permite modelar GSC `.es`, dominio rastreado `.com` y GA4 por separado sin inferir equivalencia entre TLD. Reutiliza la conexión OpenSEO y los resultados firmados existentes; la tabla `webmaster_properties` anterior no se altera porque representa la vía GSC/Bing con dominio coincidente. La nueva migración `20261010160000` solo se ha aplicado en una instancia local desechable; **no** en Supabase alojado. Ninguna asociación real de Sarah se creó. El siguiente corte funcional debe llamar a GSC/GA4 manualmente con fuente resuelta en servidor, revalidar al guardar y persistir captura firmada e idempotente.
 
 ## Historial: relevo Codex al abrir #58 — 09/10/2026
 
