@@ -65,6 +65,7 @@ test("password recovery: same answer for any address, link only leads to /restab
   await page.goto(await mailLink(mailpitUrl, address, "Confirma tu correo", "email"));
   await expect(page).toHaveURL(/\/panel$/);
   await page.getByRole("button", { name: "Salir" }).click();
+  await expect(page).toHaveURL(/\/$/);
 
   // Without a recovery session there is nothing to change.
   await page.goto("/restablecer");
