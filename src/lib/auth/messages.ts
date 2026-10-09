@@ -9,6 +9,22 @@ export const ACCESS_ERRORS: Record<string, string> = {
 
 export const ACCESS_NOTICES: Record<string, string> = {
   confirma: "Si el correo es válido, te hemos enviado un enlace para confirmarlo. Ábrelo para terminar el registro y entrar.",
+  clave: "Contraseña cambiada. Entra con la nueva; las demás sesiones de tu cuenta se han cerrado.",
+};
+
+export const RECOVERY_ERRORS: Record<string, string> = {
+  correo: "Escribe un correo válido.",
+  enlace: "El enlace para restablecer la contraseña no es válido o ha caducado. Pide uno nuevo.",
+};
+
+export const RECOVERY_NOTICES: Record<string, string> = {
+  enviado: "Si hay una cuenta con ese correo, te hemos enviado un enlace para elegir una contraseña nueva. Caduca en una hora.",
+};
+
+export const RESET_ERRORS: Record<string, string> = {
+  clave: "La contraseña necesita al menos 12 caracteres, con letras y números, y debe ser distinta de la anterior.",
+  distintas: "Las dos contraseñas no coinciden.",
+  fallo: "No se ha podido cambiar la contraseña. Pide un enlace nuevo e inténtalo otra vez.",
 };
 
 export const SIGNUP_ERRORS: Record<string, string> = {

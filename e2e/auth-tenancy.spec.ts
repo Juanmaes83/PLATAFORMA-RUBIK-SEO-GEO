@@ -43,6 +43,77 @@ test("sign-up with e-mail confirmation, then sign-out", async ({ page }) => {
   await expect(page).toHaveURL(/\/acceso$/);
 });
 
+async function mailLink(mailpitUrl: string, address: string, subject: string, type: string) {
+  let link: string | undefined;
+  await expect.poll(async () => {
+    const list = await (await fetch(`${mailpitUrl}/api/v1/search?query=${encodeURIComponent(`to:${address} subject:"${subject}"`)}`)).json();
+    if (!list.messages?.length) return false;
+    const message = await (await fetch(`${mailpitUrl}/api/v1/message/${list.messages[0].ID}`)).json();
+    link = new RegExp(`href="([^"]+/auth/confirm\\?[^"]*type=${type}[^"]*)"`).exec(message.HTML)?.[1]?.replace(/&amp;/g, "&");
+    return !!link;
+  }).toBe(true);
+  return link!;
+}
+
+test("password recovery: same answer for any address, link only leads to /restablecer, all sessions close", async ({ page }) => {
+  const { mailpitUrl } = localSupabaseEnv();
+  const address = `recupera-${Date.now().toString(36)}@ejemplo.test`;
+  await page.goto("/registro");
+  await page.getByLabel("Correo").fill(address);
+  await page.getByLabel("Contraseña").fill(TEST_PASSPHRASE);
+  await page.getByRole("button", { name: "Crear cuenta" }).click();
+  await page.goto(await mailLink(mailpitUrl, address, "Confirma tu correo", "email"));
+  await expect(page).toHaveURL(/\/panel$/);
+  await page.getByRole("button", { name: "Salir" }).click();
+  await expect(page).toHaveURL(/\/$/);
+
+  // Without a recovery session there is nothing to change.
+  await page.goto("/restablecer");
+  await expect(page).toHaveURL(/\/recuperar\?error=enlace$/);
+
+  await page.goto("/acceso");
+  await page.getByRole("link", { name: "¿Has olvidado tu contraseña?" }).click();
+  // /acceso also has a "Correo" field: fill only once the recovery page is the one shown.
+  await expect(page).toHaveURL(/\/recuperar$/, { timeout: 20_000 });
+  await page.getByLabel("Correo").fill(`nadie-${Date.now().toString(36)}@ejemplo.test`);
+  // The first submit compiles the action in `next dev`: wait for the redirect, not only 5 s.
+  await page.getByRole("button", { name: "Enviar enlace" }).click();
+  await expect(page).toHaveURL(/\/recuperar\?aviso=enviado$/, { timeout: 20_000 });
+  const notice = "Si hay una cuenta con ese correo, te hemos enviado un enlace";
+  await expect(page.locator("main").getByRole("status").filter({ hasText: notice })).toBeVisible();
+  await page.getByLabel("Correo").fill(address);
+  await page.getByRole("button", { name: "Enviar enlace" }).click();
+  await expect(page).toHaveURL(/\/recuperar\?aviso=enviado$/, { timeout: 20_000 });
+  await expect(page.locator("main").getByRole("status").filter({ hasText: notice })).toBeVisible();
+
+  const link = await mailLink(mailpitUrl, address, "Restablece tu contraseña", "recovery");
+  await page.goto(`${link}&next=${encodeURIComponent("https://evil.example")}`);
+  await expect(page).toHaveURL(/\/restablecer$/);
+  const fresh = "otra-clave-nueva-2026";
+  await page.getByLabel("Contraseña nueva").fill(fresh);
+  await page.getByLabel("Repite la contraseña").fill(`${fresh}x`);
+  await page.getByRole("button", { name: "Guardar contraseña" }).click();
+  await expect(page).toHaveURL(/\/restablecer\?error=distintas$/, { timeout: 20_000 });
+  await expect(page.locator("main").getByRole("alert")).toHaveText("Las dos contraseñas no coinciden.");
+  await page.getByLabel("Contraseña nueva").fill(fresh);
+  await page.getByLabel("Repite la contraseña").fill(fresh);
+  await page.getByRole("button", { name: "Guardar contraseña" }).click();
+  await expect(page).toHaveURL(/\/acceso\?aviso=clave$/, { timeout: 20_000 });
+
+  // The link works once; the old password no longer does; the new one does.
+  await page.goto(link);
+  await expect(page).toHaveURL(/\/recuperar\?error=enlace$/);
+  await page.goto("/acceso");
+  await page.getByLabel("Correo").fill(address);
+  await page.getByLabel("Contraseña").fill(TEST_PASSPHRASE);
+  await page.getByRole("button", { name: "Entrar" }).click();
+  await expect(page.locator("main").getByRole("alert")).toHaveText("Correo o contraseña incorrectos.");
+  await page.getByLabel("Correo").fill(address);
+  await page.getByLabel("Contraseña").fill(fresh);
+  await page.getByRole("button", { name: "Entrar" }).click();
+  await expect(page).toHaveURL(/\/panel$/);
+});
+
 test("sign-in errors are explained without echoing input", async ({ page }) => {
   await page.goto("/acceso");
   await page.getByLabel("Correo").fill(USERS.owner);
