@@ -49,6 +49,13 @@ export const ERROR_TEXT: Readonly<Record<string, string>> = {
   CONNECTION_UNAVAILABLE: "No se pudo leer la conexión de OpenSEO de este proyecto. No se ha contactado con OpenSEO.",
   CONNECTION_NOT_ACTIVE: "La conexión de OpenSEO de este proyecto ya no está activa. No se ha lanzado ningún rastreo.",
   JOB_CONNECTION_MISMATCH: "Este trabajo pertenece a otra conexión de OpenSEO. No se ha consultado ni lanzado nada.",
+  // Uncertain launch reconciliation (ADR 0008).
+  START_IN_PROGRESS: "Hay un lanzamiento pendiente de confirmar. Reconcílialo en el aviso de esta página antes de iniciar otro.",
+  NO_STARTING_JOB: "No hay ningún lanzamiento pendiente de confirmar.",
+  RECONCILE_BIND_FAILED: "No se pudo vincular ese identificador: puede que ya pertenezca a otro trabajo o que la reserva haya cambiado.",
+  RECONCILE_RELEASE_FAILED: "La reserva ya no está pendiente (quizá se vinculó mientras tanto). No se ha liberado nada.",
+  PERSISTENCE_DISABLED: "El registro de trabajos no está activado en este servidor.",
+  JOB_UNAVAILABLE: "El registro de trabajos no está disponible ahora mismo.",
 };
 
 export const AUDIT_STATE_LABELS: Readonly<Record<string, { label: string; tone: "neutral" | "warn" | "ok" | "no" }>> = {
@@ -64,7 +71,9 @@ export const SEVERITY_LABELS: Readonly<Record<string, string>> = {
   OPPORTUNITY: "Oportunidad",
 };
 
-export const errorText = (code: string | null | undefined) => (code ? ERROR_TEXT[code] ?? "Error de OpenSEO." : "");
+/** Known codes use this copy; an unknown code keeps the server's specific message before the generic one. */
+export const errorText = (code: string | null | undefined, message?: string | null) =>
+  (code ? ERROR_TEXT[code] ?? (message || "Error de OpenSEO.") : message || "");
 
 // Per-project connection form (ADR 0007, phase 3).
 export const CONNECTION_CHANGE_TEXT: Readonly<Record<string, string>> = {

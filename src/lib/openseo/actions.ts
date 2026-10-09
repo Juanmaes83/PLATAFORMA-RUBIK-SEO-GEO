@@ -8,7 +8,7 @@ import { revalidatePath } from "next/cache";
 import { loadProjectRef } from "@/lib/imports/repository";
 import { serverKeyring } from "@/lib/provenance/keyring";
 import { projectJobsEnabled } from "./jobs";
-import { followProjectAudit, startProjectAudit, type SaveStatus } from "./project-audit";
+import { followProjectAudit, reconcileStartingJob, startProjectAudit, type ReconcileResult, type SaveStatus } from "./project-audit";
 import { followSiteAudit, startSiteAudit, testOpenSeoConnection, type AuditFollowUp, type AuditStart, type BridgeError, type ConnectionReport } from "./bridge";
 import { resolveOpenSeoTarget } from "./target";
 import { connectProject, revokeProjectConnection, type ConnectionError } from "./connections";
@@ -110,4 +110,23 @@ export async function revokeProjectAction(_prev: ConnectionChangeState, formData
   if (!result.ok) return { ok: false, error: result.error };
   revalidatePath(auditPath(context.access.project.tenantId, context.access.project.projectId));
   return { ok: true, change: "revoked" };
+}
+
+// Uncertain launch reconciliation (ADR 0008). Owner only, explicit attestation, no OpenSEO call.
+export type ReconcileState = ReconcileResult | Denied | null;
+
+export async function reconcileAuditAction(_prev: ReconcileState, formData: FormData): Promise<ReconcileState> {
+  const context = await authorized(formData);
+  if (!context) return { denied: true };
+  const refused = (code: string, message: string): ReconcileResult => ({ ok: false, error: { code, message, retryable: false } });
+  if (field(formData, "confirm") !== "on") return refused("CONFIRMATION_REQUIRED", "Marca la confirmación para continuar.");
+  if (!projectJobsEnabled()) return refused("PERSISTENCE_DISABLED", "El registro de trabajos no está activado en este servidor.");
+  const target = await resolveOpenSeoTarget(context.client, context.project.projectId);
+  if ("error" in target) return { ok: false, error: target.error };
+  const intent = field(formData, "intent");
+  const result = intent === "bind" ? await reconcileStartingJob(context.client, context.project, { mode: "bind", auditId: field(formData, "auditId") }, target.connection)
+    : intent === "release" ? await reconcileStartingJob(context.client, context.project, { mode: "release" }, target.connection)
+      : refused("INVALID_INTENT", "Acción no reconocida.");
+  if (result.ok) revalidatePath(auditPath(context.access.project.tenantId, context.access.project.projectId));
+  return result;
 }

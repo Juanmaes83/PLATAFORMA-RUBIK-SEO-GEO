@@ -12,7 +12,8 @@ import { loadProjectRef } from "@/lib/imports/repository";
 import { serverKeyring } from "@/lib/provenance/keyring";
 import { listProviderResults } from "@/lib/provenance/repository";
 import { myProjectMembership } from "@/lib/tenancy";
-import { projectJobsEnabled } from "@/lib/openseo/jobs";
+import { findActiveAuditJob, projectJobsEnabled } from "@/lib/openseo/jobs";
+import { OpenSeoReconcilePanel } from "@/components/OpenSeoReconcilePanel";
 import { connectionMode, resolveOpenSeoTarget } from "@/lib/openseo/target";
 import { getProjectConnection } from "@/lib/openseo/connections";
 import { OpenSeoConnectionPanel, type ConnectionPanelView } from "@/components/OpenSeoConnectionPanel";
@@ -38,6 +39,9 @@ export default async function TechnicalAuditPage({ params }: { params: Promise<{
   const auditable = projectAuditable(project.domain, targetEnv);
   const domain = (project.domain ?? "").replace(/^https?:\/\//i, "").replace(/\/.*$/, "");
   const connectionView = canManage ? await panelView(supabase, ref.projectId, domain) : null;
+  // An uncertain STARTING reservation blocks new launches until its owner reconciles it.
+  const active = canManage && projectJobsEnabled() ? await findActiveAuditJob(supabase, ref) : null;
+  const uncertain = active?.ok && active.job?.state === "STARTING" ? active.job : null;
   const keyring = serverKeyring();
   const listed = keyring ? await listProviderResults(supabase, ref) : null;
   const historyState = !keyring ? "signing-missing" : listed?.ok ? "ready" : "unavailable";
@@ -55,6 +59,8 @@ export default async function TechnicalAuditPage({ params }: { params: Promise<{
         desde el servidor: las credenciales nunca llegan al navegador ni se guardan en el proyecto. La plataforma no da la
         conexión por buena hasta que una prueba con credenciales reales la verifica.
       </p>
+
+      {uncertain && <OpenSeoReconcilePanel tenant={project.tenantId} project={project.projectId} createdAt={uncertain.createdAt} />}
 
       {connectionView && <OpenSeoConnectionPanel tenant={project.tenantId} project={project.projectId} view={connectionView} projectMode={connectionMode() === "project"} />}
 
