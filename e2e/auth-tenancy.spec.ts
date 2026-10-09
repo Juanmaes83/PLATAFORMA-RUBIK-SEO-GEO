@@ -73,15 +73,12 @@ test("password recovery: same answer for any address, link only leads to /restab
 
   await page.goto("/acceso");
   await page.getByRole("link", { name: "¿Has olvidado tu contraseña?" }).click();
+  // /acceso also has a "Correo" field: fill only once the recovery page is the one shown.
+  await expect(page).toHaveURL(/\/recuperar$/, { timeout: 20_000 });
   await page.getByLabel("Correo").fill(`nadie-${Date.now().toString(36)}@ejemplo.test`);
-  // The first submit compiles the action in `next dev`: wait for the action's POST and, if the
-  // redirect does not arrive, report its status, body and the page text instead of a bare URL.
-  const [post] = await Promise.all([
-    page.waitForResponse((r) => r.request().method() === "POST", { timeout: 30_000 }),
-    page.getByRole("button", { name: "Enviar enlace" }).click(),
-  ]);
-  const diagnostic = async () => `POST ${post.status()} ${post.url()} ${(await post.text().catch(() => "")).slice(0, 600)} | main: ${(await page.locator("main").innerText()).slice(0, 400)}`;
-  await expect(page, await diagnostic()).toHaveURL(/\/recuperar\?aviso=enviado$/, { timeout: 20_000 });
+  // The first submit compiles the action in `next dev`: wait for the redirect, not only 5 s.
+  await page.getByRole("button", { name: "Enviar enlace" }).click();
+  await expect(page).toHaveURL(/\/recuperar\?aviso=enviado$/, { timeout: 20_000 });
   const notice = "Si hay una cuenta con ese correo, te hemos enviado un enlace";
   await expect(page.locator("main").getByRole("status").filter({ hasText: notice })).toBeVisible();
   await page.getByLabel("Correo").fill(address);
