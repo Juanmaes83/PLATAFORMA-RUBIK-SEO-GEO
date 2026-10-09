@@ -57,7 +57,7 @@ async function createLink(page: Page, address: string, role: string) {
   await page.getByLabel("Correo de la persona invitada").fill(address);
   await page.getByLabel("Rol en este proyecto").selectOption(role);
   await page.getByRole("button", { name: "Crear enlace de invitación" }).click();
-  const shown = page.getByRole("status").filter({ hasText: "no se volverá a mostrar" });
+  const shown = page.locator("main").getByRole("status").filter({ hasText: "no se volverá a mostrar" });
   await expect(shown).toBeVisible();
   const link = (await shown.locator("code").textContent())!.trim();
   expect(link).toMatch(/\/invitacion\/[0-9a-f]{64}$/);
@@ -108,7 +108,7 @@ test.describe("flows (change data: desktop only)", () => {
     // A second open invitation for the same address is refused.
     await page.getByLabel("Correo de la persona invitada").fill(address);
     await page.getByRole("button", { name: "Crear enlace de invitación" }).click();
-    await expect(page.getByRole("alert")).toContainText("Ya hay una invitación abierta");
+    await expect(page.locator("main").getByRole("alert")).toContainText("Ya hay una invitación abierta");
 
     // Another signed-in account cannot use it, and the page reveals nothing about it.
     await signIn(page, "newcomer");
@@ -116,7 +116,7 @@ test.describe("flows (change data: desktop only)", () => {
     await expect(page.locator("main")).not.toContainText(address);
     await expect(page.locator("main")).not.toContainText(PROJECT);
     await page.getByRole("button", { name: "Aceptar invitación" }).click();
-    await expect(page.getByRole("alert")).toContainText("no se puede usar");
+    await expect(page.locator("main").getByRole("alert")).toContainText("no se puede usar");
 
     // The invited person creates the account, then follows the link signed out.
     await newConfirmedAccount(page, address);
@@ -134,7 +134,7 @@ test.describe("flows (change data: desktop only)", () => {
     // Single use: the same link now answers "already a member" and changes nothing.
     await page.goto(path);
     await page.getByRole("button", { name: "Aceptar invitación" }).click();
-    await expect(page.getByRole("alert")).toContainText("Ya perteneces a este proyecto");
+    await expect(page.locator("main").getByRole("alert")).toContainText("Ya perteneces a este proyecto");
 
     // The viewer cannot manage invitations; the owner sees it accepted.
     await page.goto(PAGE);
@@ -164,11 +164,11 @@ test.describe("flows (change data: desktop only)", () => {
     const path = await createLink(page, address, "viewer");
     await page.goto(PAGE);
     await page.locator("li", { hasText: address }).getByRole("button", { name: "Revocar" }).click();
-    await expect(page.getByRole("status")).toContainText("Invitación revocada");
+    await expect(page.locator("main").getByRole("status")).toContainText("Invitación revocada");
     await expect(page.locator("li", { hasText: address })).toContainText("Revocada");
     await signInAs(page, address);
     await page.goto(path);
     await page.getByRole("button", { name: "Aceptar invitación" }).click();
-    await expect(page.getByRole("alert")).toContainText("no se puede usar");
+    await expect(page.locator("main").getByRole("alert")).toContainText("no se puede usar");
   });
 });
