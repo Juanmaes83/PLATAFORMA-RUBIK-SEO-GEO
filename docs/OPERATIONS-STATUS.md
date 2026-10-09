@@ -4,6 +4,7 @@ Este registro separa lo observado de lo pendiente; las autorizaciones del propie
 
 ## Entrega actual
 
+- Search Console y Bing, fase A ([ADR 0009](adr/0009-search-console-bing-lectura.md), rama `claude/gsc-bing-lectura` desde `main`): transportes de servidor de solo lectura probados a través del Core con simulaciones. Sin OAuth, claves ni propiedades reales. La documentación oficial se contrastó por búsqueda acotada porque la descarga directa está bloqueada en este entorno.
 - PR #14: selección de la auditoría recién iniciada, rechazo de UUID concatenados antes de llamar a OpenSEO, variante www/apex solo con allowlist explícita y contadores separados de exclusión. Revisión independiente y 148 tests locales. CI Node22/24 y e2e Supabase pasan ([run 37855323689](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37855323689)); integrado en main como `c2789b9e60e748eab9cee3ea832be740a4d1ff65`. Preview Vercel READY. Producción Vercel READY `dpl_7JMi11kCJotvpnFp3ShGpL5EEvAP`, alias público y SHA del merge comprobados.
 - [PR #15](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/15), callback de confirmación: preparado soporte PKCE `code` y `sb_flow_id` además de `token_hash` de email/signup. 19 tests nuevos; suite total 167 tests, ESLint y TypeScript pasan. Prueba alojada de este flujo todavía pendiente.
 - La prueba real anterior de OpenSEO terminó con 10/10 páginas. No se ha lanzado otra auditoría para verificar estos cambios.
