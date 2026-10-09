@@ -357,7 +357,7 @@ describe("audit follow-up and normalization through the Core", () => {
       { id: `openseo:aud_1:thin-content:https://${DOMAIN}/b`, url: `https://${DOMAIN}/b`, category: "thin-content", severity: "WARNING", crawlAccess: null },
       { id: `openseo:aud_1:blocked-page:https://${DOMAIN}/c`, url: `https://${DOMAIN}/c`, category: "blocked-page", severity: "OPPORTUNITY", crawlAccess: "BLOCKED" },
     ]);
-    expect(r.report?.issuesPartial).toMatchObject({ reason: "invalid-rows", rejected: 1 });
+    expect(r.report?.issuesPartial).toMatchObject({ reason: "invalid-rows", rejected: 2 });
     expect(r.report?.pages).toEqual([{ url: `https://${DOMAIN}/a` }]);
     expect(r.report?.pagesTotal).toBe(2);
     expect(r.report?.outsideProject).toBe(2);

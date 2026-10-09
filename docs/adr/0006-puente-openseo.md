@@ -126,6 +126,20 @@ petición a OpenSEO. La fuente autorizada debe ser la fila del proyecto bajo RLS
 nunca un campo del navegador. `undefined` conserva provisionalmente el flujo ya
 desplegado, por lo que esta adenda no declara exclusión atómica ni asociación
 operativa: faltan tabla, migración, políticas, adquisición y pruebas de carrera.
+
+### Adenda 09/10/2026 — ámbito antes del resultado confiable
+
+Core PR #23 (`a6071fc`) añade `acceptUrl` a `auditIssues` y `auditPages`.
+El puente inyecta el predicado derivado del dominio del proyecto y de la
+allowlist del servidor. Las filas externas se eliminan dentro del Core, antes
+de que este emita el `ProviderResult` confiable; `scopeFiltered` conserva el
+recuento para la interfaz. Así el siguiente tramo podrá firmar el resultado
+original sin guardar datos externos ni reconstruir una marca de confianza.
+
+La aceptación de la pareja `www`/dominio base no cambia: solo se incluye si el
+compañero está autorizado explícitamente. Una incidencia sin URL se conserva
+como incidencia global del audit. Esto prepara la persistencia, pero no la
+activa ni sustituye el enlace `auditId`/proyecto y RLS.
 - **Una sola instancia y un solo proyecto de OpenSEO por servidor.** El enlace de cada proyecto con su propio `projectId` de OpenSEO (un id opaco en `seo.integrations.openseo`) llegará con la persistencia.
 - **Conexión real verificada.** Producción devuelve `CONNECTED`, salud correcta y autorización verificada. El propietario consultó la auditoría `02f2f04d-c7ea-4fe9-bb05-be1c39509938`: completada, 10/10 páginas y dos incidencias visibles. No se declaran persistencia ni piloto completo.
 - **Pendientes tras la primera prueba real:**

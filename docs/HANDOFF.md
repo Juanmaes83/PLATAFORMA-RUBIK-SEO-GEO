@@ -779,3 +779,10 @@ CI inicial de esta entrega: verify Node22/24 pasa; integración falló al crear 
 - Pruebas dirigidas 68/68 y suite 185/185; ESLint y TypeScript correctos. CI completa del run `37864049883`: Node 22/24, pgTAP/RLS, tipos de migración, integración Data API, build y navegador en verde. Producción Vercel READY para el merge (`dpl_F82HEYtPYntCHAgMmq2pAzBjkJoK`). Sin peticiones live: servidor MCP simulado.
 - Bloqueo nuevo: `supabase@2.118.0 migration --help` y `migration new --help` abortan en este runtime por un crash de Bun 1.4.1. Conforme al flujo del repositorio, no se inventó una migración. La tabla de jobs, adquisición atómica, RLS y pruebas de carrera siguen pendientes de CLI/CI funcional.
 - No se aplicaron migraciones alojadas, no se usaron secretos, no se lanzó auditoría y no se tocó contenido/indexación de Sarah.
+
+## 09/10/2026 — ámbito OpenSEO antes de firmar
+
+- Core PR #23 fusionado en `a6071fc3e772d682f0659d5dc300f505a472bca2`, con CI Node 20/22 y 333/333 pruebas.
+- Rama `feat/openseo-scoped-results`: pin actualizado. El puente pasa `acceptUrl` al Core para incidencias/páginas; el resultado confiable ya no contiene filas externas. La UI obtiene los contadores ocultos de `provenance.evidence.scopeFiltered`.
+- Se conserva una incidencia global sin URL y la regla www/apex explícitamente autorizada. El predicado solo usa el dominio del proyecto autorizado y la allowlist de servidor.
+- Verificación local: 185/185 pruebas, lint, TypeScript, pin del Core, secretos y `git diff --check` correctos. Pendiente CI remota. No añade almacenamiento, migración ni llamada live. La CLI `supabase@2.118.0 migration new openseo_project_jobs` volvió a abortar por el crash de Bun; no se creó manualmente la migración.
