@@ -251,6 +251,8 @@ main:focus { outline: none; }
 .field-check { grid-template-columns: auto 1fr; align-items: center; gap: var(--space-2); }
 .field-check input[type=checkbox] { width: 1.5rem; height: var(--tap); min-height: var(--tap); margin: 0; }
 .field-check label { font-weight: 400; min-height: var(--tap); display: flex; align-items: center; }
+fieldset.field { border: 0; margin: 0; padding: 0; min-width: 0; }
+fieldset.field > legend { font-weight: 600; padding: 0; margin-bottom: var(--space-1); }
 .break { overflow-wrap: anywhere; }
 /* Owner notice stays readable on narrow screens. */
 .ownership-footer { padding: 1rem; font-size: .8rem; line-height: 1.6; overflow-wrap: anywhere; }

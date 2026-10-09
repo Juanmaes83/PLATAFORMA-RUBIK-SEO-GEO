@@ -16,7 +16,7 @@ function Code({ code }: { code: string | null | undefined }) {
 function Problem({ code, message, diagnostic }: { code: string; message?: string; diagnostic?: string }) {
   return (
     <p className="notice notice-error" role="alert">
-      {errorText(code) || message}
+      {errorText(code, message)}
       <Code code={code} />
       {diagnostic && <span className="diag">Estructura recibida (sin valores): {diagnostic}</span>}
     </p>

@@ -7,6 +7,7 @@ import { auditResponseShape, checkAuditTarget, followSiteAudit, startSiteAudit, 
 import { MAX_PAGES_CEILING, describeOpenSeoConfig, publicOpenSeoLeak, readOpenSeoConfig } from "@/lib/openseo/config";
 import { ALLOWED_TOOLS, OpenSeoTransportError, createOpenSeoMcpClient } from "@/lib/openseo/mcp-client";
 import { prepareCompletedAuditResults } from "@/lib/openseo/persistence";
+import { connectionEnv, connectionMode, resolveOpenSeoTarget } from "@/lib/openseo/target";
 import { loadKeyring } from "@/lib/provenance/keyring";
 import { openProviderResult } from "@/lib/provenance/results";
 import type { ProjectRef } from "@/lib/provenance/audit";
@@ -503,7 +504,15 @@ describe("static guarantees", () => {
     const actions = read("src/lib/openseo/actions.ts");
     expect(actions).toMatch(/currentUser\(\)/);
     expect(actions).toMatch(/"manage-connectors"/);
-    expect(actions.match(/await authorized\(formData\)/g)).toHaveLength(3);
+    const exported = actions.match(/export async function \w+/g) ?? [];
+    expect(exported.length).toBeGreaterThanOrEqual(5);
+    expect(actions.match(/await authorized\(formData\)/g)).toHaveLength(exported.length);
+  });
+
+  it("every owner change to a connection or a reservation is recorded in the signed audit chain", () => {
+    const actions = read("src/lib/openseo/actions.ts");
+    for (const action of ["openseo.connection.connect", "openseo.connection.revoke", "openseo.job.reconcile"]) expect(actions).toContain(`"${action}"`);
+    expect(actions).not.toMatch(/audit\([^)]*openseoProjectId/);
   });
 
   it("the bridge never logs and never writes OpenSEO data to the Project State or the database", () => {
@@ -561,5 +570,64 @@ describe("safe diagnostics for real audit status contract mismatches", () => {
     const result = await followSiteAudit("aud_1", DOMAIN, { env: ENV, fetchImpl: mock.fetchImpl });
     expect(result.progress.state).toBe("SYNCING");
     expect(result.progress.error).toBeNull();
+  });
+});
+
+describe("project mode never reaches OpenSEO with the global project (ADR 0007, phase 4)", () => {
+  const connection = { connectionId: "00000000-0000-4000-8000-0000000000c1", state: "ACTIVE" as const, credentialMode: "platform" as const,
+    openseoProjectId: "oseo-client-a", allowedHosts: ["client-a.example"], grantedAt: "2026-10-09T10:00:00Z", revokedAt: null };
+  const env = connectionEnv(connection, ENV);
+  const status = () => ({ structuredContent: { status: { status: "running", currentPhase: "crawl", pagesCrawled: 1, pagesTotal: 10 } } });
+
+  it("launches and follows with the connection's OpenSEO project only", async () => {
+    const mock = mockOpenSeo({
+      run_site_audit: () => ({ structuredContent: { auditId: "aud_a", startedAt: "2026-10-09T10:00:00Z", maxPages: 10 } }),
+      get_audit_status: status,
+    });
+    expect(await startSiteAudit({ url: "https://client-a.example/", maxPages: 10, projectDomain: "client-a.example" }, { env, fetchImpl: mock.fetchImpl }))
+      .toMatchObject({ ok: true, auditId: "aud_a" });
+    await followSiteAudit("aud_a", "client-a.example", { env, fetchImpl: mock.fetchImpl, boundAuditId: "aud_a" });
+    const projects = mock.toolCalls().map((c) => c.args?.projectId);
+    expect(projects).toEqual(["oseo-client-a", "oseo-client-a"]);
+    expect(JSON.stringify(mock.calls)).not.toContain(OSEO_PROJECT);
+  });
+
+  it("audit hosts come from the connection, not the global allow-list", async () => {
+    const mock = mockOpenSeo({});
+    expect(await startSiteAudit({ url: `https://${DOMAIN}/`, maxPages: 10, projectDomain: DOMAIN }, { env, fetchImpl: mock.fetchImpl }))
+      .toMatchObject({ ok: false, error: { code: expect.any(String) } });
+    expect(mock.toolCalls()).toEqual([]);
+  });
+
+  it("works without any global OPENSEO_PROJECT_ID or allow-list", () => {
+    const bare: Record<string, string | undefined> = { ...ENV, OPENSEO_PROJECT_ID: undefined, OPENSEO_AUDIT_ALLOWED_HOSTS: undefined };
+    expect(readOpenSeoConfig(bare).state).toBe("invalid");
+    const s = readOpenSeoConfig(connectionEnv(connection, bare));
+    expect(s.state === "configured" && [s.config.projectId, s.config.allowedHosts]).toEqual(["oseo-client-a", ["client-a.example"]]);
+  });
+
+  it("is off unless the server says project, and project requires the job ledger", async () => {
+    expect(connectionMode({})).toBe("legacy");
+    expect(connectionMode({ OPENSEO_PROJECT_CONNECTIONS_MODE: "PROJECT" })).toBe("legacy");
+    expect(connectionMode({ OPENSEO_PROJECT_CONNECTIONS_MODE: "project" })).toBe("project");
+    const rpc = async () => { throw new Error("must not be called"); };
+    const client = { rpc } as never;
+    expect(await resolveOpenSeoTarget(client, PROJECT_REF.projectId, ENV)).toEqual({ mode: "legacy", env: ENV, connection: null });
+    expect(await resolveOpenSeoTarget(client, PROJECT_REF.projectId, { ...ENV, OPENSEO_PROJECT_CONNECTIONS_MODE: "project" }))
+      .toMatchObject({ mode: "project", error: { code: "CONNECTIONS_REQUIRE_JOBS" } });
+  });
+
+  it("resolves only an ACTIVE connection and fails closed otherwise", async () => {
+    const projectEnv = { ...ENV, OPENSEO_PROJECT_CONNECTIONS_MODE: "project", OPENSEO_PROJECT_JOBS_ENABLED: "true" };
+    const clientWith = (result: { data?: unknown; error?: { code: string } }) => ({ rpc: async () => ({ data: result.data ?? null, error: result.error ?? null }) }) as never;
+    expect(await resolveOpenSeoTarget(clientWith({ data: { state: "NONE" } }), PROJECT_REF.projectId, projectEnv))
+      .toMatchObject({ error: { code: "PROJECT_NOT_CONNECTED" } });
+    expect(await resolveOpenSeoTarget(clientWith({ error: { code: "42501" } }), PROJECT_REF.projectId, projectEnv))
+      .toMatchObject({ error: { code: "CONNECTION_FORBIDDEN" } });
+    expect(await resolveOpenSeoTarget(clientWith({ error: { code: "XX000" } }), PROJECT_REF.projectId, projectEnv))
+      .toMatchObject({ error: { code: "CONNECTION_UNAVAILABLE" } });
+    const resolved = await resolveOpenSeoTarget(clientWith({ data: connection }), PROJECT_REF.projectId, projectEnv);
+    expect(resolved).toMatchObject({ mode: "project", connection: { connectionId: connection.connectionId } });
+    expect("env" in resolved && [resolved.env.OPENSEO_PROJECT_ID, resolved.env.OPENSEO_AUDIT_ALLOWED_HOSTS]).toEqual(["oseo-client-a", "client-a.example"]);
   });
 });

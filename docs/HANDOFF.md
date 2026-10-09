@@ -829,9 +829,108 @@ CI inicial de esta entrega: verify Node22/24 pasa; integración falló al crear 
 - Aviso de titularidad PR #29 integrado en `a03d37250449ccd4de11bd1ac4f226ce296c8992`, después de CI completa `37901636730`. Incluye el DNI y la vinculación a Rubik Sota solicitados por el propietario. Despliegue exacto pendiente de comprobación.
 - Procedimiento alojado y comandos PowerShell en `docs/OPENSEO-ACTIVATION.md`; nunca sustituir el destino por otro proyecto ni duplicar timestamps por otra vía.
 
+## 09/10/2026 — checkpoint de producción y activación pendiente
+
+- Base `main@afb5a3838981a78b9f126acc280fdc0138bfdae0` revisada; solo siguen abiertos los PR documentales históricos #9/#11. Rama independiente `docs/openseo-production-checkpoint`; no se modifica ninguna rama de trabajo previa ni se presupone una sesión de Claude Code.
+- PR #30 integrado en ese merge tras CI completa del HEAD `c7cadda4a9a16e4e3d6dc9c763071763fe49f77f`: [run 37902474922](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37902474922), verify Node 22/24 y e2e con Supabase local en verde. Incluye firma del original emitido por el Core, transacción de dos filas, lectura verificada, reintento idempotente y aislamiento; suite de aplicación 210/210.
+- Producción Vercel comprobada `READY` en el SHA exacto del merge: `dpl_EnV1hDHWJUJkaS4rJm8NvTaDPKDf`, alias `plataforma-rubik-seo-geo.vercel.app`. Esto demuestra despliegue del código, no persistencia alojada. Antes se comprobó HTTP 200 y contenido del aviso de titularidad en el despliegue del PR #29 (`dpl_66TYjQDa66JXZ5SaiLf697pKXDu1`, merge `a03d372`).
+- Keyring HMAC de producción configurado en Vercel; jobs sigue apagado. Falta demostrar acceso al Supabase correcto, migraciones 9.2/9.3/jobs, escritura real, recarga verificada y aislamiento con dos cuentas alojadas. El propietario comunica login/projects list en su PowerShell; la consulta del conector sigue sin mostrar Rubik. Ese login no acredita automáticamente acceso de este entorno.
+- Se sincronizan README, ROADMAP, OPERATIONS-STATUS y OPENSEO-ACTIVATION para retirar pendientes de código/CI ya resueltos y distinguirlos de la activación alojada. Las entradas anteriores conservan su contexto histórico; prevalece este checkpoint para el estado actual.
+- Siguiente unidad independiente: mapping/configuración del proyecto OpenSEO por cliente, consentimiento/revocación y pruebas negativas. Reconciliación administrativa de reservas inciertas, recuperación de claves y prueba Auth con dos cuentas también pendientes. No activar más herramientas, tareas periódicas de pago, contenidos ni indexación de Sarah.
+- Verificación de este cambio: documentación únicamente, `git diff --check` y enlaces locales. No se modifican código, schema, secretos ni configuración desplegada; no se repiten suites de aplicación que ya aprobaron el HEAD de PR #30. La CI propia del nuevo PR debe registrarse por separado.
+
+## 09/10/2026 — migraciones alojadas aplicadas por el propietario
+
+- Evidencia compartida en la sesión: login CLI completado; projects list incluye `plataforma-rubik-seo-geo-dev` de organización `zsgpocnbsxoncqvvwepr`, referencia `yvdgmklgwlshizzgefpv`. Repositorio Windows actualizado a `main@afb5a38`; link terminado, dry-run propone exactamente 9.2/9.3/jobs.
+- `db push --linked` finalizó tras aplicar `20261007120000`, `20261007150000` y `20261009071705`. La lista posterior muestra esas versiones y las dos de CORE-9.1 en columnas local/remoto. El bloqueo de migraciones queda resuelto mediante la CLI del propietario; el conector disponible aquí todavía no acredita acceso a ese proyecto.
+- Advisor: INFO RLS sin política en `private.openseo_project_jobs` previsto por el diseño (sin grants directos; RPC privada DEFINER con search_path vacío y guard owner). WARN contraseñas filtradas permanece; no se contrata un plan ni se cambia Auth automáticamente. No se declara Advisor limpio.
+- Se creó `OPENSEO_PROJECT_JOBS_ENABLED=true` solo en producción Vercel, sin tocar claves HMAC/OpenSEO. Se solicitó redeploy del despliegue probado de PR #30, manteniendo SHA `afb5a38`, nuevo ID `dpl_6hzwqBBTJq4582stffdxcU8VmdGF`. Estado final aún pendiente en este registro.
+- Falta prueba desde sesión Auth de la plataforma: nueva auditoría propia vinculada al ledger, guardado explícito al completarse, apertura verificada tras recargar y reintento sin duplicados. No se adoptan las auditorías previas al ledger ni se lanza un rastreo desde este entorno para afirmar que ya funciona.
+- Resultado posterior comprobado: redeploy `dpl_6hzwqBBTJq4582stffdxcU8VmdGF` en `READY`, SHA exacto `afb5a3838981a78b9f126acc280fdc0138bfdae0`, alias de producción asignado y sin aliasError. La activación está desplegada; la prueba de guardado real sigue pendiente.
+
+## 09/10/2026 — OpenSEO multiempresa, fase 1 (rama `claude/zealous-noether-dq91ll`)
+
+- Base: `docs/openseo-production-checkpoint@2bab218` (PR #31, abierto en Draft) sobre `main@afb5a38`. Se apila sobre PR #31 para no contradecir su registro; fusionar #31 antes. No hay otras ramas ni PR nuevos posteriores a #31.
+- Coherencia documental: se corrigen en OPERATIONS-STATUS y ROADMAP las frases que aún pedían «comprobar/aplicar» migraciones alojadas. Estado: migraciones aplicadas por el propietario, flag y redeploy `READY`; **escritura alojada pendiente de verificación** con una auditoría nueva del propietario. No se lanzó ninguna auditoría ni llamada de pago.
+- Plan por fases y decisión: [ADR 0007](adr/0007-openseo-conexion-por-proyecto.md). Una clave `oseo_` sirve a varios proyectos OpenSEO de la misma cuenta (contrato del fork); no está verificado que la clave alojada pueda limitarse a un proyecto. El aislamiento con clave compartida depende del mapeo, por eso un proyecto OpenSEO solo puede tener un proyecto Rubik activo.
+- Fase 1 implementada: migración `20261009120000_openseo_project_connections.sql` (tabla privada con RLS y sin privilegios directos, RPC owner-only `openseo_connection` get/connect/revoke, consentimiento explícito, hosts limitados al dominio del proyecto y su compañero www/apex, revocación con historial y bloqueada si hay job activo), módulo `src/lib/openseo/connections.ts`, tipos regenerados con `supabase@2.118.0 gen types`. **No está cableada:** run/follow siguen usando `OPENSEO_PROJECT_ID` global; la conexión de Sarah no cambia.
+- Pruebas locales: pgTAP con el contenedor `supabase/postgres:17.6.1.171`, aplicando las seis migraciones en orden: `openseo_connections` 32/32 y las cinco suites existentes sin fallos. Kong no se pudo descargar (límite del registro), así que la integración con la Data API (`tests/integration/openseo-connections.integration.test.ts`) se valida solo en CI. `npm run verify` en local; resultado de CI en el PR.
+- Bloqueos: la fase 2 (clave por cliente) necesita que el propietario decida el almacén de secretos y confirme con OpenSEO si hay claves limitadas por proyecto. La migración nueva **no** se aplica en alojado; la aplicará el propietario cuando se fusione.
+- Siguiente paso: (propietario) auditoría nueva con créditos para cerrar la verificación del guardado; revisar y fusionar #31 y este PR. (Desarrollo) fase 4: resolver run/follow por conexión con flag `legacy` por defecto y `connection_id` en el job.
+
+## 09/10/2026 — ciclo 1: estado verificado y orden de fases
+
+- GitHub (re-verificado): #31 en Draft, `2bab218`, CI [37906609239](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37906609239) en verde y preview `Ready`. #32 en Draft, apilado sobre #31, `a42767d`, CI [37911481664](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37911481664) en verde y preview `Ready`. `main@afb5a38` sin cambios. Sin otros PR o ramas activos aparte de los históricos #9 y #11.
+- Vercel, solo lectura de nombres: Preview comparte el Supabase de producción y no tiene variables de OpenSEO ni HMAC (detalle en OPERATIONS-STATUS).
+- ROADMAP: se corrigen las filas que aún decían «sin aplicar en alojado» (9.2 y 9.3) o «sin persistencia» (OpenSEO). Se añaden las filas de jobs y multicliente con su estado real.
+- ADR 0007: orden 1 → 4 → 5 → 3, por la dependencia de Preview con la base de datos de producción.
+- Siguiente: fase 4 en su propia rama, apilada sobre #32.
+
+## 09/10/2026 — fase 4: run/follow ligados a la conexión (rama `claude/openseo-fase4-cableado`)
+
+- Base: `claude/zealous-noether-dq91ll@ae8a64f` (PR #32). Orden de fusión: #31 → #32 → este PR.
+- Migración `20261009150000_openseo_job_connection.sql`: añade `connection_id` anulable al job y reemplaza solo `private.openseo_job`. `acquire` valida la conexión ACTIVE del proyecto y la devuelve en `connectionId`. El wrapper público y sus permisos no cambian; pgTAP comprueba que `authenticated` sigue pudiendo ejecutar y `anon` no.
+- Código:
+  - `target.ts`: resolver de modo y entorno por conexión.
+  - `jobs.ts`: `connectionId` en el job y en `acquire`.
+  - `project-audit.ts`: rechaza jobs de otra conexión o legacy en ambos modos.
+  - `actions.ts`: las tres actions resuelven el destino antes de cualquier llamada.
+  - Página de auditoría: en modo `project` lee la conexión y muestra un estado vacío si no hay ninguna activa.
+- Compatibilidad: si el alojado aún no tiene la migración, `connectionId` falta en la respuesta y se trata como nulo. El modo `legacy` funciona igual.
+- Pruebas locales:
+  - pgTAP con el contenedor `supabase/postgres:17.6.1.171`: siete suites sin fallos (`openseo_job_connection` 14/14).
+  - `npm run verify` 226/226.
+  - Tipos regenerados idénticos.
+  - Integración Data API añadida, ejecutada solo en CI.
+- No verificado: nada en alojado. Activar el modo requiere aplicar `20261009120000` y `20261009150000`, crear la conexión de Sarah (fase 6) y definir la variable. Cada paso se presentará antes con dry-run y rollback.
+- Siguiente: fase 5 (pruebas negativas ampliadas de servidor y Data API) y después la fase 3 (interfaz).
+
+## 09/10/2026 — fase 5: matriz negativa de aislamiento (rama `claude/openseo-fase5-negativas`)
+
+- Solo pruebas: no cambia el producto. Va apilada sobre #33.
+- `openseo_isolation.test.sql`, 25/25 en local:
+  - Mismo owner con dos proyectos: no puede lanzar con la conexión del otro, usar su dominio, reclamar su `auditId` (`23505`), leer, liberar o completar su job, ni guardar filas de otro proyecto o de otro `auditId`.
+  - Viewer y account-manager: sin acceso.
+  - Otra organización: sin acceso, tampoco a través de su propio proyecto.
+  - Anon: sin acceso.
+- Lección: un `throws_ok` con solo el SQLSTATE puede pasar por un motivo distinto. La fila sintética fallaba por `key_id` y daba el mismo código `23514`. Ahora los rechazos de identidad se comprueban por su mensaje y hay un control positivo.
+- Integración: mismo owner y dos proyectos a través de PostgREST. Se ejecuta solo en CI.
+- Siguiente: fase 3 (interfaz de conexión). Su revisión visual en preview dependerá de que la migración de la fase 1 esté en alojado (Preview usa el Supabase de producción).
+
+## 09/10/2026 — fase 3: panel de conexión del owner (rama `claude/openseo-fase3-interfaz`)
+
+- Va apilada sobre #34. Corrección previa en #33: textos en español para los códigos de rechazo del modo `project` (sin ellos la interfaz mostraba «Error de OpenSEO.»). Ya está fusionada en #34 y en esta rama.
+- Código:
+  - Server Actions `connectProjectAction` y `revokeProjectAction`. Pasan por `authorized` y exigen consentimiento o confirmación. El test estático ahora exige que todas las actions exportadas llamen a `authorized`.
+  - Componente `OpenSeoConnectionPanel`.
+  - Estilos de `fieldset`.
+  - La página muestra el panel solo al owner.
+- Pruebas: `npm run verify` 227/227. La e2e nueva `e2e/openseo-connection.spec.ts` y el ajuste de `visual.spec.ts` (la página del owner ahora tiene formulario) **solo se ejecutan en CI**: en local no hay Kong. `docs/visual` no se ha regenerado; las capturas 18, 20 y 21 quedan en el artefacto `capturas-core-9-1` de la CI.
+- Revisión visual: en la preview solo se verá el estado «no disponible» hasta aplicar `20261009120000` en alojado. Al aplicarla, la preview escribiría en producción, así que crear la conexión de Sarah desde ella sería un cambio real y necesita autorización expresa.
+
+## 09/10/2026 — reconciliación de STARTING incierto (rama `claude/openseo-reconciliacion`)
+
+- [ADR 0008](adr/0008-reconciliacion-openseo.md). Migración `20261009170000_openseo_active_job.sql`:
+  - `openseo_active_job`: lectura del trabajo activo, sin crear reserva.
+  - `openseo_release_starting_job`: libera solo un STARTING sin `auditId`, bajo el mismo lock.
+  - Tipos regenerados con la CLI.
+- Código:
+  - `jobs.ts`: `findActiveAuditJob` y `releaseStartingAuditJob`.
+  - `project-audit.ts`: `reconcileStartingJob`.
+  - `actions.ts`: `reconcileAuditAction`, que pasa por `authorized` y exige confirmación.
+  - `OpenSeoReconcilePanel`, visible solo para el owner y solo con una reserva STARTING.
+- Corrección de interfaz existente: `errorText(code, message)` muestra el mensaje del servidor cuando el código no tiene texto. Antes `SIGNING_MISSING`, `START_UNCERTAIN`, `BIND_FAILED`, `AUDIT_NOT_BOUND`… mostraban solo «Error de OpenSEO.».
+- e2e: `OPENSEO_PROJECT_JOBS_ENABLED=true` solo en el servidor local de Playwright; OpenSEO sigue sin configurar. Nueva spec `openseo-reconcile.spec.ts`, que deja el proyecto sin trabajo activo al terminar.
+- Pruebas locales:
+  - pgTAP: ocho suites sin fallos (`openseo_active_job` 15/15).
+  - Unit: reconciliación y textos.
+  - `npm run verify`: resultado en el PR.
+  - e2e solo en CI.
+- Paquete de aplicación alojada preparado en OPENSEO-ACTIVATION: orden, dry-run esperado, Advisor y riesgos, y un rollback `docs/rollback/openseo-multitenant-rollback.sql` probado en local (función restaurada idéntica por md5, permisos intactos, suites antiguas en verde). **No ejecutado:** lo aplica el propietario tras fusionar.
+- Trazabilidad: conectar, revocar y reconciliar añaden un evento firmado a `audit_events`. Si falla el registro, la acción devuelve `audited: false` y la interfaz lo advierte. Test estático incluido. `npm run verify` 235/235.
 ## 09/10/2026 — Search Console y Bing en solo lectura, fase A (rama `claude/gsc-bing-lectura`)
 
-- Base `main@afb5a38`: es independiente de la cadena OpenSEO #31–#36. Si coincide con ellas en HANDOFF, ROADMAP u OPERATIONS-STATUS, se resolverá integrando `main` cuando se fusionen.
+- Base inicial `main@afb5a38`, independiente de la cadena OpenSEO. Tras fusionarse #31–#36, se integró `main@0695b44` en esta rama; los conflictos, solo de documentación, se resolvieron conservando ambas partes.
 - Código:
   - `src/lib/webmaster/http.ts`: sin redirecciones, `no-store`, timeout y límite de tamaño; los errores solo llevan el código de estado.
   - `src/lib/search-console/transport.ts`: `searchAnalytics`.
