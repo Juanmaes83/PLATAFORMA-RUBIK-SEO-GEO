@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { StatusPill } from "@/components/ui";
 import { connectProjectAction, revokeProjectAction } from "@/lib/openseo/actions";
 import { CONNECTION_CHANGE_TEXT } from "@/lib/openseo/labels";
+import type { Readiness } from "@/lib/openseo/readiness";
 
 // Owner panel for this project's OpenSEO connection (ADR 0007, phase 3). The server renders the
 // current state; this component only submits explicit, confirmed changes. It never receives a
@@ -33,7 +34,27 @@ function Outcome({ state }: { state: Awaited<ReturnType<typeof connectProjectAct
   );
 }
 
-export function OpenSeoConnectionPanel({ tenant, project, view, projectMode }: { tenant: string; project: string; view: ConnectionPanelView; projectMode: boolean }) {
+const CHECK_LABEL = { ok: "Correcto", blocked: "Pendiente", review: "Revisar" } as const;
+const CHECK_TONE = { ok: "ok", blocked: "warn", review: "neutral" } as const;
+
+function ReadinessList({ readiness }: { readiness: Readiness }) {
+  return (
+    <div className="card">
+      <div className="card-head">
+        <h3>Antes de activar el modo por proyecto</h3>
+        <StatusPill tone={readiness.ready ? "ok" : "warn"}>{readiness.ready ? "Sin bloqueos" : "Con pendientes"}</StatusPill>
+      </div>
+      <ul className="checklist">
+        {readiness.checks.map((c) => (
+          <li key={c.id}><StatusPill tone={CHECK_TONE[c.state]}>{CHECK_LABEL[c.state]}</StatusPill> {c.text}</li>
+        ))}
+      </ul>
+      <p className="muted small">Solo lectura. Activar el modo (variable del servidor y nuevo despliegue) es una decisión aparte de la persona titular; esta lista no cambia nada.</p>
+    </div>
+  );
+}
+
+export function OpenSeoConnectionPanel({ tenant, project, view, projectMode, readiness }: { tenant: string; project: string; view: ConnectionPanelView; projectMode: boolean; readiness?: Readiness }) {
   const [connected, connect, connecting] = useActionState(connectProjectAction, null);
   const [revoked, revoke, revoking] = useActionState(revokeProjectAction, null);
   const hidden = (
@@ -79,6 +100,8 @@ export function OpenSeoConnectionPanel({ tenant, project, view, projectMode }: {
           <Outcome state={revoked} />
         </div>
       )}
+
+      {readiness && <ReadinessList readiness={readiness} />}
 
       {view.state === "none" && view.hostOptions.length === 0 && (
         <p className="notice">Define primero el dominio del proyecto: la conexión solo admite ese dominio y su variante con o sin www.</p>
