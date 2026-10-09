@@ -1,5 +1,7 @@
 # Auditoría de consolidación de Rubik
 
+> **Vigencia (09/10/2026):** fotografía histórica. El estado actual está en el bloque «Estado vigente» de [ROADMAP](ROADMAP.md) y [OPERATIONS-STATUS](OPERATIONS-STATUS.md).
+
 > **Nota de vigencia (2026-10-07, posterior):** el PR [#7](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/7) que este documento describe como abierto está **FUSIONADO** en `main` con el merge `fd8ef5600b6757d995afff33655c17ee4285a227`. La CI del push a `main` ([run 37655703584](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37655703584)) terminó en **success**. El texto siguiente se conserva como fotografía histórica tomada antes del merge.
 
 **Fecha:** 2026-10-07 · **Agente:** Claude Code.
