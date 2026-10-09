@@ -1,4 +1,5 @@
 import "server-only";
+import { checkGoogleCatalog } from "./google/catalog";
 
 // OpenSEO bridge (ADR 0006): the server-side half of the Core's CORE-7.1 contract. The Core
 // (`providers.runProviderRequest` and `providers.openseoConnectivity`, D-22) decides the tool
@@ -396,4 +397,24 @@ export async function followSiteAudit(auditIdRaw: string, projectDomain: string 
     }
     return { progress, report, captureError };
   });
+}
+
+// ── Google tools on the hosted instance (docs/GSC-GA4-OPENSEO.md §3) ─────────────────────
+
+export type GoogleToolsReport =
+  | ({ ok: true; checkedAt: string } & ReturnType<typeof checkGoogleCatalog>)
+  | { ok: false; error: BridgeError };
+
+/**
+ * Lists the instance's tools (`tools/list`: no tool runs, no credits) and checks the Google
+ * read tools against the reference contract. It never calls a Google tool.
+ */
+export async function checkGoogleTools(deps: BridgeDeps = {}): Promise<GoogleToolsReport> {
+  const c = configured(deps);
+  if ("error" in c) return { ok: false, error: c.error };
+  try {
+    return await withClient(c.config, deps, async (mcp) => ({ ok: true as const, checkedAt: new Date().toISOString(), ...checkGoogleCatalog(await mcp.listTools()) }));
+  } catch {
+    return { ok: false, error: { code: "TOOLS_LIST_FAILED", message: "No se pudo leer la lista de herramientas de OpenSEO.", retryable: true } };
+  }
 }

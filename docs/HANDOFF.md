@@ -1329,3 +1329,28 @@ Archivos del commit:
   - Antes, aplicar en alojado las migraciones `20261010090000` y `20261010150000`.
 - **Rama aparcada:** `feat/invitaciones-proyecto` (migración, pgTAP 40/40 y tipos; falta la interfaz). Queda por detrás de GSC/GA4.
 - **Siguiente:** integraciones GSC y GA4 vía OpenSEO con simulaciones.
+
+## 09/10/2026 — Search Console y GA4 vía OpenSEO, preparación con simulaciones (rama `feat/gsc-ga4-openseo`)
+
+- **Hecho** (detalle en [GSC-GA4-OPENSEO](GSC-GA4-OPENSEO.md)):
+  - **Transporte de Search Console:** con OpenSEO para la operación del Core `search-console.searchAnalytics`, a través de `get_search_console_performance` (gratis, solo lectura). El Core valida, normaliza y emite el resultado, y la plataforma lo firma.
+    - Usa solo el `projectId` de la conexión `ACTIVE` del proyecto.
+    - Exige que la propiedad esté dentro del dominio del proyecto y que OpenSEO responda con esa misma propiedad y la misma ventana. Si no, no devuelve filas.
+  - **Cliente MCP:** `GOOGLE_READ_TOOLS` (2 de GSC, 9 de GA4 y `get_search_opportunities`) solo se admite con `OPENSEO_GOOGLE_READS_ENABLED=true`, que no está definida en ningún entorno.
+  - **Comprobación del catálogo alojado:** `listTools()` (`tools/list`, gratis) más `checkGoogleCatalog()`, que exige presencia, solo lectura y los campos obligatorios esperados.
+  - **Botón para el titular** «Comprobar herramientas de Google» en Auditoría técnica, visible solo con OpenSEO configurado **y** `OPENSEO_GOOGLE_CATALOG_CHECK_ENABLED=true`. Apagado por defecto; la acción también falla cerrada sin ese flag. No llama a Google.
+
+**Revisión de #57:** el merge a `main` de esta plataforma inicia un despliegue automático de Producción en Vercel (comprobado en despliegues anteriores de `main`). Para que el despliegue no abra una consulta nueva al proveedor, la comprobación `tools/list` quedó detrás de un flag propio apagado por defecto, tanto en la página como en la Server Action. `OPENSEO_GOOGLE_READS_ENABLED` también sigue apagado. La CI y el SHA final de este PR deben comprobarse tras este cambio; no se activó ningún flag ni se llamó a OpenSEO.
+- **GA4:** el Core no tiene proveedor ni operaciones de GA4, así que sus resultados no se pueden firmar todavía. Se propondrá en RUBIK-SEO-GEO-CORE, sin duplicarlo aquí. Mientras tanto queda apagado y sin interfaz.
+- **Pruebas:**
+  - Vitest `openseo-google` (9), con un MCP simulado: aislamiento, errores, firma y guarda del cliente.
+  - `npm run verify`: 291 tests.
+  - El botón no tiene e2e porque en CI OpenSEO no está configurado.
+- **Validación de Juanma** (Producción, Auditoría técnica de Sarah, como titular):
+  1. Pulsar «Comprobar herramientas de Google». No consume créditos y no toca Google.
+  2. Anotar qué herramientas aparecen como «Disponible».
+  3. Conectar Search Console y GA4 en el proyecto de OpenSEO de Sarah.
+  - Esto no activa nada en Rubik.
+- **Actualización:** el contrato GA4 se ha propuesto en el Core, [RUBIK-SEO-GEO-CORE#27](https://github.com/Juanmaes83/RUBIK-SEO-GEO-CORE/pull/27) (D-29: proveedor `google-analytics` con transporte inyectado, 346/346). Cuando se fusione:
+  1. fijar el Core en ese commit;
+  2. escribir el transporte OpenSEO de GA4, comprobando la propiedad antes de firmar.
