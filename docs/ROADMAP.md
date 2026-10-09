@@ -6,6 +6,16 @@ El catálogo de capacidades SEO/GEO que el propietario quiere cubrir, con el est
 
 ## Checkpoint operativo — 09/10/2026 (Europe/Madrid)
 
+**Estado vigente (09/10/2026, 11:15 Europe/Madrid). Las entradas posteriores de esta sección son histórico; prevalece este bloque.**
+
+| Área | Integrado en `main` | Alojado / desplegado | Verificación real | Siguiente acción |
+|---|---|---|---|---|
+| OpenSEO jobs y guardado firmado | PR #27/#28/#30 | Migración de jobs aplicada; flag y HMAC en producción | **No:** falta una auditoría nueva vinculada al ledger | Prueba controlada del propietario (OPENSEO-ACTIVATION) |
+| OpenSEO multiempresa (ADR 0007): conexión, cableado, negativas, panel | PR #32–#35 | Migraciones `20261009120000` y `150000` **sin aplicar**; producción en `legacy`; el panel muestra «no disponible» | Solo CI y pgTAP local | El propietario aplica el paquete de migraciones |
+| Reconciliación de STARTING (ADR 0008) | PR #36 | Migración `20261009170000` **sin aplicar** | Solo CI y pgTAP local | Igual que la fila anterior |
+| Search Console y Bing, fases A y C (ADR 0009) | PR #37/#38 (`8d56e18`) | Migración `20261009180000` **sin aplicar**; sin OAuth, claves ni interfaz | Solo simulaciones, CI y pgTAP local | ADR de credenciales por cliente; luego OAuth (fase B) |
+| Previews | — | Comparten el Supabase de producción; sin variables de OpenSEO ni HMAC | — | Entorno aislado de pruebas (pendiente de decisión) |
+
 - OpenSEO multiempresa: plan por fases en [ADR 0007](adr/0007-openseo-conexion-por-proyecto.md). Fase 1 (conexión por proyecto, consentimiento, revocación y pgTAP) en la rama `claude/zealous-noether-dq91ll`, sin cablear y sin aplicar en alojado. El puente sigue siendo de proyecto global.
 - Estado más reciente: redeploy de activación `READY`, ID `dpl_6hzwqBBTJq4582stffdxcU8VmdGF`, SHA probado `afb5a38`, alias público asignado. Migraciones aplicadas por el propietario y flag activo; **guardado real pendiente de verificación**, sin afirmar cierre de persistencia alojada.
 - Actualización posterior: propietario confirma aplicación de 9.2/9.3/jobs mediante CLI al destino `yvdgmklgwlshizzgefpv`; cinco versiones local/remoto sincronizadas. Se creó el flag de jobs en producción y se solicitó redeploy del SHA probado `afb5a38`. Pendientes: estado final del redeploy, escritura/recarga verificada y dos cuentas alojadas. La evidencia nueva resuelve el pendiente de migraciones de los checkpoints anteriores, sin acreditar acceso del conector ni guardado real.
@@ -27,8 +37,8 @@ El catálogo de capacidades SEO/GEO que el propietario quiere cubrir, con el est
 | OpenSEO · puente de auditoría técnica (unidad 3 del plan) | ✅ Primer tramo integrado y verificado contra servicio real; PR #10 y correcciones #12/#13 integrados. Auditoría completada 10/10, resultado compartido por el propietario el 09/10/2026 | [ADR 0006](adr/0006-puente-openseo.md): transporte MCP de servidor, 5 herramientas permitidas, auditoría manual sin Lighthouse. Producción limitada a 50 páginas por configuración. Un `projectId` global por servidor. Persistencia y jobs: ver fila siguiente. Enlace por proyecto: [ADR 0007](adr/0007-openseo-conexion-por-proyecto.md). Pendiente clasificar las nueve filas ocultas y separar configuración de conexión verificada en la interfaz |
 | OpenSEO · jobs y guardado firmado | 🟡 PR #27/#28/#30 fusionados y desplegados; migraciones alojadas aplicadas; flag y HMAC en producción; redeploy `READY` | Un trabajo activo por proyecto, `auditId` único, incidencias y páginas en una transacción y reintento sin duplicados: probados en CI (ocho sesiones concurrentes). **Escritura alojada no verificada:** falta una auditoría nueva del propietario. Reconciliación de un STARTING incierto: [ADR 0008](adr/0008-reconciliacion-openseo.md), en rama |
 | OpenSEO · multicliente | 🟡 Fases 1, 3, 4 y 5 y la reconciliación (ADR 0008) fusionadas en `main` mediante #32–#36, el 09/10/2026. Migraciones `20261009120000`–`170000` **sin aplicar en alojado**; producción en `legacy` | [ADR 0007](adr/0007-openseo-conexion-por-proyecto.md). Producción sigue con `OPENSEO_PROJECT_ID` global |
-| CORE-9.4 · Search Console (lectura) | 🟡 Fase A (transporte, PR #37) y fase C (propiedad por proyecto con RLS, en rama); sin OAuth ni conexión | [ADR 0009](adr/0009-search-console-bing-lectura.md). OAuth bloqueado por la decisión del almacén de secretos y por el cliente OAuth del propietario |
-| CORE-9.5 · Bing Webmaster (lectura) | 🟡 Fase A (transporte `GetUrlInfo`, probado con simulaciones) en la misma rama; sin clave ni conexión | [ADR 0009](adr/0009-search-console-bing-lectura.md) |
+| CORE-9.4 · Search Console (lectura) | 🟡 Fases A (transporte) y C (propiedad por proyecto con RLS) fusionadas mediante PR #37/#38 (`8d56e18`); migración `20261009180000` sin aplicar; sin OAuth ni conexión | [ADR 0009](adr/0009-search-console-bing-lectura.md). OAuth bloqueado por la decisión del almacén de secretos y por el cliente OAuth del propietario |
+| CORE-9.5 · Bing Webmaster (lectura) | 🟡 Fases A y C fusionadas (PR #37/#38); sin clave ni conexión | [ADR 0009](adr/0009-search-console-bing-lectura.md) |
 | CORE-9.6 · Observación y borradores | ⏳ | |
 | CORE-9.7 · IA asistida | ⏳ | El propietario elige proveedor y modelo |
 | CORE-9.8 · IndexNow | ⏳ | Aprobación humana por envío |

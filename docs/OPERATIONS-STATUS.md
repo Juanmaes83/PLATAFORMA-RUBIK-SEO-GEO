@@ -4,6 +4,18 @@ Este registro separa lo observado de lo pendiente; las autorizaciones del propie
 
 ## Entrega actual
 
+**Estado vigente (09/10/2026, 11:15 Europe/Madrid). Las viñetas siguientes son el histórico de cada entrega; prevalece este bloque.**
+
+| Área | Integrado en `main` | Alojado / desplegado | Verificación real | Siguiente acción |
+|---|---|---|---|---|
+| OpenSEO jobs y guardado firmado | PR #27/#28/#30 | Migración de jobs aplicada; flag y HMAC en producción | **No:** falta una auditoría nueva vinculada al ledger | Prueba controlada del propietario (OPENSEO-ACTIVATION) |
+| OpenSEO multiempresa (ADR 0007): conexión, cableado, negativas, panel | PR #32–#35 | Migraciones `20261009120000` y `150000` **sin aplicar**; producción en `legacy`; el panel muestra «no disponible» | Solo CI y pgTAP local | El propietario aplica el paquete de migraciones |
+| Reconciliación de STARTING (ADR 0008) | PR #36 | Migración `20261009170000` **sin aplicar** | Solo CI y pgTAP local | Igual que la fila anterior |
+| Search Console y Bing, fases A y C (ADR 0009) | PR #37/#38 (`8d56e18`) | Migración `20261009180000` **sin aplicar**; sin OAuth, claves ni interfaz | Solo simulaciones, CI y pgTAP local | ADR de credenciales por cliente; luego OAuth (fase B) |
+| Previews | — | Comparten el Supabase de producción; sin variables de OpenSEO ni HMAC | — | Entorno aislado de pruebas (pendiente de decisión) |
+
+### Histórico de entregas
+
 - Search Console y Bing, fase A ([ADR 0009](adr/0009-search-console-bing-lectura.md), rama `claude/gsc-bing-lectura` desde `main`): transportes de servidor de solo lectura probados a través del Core con simulaciones. Sin OAuth, claves ni propiedades reales. La documentación oficial se contrastó por búsqueda acotada porque la descarga directa está bloqueada en este entorno.
 - Reconciliación de lanzamientos inciertos ([ADR 0008](adr/0008-reconciliacion-openseo.md), rama `claude/openseo-reconciliacion`, apilada sobre #35). Migración `20261009170000` con dos RPC owner-only; pgTAP 15/15 en local; e2e en CI. Corrige además un fallo de interfaz anterior: los códigos sin texto ocultaban el mensaje específico del servidor tras «Error de OpenSEO.».
 - OpenSEO multiempresa fase 3 (rama `claude/openseo-fase3-interfaz`, apilada sobre #34): panel del owner para conectar y revocar. Mientras la migración `20261009120000` no esté en el Supabase alojado, cualquier preview (que usa la base de datos de producción) solo puede mostrar el estado «no disponible». Las capturas no se pueden regenerar en local (Kong no se descarga); las genera la CI como artefacto.

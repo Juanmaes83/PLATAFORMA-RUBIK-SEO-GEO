@@ -954,3 +954,11 @@ CI inicial de esta entrega: verify Node22/24 pasa; integración falló al crear 
   - `npm run verify`: 225/225.
 - Orden: fusionar y aplicar la cadena OpenSEO #31–#36 antes que #37 y esta rama, para que las versiones de migración se apliquen en orden.
 - Siguiente: la fase D (lectura manual, snapshot firmado e interfaz) depende de la fase B (OAuth y almacén de secretos) y de la propuesta al Core sobre el contexto de la consulta.
+
+## 09/10/2026, 11:15 — integración completa de #31–#38 y paquete de migraciones (rama `claude/paquete-migraciones`)
+
+- El propietario fusionó #31–#36. Claude fusionó #37 (`4926f2f`) y #38 (`8d56e18`), con la autorización del encargo de continuidad del 09/10/2026, tras revisar el diff y con su CI en verde: #37 [37920127966](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37920127966), #38 [37920477604](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37920477604). En #38, el diff tras cambiar la base a `main` contenía solo la fase C, y su árbol coincidía con el que pasó la CI.
+- CI de `main@0695b44` en verde: [37919976889](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37919976889). La de `8d56e18` se registrará al terminar.
+- Supabase alojado: el conector de la sesión **no lista** `yvdgmklgwlshizzgefpv`, solo cinco proyectos de otra organización. No se puede aplicar ni ejecutar el dry-run desde aquí. Aplicar desde un conector rompería el historial de versiones, así que la aplicación la hace el propietario con su CLI.
+- OPENSEO-ACTIVATION reescrito como un único paquete de cuatro migraciones: comprobación previa en SQL de solo lectura, dry-run esperado, verificación posterior y rollback encadenado. Nuevo `docs/rollback/webmaster-properties-rollback.sql`. Ambos rollbacks se probaron juntos en un contenedor local con las nueve migraciones: los objetos nuevos desaparecen y las suites originales pasan.
+- Estado vigente unificado en README, ROADMAP y OPERATIONS-STATUS; las entradas anteriores quedan como histórico.
