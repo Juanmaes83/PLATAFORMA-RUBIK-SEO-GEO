@@ -1202,6 +1202,27 @@ Archivos del commit:
   - Se confirma la instancia: herramientas y verificación de su app OAuth.
   - Se amplía la lista blanca en un PR con mocks.
 - **Sin cambios de código:** no se amplió la lista blanca ni se hizo ninguna llamada a OpenSEO.
+## 09/10/2026 — presupuesto y registro de consumo por proyecto (rama `feat/presupuesto-consumo`)
+
+- Base: `main@588345c`.
+- **Hecho:**
+  - Migración nueva `20261010090000_provider_budget_ledger.sql`:
+    - tablas privadas `provider_budgets` (límite mensual por proyecto y proveedor) y `provider_spend` (reservas, liquidaciones y liberaciones);
+    - RPC `provider_budget` solo para el owner, con bloqueo por proyecto y proveedor;
+    - falla cerrado sin presupuesto: el coste real se registra aunque supere lo estimado, y el mes es el natural en UTC.
+  - Cliente `src/lib/budget/ledger.ts`. `withSpend` reserva, llama, y después liquida con el coste reportado o libera si no hubo gasto.
+  - Rollback probado en `docs/rollback/provider-budget-rollback.sql`.
+- **Pruebas:**
+  - pgTAP local `provider_budget` 36/36, con Postgres 17.6.1.171 en Docker y solo el stack local.
+  - Las suites existentes siguen en verde, salvo dos diferencias propias del entorno local:
+    - `rls_auto_enable` comprueba que el propietario sea `postgres`, y aquí las migraciones se aplican como `supabase_admin`;
+    - aviso de JSON al final de `audit_provenance`.
+  - La CI con la CLI de Supabase es la referencia.
+  - Vitest `tests/budget-ledger.test.ts` (6). Tipos regenerados: el diff es solo `provider_budget`. `npm run verify` en local.
+- **No hecho:**
+  - No se ha aplicado en alojado. Lo aplicaría Juanma con su CLI cuando se quiera usar.
+  - Ninguna herramienta de pago lo usa todavía, ni hay interfaz para fijar el límite.
+- **Decisión para Juanma (cuando toque):** límite mensual de créditos para Sarah antes de habilitar cualquier herramienta de pago de la fase 5.
 
 ## 09/10/2026 — recuperación de contraseña (rama `feat/recuperar-clave`)
 
