@@ -926,3 +926,4 @@ CI inicial de esta entrega: verify Node22/24 pasa; integración falló al crear 
   - Unit: reconciliación y textos.
   - `npm run verify`: resultado en el PR.
   - e2e solo en CI.
+- Paquete de aplicación alojada preparado en OPENSEO-ACTIVATION: orden, dry-run esperado, Advisor y riesgos, y un rollback `docs/rollback/openseo-multitenant-rollback.sql` probado en local (función restaurada idéntica por md5, permisos intactos, suites antiguas en verde). **No ejecutado:** lo aplica el propietario tras fusionar.
