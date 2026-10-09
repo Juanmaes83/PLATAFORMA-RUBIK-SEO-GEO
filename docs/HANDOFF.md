@@ -1115,3 +1115,20 @@ Archivos del commit:
 - Siguiente bloque: consultar CI del SHA vigente y resolver solo fallos concretos; después retomar #40 cuando Juanma decida y preparar conexión por proyecto sin confundir «Probar conexión» con selección de destino. No repetir las nueve migraciones ni la auditoría legacy; no lanzar/indexar Sarah, cambiar DNS o crear gasto. La validación humana del panel/formulario sigue pendiente aunque el guardado legacy esté aprobado.
 - Sarah web: HANDOFF conserva los hashes esperados del parche `13449e9cc3034b8d455586113b1d46b0fc5bbf556917b7bd3a0719aa03caa1f5` y bundle `1a63f2bcb47369e543ae8073cde460f7b1bffcc5b982fe58ab014e4761774a9d` para `claude/consentimiento-medicion@9be1173`, base `d5231afc9627aec44195cb97ef49ce5b53a7f358`. **No se facilitó una ruta accesible en esta sesión; no se localizaron, verificaron ni respaldaron aquí.** Pedir la ruta al propietario y comprobar SHA256 antes de aplicar; no recrear el trabajo.
 - Estado de escritores: Claude estaba detenido según el relevo; este worktree único no tenía cambios ni `index.lock` antes del checkpoint. No hay prueba de sesiones externas fuera de este equipo. Al publicar este PR Codex detiene ediciones; Claude puede asumir sin escrituras simultáneas de Codex.
+
+## 09/10/2026 — recuperación del piloto: exportación v2 y verificación offline (rama `feat/recuperacion-piloto`)
+
+- Base: `main@588345c`.
+- **Hecho:**
+  - La exportación pasa a `rubik-project-export-v2`. Añade `operations`, leído solo con RPC de lectura del owner:
+    - conexión OpenSEO activa;
+    - trabajo activo;
+    - jobs ligados a los `auditId` firmados;
+    - propiedades de Search Console y Bing;
+    - lista `notIncluded`.
+  - Cada parte lleva su propio código de error.
+  - `verifyProjectExport` recalcula la cadena y las firmas de un fichero sin base de datos y señala las discrepancias.
+  - Documentado en [RECUPERACION-PILOTO](RECUPERACION-PILOTO.md) y en el ADR 0004 §4.
+- **Pruebas:** `tests/recovery.test.ts` (6 pruebas: manipulación, claves ajenas y rotadas, ficheros inválidos, fallos parciales y solo comandos de lectura) y `npm run verify` en local.
+- **No hecho:** restauración a una base nueva, prueba en alojado y custodia del keyring. No se escribió en Preview ni en producción.
+- **Validación humana:** la próxima vez que Juanma descargue la exportación de Sarah, comprobar que llega en v2 con `operations`, sin claves, y que `connection` es `null` mientras siga en `legacy`. Descargar solo añade el evento `project.export` a la auditoría.

@@ -62,6 +62,7 @@ Esta primera unidad cubre dos puertos: la **auditoría** y los **resultados de p
   - la auditoría y su verificación;
   - cada resultado y su verificación.
   - Nunca incluye claves.
+- Desde el 09/10/2026, la ruta de exportación entrega `rubik-project-export-v2`: el contenido v1 más `operations`, el estado operativo leído con las RPC del owner (conexión OpenSEO, trabajo activo, jobs ligados a los `auditId` guardados y propiedades de Search Console y Bing). `verifyProjectExport` vuelve a verificar un fichero sin base de datos. Ver [RECUPERACION-PILOTO](../RECUPERACION-PILOTO.md).
 - `eraseProviderResults` borra los resultados del proyecto (RLS: solo `owner`) y registra `provider-results.erase` en la auditoría.
 - La auditoría no se borra a petición: se conserva mientras exista el tenant, según la §4.3.
 - La validación legal de plazos sigue pendiente del propietario.
