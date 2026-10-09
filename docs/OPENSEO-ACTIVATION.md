@@ -1,6 +1,6 @@
 # Activar el guardado firmado de OpenSEO
 
-Estado 09/10/2026: migración de jobs integrada mediante PR #28 y validada en Supabase local de CI. Botón/actions en PR #30; la firma de producción está configurada en Vercel. Ninguna de estas pruebas certifica todavía la persistencia alojada.
+Estado 09/10/2026: migración de jobs integrada mediante PR #28 y validada en Supabase local de CI. Botón/actions del PR #30 integrados y desplegados: producción READY en `afb5a3838981a78b9f126acc280fdc0138bfdae0`, CI completa `37902474922`. La firma de producción está configurada en Vercel. Ninguna de estas pruebas certifica todavía la persistencia alojada.
 
 ## Acceso y destino
 
@@ -49,7 +49,7 @@ Registrar el resultado real y comprobar tablas, RLS y permisos RPC con acceso de
 ## Activación de Vercel
 
 - Producción tiene `PROVENANCE_SIGNING_KEYS` como Secret/sensitive y `PROVENANCE_ACTIVE_KEY_ID` como identificador público al servidor, creado el 09/10/2026. No rotar ni borrar una clave que firme historial sin mantenerla para verificación.
-- Tras verificar las migraciones y desplegar el PR #30, configurar `OPENSEO_PROJECT_JOBS_ENABLED=true` exclusivamente en servidor/producción y desplegar de nuevo. Hasta entonces permanece apagado por defecto.
+- El PR #30 ya está desplegado. Tras verificar las migraciones, configurar `OPENSEO_PROJECT_JOBS_ENABLED=true` exclusivamente en servidor/producción y desplegar de nuevo. Hasta entonces permanece apagado por defecto.
 - Usar una auditoría nueva vinculada por la plataforma, del dominio autorizado. «Consultar y guardar resultados» guarda únicamente al terminar; «Consultar estado» no escribe resultados. El botón pendiente no ejecuta polling automático.
 - Comprobar escritura, detalle con firma verificada tras recargar, reintento sin duplicados y rechazo del acceso desde otro cliente. Registrar IDs de resultados y evidencia sin claves ni datos privados.
 
