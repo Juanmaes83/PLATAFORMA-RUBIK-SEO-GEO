@@ -10,6 +10,9 @@ import { PROJECT, TENANT, TEST_PASSPHRASE, signIn, type UserKey } from "./suppor
 // not extend the shared visual spec, and every account it invites is created by the test itself,
 // so the fixture users keep their memberships for the other specs.
 const PAGE = `/proyectos/${TENANT}/${PROJECT}/invitaciones`;
+// Decision D3: organization owners withdraw a non-owner; the account is kept.
+const PEOPLE = `/proyectos/${TENANT}/${PROJECT}/personas`;
+const DATA = `/proyectos/${TENANT}/${PROJECT}/datos`;
 const unique = (prefix: string) => `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}@ejemplo.test`;
 
 async function checked(page: Page, name: string, project: string) {
@@ -78,6 +81,10 @@ test.describe("pages at every width (read-only)", () => {
     { name: "26-invitaciones-titular", user: "owner", path: PAGE, text: "Crear enlace de invitación" },
     { name: "27-invitaciones-analista", user: "analyst", path: PAGE, text: "Solo la titularidad de la organización invita" },
     { name: "28-invitacion-no-valida", path: "/invitacion/no-valida", text: "Esta invitación no se puede usar" },
+    { name: "29-personas-titular", user: "owner", path: PEOPLE, text: "Su cuenta no se borra" },
+    { name: "30-personas-analista", user: "analyst", path: PEOPLE, text: "Solo la titularidad de la organización gestiona personas" },
+    { name: "31-datos-titular", user: "owner", path: DATA, text: "Eventos de auditoría firmada" },
+    { name: "32-datos-analista", user: "analyst", path: DATA, text: "Solo la titularidad de la organización ve el inventario" },
   ];
   for (const p of pages) {
     test(p.name, async ({ page }, info) => {
@@ -91,10 +98,10 @@ test.describe("pages at every width (read-only)", () => {
   test("organizations page links an owner to each project's invitations, never a member", async ({ page }) => {
     await signIn(page, "owner");
     await page.goto("/organizaciones");
-    await expect(page.locator(`a[href="${PAGE}"]`)).toBeVisible();
+    for (const href of [PAGE, PEOPLE, DATA]) await expect(page.locator(`a[href="${href}"]`)).toBeVisible();
     await signIn(page, "analyst");
     await page.goto("/organizaciones");
-    await expect(page.locator(`a[href="${PAGE}"]`)).toHaveCount(0);
+    for (const href of [PAGE, PEOPLE, DATA]) await expect(page.locator(`a[href="${href}"]`)).toHaveCount(0);
   });
 });
 
@@ -156,6 +163,38 @@ test.describe("flows (change data: desktop only)", () => {
     await page.getByRole("button", { name: "Aceptar invitación" }).click();
     await expect(page).toHaveURL(new RegExp(`/proyectos/${TENANT}/${PROJECT}$`));
     await expect(page.locator("main")).toContainText("tu rol: Analista");
+  });
+
+  test("withdrawing access (D3): the person loses the project, keeps the account, owners cannot be withdrawn", async ({ page }) => {
+    const address = unique("retirada");
+    await newConfirmedAccount(page, address);
+    await signIn(page, "owner");
+    const path = await createLink(page, address, "viewer");
+    await signInAs(page, address);
+    await page.goto(path);
+    await page.getByRole("button", { name: "Aceptar invitación" }).click();
+    await expect(page).toHaveURL(new RegExp(`/proyectos/${TENANT}/${PROJECT}$`));
+
+    await signIn(page, "owner");
+    await page.goto(DATA);
+    const members = Number(await page.locator("dl.facts > div", { has: page.locator("dt", { hasText: /^Personas en el proyecto$/ }) }).locator("dd").textContent());
+    await page.goto(PEOPLE);
+    // Owners show no withdraw button; the invited viewer does.
+    const card = page.locator("li.card", { hasText: address });
+    await expect(page.locator("li.card", { hasText: "(tú)" }).getByRole("button", { name: "Retirar acceso" })).toHaveCount(0);
+    await card.getByRole("button", { name: "Retirar acceso" }).click();
+    await expect(card).toBeVisible(); // the required confirmation stops the submit
+    await card.getByLabel("Confirmo que retiro el acceso de esta persona al proyecto.").check();
+    await card.getByRole("button", { name: "Retirar acceso" }).click();
+    await expect(page.locator("main").getByRole("status")).toContainText("Acceso retirado");
+    await expect(page.locator("li.card", { hasText: address })).toHaveCount(0);
+    await page.goto(DATA);
+    await expect(page.locator("dl.facts > div", { has: page.locator("dt", { hasText: /^Personas en el proyecto$/ }) }).locator("dd")).toHaveText(String(members - 1));
+
+    // The account still signs in, but the project answers like one that does not exist.
+    await signInAs(page, address);
+    await page.goto(`/proyectos/${TENANT}/${PROJECT}`);
+    await expect(page.locator("main")).toContainText("La página no existe o no tienes acceso");
   });
 
   test("a revoked link stops working", async ({ page }) => {

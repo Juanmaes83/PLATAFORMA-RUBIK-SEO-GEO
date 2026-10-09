@@ -38,13 +38,16 @@ export default async function OrganizationsPage({ searchParams }: { searchParams
                 <p className="muted small">Identificador: {org.slug}</p>
                 {org.role === "owner" && memberships.some((m) => m.project.tenantId === org.slug) && (
                   <div>
-                    <p className="form-title">Invitar personas</p>
+                    <p className="form-title">Personas y datos por proyecto</p>
                     <ul>
-                      {memberships.filter((m) => m.project.tenantId === org.slug).map((m) => (
-                        <li key={m.project.projectId}>
-                          <Link href={`/proyectos/${m.project.tenantId}/${m.project.projectId}/invitaciones`}>{m.project.name}</Link>
-                        </li>
-                      ))}
+                      {memberships.filter((m) => m.project.tenantId === org.slug).map((m) => {
+                        const base = `/proyectos/${m.project.tenantId}/${m.project.projectId}`;
+                        return (
+                          <li key={m.project.projectId}>
+                            {m.project.name}: <Link href={`${base}/invitaciones`}>invitar</Link> · <Link href={`${base}/personas`}>personas con acceso</Link> · <Link href={`${base}/datos`}>datos guardados</Link>
+                          </li>
+                        );
+                      })}
                     </ul>
                   </div>
                 )}

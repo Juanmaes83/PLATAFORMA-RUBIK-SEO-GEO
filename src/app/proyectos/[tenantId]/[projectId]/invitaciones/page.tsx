@@ -89,6 +89,7 @@ export default async function InvitationsPage({ params, searchParams }: {
           </section>
         </>
       )}
+      {listed.ok && <p><Link href={`${base}/personas`}>Personas con acceso</Link></p>}
       <p><Link href={base}>← Volver al proyecto</Link></p>
     </>
   );

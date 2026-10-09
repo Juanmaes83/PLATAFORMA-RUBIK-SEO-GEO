@@ -46,7 +46,7 @@ Consecuencia: hoy **no se puede borrar en Auth** a quien haya guardado un result
 | # | Decisión tomada | Qué implica hoy | Qué no se hace |
 |---|---|---|---|
 | **D1** | Los resultados y las importaciones se conservan **mientras dure el contrato**; al terminarlo, **se exporta y se borra** el proyecto | Procedimiento de cierre: (1) exportar el proyecto (v2, firmado) y verificarlo sin conexión; (2) entregarlo según D5; (3) borrar el proyecto. El borrado lo hace el administrador en Supabase, que es una acción alojada de Juanma | No hay borrado automático ni tarea programada |
-| **D3** | Baja de una persona: **retirarle el acceso sin borrar su cuenta** | Se quitan sus membresías de proyecto y organización. Las políticas RLS ya lo permiten a la titularidad, pero **no hay interfaz**: hoy lo hace el administrador | Sin cambio de esquema y sin borrar en Auth, lo que evita el bloqueo del §1.1 |
+| **D3** | Baja de una persona: **retirarle el acceso sin borrar su cuenta** | **Implementado en #59 ([ADR 0021](adr/0021-retirar-acceso-e-inventario.md)), sin integrar:** la titularidad de la organización retira a una persona en `/proyectos/<org>/<proyecto>/personas`. Se quitan su membresía del proyecto, la de la organización si era su último proyecto y sus invitaciones abiertas. Nunca a titulares | No se borra en Auth ni se tocan sus filas, lo que evita el bloqueo del §1.1. Sin tablas nuevas |
 | **D4** | Las invitaciones revocadas, caducadas o aceptadas **se borran pasado el plazo que fije la asesoría** | Hasta que haya plazo, se conservan. Requiere integrar #59 | Ningún plazo inferido; ningún borrado hasta tener el plazo |
 
 **Siguen pendientes:** D2 (auditoría firmada), D5 (formato y responsable de la entrega de la exportación) y D6 (retención de registros de Vercel, Supabase y OpenSEO). Mientras no se decidan:
@@ -54,9 +54,7 @@ Consecuencia: hoy **no se puede borrar en Auth** a quien haya guardado un result
 - D5: la exportación se entrega como JSON firmado;
 - D6: nada se afirma sobre registros de terceros.
 
-**Posibles mejoras derivadas, sin hacer y solo si Juanma las pide:**
-- interfaz para que la titularidad retire a una persona (D3);
-- borrado de invitaciones antiguas para la titularidad, sin tarea programada (D4), cuando exista el plazo.
+**Posible mejora derivada, sin hacer y solo si Juanma la pide:** borrado de invitaciones antiguas para la titularidad, sin tarea programada (D4), cuando exista el plazo.
 
 ### 2.1 Opciones y recomendaciones originales
 
@@ -73,10 +71,8 @@ Cada decisión tiene una recomendación técnica. **No es asesoramiento legal**:
 
 ## 3. Lo que se puede implementar sin decisión legal
 
-Queda propuesto, no hecho:
-
-- **Página de solo lectura con el inventario de datos de un proyecto.** Cuántos resultados, importaciones, eventos y miembros tiene, para responder a una solicitud de acceso.
-- **Prueba en CI de que borrar una organización en el stack local no deja filas huérfanas** en ninguna de las 13 tablas.
+- **Inventario de datos de un proyecto (solo lectura): implementado en #59, sin integrar** ([ADR 0021](adr/0021-retirar-acceso-e-inventario.md)). En `/proyectos/<org>/<proyecto>/datos`, solo para la titularidad de la organización: recuentos y fechas de las 13 tablas, sin contenido. No incluye lo que guardan Auth, Vercel u OpenSEO.
+- **Prueba en CI de que borrar una organización no deja filas huérfanas:** propuesta, no hecha.
 
 Las dos encajan en la Entrega E sin tocar las zonas de Codex. Se hacen si Juanma lo pide.
 

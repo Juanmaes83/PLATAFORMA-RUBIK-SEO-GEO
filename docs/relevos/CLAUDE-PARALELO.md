@@ -23,7 +23,7 @@ Este es el checkpoint vivo de la rama `feat/invitaciones-proyecto`. Juanma la au
 
 ### Migraciones
 
-Solo migraciones nuevas, con timestamp posterior a todas las de `main`: `20261012090000_project_invitations.sql`. No dependen de las de Codex.
+Solo migraciones nuevas, con timestamp posterior a todas las de `main`: `20261012090000_project_invitations.sql` y `20261012100000_project_people_and_inventory.sql`. No dependen de las de Codex. La segunda solo **lee** las tablas privadas de OpenSEO, presupuesto y propiedades para contarlas; si Codex cambia esas tablas, hay que revisar `private.project_data_inventory` al integrar.
 
 ### Documentos de estado
 
@@ -48,7 +48,7 @@ E1, E2 y E3 y el documento de E4 están **publicados en la rama del PR #59**, qu
 | E1 · Invitaciones | Implementado. ADR 0020 sin cambios en esta pasada | pgTAP `project_invitations` 50/50; Vitest; e2e propias en CI |
 | E2 · Restauración | Implementado y **corregido en esta pasada**: ya no da titularidad en organizaciones existentes ni omite filas distintas; un conflicto aborta toda la transacción | Vitest `restore-plan` 4/4; 8 escenarios en PostgreSQL 17 local; integración con los 8 casos en CI. Detalle en [RECUPERACION-ENSAYO](../RECUPERACION-ENSAYO.md) |
 | E3 · Custodia y aislamiento | Documentos contrastados con `keyring.ts`. **Decididos por Juanma el 09/10:** K1, K2 y el guion A1–A4. Pendientes: K3 y K4 | [CUSTODIA-CLAVES](../CUSTODIA-CLAVES.md), [AISLAMIENTO-ALOJADO-GUION](../AISLAMIENTO-ALOJADO-GUION.md) |
-| E4 · Retención y borrado | Documento: inventario revisado. **Decididos por Juanma el 09/10:** D1, D3 y D4. Pendientes: D2, D5 y D6. Sin código | [RETENCION-Y-BORRADO](../RETENCION-Y-BORRADO.md). Hallazgo: hoy no se puede borrar en Auth a quien guardó resultados, importaciones, trabajos o reservas (§1.1) |
+| E4 · Retención y borrado | Documento con inventario revisado. **Decididos por Juanma el 09/10:** D1, D3 y D4; pendientes D2, D5 y D6. **Implementado (encargo de Juanma, 09/10):** página para retirar el acceso (D3) e inventario de datos en solo lectura, [ADR 0021](../adr/0021-retirar-acceso-e-inventario.md), migración `20261012100000` | [RETENCION-Y-BORRADO](../RETENCION-Y-BORRADO.md). Hallazgo: hoy no se puede borrar en Auth a quien guardó resultados, importaciones, trabajos o reservas (§1.1) |
 
 ### CI
 
@@ -71,7 +71,7 @@ E1, E2 y E3 y el documento de E4 están **publicados en la rama del PR #59**, qu
 | Migración alojada | `20261012090000` sin aplicar | No necesita migración | — | — |
 | Validación humana | Pendiente | Pendiente | K1, K2 y A decididos; guion autorizado y no ejecutado; K3 y K4 pendientes | D1, D3 y D4 decididos; D2, D5 y D6 pendientes |
 
-**Decisiones de E1:** [ADR 0020](../adr/0020-invitaciones-por-enlace.md).
+**Decisiones de E1:** [ADR 0020](../adr/0020-invitaciones-por-enlace.md). **Retirada de acceso e inventario:** [ADR 0021](../adr/0021-retirar-acceso-e-inventario.md).
 
 ### Siguiente unidad
 
@@ -93,7 +93,7 @@ Lo que queda de la Entrega E depende de Juanma: ejecutar las filas 1–4 del gui
 
 Cuando Codex termine B → C → D (o antes, si Juanma lo decide), la integración de #59 no se da por terminada hasta completar esta lista **en el mismo PR**, encima del `main` de ese momento:
 
-1. Fusionar `main` en la rama, regenerar `database.types.ts` con la CLI y pasar `npm run verify`.
+1. Fusionar `main` en la rama, regenerar `database.types.ts` con la CLI y pasar `npm run verify`. Revisar que `private.project_data_inventory` sigue contando todas las tablas si Codex añadió o cambió alguna.
 2. Añadir a ROADMAP, HANDOFF y OPERATIONS-STATUS el texto de abajo, **sin borrar historial**, y adaptarlo a lo que Codex haya escrito para no duplicar ni contradecir.
 3. Anotar en HANDOFF: PR, SHA final, CI del SHA final, pruebas exactas, decisiones de Juanma de la tabla anterior, lo que queda pendiente y el siguiente paso.
 4. Actualizar este relevo y la descripción del PR con el SHA y la CI finales.
@@ -103,12 +103,12 @@ Cuando Codex termine B → C → D (o antes, si Juanma lo decide), la integraci�
 
 Se añade en un commit final pequeño encima del `main` de ese momento, **sin borrar historial** y sin declarar integrada la Entrega E antes del merge.
 
-- **ROADMAP, fila «2 · Auth, consentimientos y gasto»:** «Invitaciones por enlace de un solo uso integradas (ADR 0020, migración `20261012090000` sin aplicar en alojado). La plataforma no envía correos. El registro abierto sigue según ADR 0003».
+- **ROADMAP, fila «2 · Auth, consentimientos y gasto»:** «Invitaciones por enlace de un solo uso (ADR 0020) y retirada de acceso de no titulares sin borrar la cuenta (ADR 0021, decisión D3) integradas; migraciones `20261012090000` y `20261012100000` sin aplicar en alojado. La plataforma no envía correos. El registro abierto sigue según ADR 0003». Añadir también: «Inventario de datos del proyecto en solo lectura (E4 §3)».
 - **ROADMAP, recuperación:** «Ensayo de restauración integrado: restaura desde una exportación verificada solo lo que falta, falla cerrado ante cualquier conflicto y no cambia membresías existentes. Probado en local y CI; nunca ejecutado en alojado».
 - **ROADMAP, Entrega E (multicliente y recuperación):** «E1–E4 integradas. Decisiones de Juanma del 09/10/2026: K1, K2, A1–A4, D1, D3 y D4. Pendientes: K3, K4, D2, D5 y D6; ejecución de la prueba de aislamiento alojada (filas 1–4 ya autorizadas) y aplicación de `20261012090000`».
 - **HANDOFF:** entrada con PR, SHA, CI, pruebas, los pasos de validación humana de abajo, las decisiones tomadas y las pendientes.
 - **OPERATIONS-STATUS:**
-  - migración `20261012090000` pendiente de aplicación alojada autorizada;
+  - migraciones `20261012090000` y `20261012100000` pendientes de aplicación alojada autorizada, en ese orden;
   - anillo de firma: custodia en dos copias (K1) a cargo de Juanma y próxima rotación el 09/10/2027 (K2);
   - prueba de aislamiento alojada autorizada y no ejecutada.
 
@@ -125,15 +125,19 @@ Si Codex actualiza esos archivos antes, se usa su versión y este apartado se de
 
 ## Validación humana prevista
 
-Requiere la migración aplicada; antes de aplicarla, la página muestra «Invitaciones no disponibles».
+Requiere las migraciones aplicadas en orden (`20261012090000` y `20261012100000`); antes, las páginas muestran «no disponible». Se hace con cuentas de prueba propias, nunca con datos de clientes.
 
-1. Como titular, abrir `/organizaciones` → «Invitar personas» → el proyecto.
+1. Como titular, abrir `/organizaciones` → «Personas y datos por proyecto» → «invitar» en el proyecto.
 2. Crear un enlace para una cuenta de prueba propia con rol «Solo lectura» y copiarlo.
 3. Abrir el enlace con esa cuenta, entrar y aceptar. Comprobar que aparece el proyecto con «tu rol: Solo lectura».
 4. Abrir de nuevo el enlace: debe decir «Esta invitación no se puede usar» (un enlace usado no se distingue de uno desconocido). Revocar otra invitación y comprobar que su enlace deja de funcionar.
+5. Como titular, abrir «datos guardados» y anotar «Personas en el proyecto».
+6. Abrir «personas con acceso»: las personas titulares no tienen botón. En la cuenta de prueba, marcar la confirmación y pulsar «Retirar acceso». Debe decir «Acceso retirado…» y desaparecer de la lista.
+7. «Datos guardados» muestra una persona menos. Con la cuenta de prueba, el proyecto responde «La página no existe o no tienes acceso», pero la cuenta sigue entrando.
 
 ## Historial de este documento
 
+- **09/10/2026, encargo de Juanma «página para retirar acceso (D3) e inventario de datos»:** migración `20261012100000` (sin tablas nuevas), pgTAP 43/43, rollback probado y reaplicado, Vitest 4/4, páginas `/personas` y `/datos` con enlaces desde `/organizaciones` e invitaciones, e2e propio (capturas 29–32 en el artefacto de CI) y ADR 0021.
 - **09/10/2026, decisiones de Juanma:** K1, K2, A1–A4, D1, D3 y D4 registradas en los documentos de E3 y E4; lista de documentación obligatoria al integrar.
 - **09/10/2026, segunda pasada (encargo «Continuación Claude — Entrega E / PR #59»):**
   - E2 corregido: comprobaciones de conflictos antes de escribir, sin titularidad en organizaciones existentes, transacción completa o nada, y validaciones de filas antes de generar SQL;

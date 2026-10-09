@@ -101,7 +101,7 @@ La tabla es `private.project_invitations` y se accede solo por RPC:
 ## Fuera de alcance
 
 - Envío de correos desde la plataforma.
-- Gestionar o expulsar miembros desde la interfaz.
+- Gestionar o expulsar miembros desde la interfaz. Retirar a personas que no son titulares se cubre después en [ADR 0021](0021-retirar-acceso-e-inventario.md).
 - Cambiar roles.
 - Cerrar el registro abierto, que es una decisión del propietario en Supabase Auth según ADR 0003.
 

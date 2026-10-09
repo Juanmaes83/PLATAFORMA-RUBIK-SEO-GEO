@@ -162,7 +162,13 @@ isOneToOne: false
 "openseo_release_starting_job":
 { Args: { "p_job_id": string,"p_project_id": string }; Returns: Json
                            },
+"project_data_inventory":
+{ Args: { "p_project_id": string }; Returns: Json
+                           },
 "project_invitations":
+{ Args: { "p_command": string,"p_payload"?: Json,"p_project_id": string }; Returns: Json
+                           },
+"project_people":
 { Args: { "p_command": string,"p_payload"?: Json,"p_project_id": string }; Returns: Json
                            },
 "provider_budget":
