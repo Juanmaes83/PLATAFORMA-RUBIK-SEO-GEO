@@ -32,6 +32,8 @@ Sin las dos variables de Supabase la aplicación arranca, pero **no hay inicio d
 Next.js incrusta las variables `NEXT_PUBLIC_*` al compilar. Un `npm run build` sin ellas produce una aplicación sin inicio de sesión aunque luego se definan al arrancar; hay que definirlas **antes** del build del entorno correspondiente.
 ## Guardado de auditorías por proyecto
 
+`CREDENTIALS_ENCRYPTION_KEYS` y `CREDENTIALS_ACTIVE_KEY_ID` ([ADR 0010](adr/0010-credenciales-por-cliente.md), propuesta): keyring de servidor para cifrar las credenciales de proveedor de cada cliente (`keyId:base64` de 32 bytes, separadas por comas, y el id activo). Solo servidor y *Sensitive*; nunca `NEXT_PUBLIC_`, que impide cargar el keyring. **Hoy no están definidas**: se configuran solo si el propietario aprueba el ADR.
+
 `OPENSEO_PROJECT_CONNECTIONS_MODE=project` (fase 4 de [ADR 0007](adr/0007-openseo-conexion-por-proyecto.md)) hace que cada proyecto use su conexión de OpenSEO activa en lugar de `OPENSEO_PROJECT_ID` y `OPENSEO_AUDIT_ALLOWED_HOSTS`, que dejan de leerse. Ausente o con otro valor: modo `legacy`, el actual. Exige `OPENSEO_PROJECT_JOBS_ENABLED=true` y las migraciones `20261009120000` y `20261009150000` aplicadas en alojado. Cambiarla solo sin trabajos activos. Solo servidor; hoy no está definida en Vercel.
 
 `OPENSEO_PROJECT_JOBS_ENABLED=true` activa la reserva de trabajos y el guardado manual firmado. Es una variable exclusiva del servidor, apagada por defecto. Activarla solo después de aplicar las migraciones oficiales 9.2, 9.3 y `20261009071705_openseo_project_jobs`, configurar el keyring de provenance y comprobar el aislamiento alojado. No usar `NEXT_PUBLIC_`.
