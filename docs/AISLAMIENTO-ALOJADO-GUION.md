@@ -31,6 +31,17 @@ La CI ya prueba el aislamiento contra el stack **local** (pgTAP, integración y 
 
 Hacerla con A y con B, cada una sobre su propia organización. Si queda algo que no se pueda borrar desde la interfaz, hay que avisar a Juanma: borrar desde el panel de Supabase es una acción alojada y necesita su decisión.
 
+## Decisiones que necesita Juanma para ejecutarlo
+
+| # | Decisión | Recomendación |
+|---|---|---|
+| A1 | Autorizar la ejecución en producción (Preview comparte la base) | Ejecutarlo antes de dar acceso al primer cliente |
+| A2 | Las dos cuentas de prueba y sus correos | Dos correos propios de Juanma, sin datos de clientes |
+| A3 | Incluir las filas 5 y 6 (invitaciones) | Solo después de aplicar la migración `20261012090000`, que requiere integrar #59 y la autorización de esa migración |
+| A4 | Limpieza | Cada cuenta borra su organización desde la interfaz; lo que no se pueda borrar así, lo decide Juanma (ver §1.1 de [RETENCION-Y-BORRADO](RETENCION-Y-BORRADO.md): hoy no se puede borrar una cuenta que haya guardado resultados) |
+
+Las filas 1 a 4 no dependen de #59 y se pueden ejecutar con lo que ya hay en `main`.
+
 ## Registro
 
 Anotar en HANDOFF lo siguiente:

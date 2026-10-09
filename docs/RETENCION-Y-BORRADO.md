@@ -6,6 +6,8 @@
 
 ## 1. Inventario (comprobado en `supabase/migrations`, 09/10/2026)
 
+13 tablas de la aplicación más `auth.users`. Revisado de nuevo el 09/10/2026 contra las 12 migraciones de la rama, con una prueba en PostgreSQL 17 local (§1.1).
+
 | Dato | Tabla | Datos personales posibles | Exportación hoy | Borrado hoy |
 |---|---|---|---|---|
 | Cuentas | `auth.users` (Supabase Auth) | Correo, metadatos de sesión | No desde la plataforma | Solo el administrador de Supabase (acción alojada) |
@@ -19,6 +21,19 @@
 | Presupuesto y consumo | `private.provider_budgets`, `private.provider_spend` | Autor de las reservas | Resumen mensual en pantalla | Con el proyecto |
 | Invitaciones (rama #59, sin integrar) | `private.project_invitations` | **Correo de la persona invitada**, hash del token | No | Revocar; las filas permanecen como historial |
 
+### 1.1 Qué pasa hoy al borrar una cuenta en Auth (comprobado en local)
+
+| Columna | Definición | Efecto al borrar la cuenta |
+|---|---|---|
+| `provider_results.created_by`, `imports.created_by` | `NOT NULL` con `on delete set null` | **El borrado falla.** El `set null` choca con la columna obligatoria y con el trigger de inmutabilidad (`provider_results rows are immutable`). Probado en PostgreSQL 17 local |
+| `openseo_project_jobs.created_by`, `provider_spend.reserved_by` | `NOT NULL` sin acción (restrict) | **El borrado falla** si la persona creó trabajos o reservas |
+| `audit_events.actor_id` | Sin clave foránea | El borrado funciona; el UUID queda en la auditoría firmada |
+| `organizations.created_by`, `project_invitations.accepted_by` | `on delete set null` | Pasa a nulo |
+| `organization_members`, `project_members` | `on delete cascade` | Se borran sus membresías |
+| `project_invitations.created_by` | `on delete cascade` | **Se borran las invitaciones que creó**, también como historial |
+
+Consecuencia: hoy **no se puede borrar en Auth** a quien haya guardado un resultado, una importación, un trabajo de OpenSEO o una reserva de consumo, salvo que antes se borre su proyecto. Esto condiciona la decisión 2.3.
+
 **Fuera de la base de datos:**
 - registros de Vercel y Supabase, que pueden contener rutas con tokens de invitación (ADR 0020);
 - copias de seguridad del proveedor;
@@ -26,51 +41,16 @@
 
 ## 2. Decisiones que necesita Juanma
 
-### 2.1 Plazo de conservación de los resultados y las importaciones
+Cada decisión tiene una recomendación técnica. **No es asesoramiento legal**: los plazos y la base jurídica los fija el responsable del tratamiento. Nada se implementa ni se borra hasta que Juanma elija.
 
-| Opción | Efecto | Coste de implementarlo |
-|---|---|---|
-| **A.** Mientras el contrato del cliente siga activo, y borrado o entrega al terminarlo | Simple y alineado con el encargo | Bajo: exportar y borrar el proyecto al cierre |
-| **B.** Plazo fijo (por ejemplo, 24 meses) con borrado periódico | Limita la acumulación | Medio: una tarea programada, que hoy está prohibida en alojado sin autorización |
-| **C.** Lo decide cada cliente en su contrato | Flexible | Alto: configuración por proyecto |
-
-### 2.2 Auditoría firmada
-
-Es inmutable a propósito. Opciones:
-
-- **A.** Se conserva mientras exista el proyecto y se borra con él. Es lo que pasa hoy.
-- **B.** Se seudonimiza el `actor_id` de las personas dadas de baja. **Rompería la firma** de esas filas, porque el actor forma parte del evento firmado. Habría que hacer antes una exportación firmada y dejar constancia del cambio.
-- **C.** Se exporta la auditoría al cerrar el cliente y se borra con el proyecto.
-
-### 2.3 Baja de una persona usuaria
-
-Hoy no existe. Opciones:
-
-- **A.** El administrador de Supabase la borra a petición. Es una acción alojada manual.
-- **B.** Una página de «borrar mi cuenta» que primero retira sus membresías y después pide el borrado en Auth.
-
-Hay que decidir qué pasa con las filas que referencian a esa persona (`created_by`, `actor_id`).
-
-### 2.4 Invitaciones
-
-- **A.** Conservarlas como historial: quién invitó a quién y cuándo.
-- **B.** Borrar las caducadas o revocadas pasado un plazo (por ejemplo, 90 días), porque guardan un correo de terceros.
-
-### 2.5 Exportación para el cliente (derecho de acceso y portabilidad)
-
-La exportación v2 ya cubre resultados, auditoría e importaciones del proyecto. Falta decidir:
-
-- si el cliente la recibe tal cual (JSON firmado) o en un formato legible;
-- quién la entrega.
-
-### 2.6 Registros y terceros
-
-Falta confirmar:
-
-- cuánto tiempo guardan Vercel y Supabase los registros en el plan contratado;
-- qué datos del cliente guarda OpenSEO y cómo se borran allí.
-
-Son condiciones de cada proveedor y no se infieren desde aquí.
+| # | Decisión | Opciones | Recomendación técnica | Qué se implementaría después | Depende de |
+|---|---|---|---|---|---|
+| D1 | Conservación de resultados e importaciones | **A.** Mientras dure el contrato; al terminar, exportar y borrar el proyecto. **B.** Plazo fijo con borrado periódico. **C.** Plazo por contrato de cada cliente | **A**: no necesita tareas programadas, que hoy están prohibidas en alojado sin autorización | Procedimiento de cierre de cliente (exportación + borrado del proyecto por el administrador) | Contratos y asesoría |
+| D2 | Auditoría firmada | **A.** Se conserva con el proyecto y se borra con él (hoy). **B.** Seudonimizar `actor_id` de personas dadas de baja (rompe la firma de esas filas). **C.** Exportarla al cerrar el cliente y borrarla con el proyecto | **A** o **C**. **B** fabricaría filas que ya no verifican | Con **C**, añadir la exportación al procedimiento de cierre | Asesoría |
+| D3 | Baja de una persona usuaria | **A.** El administrador la borra a petición. **B.** Página «borrar mi cuenta». En ambos casos hay que elegir qué hacer con lo que creó: **B1.** conservar sus filas y cambiar el esquema para permitir el borrado (por ejemplo, `created_by` admite nulo sin tocar lo firmado). **B2.** transferir la autoría a la titularidad. **B3.** no borrar la cuenta mientras tenga filas; solo retirarle el acceso | **A** con **B3** de momento (retirar membresías ya funciona y no cambia el esquema); **B1** solo si la asesoría exige el borrado de la cuenta | Con B1/B2: migración nueva con pgTAP. Con **B**: página nueva | §1.1 y asesoría |
+| D4 | Invitaciones | **A.** Conservarlas como historial. **B.** Borrar las revocadas, caducadas o aceptadas pasado un plazo, porque guardan un correo de terceros | **B**, con el plazo que fije la asesoría. Mientras tanto se conservan | Borrado manual por el administrador o RPC de purga para la titularidad (sin tarea programada) | Asesoría; #59 integrado |
+| D5 | Entrega de la exportación al cliente | **A.** JSON firmado tal cual. **B.** JSON firmado más un resumen legible. Quién la entrega: la titularidad o Juanma | **B**, entregada por Juanma | Resumen legible generado desde la exportación v2 | — |
+| D6 | Registros y datos de terceros | Confirmar la retención de registros de Vercel y Supabase en el plan contratado y qué guarda OpenSEO y cómo se borra allí | Revisar en cada consola; no se infiere desde aquí | Anotarlo en OPERATIONS-STATUS | Consolas de Juanma |
 
 ## 3. Lo que se puede implementar sin decisión legal
 
@@ -80,3 +60,5 @@ Queda propuesto, no hecho:
 - **Prueba en CI de que borrar una organización en el stack local no deja filas huérfanas** en ninguna de las 13 tablas.
 
 Las dos encajan en la Entrega E sin tocar las zonas de Codex. Se hacen si Juanma lo pide.
+
+Un cambio de esquema para D3 (B1 o B2) **no** se hace sin su decisión: cambiaría qué se conserva al borrar una cuenta.

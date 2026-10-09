@@ -13,7 +13,9 @@ Lo forman dos variables de servidor, que lee `src/lib/provenance/keyring.ts`:
 | `PROVENANCE_SIGNING_KEYS` | `id:base64,id:base64,…` | Identificador `^[a-z0-9][a-z0-9-]{1,62}$`; clave de **32 bytes como mínimo**; identificadores sin repetir |
 | `PROVENANCE_ACTIVE_KEY_ID` | Uno de los identificadores anteriores | Solo esa clave firma lo nuevo; todas las del anillo verifican |
 
-Los errores (`KEYRING_MALFORMED`, `KEY_TOO_SHORT`, `DUPLICATE_KEY_ID`, `ACTIVE_KEY_MISSING`) dicen cuál es el problema sin mostrar nunca el valor.
+Los errores (`KEYRING_NOT_CONFIGURED`, `KEYRING_MALFORMED`, `KEY_TOO_SHORT`, `DUPLICATE_KEY_ID`, `ACTIVE_KEY_MISSING`) dicen cuál es el problema sin mostrar nunca el valor. `KEYRING_MALFORMED` incluye una clave que no es base64 estándar.
+
+**Coherencia con el código (revisada el 09/10/2026):** las reglas de la tabla coinciden con `loadKeyring`. Solo la clave activa firma (`signer.sign` rechaza otra) y todas las del anillo verifican, que es lo que permite la rotación descrita abajo. El ensayo de restauración usa el mismo anillo: con otro distinto, `planRestore` rechaza el archivo antes de generar SQL.
 
 ## Dónde vive y dónde no
 
@@ -65,6 +67,11 @@ Una clave retirada **no se elimina** mientras queden filas firmadas con ella. Qu
 
 ## Pendiente de decisión de Juanma
 
-- Dónde se guardan las dos copias de custodia.
-- Cada cuánto se rota (propuesta: anual, o inmediatamente si hay incidencia).
-- Si se pasa a un KMS.
+| # | Decisión | Opciones | Recomendación técnica |
+|---|---|---|---|
+| K1 | Dónde están las dos copias de custodia | Gestor de contraseñas de Juanma; bóveda cifrada sin conexión; KMS | Una en el gestor de contraseñas y otra en una bóveda cifrada sin conexión, en lugares distintos |
+| K2 | Cada cuánto se rota | Anual; semestral; solo ante incidencia | Anual y, además, de inmediato ante cualquier incidencia |
+| K3 | Prueba de que la copia restaura | Tras cada cambio; trimestral | Tras cada cambio del anillo: cargar la copia en un entorno local y verificar una exportación sin conexión |
+| K4 | Paso a un KMS | Ahora; en una fase posterior | Fase posterior: hoy el anillo cabe en dos variables y el KMS supone otro servicio y otro coste |
+
+Ninguna de estas decisiones necesita código: el anillo ya admite varias claves y la rotación sin perder el historial.

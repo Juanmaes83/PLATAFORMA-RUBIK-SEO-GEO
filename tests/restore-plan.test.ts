@@ -53,8 +53,14 @@ describe("restore plan", () => {
     expect(r.plan.sql.startsWith("-- Rubik restore drill")).toBe(true);
     expect(r.plan.sql).toMatch(/^begin;$/m);
     expect(r.plan.sql.trim().endsWith("commit;")).toBe(true);
-    // Every data insert is guarded, so a second run changes nothing.
-    expect(r.plan.sql.match(/where not exists/g)).toHaveLength(5);
+    // Existing rows must match before anything is written; only missing rows are inserted.
+    expect(r.plan.sql).toContain("\\set ON_ERROR_STOP on");
+    expect(r.plan.sql.indexOf("ya existe con otro contenido")).toBeLessThan(r.plan.sql.indexOf("insert into public.organizations"));
+    for (const t of ["audit_events", "provider_results", "imports"]) expect(r.plan.sql).toContain(`null::public.${t}`);
+    // Memberships of an existing organization are never written; a new one gets its owner from
+    // the tenancy trigger, and a new project's owner must already own the organization.
+    expect(r.plan.sql).not.toMatch(/insert into public\.organization_members/);
+    expect(r.plan.sql).toMatch(/where new_project and exists \(select 1 from public\.organization_members m where .* m\.role = 'owner'\)/);
     if (process.env.RESTORE_DRILL_OUT) {
       mkdirSync(process.env.RESTORE_DRILL_OUT, { recursive: true });
       writeFileSync(join(process.env.RESTORE_DRILL_OUT, "restore.sql"), r.plan.sql);
@@ -93,6 +99,15 @@ describe("restore plan", () => {
     expect(planRestore(mixed, keyring, { operatorId })).toEqual({ ok: false, error: "MIXED_PROJECTS" });
     const foreignImport = { ...structuredClone(doc), imports: [{ id: randomUUID(), project_id: randomUUID(), organization_id: randomUUID() }] };
     expect(planRestore(foreignImport, keyring, { operatorId })).toEqual({ ok: false, error: "INVALID_ROWS" });
+    const imp = (id: string, sha: string) => ({ id, project_id: doc.results[0].row.project_id, organization_id: doc.results[0].row.organization_id, file_sha256: sha });
+    const sha = "a".repeat(64);
+    expect(planRestore({ ...structuredClone(doc), imports: {} }, keyring, { operatorId })).toEqual({ ok: false, error: "INVALID_ROWS" });
+    expect(planRestore({ ...structuredClone(doc), imports: [imp(randomUUID(), "x")] }, keyring, { operatorId })).toEqual({ ok: false, error: "INVALID_ROWS" });
+    // The same file twice, or the same id twice, would collide in the destination: refused here.
+    expect(planRestore({ ...structuredClone(doc), imports: [imp(randomUUID(), sha), imp(randomUUID(), sha)] }, keyring, { operatorId })).toEqual({ ok: false, error: "INVALID_ROWS" });
+    const dupId = randomUUID();
+    expect(planRestore({ ...structuredClone(doc), imports: [imp(dupId, sha), imp(dupId, "b".repeat(64))] }, keyring, { operatorId })).toEqual({ ok: false, error: "INVALID_ROWS" });
+    expect(planRestore({ ...structuredClone(doc), imports: [imp(randomUUID(), sha)] }, keyring, { operatorId })).toMatchObject({ ok: true, plan: { counts: { imports: 1 } } });
   });
 
   it("payloads cannot break out of their quoting", async () => {
@@ -103,6 +118,6 @@ describe("restore plan", () => {
     const tags = r.plan.sql.match(/\$rubik_[0-9a-f]{12}\$/g) ?? [];
     // Each literal opens and closes with its own tag, never reused inside the payload.
     expect(tags.length % 2).toBe(0);
-    expect(tags.length).toBe(10);
+    expect(tags.length).toBe(6);
   });
 });
