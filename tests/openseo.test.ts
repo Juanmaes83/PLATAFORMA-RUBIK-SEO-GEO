@@ -531,7 +531,7 @@ describe("static guarantees", () => {
   });
 
   it(".env.example lists only empty, server-only OpenSEO names", () => {
-    const lines = read(".env.example").split("\n").filter((l) => /OPENSEO/.test(l) && !l.startsWith("#"));
+    const lines = read(".env.example").split(/\r?\n/).filter((l) => /OPENSEO/.test(l) && !l.startsWith("#"));
     expect(lines.map((l) => l.split("=")[0])).toEqual([
       "OPENSEO_ENDPOINT",
       "OPENSEO_API_KEY",

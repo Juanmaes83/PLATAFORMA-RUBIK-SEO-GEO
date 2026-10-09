@@ -25,7 +25,7 @@ La descarga directa de developers.google.com y learn.microsoft.com está bloquea
   - 401 → `NOT_CONNECTED`, 403 → `FORBIDDEN`, 429 → `RATE_LIMITED` con `Retry-After`; los clasifica el Core.
   - Las fechas de Bing en formato WCF (`/Date(ms)/`) o ISO se convierten; los centinelas de «nunca» quedan nulos.
 - **Coste:** las dos operaciones son de cuota en el Core. Sin presupuesto finito, `BUDGET_REQUIRED` antes de la red.
-- **Límite del contrato del Core:** la procedencia solo guarda campos de una lista cerrada (`sourceUrl`, `requestId`…). El rango de fechas y las dimensiones de una consulta de Search Console no quedan en la procedencia firmada. Propuesta para el Core, en un PR aparte, antes de la fase D: admitir un `requestContext` acotado en la evidencia.
+- **Procedencia de la consulta:** Core #24/#25 añaden `requestContext` acotado a la procedencia. Search Console exige que `input.siteUrl` coincida con la propiedad configurada antes de llamar al proveedor; la ventana, dimensiones, paginación y `type` quedan registrados. Bing registra `siteUrl` y `url`. Las pruebas usan respuestas simuladas; todavía no hay credenciales ni snapshots reales.
 
 ## Fases siguientes
 
@@ -33,7 +33,7 @@ La descarga directa de developers.google.com y learn.microsoft.com está bloquea
 |---|---|---|
 | B — OAuth de Google y credencial de Bing | Flujo OAuth de servidor (PKCE + `state`), solo `webmasters.readonly`, revocación y caducidad. API key u OAuth de Bing | **Decisión del propietario:** almacén de secretos para los refresh tokens (el mismo bloqueo que la fase 2 del ADR 0007). Cliente OAuth creado por el propietario en Google Cloud. Por verificar: si el alcance exige verificación de la app de Google y en qué condiciones. Nunca pedir credenciales por chat |
 | **C — Propiedad por proyecto** (implementada en rama) | Migración `20261009180000_webmaster_properties.sql`: tabla privada con RLS y sin privilegios directos, y RPC `webmaster_property(project, provider, get/connect/revoke)` solo para el owner. Una propiedad activa por proyecto y proveedor, y una por propiedad entre todos los proyectos. Search Console admite `sc-domain:` o https del dominio o www; Bing solo https. Consentimiento obligatorio y revocación con historial. Módulo `src/lib/webmaster/properties.ts`. Sin interfaz ni uso todavía | pgTAP 25/25, incluido el caso de dos organizaciones con el mismo dominio (`23505`). Unit tests e integración Data API en CI. **Orden de migraciones:** fusionar y aplicar antes la cadena OpenSEO (`20261009120000`–`170000`). Si se aplicara esta antes, `db push` exigiría `--include-all` para las anteriores |
-| D — Snapshots y UI | Lectura manual (un clic) que guarda el resultado firmado en `provider_results`; histórico comparable; estados vacíos honestos; 360 px | Fases B y C; propuesta al Core sobre el contexto de la consulta |
+| D — Snapshots y UI | Lectura manual (un clic) que guarda el resultado firmado en `provider_results`; histórico comparable; estados vacíos honestos; 360 px | Fases B y C; contexto de la consulta integrado en Core #24/#25 |
 | E — Prueba real | Una propiedad autorizada (Sarah) y una consulta pequeña | Autorización expresa del propietario. Las cuotas de Google no tienen coste económico, pero sí límites |
 
 ## Rollback
