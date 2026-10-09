@@ -148,11 +148,15 @@ Una sola auditoría controlada, lanzada por Juanma, con el límite de páginas v
 4. Pulsar «Consultar y guardar resultados» otra vez: no se duplica.
 5. Comprobar en SQL (solo lectura):
    ```sql
-   select operation, count(*) from public.provider_results
-   where provider = 'openseo' and captured_at > now() - interval '1 day'
-   group by operation;
+   select j.audit_id, j.state,
+          i.provider as issues_provider, i.operation as issues_operation,
+          p.provider as pages_provider, p.operation as pages_operation
+   from private.openseo_project_jobs j
+   left join public.provider_results i on i.id = j.issues_result_id
+   left join public.provider_results p on p.id = j.pages_result_id
+   where j.audit_id = '<AUDIT_ID_NUEVO>';
    ```
-   Esperado: `auditIssues` y `auditPages`, una fila cada uno para el `auditId` nuevo.
+   Sustituir el marcador por el ID devuelto por la nueva auditoría. Esperado: una fila `COMPLETED`, con `issues_provider` y `pages_provider` iguales a `openseo`, `issues_operation = auditIssues` y `pages_operation = auditPages`. La consulta liga ambos resultados al trabajo exacto; una cuenta global de resultados recientes podría mezclar otras auditorías.
 6. Si el lanzamiento queda incierto (STARTING sin `auditId`), usar el panel de reconciliación ([ADR 0008](adr/0008-reconciliacion-openseo.md)). No lanzar otra auditoría para «probar».
 
 Solo con los pasos 2–5 superados se puede declarar «guardado real verificado», indicando la fecha y el `auditId`.
