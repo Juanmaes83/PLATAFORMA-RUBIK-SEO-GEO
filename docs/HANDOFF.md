@@ -774,8 +774,8 @@ CI inicial de esta entrega: verify Node22/24 pasa; integración falló al crear 
 ## 09/10/2026 — preparación del enlace auditId/trabajo por proyecto
 
 - Base `main@7ddc9d9`, con PR #19/#20 integrados, CI completa verde y producción comprobada. PR abiertos revisados: solo #9/#11 documentales históricos; no había otra rama activa sobre jobs OpenSEO.
-- Rama `feat/openseo-project-jobs`: `BridgeDeps.activeJob` solo admite un job `SYNCING` coherente y lo entrega al contrato existente del Core; la respuesta distingue `reused`. Un job inválido se rechaza antes de crear cliente MCP.
+- PR #21 fusionado como `35277d8`: `BridgeDeps.activeJob` solo admite un job `SYNCING` coherente y lo entrega al contrato existente del Core; la respuesta distingue `reused`. Un job inválido se rechaza antes de crear cliente MCP.
 - `BridgeDeps.boundAuditId` es una frontera de servidor: cuando el futuro repositorio la aporta, la consulta rechaza ID ausente/distinto con `AUDIT_NOT_BOUND` antes de la red. `undefined` mantiene temporalmente el primer tramo; no debe alimentarse con el formulario.
-- Pruebas dirigidas: 68/68; ESLint y TypeScript correctos. Sin peticiones live: servidor MCP simulado. Pendiente batería completa/CI.
+- Pruebas dirigidas 68/68 y suite 185/185; ESLint y TypeScript correctos. CI completa del run `37864049883`: Node 22/24, pgTAP/RLS, tipos de migración, integración Data API, build y navegador en verde. Producción Vercel READY para el merge (`dpl_F82HEYtPYntCHAgMmq2pAzBjkJoK`). Sin peticiones live: servidor MCP simulado.
 - Bloqueo nuevo: `supabase@2.118.0 migration --help` y `migration new --help` abortan en este runtime por un crash de Bun 1.4.1. Conforme al flujo del repositorio, no se inventó una migración. La tabla de jobs, adquisición atómica, RLS y pruebas de carrera siguen pendientes de CLI/CI funcional.
 - No se aplicaron migraciones alojadas, no se usaron secretos, no se lanzó auditoría y no se tocó contenido/indexación de Sarah.

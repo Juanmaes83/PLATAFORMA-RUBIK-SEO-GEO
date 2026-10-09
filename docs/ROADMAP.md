@@ -30,9 +30,9 @@ El catálogo de capacidades SEO/GEO que el propietario quiere cubrir, con el est
 
 Ninguna etapa se cierra sin sus criterios demostrados, con CI en verde y la revisión del propietario.
 
-## Implementación preparada en esta continuación
+## Implementación integrada en esta continuación
 
-Selección del ID y límite de longitud, bloqueo de envío mientras hay peticiones activas, distinción del informe anterior, contador separado de páginas/incidencias ocultas y aceptación del compañero `www`/dominio base solo si está autorizado explícitamente. Banner y metadata corregidos. Pruebas de ámbito y doble ID añadidas; **pendientes verify, CI y PR**. No se declara despliegue ni que las nueve filas reales ya se hayan recuperado.
+Selección del ID y límite de longitud, bloqueo de envío mientras hay peticiones activas, distinción del informe anterior, contador separado de páginas/incidencias ocultas y aceptación del compañero `www`/dominio base solo si está autorizado explícitamente. Banner y metadata corregidos. Integrado y desplegado mediante PR #14 con CI completa. No se declara que las nueve filas reales ya se hayan recuperado.
 
 Docker local ausente: pgTAP, integración y e2e completas requieren CI/otro entorno con Docker. Supabase alojado sigue pendiente de las migraciones 9.2/9.3 y de confirmar claves de firma/custodia antes de persistir resultados.
 
@@ -54,21 +54,20 @@ Registro operativo por entrega: [OPERATIONS-STATUS](OPERATIONS-STATUS.md).
 
 Contrato de herramientas, límites y costes contrastados: [OPENSEO-API-CAPABILITIES](OPENSEO-API-CAPABILITIES.md). El servicio alojado puede consumir créditos también para auditorías; el código abierto no implica datos de proveedores gratuitos.
 
-Avance de prioridad2: lectura de resultados con scope de proyecto/organización y lista paginada de metadatos preparados con pruebas unitarias; integración pendiente de CI. No equivale al guardado/historial operativo de OpenSEO. Véase HANDOFF e issue17.
+Avance de prioridad 2: PR #19/#20 integrados y desplegados. La lectura/lista queda acotada por proyecto y la firma incluye UUID de organización/proyecto; CI incluye aislamiento entre proyectos del mismo titular y rechazo de replay firmado. No equivale al guardado/historial operativo de OpenSEO. Véase HANDOFF e issue #17.
 
 
 ### 09/10/2026 — aislamiento criptográfico antes de persistencia OpenSEO
 
-Core PR #22 ya ofrece firmas vinculadas a UUID de cliente/proyecto. La rama
-`feat/provider-signed-scope` integra el contrato y rechaza firmas reasignadas
-o sin contexto, también en exportación. 181 pruebas locales correctas; DB/e2e
-del consumidor pendientes CI. PR #19 (historial por proyecto) ya integrado y
-desplegado. Esto no completa #17/#18: faltan almacenamiento de auditorías,
+Core PR #22 ofrece firmas vinculadas a UUID de cliente/proyecto. La plataforma
+lo integró mediante PR #20 (`7ddc9d9`), con CI completa y producción READY. Las
+firmas reasignadas o sin contexto se rechazan también en exportación. PR #19
+(historial por proyecto) está integrado y desplegado. Esto no completa #17/#18: faltan almacenamiento de auditorías,
 historial visible, jobs exclusivos y mapping/configuración por cliente.
 
 ### 09/10/2026 — frontera de trabajos OpenSEO preparada
 
-La rama `feat/openseo-project-jobs` prepara dos controles del siguiente tramo
+PR #21, fusionado como `35277d8`, integra dos controles del siguiente tramo
 sin activar persistencia alojada: `startSiteAudit` acepta únicamente un trabajo
 activo de servidor coherente (`jobId === auditId`, estado `SYNCING`) y el Core lo
 reutiliza sin llamar a `run_site_audit`; `followSiteAudit` puede exigir el
@@ -77,6 +76,7 @@ MCP. La vinculación debe proceder del repositorio/RLS, nunca del formulario.
 
 La tabla y adquisición atómica siguen pendientes. La CLI fijada de Supabase
 abortó en este entorno incluso al ejecutar `migration --help`; no se creó a mano
-un fichero de migración ni se tocó el proyecto alojado. Hasta cablear y probar el
-repositorio, las acciones conservan el comportamiento del primer tramo y estos
-parámetros solo son una frontera interna probada.
+un fichero de migración ni se tocó el proyecto alojado. CI completa de PR #21 en
+verde y producción READY (`dpl_F82HEYtPYntCHAgMmq2pAzBjkJoK`). Hasta cablear y
+probar el repositorio, las acciones conservan el comportamiento del primer tramo
+y estos parámetros solo son una frontera interna probada.
