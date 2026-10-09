@@ -4,6 +4,7 @@ Este registro separa lo observado de lo pendiente; las autorizaciones del propie
 
 ## Entrega actual
 
+- OpenSEO multiempresa fase 5 (rama `claude/openseo-fase5-negativas`, apilada sobre #33): matriz negativa pgTAP 25/25 en local e integración de la Data API (en CI). Un primer borrador daba falsos positivos: la fila de prueba violaba otra restricción con el mismo código `23514`. Se corrigió y ahora se comprueba el mensaje exacto, con un control positivo. Sin cambios de producto ni alojados.
 - OpenSEO multiempresa fase 4 (rama `claude/openseo-fase4-cableado`, apilada sobre #32): con `OPENSEO_PROJECT_CONNECTIONS_MODE=project`, probar, lanzar y consultar usan solo la conexión del proyecto, y cada job queda ligado a su conexión. La variable no está definida en Vercel, así que producción sigue en `legacy`. Local: pgTAP de todas las suites sin fallos (fase 4: 14/14), `npm run verify` 226/226, tipos idénticos. CI en el PR. Sin cambios alojados.
 - OpenSEO multiempresa fase 1 ([ADR 0007](adr/0007-openseo-conexion-por-proyecto.md)): migración, RPC y módulo de conexión por proyecto en rama, sin cablear. pgTAP local 32/32; la integración Data API solo en CI. No se aplica en alojado ni se lanza ninguna auditoría.
 - Estado más reciente: redeploy de activación `READY` (`dpl_6hzwqBBTJq4582stffdxcU8VmdGF`, SHA `afb5a38`) con alias público. Migraciones y configuración completadas; pendiente escritura/recarga real y aislamiento alojado. Los pendientes de estado del redeploy de la entrada siguiente quedan resueltos por esta comprobación.
