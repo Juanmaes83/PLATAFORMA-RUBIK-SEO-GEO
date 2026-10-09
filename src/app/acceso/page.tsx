@@ -5,8 +5,10 @@ import { signIn, signOut } from "@/lib/auth/actions";
 import { ACCESS_ERRORS, ACCESS_NOTICES, pick } from "@/lib/auth/messages";
 import { currentUser, requestAuthMode } from "@/lib/auth/session";
 
-export default async function AccessPage({ searchParams }: { searchParams: Promise<{ error?: string; aviso?: string }> }) {
-  const [{ error, aviso }, user, auth] = await Promise.all([searchParams, currentUser(), requestAuthMode()]);
+export default async function AccessPage({ searchParams }: { searchParams: Promise<{ error?: string; aviso?: string; siguiente?: string }> }) {
+  const [{ error, aviso, siguiente }, user, auth] = await Promise.all([searchParams, currentUser(), requestAuthMode()]);
+  // Only an invitation link may be resumed after signing in (ADR 0020); anything else goes to /panel.
+  const next = typeof siguiente === "string" && /^\/invitacion\/[0-9a-f]{64}$/.test(siguiente) ? siguiente : null;
 
   return (
     <>
@@ -32,6 +34,7 @@ export default async function AccessPage({ searchParams }: { searchParams: Promi
       ) : (
         <>
           <form action={signIn} className="card form">
+            {next && <input type="hidden" name="next" value={next} />}
             <div className="field">
               <label htmlFor="email">Correo</label>
               <input id="email" name="email" type="email" autoComplete="email" required />
