@@ -10,7 +10,7 @@ import { serverKeyring } from "@/lib/provenance/keyring";
 import { appendAudit } from "@/lib/provenance/repository";
 import { projectJobsEnabled } from "./jobs";
 import { followProjectAudit, reconcileStartingJob, startProjectAudit, type ReconcileResult, type SaveStatus } from "./project-audit";
-import { followSiteAudit, startSiteAudit, testOpenSeoConnection, type AuditFollowUp, type AuditStart, type BridgeError, type ConnectionReport } from "./bridge";
+import { checkGoogleTools, followSiteAudit, startSiteAudit, testOpenSeoConnection, type AuditFollowUp, type AuditStart, type BridgeError, type ConnectionReport, type GoogleToolsReport } from "./bridge";
 import { resolveOpenSeoTarget } from "./target";
 import { connectProject, revokeProjectConnection, type ConnectionError } from "./connections";
 
@@ -146,4 +146,15 @@ export async function reconcileAuditAction(_prev: ReconcileState, formData: Form
   const audited = await audit(context, "openseo.job.reconcile", { resolution: intent, state: result.state });
   revalidatePath(auditPath(context.access.project.tenantId, context.access.project.projectId));
   return { ...result, audited };
+}
+
+export type GoogleToolsState = GoogleToolsReport | Denied | null;
+
+/** Owner click: reads the hosted tool list with the project's OpenSEO target. Never calls Google. */
+export async function checkGoogleToolsAction(_prev: GoogleToolsState, formData: FormData): Promise<GoogleToolsState> {
+  const context = await authorized(formData);
+  if (!context) return { denied: true };
+  const target = await resolveOpenSeoTarget(context.client, context.project.projectId);
+  if ("error" in target) return { ok: false, error: target.error };
+  return checkGoogleTools({ env: target.env });
 }

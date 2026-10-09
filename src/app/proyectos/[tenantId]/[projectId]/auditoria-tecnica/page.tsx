@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { OpenSeoConsole } from "@/components/OpenSeoConsole";
 import { OpenSeoHistory } from "@/components/OpenSeoHistory";
+import { GoogleToolsCheck } from "@/components/GoogleToolsCheck";
 import { ProjectNav } from "@/components/ProjectNav";
 import { EmptyState, PageHead, StatusPill } from "@/components/ui";
 import { projectAccess } from "@/lib/access";
@@ -100,6 +101,7 @@ export default async function TechnicalAuditPage({ params }: { params: Promise<{
         <OpenSeoConsole tenant={project.tenantId} project={project.projectId} defaultUrl={`https://${domain}/`} maxPages={view.maxPages ?? 10} savingEnabled={projectJobsEnabled() && !!keyring} />
       )}
       <OpenSeoHistory base={base} state={historyState} rows={historyRows} />
+      {canManage && target && !("error" in target) && view.state === "configured" && <GoogleToolsCheck tenant={project.tenantId} project={project.projectId} />}
     </>
   );
 }

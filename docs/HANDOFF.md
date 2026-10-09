@@ -1286,3 +1286,23 @@ Archivos del commit:
   - plantilla alojada «Reset password»;
   - aplicar la migración `20261010090000` cuando se quiera usar el presupuesto.
 - **Siguiente paso:** CI de esta rama, revisión del diff y fusión. Después, la siguiente unidad independiente con simulaciones: invitaciones a proyecto (fase 2) o un informe exportable de la comparación.
+
+## 09/10/2026 — Search Console y GA4 vía OpenSEO, preparación con simulaciones (rama `feat/gsc-ga4-openseo`)
+
+- **Hecho** (detalle en [GSC-GA4-OPENSEO](GSC-GA4-OPENSEO.md)):
+  - **Transporte de Search Console:** con OpenSEO para la operación del Core `search-console.searchAnalytics`, a través de `get_search_console_performance` (gratis, solo lectura). El Core valida, normaliza y emite el resultado, y la plataforma lo firma.
+    - Usa solo el `projectId` de la conexión `ACTIVE` del proyecto.
+    - Exige que la propiedad esté dentro del dominio del proyecto y que OpenSEO responda con esa misma propiedad y la misma ventana. Si no, no devuelve filas.
+  - **Cliente MCP:** `GOOGLE_READ_TOOLS` (2 de GSC, 9 de GA4 y `get_search_opportunities`) solo se admite con `OPENSEO_GOOGLE_READS_ENABLED=true`, que no está definida en ningún entorno.
+  - **Comprobación del catálogo alojado:** `listTools()` (`tools/list`, gratis) más `checkGoogleCatalog()`, que exige presencia, solo lectura y los campos obligatorios esperados.
+  - **Botón para el titular** «Comprobar herramientas de Google» en Auditoría técnica, visible solo con OpenSEO configurado. No llama a Google.
+- **GA4:** el Core no tiene proveedor ni operaciones de GA4, así que sus resultados no se pueden firmar todavía. Se propondrá en RUBIK-SEO-GEO-CORE, sin duplicarlo aquí. Mientras tanto queda apagado y sin interfaz.
+- **Pruebas:**
+  - Vitest `openseo-google` (9), con un MCP simulado: aislamiento, errores, firma y guarda del cliente.
+  - `npm run verify`: 291 tests.
+  - El botón no tiene e2e porque en CI OpenSEO no está configurado.
+- **Validación de Juanma** (Producción, Auditoría técnica de Sarah, como titular):
+  1. Pulsar «Comprobar herramientas de Google». No consume créditos y no toca Google.
+  2. Anotar qué herramientas aparecen como «Disponible».
+  3. Conectar Search Console y GA4 en el proyecto de OpenSEO de Sarah.
+  - Esto no activa nada en Rubik.
