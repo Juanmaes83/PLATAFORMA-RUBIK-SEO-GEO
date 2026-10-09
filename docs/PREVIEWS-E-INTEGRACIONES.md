@@ -16,9 +16,11 @@ Fecha: 09/10/2026. Documento de planificación: no conecta nada ni cambia ningun
 
 | Opción | Qué es | Coste | Valoración |
 |---|---|---|---|
-| **A. Segundo proyecto Supabase «rubik-preview» (recomendada)** | Proyecto aparte. Las variables *Preview* de Vercel apuntan a él. Las migraciones se aplican con la CLI del propietario, igual que en producción | 0 € si la organización tiene una plaza gratuita libre; si no, el precio del proyecto adicional según el plan (**por verificar** en la página de precios de Supabase antes de decidir) | Aislamiento completo de datos y de Auth. Exige aplicar cada migración dos veces y usar cuentas de prueba propias. Los proyectos gratuitos se pausan por inactividad |
+| **A. Segundo proyecto Supabase «rubik-preview» (recomendada)** | Proyecto aparte. Las variables *Preview* de Vercel apuntan a él. Las migraciones se aplican con la CLI del propietario, igual que en producción | 0 € solo si queda una de las dos plazas gratuitas activas de la cuenta. En una organización de pago, un proyecto adicional empieza en torno a 10 USD/mes de cómputo, facturado por horas; comprobar plan, plazas y coste real de la organización antes de crearlo | Aislamiento completo de datos y de Auth. Exige aplicar cada migración dos veces y usar cuentas de prueba propias. Los proyectos gratuitos se pausan por inactividad |
 | B. Branching de Supabase | Ramas de base de datos por PR | Requiere plan de pago y se factura por uso (**por verificar**) | Automatiza las migraciones por PR, pero añade gasto e integración con GitHub |
 | C. Solo local o CI | Sin entorno alojado de pruebas | 0 € | Lo actual. No permite revisar en el navegador con datos alojados aislados |
+
+Precios y límites consultados el 09/10/2026: [FAQ de facturación de Supabase](https://supabase.com/docs/guides/platform/billing-faq), [facturación y cupo gratuito](https://supabase.com/docs/guides/platform/billing-on-supabase) y [pausa por inactividad](https://supabase.com/docs/guides/platform/free-project-pausing). No se ha comprobado el plan ni el cupo disponible de la organización de Rubik.
 
 **Pasos de la opción A (los hace el propietario):**
 1. Crear el proyecto en la organización de Rubik, en la misma región.
