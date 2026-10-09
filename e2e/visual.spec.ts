@@ -31,6 +31,8 @@ const PAGES: { name: string; path: string; user?: UserKey; form?: boolean; statu
   { name: "19-auditoria-tecnica-analista", path: `${P}/auditoria-tecnica`, user: "analyst" },
   { name: "22-comparar-sin-seleccion", path: `${P}/auditoria-tecnica/comparar`, user: "analyst" },
   { name: "23-comparar-resultado-inexistente", path: `${P}/auditoria-tecnica/comparar?antes=00000000-0000-4000-8000-000000000001&despues=00000000-0000-4000-8000-000000000002`, user: "analyst", status: 404 },
+  { name: "24-consumo-titular", path: `${P}/consumo`, user: "owner" },
+  { name: "25-consumo-analista", path: `${P}/consumo`, user: "analyst" },
 ];
 
 const horizontalOverflow = (page: Page) =>

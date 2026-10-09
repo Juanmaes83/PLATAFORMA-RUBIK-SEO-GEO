@@ -1,14 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
-import { getBudget, releaseSpend, reserveSpend, setMonthlyLimit, settleSpend, withSpend } from "@/lib/budget/ledger";
+import { getBudget, monthlySummary, releaseSpend, reserveSpend, setMonthlyLimit, settleSpend, withSpend } from "@/lib/budget/ledger";
 
 const projectId = "00000000-0000-4000-8000-000000000001";
 const spendId = "00000000-0000-4000-8000-0000000000aa";
-const state = (over: Record<string, unknown> = {}) => ({ provider: "openseo", periodStart: "2026-10-01T00:00:00+00:00", monthlyLimit: 300, used: 0, available: 300, spend: null, ...over });
-const reserved = state({ used: 200, available: 100, spend: { spendId, state: "RESERVED", operation: "get_domain_overview", estimated: 200, actual: null } });
-const settled = state({ used: 250, available: 50, spend: { spendId, state: "SETTLED", operation: "get_domain_overview", estimated: 200, actual: 250 } });
-const released = state({ spend: { spendId, state: "RELEASED", operation: "get_domain_overview", estimated: 200, actual: null } });
+const state = (over: Record<string, unknown> = {}) => ({ provider: "openseo", periodStart: "2026-10-01T00:00:00+00:00", monthlyLimit: 300, used: 0, available: 300, blocked: false, spend: null, ...over });
+const reserved = state({ used: 200, available: 100, spend: { spendId, state: "RESERVED", operation: "get_domain_overview", estimated: 200, actual: null, replayed: false, overrun: false } });
+const settled = state({ used: 250, available: 50, spend: { spendId, state: "SETTLED", operation: "get_domain_overview", estimated: 200, actual: 250, replayed: false, overrun: true } });
+const released = state({ spend: { spendId, state: "RELEASED", operation: "get_domain_overview", estimated: 200, actual: null, replayed: false, overrun: false } });
 const fake = (...results: { data?: unknown; error?: { code: string } }[]) => {
   const rpc = vi.fn();
   for (const r of results) rpc.mockResolvedValueOnce({ data: r.data ?? null, error: r.error ?? null });
@@ -67,5 +67,42 @@ describe("budget ledger client (owner RPC, fail closed)", () => {
     expect(await withSpend(r.client, projectId, { operation: "get_domain_overview", estimated: 200 }, async () => ({ ok: true, value: 1, actualCost: 200 })))
       .toEqual({ ok: false, error: "BUDGET_UNAVAILABLE", settled: false });
     expect(r.rpc).toHaveBeenCalledTimes(2);
+  });
+
+  it("passes the idempotency key and stores the conversion with the limit", async () => {
+    const { client, rpc } = fake({ data: reserved }, { data: state() });
+    await reserveSpend(client, projectId, { operation: "get_domain_overview", estimated: 200, idempotencyKey: "audit:1234abcd" });
+    expect(rpc.mock.calls[0][1]).toMatchObject({ p_command: "reserve", p_payload: { idempotencyKey: "audit:1234abcd" } });
+    await setMonthlyLimit(client, projectId, 300, { ceilingEur: 10 });
+    expect(rpc.mock.calls[1][1]).toMatchObject({ p_command: "set", p_payload: { monthlyLimit: 300, conversion: { ceilingEur: 10 } } });
+    expect(await reserveSpend(client, projectId, { operation: "x", estimated: 1, idempotencyKey: "short" })).toEqual({ ok: false, error: "BUDGET_INVALID" });
+    expect(await setMonthlyLimit(client, projectId, 300, [] as never)).toEqual({ ok: false, error: "BUDGET_INVALID" });
+  });
+
+  it("a retry never calls the provider again", async () => {
+    const call = vi.fn();
+    const settledReplay = state({ spend: { ...(settled.spend as unknown as object), replayed: true, overrun: false } });
+    expect(await withSpend(fake({ data: settledReplay }).client, projectId, { operation: "get_domain_overview", estimated: 200, idempotencyKey: "audit:1234abcd" }, call))
+      .toEqual({ ok: false, error: "ALREADY_SETTLED" });
+    const openReplay = state({ spend: { ...(reserved.spend as unknown as object), replayed: true } });
+    expect(await withSpend(fake({ data: openReplay }).client, projectId, { operation: "get_domain_overview", estimated: 200, idempotencyKey: "audit:1234abcd" }, call))
+      .toEqual({ ok: false, error: "RESERVATION_OPEN" });
+    expect(call).not.toHaveBeenCalled();
+  });
+
+  it("an unexpected failure of the call keeps the reservation open at its maximum", async () => {
+    const r = fake({ data: reserved });
+    await expect(withSpend(r.client, projectId, { operation: "get_domain_overview", estimated: 200 }, async () => { throw new Error("socket closed"); })).rejects.toThrow();
+    expect(r.rpc).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads a validated monthly summary", async () => {
+    const summary = { provider: "openseo", periodStart: "2026-10-01T00:00:00+00:00", monthlyLimit: 300, conversion: null, blocked: false,
+      operations: [{ operation: "get_domain_overview", reserved: 0, settled: 1, released: 0, credits: 250, overruns: 1, references: ["result:abc"] }] };
+    const { client, rpc } = fake({ data: summary }, { data: { ...summary, operations: [{ operation: "x", credits: -1 }] } });
+    expect(await monthlySummary(client, projectId, "2026-10")).toMatchObject({ ok: true, summary: { operations: [{ credits: 250 }] } });
+    expect(rpc.mock.calls[0][1]).toMatchObject({ p_command: "summary", p_payload: { month: "2026-10" } });
+    expect(await monthlySummary(client, projectId)).toEqual({ ok: false, error: "BUDGET_INVALID_RESPONSE" });
+    expect(await monthlySummary(client, projectId, "2026-13")).toEqual({ ok: false, error: "BUDGET_INVALID" });
   });
 });
