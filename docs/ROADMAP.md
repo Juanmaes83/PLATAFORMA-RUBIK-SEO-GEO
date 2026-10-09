@@ -19,6 +19,7 @@ Supabase Rubik `yvdgmklgwlshizzgefpv`: el propietario aplicó con su CLI las cua
 | Reconciliación de STARTING (ADR 0008) | PR #36 | Migración `20261009170000` **aplicada** | Solo CI y pgTAP; no ha hecho falta reconciliar nada real | Ninguna salvo que aparezca un STARTING incierto |
 | Search Console y Bing, fases A y C (ADR 0009) | PR #37/#38 (`8d56e18`) | Migración `20261009180000` **aplicada**; sin OAuth, claves ni interfaz | Solo simulaciones, CI y pgTAP | Decidir el ADR 0010 (PR #40); luego OAuth (fase B) |
 | Credenciales por cliente (ADR 0010) | No: PR #40 abierto | Sin migración ni variables | — | Decisión del propietario sobre la opción B |
+| Web de Sarah: consentimiento y medición | [SARAHKATERINAWEBNUEVA#53](https://github.com/Juanmaes83/SARAHKATERINAWEBNUEVA/pull/53) abierto (solo biblioteca y documentación) | Nada desplegado; sin tag, ID ni banner | Solo pruebas unitarias | Proveedor, texto de la política de cookies y datos legales verificados del responsable (Juanma) |
 | Previews | — | Comparten el Supabase de producción; sin variables de OpenSEO ni HMAC | — | Entorno aislado de pruebas (pendiente de decisión) |
 
 ## Agrupación operativa en seis fases
