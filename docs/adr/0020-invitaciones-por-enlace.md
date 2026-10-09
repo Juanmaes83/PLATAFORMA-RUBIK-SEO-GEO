@@ -1,6 +1,6 @@
 # ADR 0020 · Invitaciones a proyecto por enlace de un solo uso
 
-**Estado:** propuesto en la rama `feat/invitaciones-proyecto`, sin integrar en `main`. **No está aplicado** en el Supabase alojado.
+**Estado:** integrado en `main@ac70b1d` (PR #59). **No está aplicado** en el Supabase alojado.
 **Fecha:** 09/10/2026.
 **Numeración:** se usa 0020 para no chocar con ADR que se estén redactando en paralelo (0010 está en #40; 0011 en adelante pueden usarse en otras ramas). Se puede renumerar al integrar.
 **Depende de:** ADR 0003 (tenancy y Auth). Esa ADR exige cerrar el registro abierto antes de dar acceso a clientes y menciona las invitaciones como etapa posterior.

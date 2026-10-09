@@ -88,7 +88,8 @@ select throws_ok($$select pg_temp.rm('ppl-p1','nope')$$,'22023',null,'malformed 
 select is((public.project_data_inventory(pg_temp.pid('ppl-p1'))->>'projectMembers')::int,5,'inventory counts project members');
 select is((public.project_data_inventory(pg_temp.pid('ppl-p1'))->>'organizationMembers')::int,5,'and organization members');
 select is((public.project_data_inventory(pg_temp.pid('ppl-p1'))->'providerResults'->>'count')::int,0,'and results');
-select ok(public.project_data_inventory(pg_temp.pid('ppl-p1')) ?& array['auditEvents','imports','invitations','openseoJobs','openseoConnections','webmasterProperties','budgets','spendEntries','generatedAt'],'every table is reported');
+select is((public.project_data_inventory(pg_temp.pid('ppl-p1'))->>'googleProperties')::int,0,'and OpenSEO Google property bindings (20261012110000)');
+select ok(public.project_data_inventory(pg_temp.pid('ppl-p1')) ?& array['auditEvents','imports','invitations','openseoJobs','openseoConnections','webmasterProperties','googleProperties','budgets','spendEntries','generatedAt'],'every table is reported');
 
 -- Withdraw the viewer (only in p1): an open invitation for their address goes too
 insert into k select 'tok', public.project_invitations(pg_temp.pid('ppl-p1'),'create','{"email":"PPL-Viewer@example.test","role":"analyst"}')->>'token';

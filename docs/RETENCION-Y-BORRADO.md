@@ -6,7 +6,7 @@
 
 ## 1. Inventario (comprobado en `supabase/migrations`, 09/10/2026)
 
-13 tablas de la aplicación más `auth.users`. Revisado de nuevo el 09/10/2026 contra las 12 migraciones de la rama, con una prueba en PostgreSQL 17 local (§1.1).
+14 tablas de la aplicación más `auth.users` (la 14.ª, `private.openseo_google_properties`, llegó con #60). Revisado de nuevo el 09/10/2026 contra las 12 migraciones de la rama, con una prueba en PostgreSQL 17 local (§1.1).
 
 | Dato | Tabla | Datos personales posibles | Exportación hoy | Borrado hoy |
 |---|---|---|---|---|
@@ -18,8 +18,9 @@
 | Importaciones manuales | `imports` | URLs y hallazgos declarados | Sí | La titularidad las borra una a una (`eraseImport`) y queda registrado |
 | Trabajos y conexión de OpenSEO | `private.openseo_project_jobs`, `private.openseo_project_connections` | Identificadores de proveedor y de auditoría, autor del consentimiento | Estado operativo en la exportación v2 | Revocar la conexión; el borrado de filas solo llega con el proyecto |
 | Propiedades de GSC/Bing | `private.webmaster_properties` | Propiedad y autor | No | Con el proyecto |
+| Propiedades Google asociadas en OpenSEO (#60) | `private.openseo_google_properties` | Propiedad GSC/GA4, autor y revocación | No | Revocar; las filas se borran con el proyecto o la conexión |
 | Presupuesto y consumo | `private.provider_budgets`, `private.provider_spend` | Autor de las reservas | Resumen mensual en pantalla | Con el proyecto |
-| Invitaciones (rama #59, sin integrar) | `private.project_invitations` | **Correo de la persona invitada**, hash del token | No | Revocar; las filas permanecen como historial |
+| Invitaciones (#59) | `private.project_invitations` | **Correo de la persona invitada**, hash del token | No | Revocar; las filas permanecen como historial |
 
 ### 1.1 Qué pasa hoy al borrar una cuenta en Auth (comprobado en local)
 
@@ -71,7 +72,7 @@ Cada decisión tiene una recomendación técnica. **No es asesoramiento legal**:
 
 ## 3. Lo que se puede implementar sin decisión legal
 
-- **Inventario de datos de un proyecto (solo lectura): implementado en #59, sin integrar** ([ADR 0021](adr/0021-retirar-acceso-e-inventario.md)). En `/proyectos/<org>/<proyecto>/datos`, solo para la titularidad de la organización: recuentos y fechas de las 13 tablas, sin contenido. No incluye lo que guardan Auth, Vercel u OpenSEO.
+- **Inventario de datos de un proyecto (solo lectura): implementado en #59, sin integrar** ([ADR 0021](adr/0021-retirar-acceso-e-inventario.md)). En `/proyectos/<org>/<proyecto>/datos`, solo para la titularidad de la organización: recuentos y fechas de las tablas del inventario, sin contenido. No incluye lo que guardan Auth, Vercel u OpenSEO.
 - **Prueba en CI de que borrar una organización no deja filas huérfanas:** propuesta, no hecha.
 
 Las dos encajan en la Entrega E sin tocar las zonas de Codex. Se hacen si Juanma lo pide.

@@ -1,5 +1,20 @@
 # Handoff
 
+## 10/10/2026 — Entrega E integrada (Claude, en paralelo a Codex) y cierre
+
+- **Integración:** Juanma autorizó integrar cuando Codex terminase. Claude auditó #60–#62 (CI de PR y de main verdes; #62 sin caller y con flag apagado) y fusionó [#62](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/62) en `main@22a83eb2e64c00e39c10b2ea827374c06c2969e7` comprobando el SHA `b8dd7d1`; [CI posterior verde](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/38003705280). El filtro de permisos impidió a Claude traer `main` a la rama de #59; Juanma fusionó [#59](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/59) directamente en `main@ac70b1dfa7fe3e1a6da9419f96ceef63e752fffd` (sin conflictos: comprobado antes). Última CI del PR (`d61c630`): [38001107067](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/38001107067) completa verde; [CI posterior de main](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/38005005297).
+- **Seguimiento (rama `claude/zealous-noether-dq91ll`):** con todas las migraciones de `main` juntas, los tipos generados por la CLI coinciden con `database.types.ts`. Nueva migración `20261012110000` para que el inventario cuente también `private.openseo_google_properties` (añadida por #60 después de escribirlo); misma firma y privilegios. Este registro de estado.
+- **Qué contiene la Entrega E:**
+  - E1 · invitaciones por enlace de un solo uso (ADR 0020): solo la titularidad de la organización, nunca rol titular, hash del token, 7 días, revocable, sin correos;
+  - E2 · ensayo de restauración ([RECUPERACION-ENSAYO](RECUPERACION-ENSAYO.md)): comprueba antes de escribir, idéntico = sin cambios, distinto = rechazo total, sin tocar membresías existentes;
+  - E3 · custodia de claves y guion de aislamiento alojado (documentos);
+  - E4 · retención y borrado (documento) más retirada de acceso sin borrar la cuenta e inventario de datos (ADR 0021).
+- **Pruebas:** pgTAP `project_invitations` 50, `project_people` 44; integración de restauración con 8 casos; Vitest; e2e de páginas 26–32 a 360/390/1280 px y flujos de invitación y retirada; rollbacks probados y reaplicados.
+- **Decisiones de Juanma (09/10):** K1 dos copias del anillo (gestor de contraseñas y bóveda cifrada sin conexión); K2 rotación anual (primera el 09/10/2027) e inmediata ante incidencia; A1–A4 prueba de aislamiento antes del primer cliente con dos cuentas suyas; D1 conservar mientras dure el contrato y exportar y borrar al cierre; D3 baja = retirar acceso sin borrar la cuenta; D4 borrar invitaciones tras el plazo de la asesoría. **Pendientes:** K3, K4, D2, D5 y D6.
+- **Hallazgo:** hoy no se puede borrar en Auth a quien guardó resultados, importaciones, trabajos o reservas (§1.1 de [RETENCION-Y-BORRADO](RETENCION-Y-BORRADO.md)); D3 lo evita sin cambiar el esquema.
+- **No hecho (requiere a Juanma):** aplicar `20261012090000`, `20261012100000` y `20261012110000` en alojado, en ese orden; guardar las copias del anillo; ejecutar la prueba de aislamiento; validación humana (pasos 1–7 de [CLAUDE-PARALELO](relevos/CLAUDE-PARALELO.md)). Nada se escribió en Preview ni producción.
+- **Seguridad:** `npm audit --omit=dev` marca dos avisos altos: `next@16.3.6` (corrección en 16.4.0, fuera del rango fijado) y `source-map-js` (`npm audit fix`). Propuesto como PR de seguridad separado.
+
 ## 10/10/2026 — procedencia Google vinculada a conexión y propiedad
 
 - Plataforma [#61](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/61) integrada en `main@536a1035704ed7ee889c97f4a4c999f7e29817ff`; [CI del SHA del PR](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/38001589571) y [CI posterior del SHA de main](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/38002171481) completas verdes. El merge auto-despliega Vercel, pero el servicio no tiene caller y el flag Google sigue apagado. Ninguna lectura ni escritura Google alojada.
