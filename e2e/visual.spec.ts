@@ -29,6 +29,8 @@ const PAGES: { name: string; path: string; user?: UserKey; form?: boolean; statu
   { name: "16-importaciones-cliente", path: `${P}/importaciones`, user: "client" },
   { name: "18-auditoria-tecnica-titular", path: `${P}/auditoria-tecnica`, user: "owner", form: true },
   { name: "19-auditoria-tecnica-analista", path: `${P}/auditoria-tecnica`, user: "analyst" },
+  { name: "24-consumo-titular", path: `${P}/consumo`, user: "owner" },
+  { name: "25-consumo-analista", path: `${P}/consumo`, user: "analyst" },
 ];
 
 const horizontalOverflow = (page: Page) =>
