@@ -2,6 +2,8 @@
 
 Aplicación de la plataforma SEO/GEO de Rubik (CORE-9). Consume [RUBIK-SEO-GEO-CORE](https://github.com/Juanmaes83/RUBIK-SEO-GEO-CORE) como dependencia fijada a un commit; no copia su código. El repositorio de aplicación lo designó el propietario (decisión D-26 del Core).
 
+**Titularidad:** Rubik SEO GEO es propiedad de Juan Manuel Espinosa Galant, DNI 48553293V, y pertenece a Rubik Sota. Quedan prohibidos su uso y comercialización sin permiso y autorización expresa del titular. Todos los derechos sobre los elementos propios quedan reservados; las dependencias conservan sus licencias. Véanse [NOTICE.md](NOTICE.md) y [LICENSE](LICENSE).
+
 > **Estado verificado el 09/10/2026:** plataforma desplegada en Vercel, acceso real con Supabase Auth y primer proyecto Sarah Katerina creado. OpenSEO devuelve `CONNECTED`; la auditoría `02f2f04d-c7ea-4fe9-bb05-be1c39509938` terminó con 10/10 páginas y dos incidencias visibles. Los resultados de OpenSEO todavía no se guardan. El Supabase alojado tiene las dos migraciones de identidad/privilegios; las migraciones de persistencia e importaciones aún no están aplicadas. Detalle y evidencia en [docs/ROADMAP.md](docs/ROADMAP.md) y [docs/HANDOFF.md](docs/HANDOFF.md).
 
 ## Requisitos
