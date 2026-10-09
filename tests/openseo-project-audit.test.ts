@@ -117,4 +117,47 @@ describe("project audit lifecycle", () => {
     m.follow.mockResolvedValue({ ...response, captureError: { code: "CAPTURE_FAILED" } });
     expect(await followProjectAudit(client, project, "audit-1", input.projectDomain, true, keyring)).toMatchObject({ saveStatus: "unavailable" });
   });
+
+  describe("project mode: one connection per job (ADR 0007, phase 4)", () => {
+    const connection = { connectionId: "00000000-0000-4000-8000-0000000000c1", state: "ACTIVE" as const, credentialMode: "platform" as const,
+      openseoProjectId: "oseo-client", allowedHosts: ["example.test"], grantedAt: "2026-10-09T10:00:00Z", revokedAt: null };
+    const deps = { env: { OPENSEO_PROJECT_ID: "oseo-client" } };
+    it("reserves with the connection and passes its environment to the bridge", async () => {
+      m.acquire.mockResolvedValue({ ok: true, job: { ...job, state: "STARTING", auditId: null, acquired: true, connectionId: connection.connectionId } });
+      expect(await startProjectAudit(client, project, input, deps, connection)).toEqual(started);
+      expect(m.acquire).toHaveBeenCalledWith(client, project, connection.connectionId);
+      expect(m.start).toHaveBeenCalledWith(input, deps);
+    });
+    it("never reuses or launches over a job of another connection", async () => {
+      for (const connectionId of [null, "00000000-0000-4000-8000-0000000000c2"]) {
+        m.acquire.mockResolvedValue({ ok: true, job: { ...job, connectionId } });
+        expect(await startProjectAudit(client, project, input, deps, connection)).toMatchObject({ ok: false, error: { code: "JOB_CONNECTION_MISMATCH" } });
+      }
+      expect(m.start).not.toHaveBeenCalled();
+    });
+    it("a revoked connection refused by the database launches nothing", async () => {
+      m.acquire.mockResolvedValue({ ok: false, error: "JOB_CONNECTION_REFUSED" });
+      expect(await startProjectAudit(client, project, input, deps, connection)).toMatchObject({ ok: false, error: { code: "CONNECTION_NOT_ACTIVE" } });
+      expect(m.start).not.toHaveBeenCalled();
+    });
+    it("legacy mode refuses a job launched with a connection", async () => {
+      m.acquire.mockResolvedValue({ ok: true, job: { ...job, connectionId: connection.connectionId } });
+      expect(await startProjectAudit(client, project, input)).toMatchObject({ error: { code: "JOB_CONNECTION_MISMATCH" } });
+      m.find.mockResolvedValue({ ok: true, job: { ...job, connectionId: connection.connectionId } });
+      expect(await followProjectAudit(client, project, "audit-1", input.projectDomain, true, keyring)).toMatchObject({ progress: { error: { code: "JOB_CONNECTION_MISMATCH" } } });
+      expect(m.start).not.toHaveBeenCalled();
+      expect(m.follow).not.toHaveBeenCalled();
+    });
+    it("follows and saves only a job of the same active connection", async () => {
+      for (const connectionId of [null, "00000000-0000-4000-8000-0000000000c2"]) {
+        m.find.mockResolvedValue({ ok: true, job: { ...job, connectionId } });
+        expect(await followProjectAudit(client, project, "audit-1", input.projectDomain, true, keyring, deps, connection))
+          .toMatchObject({ saveStatus: "unavailable", progress: { error: { code: "JOB_CONNECTION_MISMATCH" } } });
+      }
+      expect(m.follow).not.toHaveBeenCalled();
+      m.find.mockResolvedValue({ ok: true, job: { ...job, connectionId: connection.connectionId } });
+      await followProjectAudit(client, project, "audit-1", input.projectDomain, false, keyring, deps, connection);
+      expect(m.follow.mock.calls[0][2]).toMatchObject({ env: deps.env, boundAuditId: "audit-1" });
+    });
+  });
 });

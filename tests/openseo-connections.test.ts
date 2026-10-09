@@ -61,9 +61,11 @@ describe("OpenSEO project connections (phase 1)", () => {
     }
   });
 
-  it("is not wired into run/follow yet: the global configuration stays in force", () => {
-    for (const file of ["src/lib/openseo/bridge.ts", "src/lib/openseo/project-audit.ts", "src/lib/openseo/actions.ts"]) {
-      expect(readFileSync(file, "utf8")).not.toContain("connections");
+  it("every OpenSEO server action resolves its target first (phase 4)", () => {
+    const actions = readFileSync("src/lib/openseo/actions.ts", "utf8");
+    for (const name of ["testConnectionAction", "startAuditAction", "followAuditAction"]) {
+      const body = actions.slice(actions.indexOf(`export async function ${name}`)).split("\nexport ")[0];
+      expect(body).toContain("resolveOpenSeoTarget(");
     }
   });
 });
