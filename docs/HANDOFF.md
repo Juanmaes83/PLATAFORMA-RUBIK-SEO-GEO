@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 16948)
-Total output lines: 815
-
 # Handoff
 
 ## Verificación real OpenSEO — 2026-10-08/09
@@ -354,7 +351,156 @@ Los commits que solo registran runs en ROADMAP y HANDOFF tienen su CI en la pest
 
 **Pruebas locales** (Windows, Node 24.14.1, stack local de Supabase):
 
-- `npm run verify`: en ve…2948 tokens truncated…`EXECUTE`.
+- `npm run verify`: en verde, con Vitest 7 ficheros y 41/41.
+- `npm run test:db`: 52/52.
+- `npm run test:integration`: 9/9.
+- `E2E_PORT=3227 npx playwright test`: 72 pasan y 18 se omiten. Los 9 flujos de navegador se ejecutan una vez, en escritorio.
+
+**PR y CI:** en la tabla del PR #2 (sesión 5). `120a89c` → [run 36440853359](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36440853359), en verde. La descripción del PR #2 está actualizada. Sin merge ni despliegue.
+
+*Tareas actualizadas en la sesión 5c; ver debajo.*
+
+**Tareas anteriores (sustituidas):**
+
+1. ~~Revisar el PR #2 y la ADR 0003: confirmar las decisiones propuestas.~~ Aprobadas en la sesión 5c.
+2. Tras el merge, configurar Auth en el proyecto alojado y aplicar la migración él mismo con el flujo de la CLI y `--dry-run` ([SETUP-SUPABASE §3](SETUP-SUPABASE.md)). Incluye: MFA de la cuenta, confirmación de correo, URLs de redirección, plantilla de confirmación y SMTP si hace falta.
+3. Cerrar el registro abierto antes de exponer la plataforma a clientes.
+4. En fases posteriores: invitaciones, MFA de usuarios y recuperación de contraseña (requiere SMTP propio).
+5. Las tareas de hosting siguen igual ([HOSTING](HOSTING.md)).
+
+## Sesión 5c — decisiones aprobadas y URLs de Auth (28/09/2026)
+
+**Punto de partida verificado:**
+
+- PR #2 abierto, con HEAD local y remoto en `a20ef0f` y su CI [36441560553](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36441560553) en verde.
+- `main` sigue en `a34746e`.
+
+**Decisiones aprobadas por el propietario** (registradas en ADR 0003, SETUP-SUPABASE, ROADMAP y la descripción del PR #2):
+
+1. Registro abierto solo durante las pruebas iniciales; debe cerrarse antes de dar acceso a clientes.
+2. Roles de organización `owner`/`member`.
+3. Solo el rol `owner` del proyecto puede editar sus datos descriptivos.
+4. Se acepta el riesgo residual de que pueda deducirse si un identificador global está ocupado. Se mantienen el modelo actual y el mensaje genérico.
+
+Junto con el método correo y contraseña (sesión 5b), ya no queda ninguna decisión de CORE-9.1 pendiente del propietario.
+
+**SETUP-SUPABASE §3 corregido:**
+
+- **Site URL:** `http://localhost:3000`.
+- **Redirect URL permitida** para la confirmación: `http://localhost:3000/auth/confirm`, como URL exacta.
+- **Comprobación contra la documentación vigente:** [Supabase · Redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls), consultada el 28/09/2026.
+  - La Site URL es la redirección por defecto cuando no hay `redirectTo`.
+  - La lista de Redirect URLs admite URLs exactas o patrones glob, y `redirectTo` debe coincidir con ella.
+- **Coherencia con el código:** la aplicación envía `emailRedirectTo = <origen>/auth/confirm` (`src/lib/auth/actions.ts`), y `supabase/config.toml` usa los mismos valores en local.
+
+Sin cambios de código, así que las pruebas son las de la sesión 5b. `npm run verify` se ejecutó de nuevo y está en verde: secretos (139 ficheros), lint, `tsc`, Vitest 41/41 y build.
+
+**Tareas del propietario (vigentes):**
+
+1. Revisión final y merge del PR #2: autorizados a Codex por el propietario el 28/09/2026; sujetos a CI verde del HEAD final.
+2. Tras el merge, en el proyecto alojado y siguiendo [SETUP-SUPABASE §3](SETUP-SUPABASE.md):
+   - MFA de la cuenta;
+   - Email con confirmación y la política de contraseñas;
+   - Site URL `http://localhost:3000` y Redirect URL `http://localhost:3000/auth/confirm`;
+   - plantilla de confirmación;
+   - SMTP si hace falta;
+   - aplicar la migración con la CLI tras inspeccionar `db push --dry-run`.
+3. Cerrar el registro abierto antes de dar acceso a clientes.
+4. En fases posteriores: invitaciones, MFA de usuarios y recuperación de contraseña.
+5. Las tareas de hosting siguen igual ([HOSTING](HOSTING.md)).
+
+**CI:** el run del HEAD final de esta sesión se registra en la descripción del PR #2 y en su pestaña Checks, no en otro commit, para que el HEAD revisado sea el definitivo. El último run registrado en un commit es el de `120a89c` ([36440853359](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36440853359)); `a20ef0f` → [36441560553](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36441560553), también en verde.
+
+
+## Sesión 5d — actualización documental y cierre de CORE-9.1 (28/09/2026)
+
+**Autorización del propietario:** actualizar la documentación del repositorio y fusionar el PR #2 si la revisión y la CI final están correctas.
+
+**Estado verificado antes del ajuste documental:**
+
+- PR #2 abierto contra `main`, mergeable, con HEAD `05e09258c2d6e86292626539f59caeec6c714cbd`.
+- CI de ese HEAD: [run 36443119218](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36443119218), en verde en `verify` (Node 22/24) y `e2e` (pgTAP 52/52, integración 9/9, Playwright 72 pasan y 18 se omiten).
+- Las decisiones de CORE-9.1 están aprobadas y ya constan en ADR 0003, SETUP-SUPABASE y la descripción del PR.
+
+**Documentación actualizada por Codex en esta rama:**
+
+- ROADMAP: estado de CORE-9.1, último HEAD verificado, CI y los pasos manuales del propietario tras el merge.
+- HANDOFF: el punto de partida previo se conserva como historial; se añade esta sesión para reflejar autorización, revisión y cierre.
+
+**Alcance y límites:** la documentación no cambia código ni migraciones. Esta revisión no aplica migraciones, no ejecuta `db push`, no modifica el proyecto Supabase alojado y no despliega la aplicación. La configuración y prueba manual del Supabase alojado siguen siendo tareas del propietario según [SETUP-SUPABASE §3](SETUP-SUPABASE.md).
+
+**Cierre verificado:** PR #2 fusionado en `main` el 28/09/2026 mediante el merge `debbb7078ea1af4931dea59d2169f8eda7a9967b`. La CI posterior al merge, [run 36445304853](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36445304853), terminó en verde en `verify` Node 22/24 y `e2e` con Supabase local. El artefacto visual [capturas-core-9-1](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36445304853) está disponible en el run. Siguen pendientes las tareas manuales del propietario descritas en SETUP-SUPABASE §3; no se ha aplicado migración al proyecto alojado ni se ha desplegado la plataforma.
+
+## Sesión 6 — privilegios de `public.rls_auto_enable()` (28/09/2026)
+
+**Punto de partida verificado:**
+
+- `main` en `5ab1af4`: PR #2 fusionado (`debbb70`) más los commits documentales del propietario y de Codex.
+- CI de `main`: [run 36447381733](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36447381733), en verde.
+- Rama nueva `fix/core-9-1-rls-auto-enable-privileges` desde `5ab1af4`.
+
+**Informado por el propietario** (Claude no accede al proyecto alojado y no lo ha verificado):
+
+- CORE-9.1 está aplicada en el proyecto alojado.
+- `db advisors --linked --type security --level info` detecta `public.rls_auto_enable()`: es `SECURITY DEFINER`, propiedad de `postgres`, está asociada a un event trigger, y `anon` y `authenticated` pueden ejecutarla.
+
+**Investigación del origen** (código público de `supabase/supabase`, commit `c569a29`):
+
+- Studio crea la función y el event trigger `ensure_rls` con la plantilla `AUTO_ENABLE_RLS_EVENT_TRIGGER_SQL`.
+  - Al crear el proyecto (`ProjectCreationForm`, opción `enableRlsEventTrigger`), la envía como SQL inicial.
+  - Desde el aviso «Automatically enable RLS» del panel, la ejecuta.
+  - La guía [Event triggers](https://supabase.com/docs/guides/database/postgres/event-triggers) publica la misma función.
+- La plantilla crea la función en `public` como `SECURITY DEFINER` y no revoca nada.
+- Reproducida literalmente en local (`supabase/fixtures/studio-rls-auto-enable.sql`), da el ACL `{=X/postgres,postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}`.
+- Encaja con que el proyecto se creara con la RLS automática activada.
+
+**Hecho:**
+
+- **Migración** `supabase/migrations/20260928150000_rls_auto_enable_privileges.sql`:
+  - conserva la función y `ensure_rls` si existen;
+  - los crea con la plantilla de Studio si no existen (local y CI);
+  - revoca `EXECUTE` a PUBLIC, `anon` y `authenticated`;
+  - es idempotente.
+  - `service_role` conserva `EXECUTE`, porque no estaba en el alcance pedido. Queda anotado como opción del propietario.
+- **pgTAP** `supabase/tests/rls_auto_enable.test.sql` (22 aserciones):
+  - la función y el trigger se conservan, con sus mismos eventos y etiquetas;
+  - el ACL es explícito, sin PUBLIC, `anon` ni `authenticated`, y el propietario conserva `EXECUTE`;
+  - `anon` y `authenticated` reciben 42501 al llamarla;
+  - `CREATE TABLE`, `CREATE TABLE AS`, `SELECT INTO` y las tablas particionadas en `public` reciben RLS;
+  - una tabla creada por un rol **sin** `EXECUTE` también recibe RLS;
+  - otros esquemas no cambian.
+- **Prueba estática:** `public.rls_auto_enable` es la única función `SECURITY DEFINER` expuesta permitida. Tiene que ser de event trigger y tener la revocación, sin ningún `grant`.
+- **CI (job `e2e`):** después de pgTAP, recrea la función y el trigger con la plantilla de Studio (estado del proyecto alojado). Comprueba que pgTAP **falla** («PUBLIC cannot execute it»), aplica la migración dos veces y comprueba que pgTAP pasa.
+- **Documentación:**
+  - SETUP-SUPABASE: estado informado por el propietario, y §5 con origen, corrección, pasos para aplicarla con la CLI y comprobación con el Advisor;
+  - ADR 0003 §4: la excepción documentada;
+  - ROADMAP y este HANDOFF.
+
+**Pruebas locales** (Windows, Node 24.14.1, Docker, Supabase CLI 2.118.0):
+
+- `npm run test:db` tras `db reset`: 2 ficheros, 74/74 (52 de tenancy y 22 nuevas).
+- **Simulación del estado alojado:** con la función y el trigger borrados y recreados con la plantilla de Studio, pgTAP falla en 6 aserciones de permisos (9–11, 13, 14 y 19). Tras aplicar la migración sobre los objetos existentes, 74/74; tras reaplicarla, 74/74. El ACL resultante es `{postgres=X/postgres,service_role=X/postgres}`.
+- `npm run verify`: en verde, con secretos (142 ficheros), lint, `tsc`, Vitest 42/42 y build.
+- `npm run test:integration`: 9/9.
+- Los tipos generados coinciden con las migraciones.
+- `E2E_PORT=3227 npx playwright test`: 72 pasan y 18 se omiten.
+- `db advisors --local --type security --level info` (CLI 2.118.0) **no** detecta este aviso, ni siquiera con la plantilla abierta. Por eso no se usa como prueba.
+
+**PR y CI:** [PR #3](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/3) contra `main`, sin merge.
+
+| Commit | Contenido | Run | Resultado |
+|---|---|---|---|
+| `32fcfd5` | Migración, pgTAP, fixture de Studio, paso de CI y documentación | [36470062130](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/36470062130) | ✅ Verde. `verify` en Node 22 y 24. En `e2e`: pgTAP 74/74; con el estado de Studio, pgTAP falla como se espera (tests 9–11, 13–14 y 19); tras la migración aplicada dos veces, 74/74; integración y Playwright 72 pasan y 18 se omiten |
+
+El commit que registra este run solo cambia ROADMAP y HANDOFF. Su CI, la del HEAD final, consta en la descripción del PR #3 y en su pestaña Checks.
+
+**No hecho, a propósito:** la migración nueva no se ha aplicado al proyecto alojado, no se ha ejecutado `db push`, no se ha accedido al proyecto alojado, y no hay merge ni despliegue.
+
+**Tareas pendientes en ese momento (estado actualizado en la sesión 7):**
+
+1. Revisar y fusionar el PR de esta rama.
+2. Aplicar la migración con la CLI, siguiendo [SETUP-SUPABASE §5](SETUP-SUPABASE.md): `migration list --linked`, `db push --dry-run` (solo `20260928150000`), `db push` y repetir `db advisors --linked --type security --level info`.
+3. Decidir si `service_role` también debe perder `EXECUTE`.
 4. Siguen pendientes las tareas anteriores de SETUP-SUPABASE §3: Auth, URLs, plantilla, SMTP, prueba con dos cuentas y cerrar el registro antes de dar acceso a clientes.
 
 ## Sesión 7 — migración alojada aplicada y Advisor limpio (28/09/2026)
