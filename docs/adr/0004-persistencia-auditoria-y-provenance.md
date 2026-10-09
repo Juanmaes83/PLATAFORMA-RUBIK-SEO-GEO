@@ -93,5 +93,7 @@ frente a copiar un resultado legítimo a otra fila/proyecto accesible al actor.
 Las firmas sin contexto no acreditan aislamiento y quedan UNTRUSTED en este
 consumidor. No se les asigna confianza re-firmando UUID de una fila mutable.
 Si existen datos legacy, deben recuperarse desde su origen autorizado antes
-de volver a emitir un resultado vinculado. La infraestructura alojada aún no
-tiene las tablas/claves 9.2 activas según la última comprobación documentada.
+de volver a emitir un resultado vinculado. *(Estado histórico de cuando se escribió el ADR: entonces la infraestructura alojada
+aún no tenía activas las tablas y claves de 9.2. Desde el 09/10/2026 están aplicadas
+y el guardado firmado en `legacy` está comprobado para el piloto Sarah
+(auditId `d1899523-…`; ver HANDOFF). No repetir migraciones ni auditoría.)*

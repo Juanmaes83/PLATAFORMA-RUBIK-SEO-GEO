@@ -1141,3 +1141,16 @@ Archivos del commit:
   - Pendiente de la decisión sobre el ADR 0010: tabla, RPC, OAuth y variables.
   - No se asume aprobada la opción B.
 - Sin migraciones, auditorías, conexiones, cambios de modo, variables, DNS ni publicación.
+
+## 09/10/2026 — ajuste de alcance y hallazgos de Codex en #49
+
+- **Instrucción de Juanma (09/10/2026):** Claude no trabaja en la nueva web de Sarah ni en su Studio; Juanma gestiona ese frente por su cuenta. Claude se centra en Rubik SEO GEO y en el piloto de Sarah dentro de Rubik.
+  - Se retira de este PR la fila «Web de Sarah» que se había añadido al estado vigente.
+  - Las unidades 4 del ROADMAP no se tocan desde aquí.
+  - Claude ha dejado de seguir SARAHKATERINAWEBNUEVA#53.
+- **Hallazgos de Codex en #49, corregidos los que son de Rubik:**
+  - OPERATIONS-STATUS, «Un trabajo activo por proyecto»: ledger activo con un job `COMPLETED`, aclarando que esa prueba no verificó concurrencia ni reconciliación real.
+  - ADR 0004: su última frase queda marcada como estado histórico.
+  - El tercer hallazgo, sobre la fase 4 de la web, queda fuera de este frente.
+- **Coordinación:** Claude Code es el agente principal en esta sesión y solo escribe en sus propias ramas. Antes de cada relevo deja aquí constancia expresa de parada.
+- **Siguiente unidad:** recuperación del piloto. Hoy `exportProject` no incluye jobs OpenSEO, conexiones ni propiedades webmaster. Se abordará con fixtures y pruebas locales, sin escribir en Preview ni en producción.
