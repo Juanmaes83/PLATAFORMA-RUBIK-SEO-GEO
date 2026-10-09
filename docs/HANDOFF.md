@@ -962,3 +962,18 @@ CI inicial de esta entrega: verify Node22/24 pasa; integración falló al crear 
 - Supabase alojado: el conector de la sesión **no lista** `yvdgmklgwlshizzgefpv`, solo cinco proyectos de otra organización. No se puede aplicar ni ejecutar el dry-run desde aquí. Aplicar desde un conector rompería el historial de versiones, así que la aplicación la hace el propietario con su CLI.
 - OPENSEO-ACTIVATION reescrito como un único paquete de cuatro migraciones: comprobación previa en SQL de solo lectura, dry-run esperado, verificación posterior y rollback encadenado. Nuevo `docs/rollback/webmaster-properties-rollback.sql`. Ambos rollbacks se probaron juntos en un contenedor local con las nueve migraciones: los objetos nuevos desaparecen y las suites originales pasan.
 - Estado vigente unificado en README, ROADMAP y OPERATIONS-STATUS; las entradas anteriores quedan como histórico.
+
+## 09/10/2026 — paquete de migraciones aplicado (rama `claude/paquete-migraciones`, PR #39)
+
+- **Migración aplicada:** el propietario aplicó con su CLI 20261009120000, 150000, 170000 y 180000 en `yvdgmklgwlshizzgefpv`.
+  - Codex confirmó nueve versiones sincronizadas.
+  - Las tablas `openseo_project_connections`, `openseo_project_jobs` y `webmaster_properties` tienen RLS sin privilegios directos para `anon` ni `authenticated`.
+  - Producción `READY` en `8d56e18`.
+  - Esta sesión no tiene acceso al proyecto: la evidencia es del propietario y de Codex.
+- **Conexión real verificada:** ninguna todavía. Juanma revisa el panel de conexión. Producción sigue en `legacy`.
+- OPENSEO-ACTIVATION:
+  - el paquete queda marcado como aplicado;
+  - nueva sección A: verificación del guardado real con una sola auditoría en `legacy`, comprobaciones SQL de solo lectura y criterio para declararlo verificado;
+  - nueva sección B: activación controlada del modo `project` (requisitos previos, conexión de Sarah, una sola conexión activa, cero trabajos activos, variable solo en producción, redeploy del mismo SHA, efecto esperado y rollback).
+- El estado vigente de README, ROADMAP y OPERATIONS-STATUS se ha actualizado.
+- Siguiente paso: Juanma ejecuta la sección A. Con ella superada y el panel revisado, la sección B. En paralelo, decidir el ADR 0010 (PR #40) y fusionar el Core PR #24 para actualizar el pin.

@@ -6,14 +6,17 @@ El catálogo de capacidades SEO/GEO que el propietario quiere cubrir, con el est
 
 ## Checkpoint operativo — 09/10/2026 (Europe/Madrid)
 
-**Estado vigente (09/10/2026, 11:15 Europe/Madrid). Las entradas posteriores de esta sección son histórico; prevalece este bloque.**
+**Estado vigente (09/10/2026, tras aplicar el paquete de migraciones). Las entradas posteriores de esta sección son histórico; prevalece este bloque.**
+
+Supabase Rubik `yvdgmklgwlshizzgefpv`: el propietario aplicó con su CLI las cuatro migraciones del paquete. Codex confirmó que `migration list` muestra **nueve versiones sincronizadas** y que las tres tablas privadas nuevas o modificadas (`openseo_project_connections`, `openseo_project_jobs`, `webmaster_properties`) tienen RLS sin privilegios directos para `anon`/`authenticated`. Esta sesión no tiene acceso al proyecto: la evidencia procede del propietario y de Codex.
 
 | Área | Integrado en `main` | Alojado / desplegado | Verificación real | Siguiente acción |
 |---|---|---|---|---|
-| OpenSEO jobs y guardado firmado | PR #27/#28/#30 | Migración de jobs aplicada; flag y HMAC en producción | **No:** falta una auditoría nueva vinculada al ledger | Prueba controlada del propietario (OPENSEO-ACTIVATION) |
-| OpenSEO multiempresa (ADR 0007): conexión, cableado, negativas, panel | PR #32–#35 | Migraciones `20261009120000` y `150000` **sin aplicar**; producción en `legacy`; el panel muestra «no disponible» | Solo CI y pgTAP local | El propietario aplica el paquete de migraciones |
-| Reconciliación de STARTING (ADR 0008) | PR #36 | Migración `20261009170000` **sin aplicar** | Solo CI y pgTAP local | Igual que la fila anterior |
-| Search Console y Bing, fases A y C (ADR 0009) | PR #37/#38 (`8d56e18`) | Migración `20261009180000` **sin aplicar**; sin OAuth, claves ni interfaz | Solo simulaciones, CI y pgTAP local | ADR de credenciales por cliente; luego OAuth (fase B) |
+| OpenSEO jobs y guardado firmado | PR #27/#28/#30 | Migración de jobs aplicada; flag y HMAC en producción | **No:** falta una auditoría nueva vinculada al ledger | Prueba controlada del propietario (OPENSEO-ACTIVATION, sección A) |
+| OpenSEO multiempresa (ADR 0007): conexión, cableado, negativas, panel | PR #32–#35 | Migraciones `20261009120000` y `150000` **aplicadas** por el propietario; producción `READY` en `8d56e18` con modo `legacy` | Panel en revisión por el propietario; ninguna conexión ni auditoría por proyecto verificada | Revisar el panel; después, activación controlada del modo `project` (OPENSEO-ACTIVATION, sección B) |
+| Reconciliación de STARTING (ADR 0008) | PR #36 | Migración `20261009170000` **aplicada** | Solo CI y pgTAP; no ha hecho falta reconciliar nada real | Ninguna salvo que aparezca un STARTING incierto |
+| Search Console y Bing, fases A y C (ADR 0009) | PR #37/#38 (`8d56e18`) | Migración `20261009180000` **aplicada**; sin OAuth, claves ni interfaz | Solo simulaciones, CI y pgTAP | Decidir el ADR 0010 (PR #40); luego OAuth (fase B) |
+| Credenciales por cliente (ADR 0010) | No: PR #40 abierto | Sin migración ni variables | — | Decisión del propietario sobre la opción B |
 | Previews | — | Comparten el Supabase de producción; sin variables de OpenSEO ni HMAC | — | Entorno aislado de pruebas (pendiente de decisión) |
 
 - OpenSEO multiempresa: plan por fases en [ADR 0007](adr/0007-openseo-conexion-por-proyecto.md). Fase 1 (conexión por proyecto, consentimiento, revocación y pgTAP) en la rama `claude/zealous-noether-dq91ll`, sin cablear y sin aplicar en alojado. El puente sigue siendo de proyecto global.

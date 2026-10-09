@@ -1,6 +1,6 @@
 # Activar el guardado firmado de OpenSEO
 
-Estado 09/10/2026: migración de jobs integrada mediante PR #28 y validada en Supabase local de CI. Botón/actions del PR #30 integrados y desplegados: producción READY en `afb5a3838981a78b9f126acc280fdc0138bfdae0`, CI completa `37902474922`. La firma de producción está configurada en Vercel. Ninguna de estas pruebas certifica todavía la persistencia alojada.
+Estado 09/10/2026 (tras aplicar el paquete): `main` y producción en `8d56e18` (`READY`). Las cuatro migraciones del paquete están **aplicadas** en `yvdgmklgwlshizzgefpv`: nueve versiones sincronizadas, según el propietario y Codex. Producción sigue en modo `legacy`. **Pendiente de verificación real:** el guardado de un informe (sección A, más abajo) y la conexión de Sarah (sección B). Ninguna CI ni despliegue `READY` certifica esas dos cosas.
 
 ## Acceso y destino
 
@@ -63,9 +63,11 @@ Las auditorías anteriores al ledger no se adoptan automáticamente. Una respues
 
 Fuentes de CLI consultadas el 09/10/2026: [flujo de desarrollo](https://supabase.com/docs/guides/local-development/cli-workflows) y [referencia CLI](https://supabase.com/docs/reference/cli/introduction).
 
-## Paquete de aplicación: cuatro migraciones pendientes (main@8d56e18)
+## Paquete de aplicación: cuatro migraciones (main@8d56e18) — APLICADO
 
-**Estado al 09/10/2026:** los PR #31–#38 están fusionados en `main`. El Supabase alojado tiene cinco versiones (`20260928120000`, `20260928150000`, `20261007120000`, `20261007150000`, `20261009071705`). Faltan cuatro, que se aplican juntas y en orden. El conector Supabase de la sesión de Claude no tiene acceso a este proyecto (solo lista los de otra organización), así que la aplicación la hace el propietario con su CLI. **No aplicarlas desde un conector o desde el editor SQL**: crearían versiones con otra fecha y el historial dejaría de coincidir con el repositorio.
+**Resultado (09/10/2026):** el propietario aplicó las cuatro con su CLI, conservando los timestamps oficiales. Codex confirmó con `migration list` nueve versiones local/remoto sincronizadas y que `private.openseo_project_connections`, `private.openseo_project_jobs` y `private.webmaster_properties` tienen RLS sin privilegios directos para `anon` ni `authenticated`. Esta sesión no tiene acceso al proyecto; la evidencia procede del propietario y de Codex. Los pasos siguientes se conservan como registro y para un entorno nuevo.
+
+**Estado previo a la aplicación:** los PR #31–#38 estaban fusionados en `main`. El Supabase alojado tenía cinco versiones (`20260928120000`, `20260928150000`, `20261007120000`, `20261007150000`, `20261009071705`). Faltan cuatro, que se aplican juntas y en orden. El conector Supabase de la sesión de Claude no tiene acceso a este proyecto (solo lista los de otra organización), así que la aplicación la hace el propietario con su CLI. **No aplicarlas desde un conector o desde el editor SQL**: crearían versiones con otra fecha y el historial dejaría de coincidir con el repositorio.
 
 | Orden | Migración | Qué hace |
 |---|---|---|
@@ -132,10 +134,57 @@ Esperado: las dos tablas existen, `columna_job = 1`, las RPC son `true` para `au
 3. Probado en local el 09/10/2026 con las nueve migraciones aplicadas: tras los dos scripts no queda ninguno de los objetos nuevos, `private.openseo_job` vuelve a ser idéntica a la original (mismo md5) y las suites de jobs, provenance, importaciones, tenancy y RLS pasan.
 4. Se pierden las conexiones y propiedades guardadas; no hay credenciales en ellas.
 
-### Activar después el modo por proyecto (decisión aparte)
+## A. Verificar el guardado real (modo `legacy`, antes de tocar el modo)
 
-1. Crear desde el panel la conexión de Sarah con su proyecto OpenSEO real y su dominio.
-2. Comprobar que no hay trabajos activos.
-3. Definir `OPENSEO_PROJECT_CONNECTIONS_MODE=project` solo en producción y hacer redeploy.
+Una sola auditoría controlada, lanzada por Juanma, con el límite de páginas vigente (50) y el presupuesto que él fije.
 
-Rollback: quitar la variable y hacer redeploy. Un trabajo lanzado en un modo no se consulta en el otro; ese rechazo es intencional.
+1. Comprobar que no hay trabajos activos:
+   ```sql
+   select id, state, created_at from private.openseo_project_jobs where state in ('STARTING','SYNCING');
+   ```
+   Debe devolver 0 filas.
+2. En Auditoría técnica del proyecto Sarah: lanzar, seguir hasta `COMPLETED` y pulsar «Consultar y guardar resultados».
+3. Recargar la página: el informe aparece en el historial como verificado.
+4. Pulsar «Consultar y guardar resultados» otra vez: no se duplica.
+5. Comprobar en SQL (solo lectura):
+   ```sql
+   select operation, count(*) from public.provider_results
+   where provider = 'openseo' and captured_at > now() - interval '1 day'
+   group by operation;
+   ```
+   Esperado: `auditIssues` y `auditPages`, una fila cada uno para el `auditId` nuevo.
+6. Si el lanzamiento queda incierto (STARTING sin `auditId`), usar el panel de reconciliación ([ADR 0008](adr/0008-reconciliacion-openseo.md)). No lanzar otra auditoría para «probar».
+
+Solo con los pasos 2–5 superados se puede declarar «guardado real verificado», indicando la fecha y el `auditId`.
+
+## B. Activación controlada del modo por proyecto
+
+Requisitos previos, todos obligatorios:
+
+- Sección A superada.
+- Juanma ha revisado el panel de conexión.
+- En la cuenta de OpenSEO, Juanma comprueba qué proyecto corresponde a Sarah y qué dominio audita. Su identificador debe ser el mismo que usa hoy la configuración global, salvo que él decida otra cosa. Esta sesión no lee el valor de `OPENSEO_PROJECT_ID`.
+
+Pasos:
+
+1. En el panel, como owner, crear la conexión de Sarah:
+   - el identificador real del proyecto en OpenSEO;
+   - solo el dominio del proyecto Rubik y, si procede, su variante `www`;
+   - el consentimiento marcado.
+2. Comprobar en SQL:
+   ```sql
+   select project_id, state, openseo_project_id, allowed_hosts from private.openseo_project_connections where state = 'ACTIVE';
+   ```
+   Debe haber una sola fila, la de Sarah, con los hosts esperados.
+3. Repetir la consulta de trabajos activos: 0 filas. Un trabajo lanzado en `legacy` no se sigue en `project`.
+4. Definir `OPENSEO_PROJECT_CONNECTIONS_MODE=project` **solo en producción** (no en Preview, que comparte la base de datos) y hacer redeploy del mismo SHA. Confirmar `READY` por SHA.
+5. Efecto esperado:
+   - los proyectos sin conexión activa reciben «Este proyecto no tiene una conexión de OpenSEO activa» y no se contacta con OpenSEO;
+   - los que no son owner reciben acceso denegado;
+   - `OPENSEO_PROJECT_ID` global deja de usarse y nunca hay reserva silenciosa.
+6. Verificación real del modo: «Probar conexión» en Sarah (sin rastreo). Después, solo si Juanma lo autoriza con presupuesto, una auditoría por proyecto siguiendo los pasos 2–5 de la sección A. El job debe registrar el `connection_id` de Sarah:
+   ```sql
+   select id, state, connection_id from private.openseo_project_jobs order by created_at desc limit 1;
+   ```
+
+Rollback: quitar la variable y hacer redeploy del mismo SHA. Primero, que no haya trabajos activos: el rechazo entre modos es intencional. Las conexiones se pueden conservar o revocar desde el panel.
