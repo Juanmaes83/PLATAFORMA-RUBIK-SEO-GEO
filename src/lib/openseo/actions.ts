@@ -7,6 +7,7 @@ import { myProjectMembership } from "@/lib/tenancy";
 import { revalidatePath } from "next/cache";
 import { loadProjectRef } from "@/lib/imports/repository";
 import { serverKeyring } from "@/lib/provenance/keyring";
+import { appendAudit } from "@/lib/provenance/repository";
 import { projectJobsEnabled } from "./jobs";
 import { followProjectAudit, reconcileStartingJob, startProjectAudit, type ReconcileResult, type SaveStatus } from "./project-audit";
 import { followSiteAudit, startSiteAudit, testOpenSeoConnection, type AuditFollowUp, type AuditStart, type BridgeError, type ConnectionReport } from "./bridge";
@@ -28,7 +29,7 @@ async function authorized(formData: FormData) {
   const access = projectAccess(await myProjectMembership(supabase, user.id, field(formData, "tenant"), field(formData, "project")));
   if (!access?.permissions.find((p) => p.action === "manage-connectors")?.decision.allowed) return null;
   const project = await loadProjectRef(supabase, { tenantId: access.project.tenantId, projectId: access.project.projectId });
-  return project ? { access, client: supabase, project } : null;
+  return project ? { access, client: supabase, project, userId: user.id } : null;
 }
 
 export type ConnectionState = ConnectionReport | Denied | null;
@@ -84,9 +85,21 @@ export async function followAuditAction(_prev: AuditFollowState, formData: FormD
 
 // Per-project connection (ADR 0007, phase 3). Owner only, explicit consent, no secret: the form
 // sends the OpenSEO project identifier and the audit hosts, and the database rechecks both.
-export type ConnectionChangeState = { ok: true; change: "connected" | "revoked" } | { ok: false; error: ConnectionError | "CONFIRMATION_REQUIRED" } | Denied | null;
+export type ConnectionChangeState = { ok: true; change: "connected" | "revoked"; audited: boolean } | { ok: false; error: ConnectionError | "CONFIRMATION_REQUIRED" } | Denied | null;
 
 const auditPath = (tenantId: string, projectId: string) => `/proyectos/${tenantId}/${projectId}/auditoria-tecnica`;
+
+/**
+ * Records an owner change in the signed audit chain (ADR 0004) after it succeeded. The change
+ * and the event are separate writes: a failed append is reported as `audited: false`, never
+ * hidden. Details carry no OpenSEO identifier, only shapes and states.
+ */
+async function audit(context: NonNullable<Awaited<ReturnType<typeof authorized>>>, action: string, details: Record<string, string | number | boolean | null>) {
+  const keyring = serverKeyring();
+  if (!keyring) return false;
+  const logged = await appendAudit(context.client, context.project, { actor: { role: "owner", id: context.userId }, action, outcome: "allowed", details }, keyring);
+  return logged.ok;
+}
 
 export async function connectProjectAction(_prev: ConnectionChangeState, formData: FormData): Promise<ConnectionChangeState> {
   const context = await authorized(formData);
@@ -98,8 +111,9 @@ export async function connectProjectAction(_prev: ConnectionChangeState, formDat
     consent: true,
   });
   if (!result.ok) return { ok: false, error: result.error };
+  const audited = await audit(context, "openseo.connection.connect", { hosts: result.connection?.allowedHosts.length ?? 0, credentialMode: "platform" });
   revalidatePath(auditPath(context.access.project.tenantId, context.access.project.projectId));
-  return { ok: true, change: "connected" };
+  return { ok: true, change: "connected", audited };
 }
 
 export async function revokeProjectAction(_prev: ConnectionChangeState, formData: FormData): Promise<ConnectionChangeState> {
@@ -108,12 +122,13 @@ export async function revokeProjectAction(_prev: ConnectionChangeState, formData
   if (field(formData, "confirm") !== "on") return { ok: false, error: "CONFIRMATION_REQUIRED" };
   const result = await revokeProjectConnection(context.client, context.project.projectId);
   if (!result.ok) return { ok: false, error: result.error };
+  const audited = await audit(context, "openseo.connection.revoke", { state: "REVOKED" });
   revalidatePath(auditPath(context.access.project.tenantId, context.access.project.projectId));
-  return { ok: true, change: "revoked" };
+  return { ok: true, change: "revoked", audited };
 }
 
 // Uncertain launch reconciliation (ADR 0008). Owner only, explicit attestation, no OpenSEO call.
-export type ReconcileState = ReconcileResult | Denied | null;
+export type ReconcileState = (ReconcileResult & { audited?: boolean }) | Denied | null;
 
 export async function reconcileAuditAction(_prev: ReconcileState, formData: FormData): Promise<ReconcileState> {
   const context = await authorized(formData);
@@ -127,6 +142,8 @@ export async function reconcileAuditAction(_prev: ReconcileState, formData: Form
   const result = intent === "bind" ? await reconcileStartingJob(context.client, context.project, { mode: "bind", auditId: field(formData, "auditId") }, target.connection)
     : intent === "release" ? await reconcileStartingJob(context.client, context.project, { mode: "release" }, target.connection)
       : refused("INVALID_INTENT", "Acción no reconocida.");
-  if (result.ok) revalidatePath(auditPath(context.access.project.tenantId, context.access.project.projectId));
-  return result;
+  if (!result.ok) return result;
+  const audited = await audit(context, "openseo.job.reconcile", { resolution: intent, state: result.state });
+  revalidatePath(auditPath(context.access.project.tenantId, context.access.project.projectId));
+  return { ...result, audited };
 }

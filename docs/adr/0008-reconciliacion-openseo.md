@@ -23,7 +23,7 @@ En modo `project`, una reserva de otra conexión no se toca (`JOB_CONNECTION_MIS
 - La plataforma **no puede verificar** lo que declara el owner. Si libera una reserva cuyo rastreo sí existía, ese rastreo queda huérfano en OpenSEO y no se vincula. Por eso la confirmación es explícita y el texto explica el riesgo de duplicar el gasto.
 - Un trabajo SYNCING atascado no se reconcilia aquí: su consulta normal ya pasa a FAILED cuando OpenSEO informa del fallo.
 - No hay caducidad automática de reservas (decisión mantenida de la migración de jobs).
-- Pendiente opcional: registrar la reconciliación en `audit_events` (cadena firmada), en una unidad posterior.
+- Trazabilidad: cada reconciliación, conexión y revocación correcta añade un evento firmado a `audit_events` (`openseo.job.reconcile`, `openseo.connection.connect`, `openseo.connection.revoke`). Los detalles no llevan identificadores de OpenSEO. El cambio y el evento son escrituras separadas: si el registro falla, la interfaz lo dice en lugar de darlo por auditado.
 
 ## Pruebas
 

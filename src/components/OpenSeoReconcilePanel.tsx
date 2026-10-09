@@ -22,7 +22,12 @@ export function OpenSeoReconcilePanel({ tenant, project, createdAt }: { tenant: 
   const outcome = (state: typeof bound) => {
     if (!state) return null;
     if ("denied" in state) return <p className="notice notice-error" role="alert">Tu rol no permite gestionar conectores en este proyecto.</p>;
-    if (state.ok) return <p className="notice notice-info" role="status">{state.state === "SYNCING" ? "Auditoría vinculada. Ya puedes consultar su estado." : "Reserva liberada. Ya puedes lanzar otra auditoría."}</p>;
+    if (state.ok) return (
+      <p className="notice notice-info" role="status">
+        {state.state === "SYNCING" ? "Auditoría vinculada. Ya puedes consultar su estado." : "Reserva liberada. Ya puedes lanzar otra auditoría."}
+        {state.audited === false && " El cambio no ha quedado en el registro de auditoría del proyecto: revisa la firma del servidor."}
+      </p>
+    );
     return <p className="notice notice-error" role="alert">{errorText(state.error.code, state.error.message)}<span className="diag">Código: {state.error.code}</span></p>;
   };
 

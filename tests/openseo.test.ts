@@ -509,6 +509,12 @@ describe("static guarantees", () => {
     expect(actions.match(/await authorized\(formData\)/g)).toHaveLength(exported.length);
   });
 
+  it("every owner change to a connection or a reservation is recorded in the signed audit chain", () => {
+    const actions = read("src/lib/openseo/actions.ts");
+    for (const action of ["openseo.connection.connect", "openseo.connection.revoke", "openseo.job.reconcile"]) expect(actions).toContain(`"${action}"`);
+    expect(actions).not.toMatch(/audit\([^)]*openseoProjectId/);
+  });
+
   it("the bridge never logs and never writes OpenSEO data to the Project State or the database", () => {
     for (const f of ["config.ts", "bridge.ts", "mcp-client.ts", "actions.ts"]) {
       const src = read(`src/lib/openseo/${f}`);
