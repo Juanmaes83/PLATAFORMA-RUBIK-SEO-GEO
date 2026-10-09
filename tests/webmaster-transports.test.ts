@@ -83,6 +83,7 @@ describe("Search Console searchAnalytics transport", () => {
     for (const bad of [
       { ...input, rowLimit: 25_001 }, { ...input, rowLimit: 0 }, { ...input, dimensions: ["hour"] }, { ...input, dimensions: ["query", "query"] },
       { ...input, startDate: "2026-09-29", endDate: "2026-09-01" }, { ...input, startDate: "2026-02-30" }, { ...input, dataState: "hourly_all" }, { ...input, type: "maps" },
+      { ...input, startRow: Number.MAX_SAFE_INTEGER + 1 },
     ]) expect(await run(gsc(mock.fetchImpl), "searchAnalytics", bad), JSON.stringify(bad)).toMatchObject({ status: "ERROR", errors: [{ code: "HTTP_400" }] });
     expect(await run(gsc(mock.fetchImpl), "urlInspection")).toMatchObject({ errors: [{ code: "HTTP_400" }] });
     expect(await providers.runProviderRequest({ provider: "search-console", operation: "searchAnalytics", input, transport: gsc(mock.fetchImpl), clock }))

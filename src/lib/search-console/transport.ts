@@ -45,7 +45,7 @@ export function validateSearchAnalyticsInput(input: unknown): input is SearchAna
   return typeof v.siteUrl === "string" && typeof v.startDate === "string" && typeof v.endDate === "string" && validDate(v.startDate) && validDate(v.endDate) && v.startDate <= v.endDate
     && Array.isArray(dims) && dims.every((d) => (SEARCH_ANALYTICS_DIMENSIONS as readonly unknown[]).includes(d)) && new Set(dims).size === dims.length
     && Number.isInteger(v.rowLimit) && (v.rowLimit as number) >= 1 && (v.rowLimit as number) <= 25_000
-    && (v.startRow === undefined || (Number.isInteger(v.startRow) && (v.startRow as number) >= 0))
+    && (v.startRow === undefined || (Number.isSafeInteger(v.startRow) && (v.startRow as number) >= 0))
     && (v.type === undefined || SEARCH_TYPES.includes(v.type as string))
     && (v.dataState === undefined || v.dataState === "final" || v.dataState === "all");
 }
