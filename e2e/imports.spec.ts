@@ -101,7 +101,13 @@ test.describe("manual import flow", () => {
     expect(response.status()).toBe(200);
     expect(response.headers()["content-disposition"]).toMatch(/^attachment; filename="agencia-ejemplo-restaurante-ejemplo-\d{4}-\d{2}-\d{2}\.json"$/);
     const exported = await response.json();
-    expect(exported.format).toBe("rubik-project-export-v1");
+    expect(exported.format).toBe("rubik-project-export-v2");
+    // v2 operational state: read through owner RPCs, each part with its own outcome, no secrets.
+    expect(exported.operations.openseo.connection.ok).toBe(true);
+    expect(exported.operations.openseo.activeJob.ok).toBe(true);
+    expect(exported.operations.webmaster.searchConsole).toEqual({ ok: true, value: null });
+    expect(exported.operations.notIncluded.length).toBeGreaterThan(0);
+    expect(JSON.stringify(exported)).not.toMatch(/PROVENANCE_SIGNING_KEYS|OPENSEO_API_KEY/);
     expect(exported.imports.length).toBeGreaterThan(0);
     expect(exported.audit.verification.valid).toBe(true);
     expect(exported.audit.rows.map((r: { action: string }) => r.action)).toContain("import.file");
