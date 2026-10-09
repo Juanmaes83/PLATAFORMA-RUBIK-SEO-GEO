@@ -45,7 +45,7 @@ Nada se activa en alojado: ni migraciones, ni invitaciones reales, ni consumo.
 |---|---|---|
 | E1 · Invitaciones | Implementado y probado en local; CI pendiente del SHA publicado | pgTAP `project_invitations` 50/50, `rls_tenancy` 52/52, consumo 33/33 y 39/39; rollback probado y reaplicado; `npm run verify` 319/319 con el Core `18fd72c`. Las e2e solo corren en CI (este entorno no tiene Kong) |
 | E2 · Ensayo de restauración en base local desechable | Implementado; probado en local (Vitest 4/4 y SQL ejecutado dos veces en PostgreSQL 17); la integración solo corre en CI | `src/lib/restore/plan.ts`, `tests/restore-plan.test.ts`, `tests/integration/restore.integration.test.ts`, [RECUPERACION-ENSAYO](../RECUPERACION-ENSAYO.md). Solo lee `recovery/verify-export`, sin modificarlo |
-| E3 · Custodia/rotación de claves y guion de aislamiento alojado con dos cuentas | Pendiente | — |
+| E3 · Custodia/rotación de claves y guion de aislamiento alojado con dos cuentas | Documentado; no ejecutado en alojado | [CUSTODIA-CLAVES](../CUSTODIA-CLAVES.md), [AISLAMIENTO-ALOJADO-GUION](../AISLAMIENTO-ALOJADO-GUION.md). Pendiente de Juanma: dónde guardar las dos copias, cada cuánto rotar y autorizar el guion alojado |
 | E4 · Retención y borrado: opciones para que decida Juanma | Pendiente | — |
 
 **Decisiones de E1:** [ADR 0020](../adr/0020-invitaciones-por-enlace.md).
