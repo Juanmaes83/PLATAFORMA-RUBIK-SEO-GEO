@@ -181,9 +181,14 @@ Pasos:
    - el consentimiento marcado.
 2. Comprobar en SQL:
    ```sql
-   select project_id, state, openseo_project_id, allowed_hosts from private.openseo_project_connections where state = 'ACTIVE';
+   select c.project_id, c.state, c.credential_mode,
+          right(c.openseo_project_id, 4) as openseo_id_suffix,
+          c.allowed_hosts, c.granted_at
+   from private.openseo_project_connections c
+   where c.project_id = 'b8d00961-1141-4741-908a-54d2e3bf343a'
+     and c.state = 'ACTIVE';
    ```
-   Debe haber una sola fila, la de Sarah, con los hosts esperados.
+   Debe haber exactamente una fila de Sarah, `credential_mode = 'platform'`, con los hosts esperados. Juanma contrasta el identificador completo en el panel o su cuenta de OpenSEO, sin publicarlo en el registro de pruebas. No se presupone que no existan conexiones de otros clientes.
 3. Repetir la consulta de trabajos activos: 0 filas. Un trabajo lanzado en `legacy` no se sigue en `project`.
 4. Definir `OPENSEO_PROJECT_CONNECTIONS_MODE=project` **solo en producción** (no en Preview, que comparte la base de datos) y hacer redeploy del mismo SHA. Confirmar `READY` por SHA.
 5. Efecto esperado:
