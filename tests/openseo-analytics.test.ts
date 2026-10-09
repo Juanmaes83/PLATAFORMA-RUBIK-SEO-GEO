@@ -9,7 +9,7 @@ const input = { report: "organic_landing_pages", propertyId: "properties/123", s
 const payload = () => ({ status: "ok", source: { provider: "google_analytics", propertyId: "properties/123" },
   request: { reportKind: "landing_pages", channel: "organic_search", resolvedDateRange: { startDate: input.startDate, endDate: input.endDate }, limit: 100, offset: 0 },
   rows: [{ hostName: "cliente.example", landingPage: "/", sessions: 10, activeUsers: 8, keyEvents: 1 }], rowCount: 1, totalRowCount: 1,
-  pageInfo: { limit: 100, offset: 0, hasMore: false, nextOffset: null }, reportMetadata: { hasLimitedData: false }, warnings: [] });
+  pageInfo: { limit: 100, offset: 0, hasMore: false, nextOffset: null }, reportMetadata: { hasLimitedData: false, subjectToThresholding: false, dataLossFromOtherRow: false, sampling: [], restrictedMetrics: [] }, warnings: [] });
 const setup = (reply: unknown = { structuredContent: payload() }, opts = {}) => {
   const callTool = vi.fn(async () => reply as { structuredContent?: unknown; isError?: boolean; content?: unknown });
   const transport = createOpenSeoAnalyticsTransport({ mcp: { callTool }, openseoProjectId: "project-a", expectedPropertyId: "properties/123", ...opts });
@@ -48,7 +48,7 @@ describe("GA4 via OpenSEO, in-memory simulations only", () => {
     expect(await setup({ structuredContent: { ...payload(), rows: [], rowCount: 0, totalRowCount: 0 } }).run()).toMatchObject({ status: "EMPTY" });
   });
   it("paging, thresholding and provider warnings remain PARTIAL", async () => {
-    for (const over of [{ pageInfo: { ...payload().pageInfo, hasMore: true } }, { reportMetadata: { hasLimitedData: true } },
+    for (const over of [{ pageInfo: { ...payload().pageInfo, hasMore: true } }, { reportMetadata: { ...payload().reportMetadata, hasLimitedData: true } }, { reportMetadata: { ...payload().reportMetadata, sampling: [{}] } }, { totalRowCount: 101 },
       { warnings: ["some private upstream detail"] }]) {
       const r = await setup({ structuredContent: { ...payload(), ...over } }).run();
       expect(r.status).toBe("PARTIAL"); expect(JSON.stringify(r)).not.toContain("private upstream detail");

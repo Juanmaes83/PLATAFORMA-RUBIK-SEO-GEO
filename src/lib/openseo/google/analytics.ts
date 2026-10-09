@@ -59,14 +59,16 @@ export function createOpenSeoAnalyticsTransport(opts: {
       if (!Array.isArray(sc.rows) || sc.rows.length > (i.limit as number) || sc.rowCount !== sc.rows.length
         || !Number.isSafeInteger(sc.totalRowCount) || (sc.totalRowCount as number) < sc.rows.length
         || typeof page.hasMore !== "boolean" || !meta || typeof meta.hasLimitedData !== "boolean"
+        || typeof meta.subjectToThresholding !== "boolean" || typeof meta.dataLossFromOtherRow !== "boolean"
+        || !Array.isArray(meta.sampling) || !Array.isArray(meta.restrictedMetrics)
         || !Array.isArray(sc.warnings) || !sc.warnings.every((w) => typeof w === "string")
         || !sc.rows.every((r) => {
           const row = object(r);
           return row && Object.values(row).every((v) => v === null || typeof v === "string" || typeof v === "boolean" || (typeof v === "number" && Number.isFinite(v)));
         })) return failure(502, "Filas o cobertura GA4 inválidas");
       // Quota/threshold/sampling warnings must survive as PARTIAL, never a complete report.
-      const limited = meta.hasLimitedData === true || meta.subjectToThresholding === true || meta.dataLossFromOtherRow === true || sc.warnings.length > 0;
-      return { rows: sc.rows, sourceUrl: opts.expectedPropertyId, truncated: page.hasMore || limited,
+      const limited = meta.hasLimitedData === true || meta.subjectToThresholding === true || meta.dataLossFromOtherRow === true || meta.sampling.length > 0 || meta.restrictedMetrics.length > 0 || sc.warnings.length > 0;
+      return { rows: sc.rows, sourceUrl: opts.expectedPropertyId, truncated: page.hasMore || (sc.totalRowCount as number) > (i.offset as number) + sc.rows.length || limited,
         ...(limited ? { errors: [{ code: "GA4_LIMITED_DATA", message: "GA4 informa de cobertura limitada o advertencias; no es un informe completo", retryable: false }] } : {}) };
     },
   };
