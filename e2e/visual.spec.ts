@@ -26,7 +26,7 @@ const PAGES: { name: string; path: string; user?: UserKey; form?: boolean; statu
   { name: "13-panel-sin-proyectos", path: "/panel", user: "newcomer" },
   { name: "15-importaciones-analista", path: `${P}/importaciones`, user: "analyst", form: true },
   { name: "16-importaciones-cliente", path: `${P}/importaciones`, user: "client" },
-  { name: "18-auditoria-tecnica-titular", path: `${P}/auditoria-tecnica`, user: "owner" },
+  { name: "18-auditoria-tecnica-titular", path: `${P}/auditoria-tecnica`, user: "owner", form: true },
   { name: "19-auditoria-tecnica-analista", path: `${P}/auditoria-tecnica`, user: "analyst" },
 ];
 

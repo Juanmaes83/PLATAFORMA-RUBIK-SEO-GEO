@@ -504,7 +504,9 @@ describe("static guarantees", () => {
     const actions = read("src/lib/openseo/actions.ts");
     expect(actions).toMatch(/currentUser\(\)/);
     expect(actions).toMatch(/"manage-connectors"/);
-    expect(actions.match(/await authorized\(formData\)/g)).toHaveLength(3);
+    const exported = actions.match(/export async function \w+/g) ?? [];
+    expect(exported.length).toBeGreaterThanOrEqual(5);
+    expect(actions.match(/await authorized\(formData\)/g)).toHaveLength(exported.length);
   });
 
   it("the bridge never logs and never writes OpenSEO data to the Project State or the database", () => {
