@@ -131,10 +131,11 @@ test.describe("flows (change data: desktop only)", () => {
     await expect(page).toHaveURL(new RegExp(`/proyectos/${TENANT}/${PROJECT}$`));
     await expect(page.locator("main")).toContainText("tu rol: Solo lectura");
 
-    // Single use: the same link now answers "already a member" and changes nothing.
+    // Single use: a used link gets the same generic answer as an unknown one (ADR 0020) and
+    // changes nothing; "already a member" is only for a NEW invitation (covered by pgTAP).
     await page.goto(path);
     await page.getByRole("button", { name: "Aceptar invitación" }).click();
-    await expect(page.locator("main").getByRole("alert")).toContainText("Ya perteneces a este proyecto");
+    await expect(page.locator("main").getByRole("alert")).toContainText("no se puede usar");
 
     // The viewer cannot manage invitations; the owner sees it accepted.
     await page.goto(PAGE);

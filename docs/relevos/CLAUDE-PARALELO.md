@@ -74,7 +74,7 @@ Requiere la migración aplicada; antes de aplicarla, la página muestra «Invita
 1. Como titular, abrir `/organizaciones` → «Invitar personas» → el proyecto.
 2. Crear un enlace para una cuenta de prueba propia con rol «Solo lectura» y copiarlo.
 3. Abrir el enlace con esa cuenta, entrar y aceptar. Comprobar que aparece el proyecto con «tu rol: Solo lectura».
-4. Abrir de nuevo el enlace: debe decir que ya perteneces. Revocar otra invitación y comprobar que su enlace deja de funcionar.
+4. Abrir de nuevo el enlace: debe decir «Esta invitación no se puede usar» (un enlace usado no se distingue de uno desconocido). Revocar otra invitación y comprobar que su enlace deja de funcionar.
 
 ## Historial de este documento
 

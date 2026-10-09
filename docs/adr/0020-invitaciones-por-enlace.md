@@ -61,7 +61,7 @@ Un token desconocido, caducado, revocado, ya usado o de otra cuenta recibe siemp
 
 - Se añade la membresía `member` en la organización. Si ya existía, no se toca.
 - Se añade la membresía del proyecto con el rol invitado.
-- Si la persona ya pertenece al proyecto, la aceptación se rechaza (`23505`) y no cambia su rol.
+- Si la persona ya pertenece al proyecto y acepta una invitación **nueva y abierta**, la aceptación se rechaza (`23505`) y no cambia su rol. Un enlace **ya usado** recibe la respuesta genérica, como uno desconocido.
 - Nunca se concede ni se cambia la titularidad de la organización.
 
 ### Límites
