@@ -41,7 +41,7 @@ Después de esto, las pruebas de aislamiento con dos cuentas alojadas (pendiente
 
 | Servicio | Acceso de Sarah | En la plataforma | Requisito siguiente | Prioridad |
 |---|---|---|---|---|
-| OpenSEO | Cuenta de la plataforma | `CONNECTED` y auditoría real 10/10. Guardado y modo por proyecto pendientes de verificar | OPENSEO-ACTIVATION, secciones A y B | En curso |
+| OpenSEO | Cuenta de la plataforma | `CONNECTED`; auditoría 10/10 y guardado firmado verificados para Sarah en `legacy` (#44). Sin conexión ni modo `project` activo | OPENSEO-ACTIVATION, sección B, tras revisión humana y decisión separada | En curso |
 | Google Search Console | Invitación a marketing@sarahkaterina.com. El nivel de permiso está por confirmar en la consola | Código: transporte de solo lectura (fase A) y propiedad por proyecto (fase C). Sin OAuth | ADR 0010 (PR #40), cliente OAuth en Google Cloud del propietario, alcance `webmasters.readonly`, fase B | 1 |
 | Google Analytics 4 | Invitación | Nada | Data API con `analytics.readonly`. Mismo OAuth que Search Console. Fuente nueva en el Core con procedencia | 2 |
 | Bing Webmaster Tools | Por confirmar | Código: transporte de solo lectura y propiedad por proyecto | Clave de API o OAuth con el almacén del ADR 0010 | 3 |

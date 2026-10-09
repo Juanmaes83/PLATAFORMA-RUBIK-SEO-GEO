@@ -1,6 +1,6 @@
 # Activar el guardado firmado de OpenSEO
 
-Estado 09/10/2026 (tras aplicar el paquete): `main` y producción en `8d56e18` (`READY`). Las cuatro migraciones del paquete están **aplicadas** en `yvdgmklgwlshizzgefpv`: nueve versiones sincronizadas, según el propietario y Codex. Producción sigue en modo `legacy`. **Pendiente de verificación real:** el guardado de un informe (sección A, más abajo) y la conexión de Sarah (sección B). Ninguna CI ni despliegue `READY` certifica esas dos cosas.
+Estado 09/10/2026: las nueve migraciones están aplicadas en `yvdgmklgwlshizzgefpv`. Producción sigue en modo `legacy`. El guardado de un informe de Sarah **ya está verificado** por prueba visual del propietario y SQL de solo lectura (sección A y HANDOFF); la conexión de Sarah y el modo `project` siguen sin verificar (sección B). Ninguna CI ni despliegue `READY` certifica estos últimos pasos.
 
 ## Acceso y destino
 
@@ -195,7 +195,7 @@ Pasos:
    - los proyectos sin conexión activa reciben «Este proyecto no tiene una conexión de OpenSEO activa» y no se contacta con OpenSEO;
    - los que no son owner reciben acceso denegado;
    - `OPENSEO_PROJECT_ID` global deja de usarse y nunca hay reserva silenciosa.
-6. Verificación real del modo: «Probar conexión» en Sarah (sin rastreo). Después, solo si Juanma lo autoriza con presupuesto, una auditoría por proyecto siguiendo los pasos 2–5 de la sección A. El job debe registrar el `connection_id` de Sarah:
+6. Verificación real del modo: «Probar conexión» en Sarah (sin rastreo) comprueba salud/autenticación, **no** demuestra por sí solo que una auditoría se encamine al proyecto OpenSEO correcto. Para verificar selección de destino se exige primero comparar la conexión `ACTIVE` (ID/hosts) con el proyecto que Juanma confirmó en OpenSEO y, solo con autorización y presupuesto específicos posteriores, seguir una auditoría de prueba y comprobar que el job registra el `connection_id` de Sarah y que los resultados pertenecen a ese destino. No reutilizar ni relanzar el `auditId` guardado en `legacy`:
    ```sql
    select id, state, connection_id from private.openseo_project_jobs order by created_at desc limit 1;
    ```

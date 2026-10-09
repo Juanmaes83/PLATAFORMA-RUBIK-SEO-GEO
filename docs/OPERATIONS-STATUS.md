@@ -6,16 +6,18 @@ Este registro separa lo observado de lo pendiente; las autorizaciones del propie
 
 **Estado vigente (09/10/2026, tras aplicar el paquete de migraciones). Las viñetas siguientes son el histórico de cada entrega; prevalece este bloque.**
 
-Supabase Rubik `yvdgmklgwlshizzgefpv`: el propietario aplicó con su CLI las cuatro migraciones del paquete. Codex confirmó que `migration list` muestra **nueve versiones sincronizadas** y que las tres tablas privadas nuevas o modificadas (`openseo_project_connections`, `openseo_project_jobs`, `webmaster_properties`) tienen RLS sin privilegios directos para `anon`/`authenticated`. Esta sesión no tiene acceso al proyecto: la evidencia procede del propietario y de Codex.
+Supabase Rubik `yvdgmklgwlshizzgefpv`: el propietario aplicó con su CLI las cuatro migraciones del paquete. El relevo anterior confirmó **nueve versiones sincronizadas** y RLS sin privilegios directos en las tablas privadas. La verificación SQL alojada posterior del `auditId` de Sarah fue de solo lectura; no se repitieron migraciones. Ver [HANDOFF](HANDOFF.md) para separar su resultado de la prueba visual comunicada por Juanma.
 
 | Área | Integrado en `main` | Alojado / desplegado | Verificación real | Siguiente acción |
 |---|---|---|---|---|
-| OpenSEO jobs y guardado firmado | PR #27/#28/#30 | Migración de jobs aplicada; flag y HMAC en producción | **No:** falta una auditoría nueva vinculada al ledger | Prueba controlada del propietario (OPENSEO-ACTIVATION, sección A) |
-| OpenSEO multiempresa (ADR 0007): conexión, cableado, negativas, panel | PR #32–#35 | Migraciones `20261009120000` y `150000` **aplicadas** por el propietario; producción `READY` en `8d56e18` con modo `legacy` | Panel en revisión por el propietario; ninguna conexión ni auditoría por proyecto verificada | Revisar el panel; después, activación controlada del modo `project` (OPENSEO-ACTIVATION, sección B) |
+| OpenSEO jobs y guardado firmado | PR #27/#28/#30 | Migración de jobs aplicada; flag y HMAC en producción | **Sí, Sarah en `legacy`:** prueba visual de Juanma y SQL alojada separadas en [#44](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/44); job `COMPLETED`, `auditIssues` y `auditPages` `OK`, 0 reservas | No repetir auditoría; recuperar/exportar y avanzar solo con autorizaciones de la sección B |
+| OpenSEO multiempresa (ADR 0007): conexión, cableado, negativas, panel | PR #32–#35 | Migraciones `20261009120000` y `150000` aplicadas; producción en `legacy` | Sarah: 0 conexiones activas o revocadas y 0 jobs activos; panel de conexión pendiente de revisión humana | Confirmar ID/hosts y consentimiento antes de crear conexión; activar `project` solo por decisión separada |
 | Reconciliación de STARTING (ADR 0008) | PR #36 | Migración `20261009170000` **aplicada** | Solo CI y pgTAP; no ha hecho falta reconciliar nada real | Ninguna salvo que aparezca un STARTING incierto |
 | Search Console y Bing, fases A y C (ADR 0009) | PR #37/#38 (`8d56e18`) | Migración `20261009180000` **aplicada**; sin OAuth, claves ni interfaz | Solo simulaciones, CI y pgTAP | Decidir el ADR 0010 (PR #40); luego OAuth (fase B) |
 | Credenciales por cliente (ADR 0010) | No: PR #40 abierto | Sin migración ni variables | — | Decisión del propietario sobre la opción B |
 | Previews | — | Comparten el Supabase de producción; sin variables de OpenSEO ni HMAC | — | Entorno aislado de pruebas (pendiente de decisión) |
+
+**Evidencia operativa nueva (09/10/2026, Sarah):** `auditId=d1899523-807d-4f02-8f1f-2bce653a43f8`; Juanma observó 10/10 páginas, F5 sin pérdida, firma verificada y `OK` en ambas entradas, y reintento sin duplicados. La consulta SQL de solo lectura encontró un job `COMPLETED` del proyecto `b8d00961-1141-4741-908a-54d2e3bf343a`, una `auditIssues` y una `auditPages` `OK` ligadas al job y al `auditId` firmado, `connection_id=NULL` y cero trabajos activos. [#44](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/44) y la [CI de `main@5f3d83f`](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37932321154) están completos. Esto cierra el guardado `legacy` de Sarah, **no** la conexión por proyecto ni la primera versión multicliente.
 
 ### Histórico de entregas
 
