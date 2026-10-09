@@ -47,6 +47,11 @@ describe("GA4 via OpenSEO, in-memory simulations only", () => {
     }
     expect(await setup({ structuredContent: { ...payload(), rows: [], rowCount: 0, totalRowCount: 0 } }).run()).toMatchObject({ status: "EMPTY" });
   });
+  it("rejects empty and semantically invalid rows before they can be verified", async () => {
+    const rows = [{}, { landingPage: "/", sessions: -1, activeUsers: "8", keyEvents: true }];
+    const r = await setup({ structuredContent: { ...payload(), rows, rowCount: 2, totalRowCount: 2 } }).run();
+    expect(r).toMatchObject({ status: "ERROR", connection: "NOT_VERIFIED", data: [] });
+  });
   it("paging, thresholding and provider warnings remain PARTIAL", async () => {
     for (const over of [{ pageInfo: { ...payload().pageInfo, hasMore: true } }, { reportMetadata: { ...payload().reportMetadata, hasLimitedData: true } }, { reportMetadata: { ...payload().reportMetadata, sampling: [{}] } }, { totalRowCount: 101 },
       { warnings: ["some private upstream detail"] }]) {
