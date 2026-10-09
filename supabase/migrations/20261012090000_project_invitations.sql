@@ -1,4 +1,4 @@
--- Project invitations by single-use link (ADR 0011). The platform sends no email: the organization
+-- Project invitations by single-use link (ADR 0020). The platform sends no email: the organization
 -- owner copies the link and delivers it by their own means. Each invitation is bound to one email
 -- address, one project and one non-owner role, expires after seven days and works once. Only the
 -- SHA-256 of the token is stored; the token itself is returned once, at creation. RPC-only: the

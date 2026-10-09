@@ -2,7 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
 
-// Project invitations by single-use link (ADR 0011, migration 20261010120000). The platform sends
+// Project invitations by single-use link (ADR 0020, migration 20261012090000). The platform sends
 // no email: the organization owner copies the link and delivers it personally. Each invitation
 // is bound to one address, one project and one non-owner role, expires after seven days and
 // works once; only its SHA-256 is stored. Every call goes through the session client and RPCs.

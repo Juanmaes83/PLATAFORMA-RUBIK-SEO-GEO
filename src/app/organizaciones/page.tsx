@@ -1,8 +1,9 @@
+import Link from "next/link";
 import { Notice } from "@/components/Notice";
 import { PageHead, StatusPill } from "@/components/ui";
 import { TENANCY_ERRORS, TENANCY_NOTICES, pick } from "@/lib/auth/messages";
 import { requireSession } from "@/lib/auth/session";
-import { myOrganizations } from "@/lib/tenancy";
+import { myOrganizations, myProjectMemberships } from "@/lib/tenancy";
 import { createOrganization, createProject } from "@/lib/tenancy-actions";
 
 const ORG_ROLE = { owner: "Titular", member: "Miembro" } as Record<string, string>;
@@ -10,7 +11,7 @@ const SLUG_HELP = "Minúsculas, números y guiones (2 a 63 caracteres). Aparece 
 
 export default async function OrganizationsPage({ searchParams }: { searchParams: Promise<{ error?: string; creada?: string }> }) {
   const [{ error, creada }, { user, supabase }] = await Promise.all([searchParams, requireSession()]);
-  const organizations = await myOrganizations(supabase, user.id);
+  const [organizations, memberships] = await Promise.all([myOrganizations(supabase, user.id), myProjectMemberships(supabase, user.id)]);
 
   return (
     <>
@@ -35,6 +36,18 @@ export default async function OrganizationsPage({ searchParams }: { searchParams
                   <StatusPill tone="neutral">{ORG_ROLE[org.role] ?? org.role}</StatusPill>
                 </div>
                 <p className="muted small">Identificador: {org.slug}</p>
+                {org.role === "owner" && memberships.some((m) => m.project.tenantId === org.slug) && (
+                  <div>
+                    <p className="form-title">Invitar personas</p>
+                    <ul>
+                      {memberships.filter((m) => m.project.tenantId === org.slug).map((m) => (
+                        <li key={m.project.projectId}>
+                          <Link href={`/proyectos/${m.project.tenantId}/${m.project.projectId}/invitaciones`}>{m.project.name}</Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 {org.role === "owner" && (
                   <form action={createProject} className="form">
                     <input type="hidden" name="organization" value={org.slug} />

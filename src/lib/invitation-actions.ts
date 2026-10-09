@@ -9,7 +9,7 @@ import { acceptInvitation, createInvitation, revokeInvitation, type InvitationEr
 import { createClient } from "@/lib/supabase/server";
 import { myProjectMembership } from "@/lib/tenancy";
 
-// Invitation Server Actions (ADR 0011). The tenant/project fields are only a lookup key: the
+// Invitation Server Actions (ADR 0020). The tenant/project fields are only a lookup key: the
 // RPCs decide who may invite (organization owners) and who may accept (the confirmed address).
 const field = (formData: FormData, name: string) => String(formData.get(name) ?? "").trim();
 const SLUG = /^[a-z0-9][a-z0-9-]{1,62}$/;
@@ -52,6 +52,6 @@ export async function acceptInvitationAction(formData: FormData): Promise<void> 
   const token = field(formData, "token");
   if (!user || !supabase) redirect("/acceso");
   const r = await acceptInvitation(supabase, token);
-  if (r.ok) redirect(`/proyectos/${r.tenantId}/${r.projectId}?aviso=invitacion`);
+  if (r.ok) redirect(`/proyectos/${r.tenantId}/${r.projectId}`);
   redirect(`/invitacion/${/^[0-9a-f]{64}$/.test(token) ? token : "no-valida"}?error=${r.error === "ALREADY_MEMBER" ? "miembro" : r.error === "INVITATION_UNAVAILABLE" ? "fallo" : "no-valida"}`);
 }

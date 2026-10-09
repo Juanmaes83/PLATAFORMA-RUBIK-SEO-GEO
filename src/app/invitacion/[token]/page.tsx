@@ -7,7 +7,7 @@ import { acceptInvitationAction } from "@/lib/invitation-actions";
 import { ACCEPT_ERRORS } from "@/lib/invitation-messages";
 import { validToken } from "@/lib/invitations";
 
-// Accepting a project invitation (ADR 0011). The page reveals nothing about the invitation (not
+// Accepting a project invitation (ADR 0020). The page reveals nothing about the invitation (not
 // the project, the role or the address): only the RPC, on an explicit click, checks the token
 // against the signed-in, confirmed account.
 export default async function AcceptInvitationPage({ params, searchParams }: {

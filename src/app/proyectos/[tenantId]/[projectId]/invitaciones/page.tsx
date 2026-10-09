@@ -15,7 +15,7 @@ import { loadProjectRef } from "@/lib/imports/repository";
 import { roleLabel } from "@/lib/labels";
 import { myProjectMembership } from "@/lib/tenancy";
 
-// Project invitations (ADR 0011): organization owners create single-use links bound to one
+// Project invitations (ADR 0020): organization owners create single-use links bound to one
 // address and one non-owner role, see their state and revoke open ones. Nothing is emailed.
 export default async function InvitationsPage({ params, searchParams }: {
   params: Promise<{ tenantId: string; projectId: string }>;
@@ -44,7 +44,7 @@ export default async function InvitationsPage({ params, searchParams }: {
             <p>Tu rol no permite invitar a personas a este proyecto.</p>
           </EmptyState>
         ) : (
-          <EmptyState title="Invitaciones no disponibles" requires={["Migración 20261010120000 aplicada al Supabase alojado"]}>
+          <EmptyState title="Invitaciones no disponibles" requires={["Migración 20261012090000 aplicada al Supabase alojado"]}>
             <p>{INVITATION_ERRORS[listed.error]}</p>
           </EmptyState>
         )

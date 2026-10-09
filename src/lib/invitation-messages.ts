@@ -1,4 +1,4 @@
-// Spanish copy for invitations (ADR 0011). Codes stay internal; people read only these texts.
+// Spanish copy for invitations (ADR 0020). Codes stay internal; people read only these texts.
 export const INVITATION_ERRORS: Record<string, string> = {
   INVITATION_FORBIDDEN: "Solo la titularidad de la organización puede invitar a este proyecto.",
   INVITATION_INVALID: "Revisa el correo y el rol.",

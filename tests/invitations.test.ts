@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
 import { acceptInvitation, createInvitation, listInvitations, revokeInvitation } from "@/lib/invitations";
 
-// ADR 0011: invitations through RPCs only; malformed input never reaches the database, refusals
+// ADR 0020: invitations through RPCs only; malformed input never reaches the database, refusals
 // map to fixed codes and a malformed answer never shows a link.
 const projectId = "00000000-0000-4000-8000-000000000001";
 const invitationId = "00000000-0000-4000-8000-0000000000aa";

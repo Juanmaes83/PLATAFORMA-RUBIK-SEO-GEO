@@ -1,4 +1,4 @@
--- Project invitations (migration 20261010120000): organization owners only, token returned once and
+-- Project invitations (migration 20261012090000, ADR 0020): organization owners only, token returned once and
 -- stored hashed, bound to a confirmed address, single use, revocable, expiring, no cross-project use.
 begin;
 create extension if not exists pgtap with schema extensions;
@@ -115,6 +115,29 @@ select throws_ok(format('select public.accept_project_invitation(%L)',pg_temp.kv
 select pg_temp.act_as('00000000-0000-4000-8000-0000000000c1');
 select is((select v->>'state' from jsonb_array_elements(pg_temp.i('inv-p2','list')) v where v->>'role'='viewer' order by v->>'createdAt' limit 1),'EXPIRED','state EXPIRED');
 select lives_ok($$select pg_temp.i('inv-p2','create','{"email":"inv-unconfirmed@example.test","role":"viewer"}')$$,'an expired invitation no longer blocks a new one');
+
+-- Privilege escalation: accepting never grants or changes organization ownership
+select pg_temp.act_as('00000000-0000-4000-8000-0000000000c1');
+select throws_ok($$select pg_temp.i('inv-p1','create','{"email":"x@example.test","role":"OWNER"}')$$,'22023',null,'role is case-sensitive: OWNER refused');
+select throws_ok($$select pg_temp.i('inv-p1','create','{"email":"x@example.test","role":"admin"}')$$,'22023',null,'unknown role refused');
+insert into k select 'other-owner', pg_temp.i('inv-p2','create','{"email":"inv-other@example.test","role":"analyst"}')->>'token';
+select pg_temp.act_as('00000000-0000-4000-8000-0000000000c2');
+select ok((public.accept_project_invitation(pg_temp.kv('other-owner'))->>'role')='analyst','owner of another organization joins only with the invited role');
+select set_config('role','postgres',true);
+select is((select m.role from public.organization_members m join public.organizations o on o.id=m.organization_id where o.slug='inv-a' and m.user_id='00000000-0000-4000-8000-0000000000c2'),'member','becomes member, never owner, of the inviting organization');
+select is((select m.role from public.organization_members m join public.organizations o on o.id=m.organization_id where o.slug='inv-b' and m.user_id='00000000-0000-4000-8000-0000000000c2'),'owner','own organization role unchanged');
+select ok(not exists(select 1 from public.project_members where user_id='00000000-0000-4000-8000-0000000000c2' and project_id=pg_temp.pid('inv-p1')),'no access to the other project of the inviting organization');
+select pg_temp.act_as('00000000-0000-4000-8000-0000000000c2');
+select throws_ok($$select pg_temp.i('inv-p2','list')$$,'42501',null,'a joined member cannot manage invitations');
+select set_config('role','postgres',true);
+-- An existing organization member who accepts keeps the organization role it already had
+select pg_temp.act_as('00000000-0000-4000-8000-0000000000c1');
+insert into k select 'member-again', pg_temp.i('inv-p2','create','{"email":"inv-analyst@example.test","role":"viewer"}')->>'token';
+select pg_temp.act_as('00000000-0000-4000-8000-0000000000c5');
+select ok((public.accept_project_invitation(pg_temp.kv('member-again'))->>'role')='viewer','existing organization member joins a second project');
+select set_config('role','postgres',true);
+select is((select role from public.project_members where user_id='00000000-0000-4000-8000-0000000000c5' and project_id=pg_temp.pid('inv-p1')),'owner','role in the first project unchanged');
+select is((select m.role from public.organization_members m join public.organizations o on o.id=m.organization_id where o.slug='inv-a' and m.user_id='00000000-0000-4000-8000-0000000000c5'),'member','organization role unchanged');
 
 -- Anonymous sessions
 select set_config('role','postgres',true);
