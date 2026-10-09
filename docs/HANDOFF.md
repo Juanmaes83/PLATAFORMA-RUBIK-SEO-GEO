@@ -1366,3 +1366,7 @@ Archivos del commit:
 - Siguiente: CI del nuevo PR; ampliar informes GA4 con contratos propios de sus metadatos, recuperar trabajo local de invitaciones; tarifa/moneda/impuestos/cambio y decisiones ADR 0010/Preview requieren evidencia o decisión del propietario.
 
 - Gate local de esta continuación: `npm run verify` correcto (313/313 Vitest, lint, TypeScript, pin, guard de secretos y build); `git diff --check` correcto. CI del nuevo HEAD pendiente al publicar.
+
+- Publicado **PR #58**, base `feat/gsc-ga4-openseo` (#57), primer HEAD `c140e3a3ead86e60a798c57181c52e325c31565a`, árbol remoto `28bc47b468367662650e7c4d785169ed4e86b67d` idéntico al validado local. Publicación con conector GitHub por ausencia de autenticación del push HTTPS. Local alineado al commit remoto y limpio.
+- CI inicial del PR #58: [37959868314](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37959868314), en curso al publicar; esta anotación origina un nuevo HEAD y requiere su propia CI.
+- Fuentes públicas oficiales de precio ahora accesibles: plan 10 USD/mes con 10 USD de uso, ciclo de facturación y recargas no caducables; GSC/GA4 sin créditos declarados. Moneda/impuestos/cambio y equivalencia exacta en la cuenta siguen pendientes. [CONSUMO-Y-PRESUPUESTO](CONSUMO-Y-PRESUPUESTO.md) distingue evidencia pública y de código de la facturación privada. Ambigüedad pública de coste de auditorías registrada sin ejecutar ninguna.

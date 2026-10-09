@@ -29,13 +29,18 @@ Fuente: el código de referencia `Juanmaes83/open-seo@0ffff93`. Los artículos d
   - Si Stripe añade IVA según la configuración de su panel no se ve en el código: **sin confirmar**.
 - **Gratis:** Search Console (`get_search_console_performance`, `inspect_urls`), las nueve herramientas de GA4 y `get_search_opportunities`, además de `whoami`, `list_projects` y las lecturas de auditoría.
 
-**No confirmado en la instancia alojada.** La página pública de precios (`openseo.so/pricing`) no se puede consultar desde este entorno porque la red la bloquea. Las reseñas de terceros coinciden en lo siguiente:
+### Contraste público independiente — Codex, 09/10/2026
 
-- plan de 10 USD con 10 USD de créditos;
-- recargas que no caducan;
-- errores al agotar el saldo, en lugar de cobros adicionales.
+Las páginas oficiales sí han podido consultarse en este relevo (el bloqueo anterior queda como evidencia histórica en HANDOFF):
 
-Nada de esto sustituye a la factura o la pantalla de facturación de la cuenta.
+- [Tarifa oficial](https://openseo.so/pricing): plan base 10 USD/mes, incluye 10 USD de uso; créditos incluidos se reinician en cada ciclo de facturación, recargas no caducan; requiere suscripción activa para usar el servicio alojado. El ciclo de facturación **no equivale** al mes natural UTC del presupuesto Rubik.
+- [Comparación oficial con DataForSEO](https://openseo.so/openseo-vs-dataforseo): declara recargo del 28 % sobre datos y que GSC/GA4 no consumen créditos. Gratis por consulta no significa acceso al servicio alojado sin suscripción.
+- La tarifa pública habla de uso en dólares; **1000 créditos/USD sigue siendo evidencia del código del fork**, pendiente de contraste en la cuenta. No se ha inspeccionado facturación privada, factura ni checkout, ni se ha comprado nada.
+- No aparece un IVA aplicable a la cuenta ni comisión/cambio EUR/USD confirmado en estas páginas. No se calcula ni se fija un límite numérico todavía.
+- El saldo del código es compartido por cuenta: no inferir que el plan incluye 10 USD por cada proyecto ni asignar repetidamente los mismos créditos incluidos.
+- Hay una ambigüedad pública sobre auditorías: la página de precios las enumera entre funciones que usan créditos y la comparación afirma que las estándar están incluidas. Esto **no** autoriza nuevas auditorías ni cambia la lista blanca; confirmar condiciones específicas antes de futuras activaciones.
+
+La investigación pública resuelve la inaccesibilidad de fuentes; no acredita condiciones de la cuenta de Juanma, impuestos, cambio, máximo por llamada ni catálogo de la instancia autenticada.
 
 ## 2. De euros a créditos
 
@@ -58,7 +63,7 @@ créditos = ⌊ techo € ÷ (1 + IVA) × (1 − margen de cambio) × USD por �
 1. Moneda facturada y precio de los créditos (se espera USD y 1000 créditos por USD).
 2. Si la factura añade IVA, y a qué tipo, o si aplica inversión del sujeto pasivo con NIF-IVA.
 3. Si el banco o la tarjeta aplica comisión de cambio. Si la aplica, se incluye en el margen.
-4. El tipo de cambio de referencia que se usará, con su fecha. Por ejemplo, el del BCE del día en que se fija el límite. El BCE tampoco es accesible desde este entorno.
+4. El tipo de cambio de referencia que se usará, con su fecha. Por ejemplo, el del BCE del día en que se fija el límite. La fecha/fuente elegidas y el tratamiento real de comisiones deben quedar registrados; este relevo no fija un tipo por inferencia.
 
 ## 3. Controles de consumo
 
