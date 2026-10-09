@@ -147,7 +147,9 @@ isOneToOne: false
             [_ in never]: never
           }
           Functions: {
-            [_ in never]: never
+            "openseo_job":
+{ Args: { "p_command": string,"p_job_id"?: string,"p_payload"?: Json,"p_project_id": string }; Returns: Json
+                           }
           }
           Enums: {
             [_ in never]: never

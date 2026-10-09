@@ -112,7 +112,7 @@ jobs:
       - name: Migrations match the committed database types
         run: |
           $SUPABASE_CLI gen types typescript --local --schema public > /tmp/types.ts
-          tail -n +4 src/lib/supabase/database.types.ts | diff - /tmp/types.ts
+          tail -n +4 src/lib/supabase/database.types.ts | diff - /tmp/types.ts || { cat /tmp/types.ts; exit 1; }
       - name: Auth and isolation through the Data API (integration)
         run: npm run test:integration
       - name: Production build connected to the local stack
