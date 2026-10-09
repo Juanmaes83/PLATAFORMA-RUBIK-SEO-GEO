@@ -1,6 +1,6 @@
 # ADR 0009 · Search Console y Bing Webmaster en solo lectura
 
-**Estado:** fase A en PR #37 (transportes de servidor, probados solo con simulaciones) y fase C en la rama `claude/webmaster-propiedades`. Fases B, D y E propuestas. Nada conectado: ni OAuth, ni claves, ni propiedades reales.
+**Estado actualizado (09/10/2026):** fases A y C integradas mediante PR #37/#38; #42 fijó el Core corregido y añadió el contexto real de cada petición a la procedencia. Fases B, D y E pendientes. Nada conectado: ni OAuth, ni claves, ni propiedades reales.
 **Fecha:** 09/10/2026.
 **Depende de:** contrato CORE-7 del Core: `runProviderRequest` con transporte inyectado, operaciones `search-console.searchAnalytics` (cuota, release C) y `bing-webmaster.urlInfo` (cuota, release E), conector con consentimiento `provider-connection`, y `toReleaseC` hacia `SearchConsoleAdapter`.
 

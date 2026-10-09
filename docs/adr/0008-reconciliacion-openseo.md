@@ -1,6 +1,6 @@
 # ADR 0008 · Reconciliar un lanzamiento OpenSEO incierto
 
-**Estado:** implementado en rama `claude/openseo-reconciliacion`, sin aplicar en alojado.
+**Estado actualizado (09/10/2026):** implementado e integrado mediante PR #36; migración `20261009170000` aplicada en alojado. El job real de Sarah terminó sin necesitar reconciliación. Producción continúa en `legacy`.
 **Fecha:** 09/10/2026.
 **Depende de:** ADR 0006 (puente OpenSEO), migración de jobs `20261009071705` y ADR 0007 (conexión por proyecto).
 
