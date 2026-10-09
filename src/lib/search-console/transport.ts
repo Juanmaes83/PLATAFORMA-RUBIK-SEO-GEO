@@ -18,6 +18,7 @@ const ENDPOINT = "https://www.googleapis.com/webmasters/v3/sites";
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export interface SearchAnalyticsInput {
+  siteUrl: string;
   startDate: string;
   endDate: string;
   dimensions: SearchAnalyticsDimension[];
@@ -41,10 +42,10 @@ export function validateSearchAnalyticsInput(input: unknown): input is SearchAna
   if (!input || typeof input !== "object") return false;
   const v = input as Record<string, unknown>;
   const dims = v.dimensions;
-  return typeof v.startDate === "string" && typeof v.endDate === "string" && validDate(v.startDate) && validDate(v.endDate) && v.startDate <= v.endDate
+  return typeof v.siteUrl === "string" && typeof v.startDate === "string" && typeof v.endDate === "string" && validDate(v.startDate) && validDate(v.endDate) && v.startDate <= v.endDate
     && Array.isArray(dims) && dims.every((d) => (SEARCH_ANALYTICS_DIMENSIONS as readonly unknown[]).includes(d)) && new Set(dims).size === dims.length
     && Number.isInteger(v.rowLimit) && (v.rowLimit as number) >= 1 && (v.rowLimit as number) <= 25_000
-    && (v.startRow === undefined || (Number.isInteger(v.startRow) && (v.startRow as number) >= 0))
+    && (v.startRow === undefined || (Number.isSafeInteger(v.startRow) && (v.startRow as number) >= 0))
     && (v.type === undefined || SEARCH_TYPES.includes(v.type as string))
     && (v.dataState === undefined || v.dataState === "final" || v.dataState === "all");
 }
@@ -78,6 +79,7 @@ export function createSearchConsoleTransport(opts: {
       if (operation !== "searchAnalytics") return { httpStatus: 400, message: "Operation not allowed by the platform transport" };
       if (!searchConsolePropertyFor(opts.projectDomain, opts.siteUrl)) return { httpStatus: 403, message: "Property outside the project domain" };
       if (!validateSearchAnalyticsInput(input)) return { httpStatus: 400, message: "Invalid Search Analytics request" };
+      if (input.siteUrl !== opts.siteUrl) return { httpStatus: 403, message: "Property does not match the request" };
       const token = await opts.accessToken();
       if (!token) return { httpStatus: 401, message: "No server-side authorization" };
       const body = { startDate: input.startDate, endDate: input.endDate, dimensions: input.dimensions, rowLimit: input.rowLimit,
@@ -90,8 +92,8 @@ export function createSearchConsoleTransport(opts: {
       const rows = mapSearchAnalyticsRows(out.json, input.dimensions);
       if (rows === null) return { httpStatus: 502, message: "Unexpected Search Analytics response" };
       // A full page may continue at startRow + rowLimit: report it as truncated, never complete.
-      // The Core whitelists provenance evidence: only the property travels (sourceUrl). The
-      // request window and dimensions stay with the caller, which knows the input it sent.
+      // The Core records the validated input as requestContext, including the property,
+      // date window, dimensions and search type. The property also appears in evidence.
       return { rows, truncated: rows.length === input.rowLimit, sourceUrl: opts.siteUrl };
     },
   };

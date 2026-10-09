@@ -12,7 +12,7 @@ const BING_KEY = "bingtestkey".repeat(3);
 const budget = { maxUnits: 5, maxRequests: 5 };
 const DOMAIN = "www.cliente.example";
 const clock = () => new Date("2026-10-09T10:00:00Z");
-const input = { startDate: "2026-09-01", endDate: "2026-09-28", dimensions: ["query", "page"], rowLimit: 2, dataState: "final" };
+const input = { siteUrl: "sc-domain:cliente.example", startDate: "2026-09-01", endDate: "2026-09-28", dimensions: ["query", "page"], rowLimit: 2, dataState: "final", type: "web" };
 
 type Call = { url: string; init: RequestInit };
 function mockFetch(respond: (call: Call) => Response) {
@@ -45,8 +45,10 @@ describe("Search Console searchAnalytics transport", () => {
     expect(mock.calls[0].url).toBe("https://www.googleapis.com/webmasters/v3/sites/sc-domain%3Acliente.example/searchAnalytics/query");
     expect(mock.calls[0].init.method).toBe("POST");
     expect((mock.calls[0].init.headers as Record<string, string>).authorization).toBe(`Bearer ${TOKEN}`);
-    expect(JSON.parse(String(mock.calls[0].init.body))).toEqual(input);
-    expect(r).toMatchObject({ status: "OK", connection: "VERIFIED", provenance: { method: "api", evidence: { rowCount: 1, sourceUrl: "sc-domain:cliente.example" } } });
+    const sentBody = { startDate: input.startDate, endDate: input.endDate, dimensions: input.dimensions,
+      rowLimit: input.rowLimit, dataState: input.dataState, type: input.type };
+    expect(JSON.parse(String(mock.calls[0].init.body))).toEqual(sentBody);
+    expect(r).toMatchObject({ status: "OK", connection: "VERIFIED", provenance: { method: "api", evidence: { rowCount: 1, sourceUrl: input.siteUrl }, requestContext: { siteUrl: input.siteUrl, startDate: input.startDate, endDate: input.endDate, dimensions: input.dimensions, rowLimit: input.rowLimit, searchType: "web" } } });
     // Same mapping as the Core's toReleaseC for search-console (not declared in its types).
     const mapped = new intelligence.SearchConsoleAdapter({}).normalize([...r.data]);
     expect(mapped[0]).toMatchObject({ query: "pisos lujo", page: "https://www.cliente.example/", clicks: 4, impressions: 120, ctr: 0.0333, averagePosition: 7.2, provider: "searchConsole" });
@@ -81,6 +83,7 @@ describe("Search Console searchAnalytics transport", () => {
     for (const bad of [
       { ...input, rowLimit: 25_001 }, { ...input, rowLimit: 0 }, { ...input, dimensions: ["hour"] }, { ...input, dimensions: ["query", "query"] },
       { ...input, startDate: "2026-09-29", endDate: "2026-09-01" }, { ...input, startDate: "2026-02-30" }, { ...input, dataState: "hourly_all" }, { ...input, type: "maps" },
+      { ...input, startRow: Number.MAX_SAFE_INTEGER + 1 },
     ]) expect(await run(gsc(mock.fetchImpl), "searchAnalytics", bad), JSON.stringify(bad)).toMatchObject({ status: "ERROR", errors: [{ code: "HTTP_400" }] });
     expect(await run(gsc(mock.fetchImpl), "urlInspection")).toMatchObject({ errors: [{ code: "HTTP_400" }] });
     expect(await providers.runProviderRequest({ provider: "search-console", operation: "searchAnalytics", input, transport: gsc(mock.fetchImpl), clock }))
@@ -102,6 +105,13 @@ describe("Search Console searchAnalytics transport", () => {
     }
     expect(searchConsolePropertyFor(null, "sc-domain:cliente.example")).toBe(false);
   });
+
+  it("rejects a request whose signed property differs from the transport property", async () => {
+    const mock = mockFetch(() => Response.json({ rows: [] }));
+    const r = await run(gsc(mock.fetchImpl), "searchAnalytics", { ...input, siteUrl: "https://www.cliente.example/" });
+    expect(r).toMatchObject({ status: "ERROR", errors: [{ code: "FORBIDDEN" }] });
+    expect(mock.calls).toHaveLength(0);
+  });
 });
 
 describe("Bing Webmaster urlInfo transport", () => {
@@ -119,7 +129,7 @@ describe("Bing Webmaster urlInfo transport", () => {
     expect(called.searchParams.get("url")).toBe(urlInput.url);
     expect(called.searchParams.get("apikey")).toBe(BING_KEY);
     expect(r).toMatchObject({ status: "OK", data: [{ url: urlInput.url, isPage: true, httpStatus: 200, anchorCount: 3, documentSize: 51234,
-      discoveryDate: "2023-10-09T08:00:00.000Z", lastCrawledDate: "2024-09-29T00:00:00.000Z", totalChildUrlCount: 0 }], provenance: { evidence: { sourceUrl: urlInput.url } } });
+      discoveryDate: "2023-10-09T08:00:00.000Z", lastCrawledDate: "2024-09-29T00:00:00.000Z", totalChildUrlCount: 0 }], provenance: { evidence: { sourceUrl: urlInput.url }, requestContext: urlInput } });
     noLeak(r);
   });
 

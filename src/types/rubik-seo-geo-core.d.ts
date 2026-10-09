@@ -163,7 +163,9 @@ declare module "@rubik/seo-geo-core/providers" {
     partial: { reason: string | null; received: number; expected: number | null; rejected: number; capped: number; truncated: boolean } | null;
     errors: ProviderError[];
     connection: "VERIFIED" | "NOT_VERIFIED";
-    provenance: { capturedAt: string; requestedAt: string; method: string; evidence: Record<string, unknown> } | null;
+    provenance: { capturedAt: string; requestedAt: string; method: string; evidence: Record<string, unknown>;
+      requestContext?: { startDate?: string; endDate?: string; dimensions?: string[]; searchType?: string; dataState?: string;
+        aggregationType?: string; rowLimit?: number; startRow?: number; siteUrl?: string; url?: string } } | null;
     [k: string]: unknown;
   }
   export interface OpenSeoConnectivity {
