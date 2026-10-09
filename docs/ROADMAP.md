@@ -6,6 +6,9 @@ El catálogo de capacidades SEO/GEO que el propietario quiere cubrir, con el est
 
 ## Checkpoint operativo — 09/10/2026 (Europe/Madrid)
 
+- Estado más reciente: redeploy de activación `READY`, ID `dpl_6hzwqBBTJq4582stffdxcU8VmdGF`, SHA probado `afb5a38`, alias público asignado. Migraciones aplicadas por el propietario y flag activo; **guardado real pendiente de verificación**, sin afirmar cierre de persistencia alojada.
+- Actualización posterior: propietario confirma aplicación de 9.2/9.3/jobs mediante CLI al destino `yvdgmklgwlshizzgefpv`; cinco versiones local/remoto sincronizadas. Se creó el flag de jobs en producción y se solicitó redeploy del SHA probado `afb5a38`. Pendientes: estado final del redeploy, escritura/recarga verificada y dos cuentas alojadas. La evidencia nueva resuelve el pendiente de migraciones de los checkpoints anteriores, sin acreditar acceso del conector ni guardado real.
+- Actualización comprobada a las 10:09: PR #28 (jobs), #29 (titularidad) y #30 (guardado) integrados. CI del guardado [37902474922](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37902474922) completa en verde; producción Vercel `READY` en `afb5a3838981a78b9f126acc280fdc0138bfdae0` (`dpl_EnV1hDHWJUJkaS4rJm8NvTaDPKDf`). Configuración HMAC creada en producción; el guardado sigue apagado hasta verificar las migraciones alojadas. El acceso CLI comunicado por el propietario no cambia el conector, que aún no lista el Supabase de Rubik. Véase [OPENSEO-ACTIVATION](OPENSEO-ACTIVATION.md).
 - Producción Vercel funciona; login alojado y creación de organización/proyecto comprobados por el propietario. Esto verifica un acceso real, no sustituye la prueba de aislamiento con dos cuentas alojadas.
 - OpenSEO: salud correcta, autenticación verificada (`CONNECTED`), auditoría `02f2f04d-c7ea-4fe9-bb05-be1c39509938` completada, 10/10 páginas. Dos incidencias visibles en portada: `meta-description-too-long` y `title-too-long`.
 - El informe mostró una página y nueve filas ocultas por el filtro. Las URLs de esas nueve filas no se han observado: no afirmar que sean dominios ajenos ni que sean todas variantes `www`.
@@ -34,14 +37,14 @@ Ninguna etapa se cierra sin sus criterios demostrados, con CI en verde y la revi
 
 Selección del ID y límite de longitud, bloqueo de envío mientras hay peticiones activas, distinción del informe anterior, contador separado de páginas/incidencias ocultas y aceptación del compañero `www`/dominio base solo si está autorizado explícitamente. Banner y metadata corregidos. Integrado y desplegado mediante PR #14 con CI completa. No se declara que las nueve filas reales ya se hayan recuperado.
 
-Docker local ausente: pgTAP, integración y e2e completas requieren CI/otro entorno con Docker. Supabase alojado sigue pendiente de las migraciones 9.2/9.3 y de confirmar claves de firma/custodia antes de persistir resultados.
+Docker local ausente: pgTAP, integración y e2e completas se verificaron en CI. Supabase alojado sigue pendiente de comprobar/aplicar las migraciones 9.2/9.3/jobs y de verificar escritura y lectura firmada. Las claves de firma están configuradas en Vercel; su uso por el proceso desplegado y recuperación/custodia no se dan por comprobados solo por existir esa configuración.
 
 ## Próximas unidades, en orden de dependencia
 
 | Prioridad | Unidad | Entrega verificable | Dependencias / límites |
 |---|---|---|---|
 | 1 | Estabilizar el flujo OpenSEO | PR #14 integrado y desplegado con CI completa: selección del ID nuevo, controles de envío en la consola, www/apex explícito y contadores separados; pruebas negativas de dominio | No ampliar automáticamente el scope a todos los subdominios. No lanzar auditorías nuevas para probar cambios de interfaz |
-| 2 | Persistencia del informe y un trabajo activo por proyecto | Guardado firmado del resultado original del Core, historial/recarga, idempotencia y adquisición atómica del trabajo | Migraciones alojadas de 9.2/9.3 pendientes; comprobar firmante y custodia/recuperación de claves. Sin esas piezas, no anunciar guardado operativo |
+| 2 | Persistencia del informe y un trabajo activo por proyecto | Código integrado/desplegado mediante PR #27/#28/#30: historial verificado, guardado transaccional firmado, idempotencia y adquisición atómica; CI completa con concurrencia entre ocho sesiones | Activación pendiente: acceso al Supabase correcto, migraciones 9.2/9.3/jobs y prueba alojada de escritura/recarga. Keyring configurado en Vercel; faltan prueba del firmante y custodia/recuperación. No anunciar guardado operativo |
 | 3 | Conectores y consentimiento por cliente | Referencia OpenSEO por proyecto bajo RLS, conexión/revocación/scope propios; pruebas entre clientes | Sustituir el proyecto global; secretos siguen en servidor. Consentimientos y ledger de gasto de 9.2 |
 | 4 | Search Console y Bing, lectura | Implementación, mocks, tratamiento de 401/403/429, provenance y desconexión | La prueba live necesita OAuth/acceso a una propiedad autorizada; no inventar acceso ni pedir claves por chat |
 | 5 | Observación, snapshots e informes | Histórico comparable, trabajos idempotentes/cancelables y límites | Persistencia, consentimiento, scope, ledger y presupuestos antes de tareas periódicas |
@@ -110,8 +113,9 @@ filas; una firma alterada, otro proyecto, claves ausentes o lectura fallida no
 exponen datos. El estado distingue «sin resultados» de «almacenamiento no
 disponible». La funcionalidad seguirá vacía/no disponible hasta aplicar las
 migraciones y cablear la escritura idempotente.
-# Trabajo en revisión: jobs OpenSEO (09/10/2026)
+## Jobs y guardado OpenSEO integrados (09/10/2026)
 
-- Migración oficial generada por el propietario y completada en `feat/openseo-project-jobs`: reserva atómica, aislamiento por proyecto y finalización transaccional de dos resultados. Validación SQL/tipos pendiente de CI.
-- Pendiente: conectar las actions al ledger, verificar concurrencia entre sesiones, probar fallos de red sin liberar reservas inciertas y activar solo tras migraciones/claves alojadas comprobadas. No declarar persistencia operativa por existir el RPC.
-- Botón y cableado de guardado preparados en `feat/openseo-project-save`; reserva PostgreSQL previa a MCP, lookup de auditId dentro del proyecto y finalización transaccional firmada. Pendiente CI y activación alojada con acceso a la cuenta correcta, migraciones oficiales y keyring. Sin activación automática ni adopción de auditorías históricas.
+- PR #28 fusionado en `248850a`: migración oficial, reserva atómica, aislamiento por proyecto y finalización transaccional de dos resultados; CI completa [37900821388](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37900821388), SQL/tipos y ocho sesiones concurrentes comprobados.
+- PR #30 fusionado en `afb5a38`: actions conectadas al ledger, botón explícito de guardado, consulta ligada al proyecto y captura de los originales del Core. CI completa [37902474922](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37902474922), con 210 tests de aplicación; firma/escritura/lectura verificada y reintento sin duplicados probados contra Supabase local. Producción READY en ese merge.
+- Timeout/respuesta ambigua conserva STARTING; no hay expiración automática ni adopción de auditorías históricas. La reconciliación administrativa y el mapping OpenSEO por cliente quedan pendientes.
+- Activación alojada pendiente de acceso comprobado al proyecto correcto y migraciones oficiales. Las claves HMAC ya están configuradas en Vercel; no se ha demostrado todavía una escritura alojada ni el aislamiento con dos cuentas alojadas.
