@@ -80,3 +80,12 @@ un fichero de migración ni se tocó el proyecto alojado. CI completa de PR #21 
 verde y producción READY (`dpl_F82HEYtPYntCHAgMmq2pAzBjkJoK`). Hasta cablear y
 probar el repositorio, las acciones conservan el comportamiento del primer tramo
 y estos parámetros solo son una frontera interna probada.
+
+### 09/10/2026 — resultado confiable ya limitado al proyecto
+
+Core PR #23 (`a6071fc`) permite al host filtrar URLs después de normalizar y
+antes de emitir confianza. La plataforma prepara su consumo: incidencias y
+páginas externas no llegan al `ProviderResult` que posteriormente se firmará;
+el conteo `scopeFiltered` mantiene la explicación visual. La verificación local
+del consumidor pasa (185/185, lint, tipos, secretos y pin); falta CI remota y
+sigue sin existir almacenamiento operativo.

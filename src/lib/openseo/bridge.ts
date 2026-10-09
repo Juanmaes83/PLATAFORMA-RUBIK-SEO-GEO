@@ -261,6 +261,10 @@ export function auditResponseShape(value: unknown): string {
 }
 
 const partialOf = (r: ProviderResult) => (r.partial ? { reason: r.partial.reason, rejected: r.partial.rejected, truncated: r.partial.truncated } : null);
+const scopeFilteredOf = (r: ProviderResult) => {
+  const n = r.provenance?.evidence?.scopeFiltered;
+  return typeof n === "number" && Number.isSafeInteger(n) && n >= 0 ? n : 0;
+};
 
 /**
  * One status check and, when the audit is complete, its issues and pages normalized by the
@@ -306,8 +310,6 @@ export async function followSiteAudit(auditIdRaw: string, projectDomain: string 
     if (progress.error?.code === "INVALID_RESPONSE") progress.error.diagnostic = responseShape;
     if (row?.state !== "COMPLETED") return { progress, report: null };
 
-    const issues = await providers.runProviderRequest({ ...base, operation: "auditIssues", input: { projectId: config.projectId, auditId, limit: ISSUE_LIMIT } });
-    const pages = await providers.runProviderRequest({ ...base, operation: "auditPages", input: { projectId: config.projectId, auditId }, maxRows: config.maxPages });
     const host = hostOf(projectDomain);
     const onProject = (url: string) => {
       try {
@@ -322,22 +324,37 @@ export async function followSiteAudit(auditIdRaw: string, projectDomain: string 
         return false;
       }
     };
+    // Scope inside the Core before it issues the trusted ProviderResult. Post-filtering a
+    // trusted result would either retain foreign rows for signing or require rebuilding it.
+    const issues = await providers.runProviderRequest({
+      ...base,
+      operation: "auditIssues",
+      input: { projectId: config.projectId, auditId, limit: ISSUE_LIMIT },
+      acceptUrl: (url: string) => !url || onProject(url),
+    });
+    const pages = await providers.runProviderRequest({
+      ...base,
+      operation: "auditPages",
+      input: { projectId: config.projectId, auditId },
+      maxRows: config.maxPages,
+      acceptUrl: onProject,
+    });
     const allIssues = issues.data as { url: string }[];
     const allPages = pages.data as { url: string }[];
-    const issueRows = (allIssues.filter((i) => !i.url || onProject(i.url)) as { id: string; url: string; category: string; severity: NormalizedIssue["severity"]; evidence?: { crawlAccess?: string } }[]).map((i) => ({
+    const issueRows = (allIssues as { id: string; url: string; category: string; severity: NormalizedIssue["severity"]; evidence?: { crawlAccess?: string } }[]).map((i) => ({
       id: i.id,
       url: i.url,
       category: i.category,
       severity: i.severity,
       crawlAccess: i.evidence?.crawlAccess ?? null,
     }));
-    const hiddenIssues = allIssues.filter((i) => i.url && !onProject(i.url)).length;
-    const hiddenPages = allPages.filter((p) => !onProject(p.url)).length;
+    const hiddenIssues = scopeFilteredOf(issues);
+    const hiddenPages = scopeFilteredOf(pages);
     const report: AuditReport = {
       status: issues.status,
       issues: issueRows,
       issuesPartial: partialOf(issues),
-      pages: allPages.filter((p) => onProject(p.url)).map((p) => ({ url: p.url })),
+      pages: allPages.map((p) => ({ url: p.url })),
       pagesTotal: typeof pages.provenance?.evidence?.total === "number" ? (pages.provenance.evidence.total as number) : null,
       pagesPartial: partialOf(pages),
       capturedAt: issues.provenance?.capturedAt ?? null,
