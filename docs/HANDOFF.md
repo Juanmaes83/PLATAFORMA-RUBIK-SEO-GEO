@@ -804,9 +804,20 @@ CI inicial de esta entrega: verify Node22/24 pasa; integración falló al crear 
 - El detalle exige `loadProviderResult` con UUID de organización/proyecto y un keyring disponible. Solo `verification.verified` permite renderizar las filas conocidas de `auditIssues`/`auditPages`; una fila alterada o reasignada no muestra datos.
 - Claves ausentes y fallos de lectura tienen estados distintos de una lista válida sin resultados. Así una tabla alojada todavía inexistente no se presenta como historial vacío.
 - Pruebas dirigidas 85/85 y suite 192/192; pin, lint, TypeScript, secretos y diff correctos. Build y e2e pendientes de CI por el límite conocido del runtime local. No hay migración, escritura, secretos, llamadas live/de pago ni cambios en Sarah.
-# 09/10/2026 — aviso de titularidad
+## 09/10/2026 — aviso de titularidad
 
 - Por instrucción expresa del titular: Juan Manuel Espinosa Galant, DNI 48553293V; Rubik SEO GEO pertenece a Rubik Sota y su uso/comercialización requieren autorización expresa del titular.
 - Rama `feat/proprietary-notice`: `NOTICE.md`, `LICENSE`, README, pie global y página `/aviso-titularidad`. El aviso distingue los elementos propios de las licencias de terceros.
 - No certifica registros de marca ni altera licencias de dependencias. La restricción se documenta; no se ha añadido un sistema de licencias o activación comercial.
 
+## 09/10/2026 — migración oficial de trabajos OpenSEO
+
+- El propietario generó `20261009071705_openseo_project_jobs.sql` con CLI 2.118.0 y subió el fichero vacío en `86466bc`. El bloqueo del generador queda resuelto.
+- El historial PR #27 pasó CI completa `37896049276` y se integró en `f4b8789`. Despliegue de ese merge todavía no comprobado en este tramo.
+- `feat/openseo-project-jobs` completa el fichero oficial: ledger privado con RLS, RPC exclusiva del owner, reserva atómica serializada por proyecto, un único trabajo activo y auditId no reasignable ni compartible entre proyectos.
+- La finalización inserta incidencias y páginas firmadas en una transacción y libera el trabajo solo tras ambas escrituras; reintentos completados no duplican filas. La base comprueba identidad y estructura, el Core comprueba HMAC/digest al leer. Una reserva STARTING nunca caduca automáticamente: un timeout puede haber iniciado el rastreo.
+- Se añaden pgTAP de permisos, cliente ajeno, reserva repetida, vinculación, rollback del segundo resultado y finalización idempotente. Ejecución SQL y tipos generados pendientes de CI; sin Docker/Postgres disponible aquí. El workflow imprime el esquema generado cuando difiere para recuperar los tipos oficiales.
+- Este tramo todavía no conecta las actions al RPC; no aplica migraciones alojadas ni modifica secretos. La persistencia operativa sigue pendiente de ese cableado, pruebas de concurrencia por sesiones reales y verificación alojada.
+- Primera CI del PR #28: migración y pgTAP correctos; verify Node 22/24 en verde. El control de tipos detectó el nuevo RPC como diferencia esperada. Se recuperaron los tipos generados por CLI en el runner (sin editarlos a mano), se añadió prueba de ocho sesiones HTTP simultáneas y se exige scopeVersion 1. Validación final pendiente del nuevo commit.
+- Historial PR #27 desplegado y comprobado `READY` en el merge `f4b8789`: Vercel `dpl_2NZD6XM3FvQfoPL3NeB543hDgDbx`.
+- PR #28 validado en CI completa `37900821388` (Node 22/24, pgTAP, tipos, concurrencia entre ocho sesiones, integración y navegador), integrado en `248850a0411fb5dd7f0c4a82e47898fede235a9d`. La migración alojada sigue pendiente de acceso comprobado; su fichero oficial ya está en main.

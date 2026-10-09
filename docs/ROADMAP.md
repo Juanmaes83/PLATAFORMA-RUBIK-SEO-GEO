@@ -110,3 +110,7 @@ filas; una firma alterada, otro proyecto, claves ausentes o lectura fallida no
 exponen datos. El estado distingue «sin resultados» de «almacenamiento no
 disponible». La funcionalidad seguirá vacía/no disponible hasta aplicar las
 migraciones y cablear la escritura idempotente.
+# Trabajo en revisión: jobs OpenSEO (09/10/2026)
+
+- Migración oficial generada por el propietario y completada en `feat/openseo-project-jobs`: reserva atómica, aislamiento por proyecto y finalización transaccional de dos resultados. Validación SQL/tipos pendiente de CI.
+- Pendiente: conectar las actions al ledger, verificar concurrencia entre sesiones, probar fallos de red sin liberar reservas inciertas y activar solo tras migraciones/claves alojadas comprobadas. No declarar persistencia operativa por existir el RPC.
