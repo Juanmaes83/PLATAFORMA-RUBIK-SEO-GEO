@@ -39,7 +39,26 @@ Consecuencia: hoy **no se puede borrar en Auth** a quien haya guardado un result
 - copias de seguridad del proveedor;
 - datos que guarda OpenSEO en su lado: OAuth de Google y auditorías.
 
-## 2. Decisiones que necesita Juanma
+## 2. Decisiones
+
+### 2.0 Decididas por Juanma (09/10/2026)
+
+| # | Decisión tomada | Qué implica hoy | Qué no se hace |
+|---|---|---|---|
+| **D1** | Los resultados y las importaciones se conservan **mientras dure el contrato**; al terminarlo, **se exporta y se borra** el proyecto | Procedimiento de cierre: (1) exportar el proyecto (v2, firmado) y verificarlo sin conexión; (2) entregarlo según D5; (3) borrar el proyecto. El borrado lo hace el administrador en Supabase, que es una acción alojada de Juanma | No hay borrado automático ni tarea programada |
+| **D3** | Baja de una persona: **retirarle el acceso sin borrar su cuenta** | Se quitan sus membresías de proyecto y organización. Las políticas RLS ya lo permiten a la titularidad, pero **no hay interfaz**: hoy lo hace el administrador | Sin cambio de esquema y sin borrar en Auth, lo que evita el bloqueo del §1.1 |
+| **D4** | Las invitaciones revocadas, caducadas o aceptadas **se borran pasado el plazo que fije la asesoría** | Hasta que haya plazo, se conservan. Requiere integrar #59 | Ningún plazo inferido; ningún borrado hasta tener el plazo |
+
+**Siguen pendientes:** D2 (auditoría firmada), D5 (formato y responsable de la entrega de la exportación) y D6 (retención de registros de Vercel, Supabase y OpenSEO). Mientras no se decidan:
+- D2: la auditoría se conserva con el proyecto y se borra con él, como hoy;
+- D5: la exportación se entrega como JSON firmado;
+- D6: nada se afirma sobre registros de terceros.
+
+**Posibles mejoras derivadas, sin hacer y solo si Juanma las pide:**
+- interfaz para que la titularidad retire a una persona (D3);
+- borrado de invitaciones antiguas para la titularidad, sin tarea programada (D4), cuando exista el plazo.
+
+### 2.1 Opciones y recomendaciones originales
 
 Cada decisión tiene una recomendación técnica. **No es asesoramiento legal**: los plazos y la base jurídica los fija el responsable del tratamiento. Nada se implementa ni se borra hasta que Juanma elija.
 

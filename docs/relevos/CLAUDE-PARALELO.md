@@ -47,15 +47,16 @@ E1, E2 y E3 y el documento de E4 están **publicados en la rama del PR #59**, qu
 |---|---|---|
 | E1 · Invitaciones | Implementado. ADR 0020 sin cambios en esta pasada | pgTAP `project_invitations` 50/50; Vitest; e2e propias en CI |
 | E2 · Restauración | Implementado y **corregido en esta pasada**: ya no da titularidad en organizaciones existentes ni omite filas distintas; un conflicto aborta toda la transacción | Vitest `restore-plan` 4/4; 8 escenarios en PostgreSQL 17 local; integración con los 8 casos en CI. Detalle en [RECUPERACION-ENSAYO](../RECUPERACION-ENSAYO.md) |
-| E3 · Custodia y aislamiento | Documentos contrastados con `keyring.ts`; decisiones K1–K4 y A1–A4 concretadas | [CUSTODIA-CLAVES](../CUSTODIA-CLAVES.md), [AISLAMIENTO-ALOJADO-GUION](../AISLAMIENTO-ALOJADO-GUION.md) |
-| E4 · Retención y borrado | Documento: inventario revisado y decisiones D1–D6 con recomendación técnica. Sin código | [RETENCION-Y-BORRADO](../RETENCION-Y-BORRADO.md). Hallazgo: hoy no se puede borrar en Auth a quien guardó resultados, importaciones, trabajos o reservas (§1.1) |
+| E3 · Custodia y aislamiento | Documentos contrastados con `keyring.ts`. **Decididos por Juanma el 09/10:** K1, K2 y el guion A1–A4. Pendientes: K3 y K4 | [CUSTODIA-CLAVES](../CUSTODIA-CLAVES.md), [AISLAMIENTO-ALOJADO-GUION](../AISLAMIENTO-ALOJADO-GUION.md) |
+| E4 · Retención y borrado | Documento: inventario revisado. **Decididos por Juanma el 09/10:** D1, D3 y D4. Pendientes: D2, D5 y D6. Sin código | [RETENCION-Y-BORRADO](../RETENCION-Y-BORRADO.md). Hallazgo: hoy no se puede borrar en Auth a quien guardó resultados, importaciones, trabajos o reservas (§1.1) |
 
 ### CI
 
 | SHA | Contenido | CI |
 |---|---|---|
 | `df73b0b` | E1–E4 antes de esta pasada | [37989768472](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37989768472): completa y verde. **No cubre** la corrección de E2 |
-| Commit de esta pasada | Corrección de E2 y documentos | Se anota en la descripción del PR #59 al terminar; ese SHA necesita su propia CI verde |
+| `b2b8ac4` | Corrección de E2 y documentos | [37993639713](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37993639713): completa y verde (verify con Node 22 y 24, pgTAP, tipos, integración con los escenarios de restauración y e2e) |
+| Commit siguiente | Decisiones de Juanma (solo documentos) | Su CI se anota en la descripción del PR #59 |
 
 ### Separación de estados
 
@@ -63,27 +64,53 @@ E1, E2 y E3 y el documento de E4 están **publicados en la rama del PR #59**, qu
 |---|---|---|---|---|
 | Implementado | Sí | Sí (corregido) | Documentos | Documento |
 | Pruebas locales | Sí | Sí | No aplica | Prueba puntual de §1.1 |
-| CI | Verde en `df73b0b` | Pendiente del SHA nuevo | No aplica | No aplica |
+| CI | Verde en `df73b0b` y `b2b8ac4` | Verde en `b2b8ac4` | No aplica | No aplica |
 | Integrado en `main` | No | No | No | No |
 | Preview | Desplegado por Vercel, sin validar. No se hacen escrituras de prueba: comparte la base de producción | Nunca ejecutado | — | — |
 | Producción | No | Nunca ejecutado | Guion no ejecutado | Nada borrado |
 | Migración alojada | `20261012090000` sin aplicar | No necesita migración | — | — |
-| Validación humana | Pendiente | Pendiente | Decisiones K1–K4, A1–A4 | Decisiones D1–D6 |
+| Validación humana | Pendiente | Pendiente | K1, K2 y A decididos; guion autorizado y no ejecutado; K3 y K4 pendientes | D1, D3 y D4 decididos; D2, D5 y D6 pendientes |
 
 **Decisiones de E1:** [ADR 0020](../adr/0020-invitaciones-por-enlace.md).
 
 ### Siguiente unidad
 
-Lo que queda de la Entrega E depende de decisiones de Juanma: K1–K4 y A1–A4 (E3) y D1–D6 (E4). Sin ellas, lo único ejecutable sin decisión legal son las dos tareas opcionales de E4 §3 (inventario de datos de un proyecto en solo lectura y prueba de que borrar una organización no deja filas huérfanas), que se hacen si Juanma lo pide.
+Lo que queda de la Entrega E depende de Juanma: ejecutar las filas 1–4 del guion de aislamiento con sus cuentas, guardar las copias del anillo (K1) y decidir K3, K4, D2, D5 y D6. Sin ellas, lo único ejecutable sin decisión legal son las dos tareas opcionales de E4 §3 (inventario de datos de un proyecto en solo lectura y prueba de que borrar una organización no deja filas huérfanas), que se hacen si Juanma lo pide.
 
-## Al integrar (texto para ROADMAP, HANDOFF y OPERATIONS-STATUS)
+## Decisiones de Juanma (09/10/2026)
+
+| # | Decisión | Registrada en |
+|---|---|---|
+| K1 | Dos copias del anillo: gestor de contraseñas de Juanma y bóveda cifrada sin conexión | [CUSTODIA-CLAVES](../CUSTODIA-CLAVES.md) |
+| K2 | Rotación anual (primera el 09/10/2027) e inmediata ante incidencia | [CUSTODIA-CLAVES](../CUSTODIA-CLAVES.md) |
+| A1–A4 | Prueba de aislamiento en producción antes del primer cliente, con dos cuentas de Juanma. Filas 1–4 ya; 5–7 tras integrar #59 y aplicar `20261012090000`. La ejecuta Juanma | [AISLAMIENTO-ALOJADO-GUION](../AISLAMIENTO-ALOJADO-GUION.md) |
+| D1 | Resultados e importaciones mientras dure el contrato; al terminar, exportar y borrar | [RETENCION-Y-BORRADO](../RETENCION-Y-BORRADO.md) |
+| D3 | Baja: retirar el acceso sin borrar la cuenta | [RETENCION-Y-BORRADO](../RETENCION-Y-BORRADO.md) |
+| D4 | Invitaciones antiguas: borrarlas pasado el plazo que fije la asesoría | [RETENCION-Y-BORRADO](../RETENCION-Y-BORRADO.md) |
+| Integración | #59 se integra cuando Codex termine B → C → D, o antes si Juanma lo decide. **Toda la fase debe quedar documentada en ese momento** | Este documento |
+
+## Al integrar: documentación obligatoria
+
+Cuando Codex termine B → C → D (o antes, si Juanma lo decide), la integración de #59 no se da por terminada hasta completar esta lista **en el mismo PR**, encima del `main` de ese momento:
+
+1. Fusionar `main` en la rama, regenerar `database.types.ts` con la CLI y pasar `npm run verify`.
+2. Añadir a ROADMAP, HANDOFF y OPERATIONS-STATUS el texto de abajo, **sin borrar historial**, y adaptarlo a lo que Codex haya escrito para no duplicar ni contradecir.
+3. Anotar en HANDOFF: PR, SHA final, CI del SHA final, pruebas exactas, decisiones de Juanma de la tabla anterior, lo que queda pendiente y el siguiente paso.
+4. Actualizar este relevo y la descripción del PR con el SHA y la CI finales.
+5. Esperar la CI completa y verde del SHA final antes de pedir el merge. **El merge lo decide Juanma o Codex.**
+
+### Texto para ROADMAP, HANDOFF y OPERATIONS-STATUS
 
 Se añade en un commit final pequeño encima del `main` de ese momento, **sin borrar historial** y sin declarar integrada la Entrega E antes del merge.
 
 - **ROADMAP, fila «2 · Auth, consentimientos y gasto»:** «Invitaciones por enlace de un solo uso integradas (ADR 0020, migración `20261012090000` sin aplicar en alojado). La plataforma no envía correos. El registro abierto sigue según ADR 0003».
 - **ROADMAP, recuperación:** «Ensayo de restauración integrado: restaura desde una exportación verificada solo lo que falta, falla cerrado ante cualquier conflicto y no cambia membresías existentes. Probado en local y CI; nunca ejecutado en alojado».
-- **HANDOFF:** entrada con PR, SHA, CI, pruebas, los pasos de validación humana de abajo y las decisiones K1–K4, A1–A4 y D1–D6.
-- **OPERATIONS-STATUS:** migración `20261012090000` pendiente de aplicación alojada autorizada.
+- **ROADMAP, Entrega E (multicliente y recuperación):** «E1–E4 integradas. Decisiones de Juanma del 09/10/2026: K1, K2, A1–A4, D1, D3 y D4. Pendientes: K3, K4, D2, D5 y D6; ejecución de la prueba de aislamiento alojada (filas 1–4 ya autorizadas) y aplicación de `20261012090000`».
+- **HANDOFF:** entrada con PR, SHA, CI, pruebas, los pasos de validación humana de abajo, las decisiones tomadas y las pendientes.
+- **OPERATIONS-STATUS:**
+  - migración `20261012090000` pendiente de aplicación alojada autorizada;
+  - anillo de firma: custodia en dos copias (K1) a cargo de Juanma y próxima rotación el 09/10/2027 (K2);
+  - prueba de aislamiento alojada autorizada y no ejecutada.
 
 ### Reconciliación de #58 (ya integrado)
 
@@ -107,6 +134,7 @@ Requiere la migración aplicada; antes de aplicarla, la página muestra «Invita
 
 ## Historial de este documento
 
+- **09/10/2026, decisiones de Juanma:** K1, K2, A1–A4, D1, D3 y D4 registradas en los documentos de E3 y E4; lista de documentación obligatoria al integrar.
 - **09/10/2026, segunda pasada (encargo «Continuación Claude — Entrega E / PR #59»):**
   - E2 corregido: comprobaciones de conflictos antes de escribir, sin titularidad en organizaciones existentes, transacción completa o nada, y validaciones de filas antes de generar SQL;
   - integración con los 8 casos pedidos y una importación real;

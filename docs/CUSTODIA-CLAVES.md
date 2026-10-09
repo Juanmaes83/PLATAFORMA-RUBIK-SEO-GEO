@@ -65,7 +65,18 @@ Una clave retirada **no se elimina** mientras queden filas firmadas con ella. Qu
 - **Se pierde la base de datos:** se restaura desde la exportación con el mismo anillo ([RECUPERACION-ENSAYO](RECUPERACION-ENSAYO.md)). Las firmas siguen verificando porque se conservan los UUID.
 - **Se pierden el anillo y su copia:** el historial no se puede verificar. Seguiría siendo legible, pero la plataforma lo mostraría como no confiable. No hay forma criptográfica de recuperarlo.
 
-## Pendiente de decisión de Juanma
+## Decisiones de Juanma (09/10/2026)
+
+| # | Decisión tomada |
+|---|---|
+| **K1** | Dos copias: **una en el gestor de contraseñas de Juanma y otra en una bóveda cifrada sin conexión**, en lugares distintos |
+| **K2** | Rotación **anual** y, además, **inmediata** ante cualquier incidencia |
+
+Las ejecuta Juanma: guardar las copias y rotar son acciones sobre secretos y consolas alojadas, fuera del alcance de los agentes. Ningún agente ve ni recibe las claves. La primera rotación anual vence el 09/10/2027, un año después de crear el anillo en Producción.
+
+**Siguen pendientes:** K3 (cuándo probar que la copia restaura) y K4 (paso a un KMS). Hasta que se decidan, se aplica la recomendación de la tabla siguiente sin coste añadido: probar la copia tras cada cambio del anillo y no usar KMS.
+
+## Opciones y recomendaciones
 
 | # | Decisión | Opciones | Recomendación técnica |
 |---|---|---|---|

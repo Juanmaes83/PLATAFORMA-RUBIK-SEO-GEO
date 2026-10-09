@@ -31,7 +31,18 @@ La CI ya prueba el aislamiento contra el stack **local** (pgTAP, integración y 
 
 Hacerla con A y con B, cada una sobre su propia organización. Si queda algo que no se pueda borrar desde la interfaz, hay que avisar a Juanma: borrar desde el panel de Supabase es una acción alojada y necesita su decisión.
 
-## Decisiones que necesita Juanma para ejecutarlo
+## Decisión de Juanma (09/10/2026)
+
+**Autorizado con estas condiciones:**
+- se ejecuta **antes de dar acceso al primer cliente**;
+- con **dos cuentas propias de Juanma**, sin datos de clientes;
+- las filas **1 a 4 se pueden hacer ya**; las filas **5 y 6** (invitaciones) y la **7**, solo después de integrar #59 y aplicar la migración `20261012090000`.
+
+**Quién lo ejecuta:** Juanma, con sus cuentas. Escribe en la base de producción, así que ningún agente lo ejecuta ni hace escrituras de prueba en Preview. El resultado se anota en HANDOFF según el apartado «Registro».
+
+**Estado:** autorizado, **no ejecutado**.
+
+## Detalle de las decisiones
 
 | # | Decisión | Recomendación |
 |---|---|---|
