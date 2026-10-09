@@ -1,6 +1,6 @@
 # ADR 0007 · OpenSEO multiempresa: conexión por proyecto
 
-**Estado:** fase 1 en PR #32, fase 4 en PR #33, fase 5 en PR #34 y fase 3 en rama `claude/openseo-fase3-interfaz`, ambas sin aplicar en alojado. Producción sigue en modo `legacy`. Fases 2, 3 y 5–7 propuestas.
+**Estado actualizado (09/10/2026):** fases 1, 3, 4 y 5, más reconciliación, integradas en `main`; migraciones de conexión/jobs aplicadas en alojado. El guardado real de Sarah se verificó en modo `legacy` para el auditId registrado en [HANDOFF](../HANDOFF.md). No hay conexión por proyecto activa y producción sigue en `legacy`. La fase 2 (credencial propia) y la activación/prueba alojada de `project` siguen pendientes.
 **Fecha:** 09/10/2026.
 **Depende de:** ADR 0003 (tenancy), ADR 0004 (provenance), ADR 0006 (puente OpenSEO), migración de jobs `20261009071705`. Core: `PLATFORM-SPEC` §2.2 y §7 (`connectors`, `secret_refs`, `consents`), `platform-contracts` (`CONNECTORS`, `secretRef`, `consentRecord`, `hasConsent`).
 

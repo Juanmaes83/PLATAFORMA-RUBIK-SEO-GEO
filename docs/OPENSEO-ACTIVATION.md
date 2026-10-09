@@ -161,6 +161,8 @@ Una sola auditoría controlada, lanzada por Juanma, con el límite de páginas v
 
 Solo con los pasos 2–5 superados se puede declarar «guardado real verificado», indicando la fecha y el `auditId`.
 
+**Evidencia alojada del 09/10/2026:** sección A superada para `d1899523-807d-4f02-8f1f-2bce653a43f8`, sin repetir la auditoría. La prueba visual comunicada por Juanma (10/10 páginas; F5, «Firma verificada» en ambas entradas e idempotencia al volver a guardar) y la comprobación SQL de solo lectura (job `COMPLETED`, una `auditIssues` y una `auditPages` `OK` ligadas a Sarah, cero reservas activas) se registran **por separado** en [HANDOFF](HANDOFF.md). El guardado en `legacy` queda verificado; esto no valida todavía el modo `project` ni otras cuentas.
+
 ## B. Activación controlada del modo por proyecto
 
 Requisitos previos, todos obligatorios:
@@ -168,6 +170,8 @@ Requisitos previos, todos obligatorios:
 - Sección A superada.
 - Juanma ha revisado el panel de conexión.
 - En la cuenta de OpenSEO, Juanma comprueba qué proyecto corresponde a Sarah y qué dominio audita. Su identificador debe ser el mismo que usa hoy la configuración global, salvo que él decida otra cosa. Esta sesión no lee el valor de `OPENSEO_PROJECT_ID`.
+
+**Preparación verificada, sin activar:** Sarah (`rubik/sarah-katerina`) tiene dominio `www.sarahkaterina.com`; la consulta alojada del 09/10/2026 encontró 0 conexiones activas o revocadas y 0 jobs activos. `connection_id` del job de prueba es nulo, como corresponde a `legacy`. Falta la revisión humana del panel de conexión y el contraste del identificador de OpenSEO y de los hosts antes del paso 1. No crear una conexión desde Preview mientras comparta la base de producción.
 
 Pasos:
 
@@ -177,9 +181,14 @@ Pasos:
    - el consentimiento marcado.
 2. Comprobar en SQL:
    ```sql
-   select project_id, state, openseo_project_id, allowed_hosts from private.openseo_project_connections where state = 'ACTIVE';
+   select c.project_id, c.state, c.credential_mode,
+          right(c.openseo_project_id, 4) as openseo_id_suffix,
+          c.allowed_hosts, c.granted_at
+   from private.openseo_project_connections c
+   where c.project_id = 'b8d00961-1141-4741-908a-54d2e3bf343a'
+     and c.state = 'ACTIVE';
    ```
-   Debe haber una sola fila, la de Sarah, con los hosts esperados.
+   Debe haber exactamente una fila de Sarah, `credential_mode = 'platform'`, con los hosts esperados. Juanma contrasta el identificador completo en el panel o su cuenta de OpenSEO, sin publicarlo en el registro de pruebas. No se presupone que no existan conexiones de otros clientes.
 3. Repetir la consulta de trabajos activos: 0 filas. Un trabajo lanzado en `legacy` no se sigue en `project`.
 4. Definir `OPENSEO_PROJECT_CONNECTIONS_MODE=project` **solo en producción** (no en Preview, que comparte la base de datos) y hacer redeploy del mismo SHA. Confirmar `READY` por SHA.
 5. Efecto esperado:
