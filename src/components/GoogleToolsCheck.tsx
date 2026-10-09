@@ -40,15 +40,15 @@ export function GoogleToolsCheckView({ tenant, project, state, check, checking }
       ) : (
         <div className="card" role="status">
           <p>
-            <StatusPill tone={state.searchConsole ? "ok" : "warn"}>{state.searchConsole ? "Search Console: herramientas presentes" : "Search Console: incompleto"}</StatusPill>{" "}
-            <StatusPill tone={state.analytics ? "ok" : "warn"}>{state.analytics ? "GA4: herramientas presentes" : "GA4: incompleto"}</StatusPill>
+            <StatusPill tone={state.searchConsole ? "ok" : "warn"}>{state.searchConsole ? "GSC rendimiento: compatible en catálogo" : "GSC rendimiento: incompatible en catálogo"}</StatusPill>{" "}
+            <StatusPill tone={state.analytics ? "ok" : "warn"}>{state.analytics ? "GA4 páginas orgánicas: compatible en catálogo" : "GA4 páginas orgánicas: incompatible en catálogo"}</StatusPill>
           </p>
           <ul>
             {state.checks.map((c) => (
               <li key={c.tool}><span className="break">{c.tool}</span>: {STATE_TEXT[c.state]}{"detail" in c && c.detail ? ` (${c.detail})` : ""}</li>
             ))}
           </ul>
-          <p className="muted small">Este resultado solo comprueba el catálogo; no verifica OAuth, la propiedad de Sarah ni sus permisos. La conexión de Google se hace en OpenSEO. La plataforma no da la integración por disponible hasta activarla expresamente.</p>
+          <p className="muted small">Este resultado solo comprueba el catálogo de cada informe implementado; no verifica OAuth, propiedad, permisos, lectura real ni exactitud de los datos. Una firma futura acreditará integridad y contexto, no cobertura completa. La conexión de Google se hace en OpenSEO y las lecturas de Rubik siguen apagadas.</p>
         </div>
       ))}
     </section>

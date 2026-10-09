@@ -1,5 +1,7 @@
 # Search Console y GA4 vía OpenSEO
 
+**Estado vigente de código (09/10/2026):** Core #27 se integró como `main@18fd72cc72640b7138198504d07b86f317816059`; el transporte GA4 de Rubik está limitado a `organic_landing_pages` y la rama de plataforma fija ese SHA. El Core valida las diez columnas del informe mediante una lista explícita: dos dimensiones, ocho métricas con sus tipos y rangos, restricciones de `null` y coherencia de sesiones. El transporte comprueba propiedad, solicitud, contadores, paginación y cobertura; no normaliza semánticamente las métricas. Filas vacías o inválidas producen `ERROR`, nunca `EMPTY` o `VERIFIED`. Una firma acredita integridad y contexto registrado, no exactitud ni cobertura completa. GSC rendimiento y GA4 páginas orgánicas se comprueban por capacidad: otras herramientas ausentes no bloquean esos informes, pero cada una necesita autorización, propiedad y lectura real propias. Todo sigue apagado por defecto; no hay consulta Google ni persistencia de estos informes desde Rubik.
+
 **Decisión del propietario (09/10/2026):** Search Console y GA4 del piloto Sarah se leen a través de OpenSEO. Juanma hace la conexión con Google desde OpenSEO.
 
 Esta decisión permite implementar y probar con simulaciones. No autoriza:
@@ -71,14 +73,14 @@ Son nueve informes más `get_search_opportunities`, que combina GSC y GA4. Las e
 - **Respuesta:**
   - Si va bien: `{status:"ok", source:{provider:"google_analytics", propertyId, propertyDisplayName}, request, rows, pageInfo, reportMetadata, quota, warnings}`.
   - Si falla: `{status:"error", error:{code, message, retryAfterSeconds?, actionUrl?}}`, con los códigos `ga4_not_connected`, `ga4_reconnect_required`, `ga4_property_inaccessible`, `ga4_report_incompatible`, `ga4_quota_exhausted`, `ga4_upstream_unavailable`, `ga4_malformed_response` y `validation_error`.
-- **Estado histórico al abrir #57 — contrato: falta en el Core.** El Core no tiene proveedor ni operaciones de GA4, así que un resultado de GA4 no se puede emitir como confiable ni firmar.
+- **Estado histórico al abrir #57 (superado por el bloque vigente):** el Core no tenía proveedor ni operaciones de GA4, así que un resultado de GA4 no se podía emitir como confiable ni firmar.
   - Según CLAUDE.md, no se duplica aquí. Se propone en RUBIK-SEO-GEO-CORE:
     - operaciones de OpenSEO de solo lectura para cada informe;
     - normalización de filas;
     - `propertyId` en la evidencia;
     - una función de aceptación de la propiedad inyectada por el host, equivalente a `acceptUrl`;
     - códigos de error estables.
-  - Hasta que exista, GA4 queda en la lista de herramientas, apagado, y sin interfaz.
+  - El contrato ya existe para `organic_landing_pages`; el informe continúa apagado y sin interfaz de lectura/persistencia.
 
 ## 3. Activación y disponibilidad real
 
@@ -95,7 +97,7 @@ Las herramientas de Google forman su propia lista (`GOOGLE_READ_TOOLS`).
 - que sea de solo lectura;
 - que tenga los campos obligatorios esperados.
 
-Si falta algo, la integración no se declara disponible.
+Si falta la herramienta del informe concreto, ese informe no se declara compatible. Las demás herramientas se muestran individualmente, sin impedir un informe ya implementado. Compatibilidad de catálogo no demuestra conexión, permisos, lectura ni persistencia.
 
 Orden previsto:
 
@@ -119,9 +121,9 @@ Orden previsto:
 - guarda del cliente con y sin la variable;
 - comprobación del catálogo.
 
-## Revisión Codex y primer transporte GA4 — 09/10/2026
+## Historial: revisión Codex y primer transporte GA4 — 09/10/2026
 
-- Core #27 (`b25ba92dc0e6474d397a86e0b06b596f5c876885`) propone `google-analytics.report` y `searchOpportunities`; sigue abierto. Esta rama consume exactamente ese SHA para probar la integración. No integrar esta continuación antes de resolver Core #27 y plataforma #57.
+- En ese momento Core #27 (`b25ba92dc0e6474d397a86e0b06b596f5c876885`) proponía `google-analytics.report` y `searchOpportunities` y seguía abierto. **Sustituido:** el Core corregido se integró en `18fd72c` y el pin de esta continuación cambió a ese merge SHA; #57 se revisa e integra por separado antes de #58.
 - `google/analytics.ts` implementa **solo `report: organic_landing_pages`**. Entrada estricta: propiedad confirmada, fechas explícitas reales, `limit` 1–1000, `offset` no negativo. El proyecto OpenSEO se inyecta en servidor; ninguna entrada elige la propiedad MCP. Se rechazan operaciones/opciones adicionales antes de llamar.
 - La respuesta debe corresponder a `google_analytics`, propiedad exacta, informe `landing_pages`, canal orgánico, fechas, límite y offset exactos. No se aceptan filas ausentes, contadores incoherentes o cobertura inválida. OAuth/403/cuota se traducen a estados estables sin copiar mensajes privados.
 - Muestreo/thresholding/pérdida de datos, advertencias o más páginas impiden declarar el informe completo (`PARTIAL`). Se emite una advertencia genérica sin copiar detalles del proveedor. El contexto firmado conserva la consulta; no hay persistencia ni UI de consulta en este tramo.

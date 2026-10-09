@@ -73,8 +73,9 @@ export function checkGoogleCatalog(listed: readonly ListedTool[]): { searchConso
   });
   const ok = (names: readonly string[]) => names.every((n) => checks.find((c) => c.tool === n)?.state === "ok");
   return {
-    searchConsole: ok(["get_search_console_performance", "inspect_urls"]),
-    analytics: ok(GOOGLE_READ_TOOLS.filter((t) => t.startsWith("get_google_analytics_"))),
+    // Availability is per implemented capability, not an all-tools gate.
+    searchConsole: ok(["get_search_console_performance"]),
+    analytics: ok(["get_google_analytics_organic_landing_pages"]),
     checks,
   };
 }

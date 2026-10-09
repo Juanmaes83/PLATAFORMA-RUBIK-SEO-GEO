@@ -8,7 +8,9 @@ import type { ProjectRef } from "@/lib/provenance/audit";
 const input = { report: "organic_landing_pages", propertyId: "properties/123", startDate: "2026-09-01", endDate: "2026-09-28", limit: 100, offset: 0 };
 const payload = () => ({ status: "ok", source: { provider: "google_analytics", propertyId: "properties/123" },
   request: { reportKind: "landing_pages", channel: "organic_search", resolvedDateRange: { startDate: input.startDate, endDate: input.endDate }, limit: 100, offset: 0 },
-  rows: [{ hostName: "cliente.example", landingPage: "/", sessions: 10, activeUsers: 8, keyEvents: 1 }], rowCount: 1, totalRowCount: 1,
+  rows: [{ hostName: "cliente.example", landingPage: "/", sessions: 10, activeUsers: 8,
+    engagedSessions: 7, engagementRate: 0.7, keyEvents: 1, sessionKeyEventRate: 0.1,
+    transactions: 0, purchaseRevenue: 0 }], rowCount: 1, totalRowCount: 1,
   pageInfo: { limit: 100, offset: 0, hasMore: false, nextOffset: null }, reportMetadata: { hasLimitedData: false, subjectToThresholding: false, dataLossFromOtherRow: false, sampling: [], restrictedMetrics: [] }, warnings: [] });
 const setup = (reply: unknown = { structuredContent: payload() }, opts = {}) => {
   const callTool = vi.fn(async () => reply as { structuredContent?: unknown; isError?: boolean; content?: unknown });
@@ -42,7 +44,9 @@ describe("GA4 via OpenSEO, in-memory simulations only", () => {
     ]) { const p = payload(); mutate(p); expect(await setup({ structuredContent: p }).run()).toMatchObject({ status: "ERROR", data: [] }); }
   });
   it("missing or malformed rows never become an empty verified report", async () => {
-    for (const over of [{ rows: undefined }, { rowCount: 3 }, { totalRowCount: -1 }, { pageInfo: {} }, { rows: [null] }, { warnings: "bad" }]) {
+    for (const over of [{ rows: undefined }, { rowCount: 3 }, { totalRowCount: -1 }, { pageInfo: {} }, { rows: [null] }, { warnings: "bad" },
+      { totalRowCount: 2 }, { pageInfo: { ...payload().pageInfo, hasMore: true } },
+      { pageInfo: { ...payload().pageInfo, nextOffset: 1 } }]) {
       expect(await setup({ structuredContent: { ...payload(), ...over } }).run()).toMatchObject({ status: "ERROR", data: [] });
     }
     expect(await setup({ structuredContent: { ...payload(), rows: [], rowCount: 0, totalRowCount: 0 } }).run()).toMatchObject({ status: "EMPTY" });
@@ -52,8 +56,18 @@ describe("GA4 via OpenSEO, in-memory simulations only", () => {
     const r = await setup({ structuredContent: { ...payload(), rows, rowCount: 2, totalRowCount: 2 } }).run();
     expect(r).toMatchObject({ status: "ERROR", connection: "NOT_VERIFIED", data: [] });
   });
+  it("normalizes through Core allowlist and only permits null for explicitly restricted metrics", async () => {
+    const p = payload();
+    const row = { ...p.rows[0], purchaseRevenue: null, privateDimension: "discard me" };
+    const reportMetadata = { ...p.reportMetadata, restrictedMetrics: ["purchaseRevenue"] };
+    const r = await setup({ structuredContent: { ...p, rows: [row], reportMetadata } }).run();
+    expect(r.status).toBe("PARTIAL");
+    expect(r.data).toEqual([{ ...p.rows[0], purchaseRevenue: null }]);
+    expect(JSON.stringify(r)).not.toContain("privateDimension");
+    expect(await setup({ structuredContent: { ...p, rows: [row] } }).run()).toMatchObject({ status: "ERROR", data: [] });
+  });
   it("paging, thresholding and provider warnings remain PARTIAL", async () => {
-    for (const over of [{ pageInfo: { ...payload().pageInfo, hasMore: true } }, { reportMetadata: { ...payload().reportMetadata, hasLimitedData: true } }, { reportMetadata: { ...payload().reportMetadata, sampling: [{}] } }, { totalRowCount: 101 },
+    for (const over of [{ pageInfo: { ...payload().pageInfo, hasMore: true, nextOffset: 1 }, totalRowCount: 101 }, { reportMetadata: { ...payload().reportMetadata, hasLimitedData: true } }, { reportMetadata: { ...payload().reportMetadata, sampling: [{}] } },
       { warnings: ["some private upstream detail"] }]) {
       const r = await setup({ structuredContent: { ...payload(), ...over } }).run();
       expect(r.status).toBe("PARTIAL"); expect(JSON.stringify(r)).not.toContain("private upstream detail");

@@ -17,7 +17,7 @@ describe("Google tool catalogue UI (no network or configured provider)", () => {
     const html = render({ ok: true, checkedAt: "2026-10-09T16:00:00Z", searchConsole: true, analytics: false,
       checks: [{ tool: "get_search_console_performance", state: "ok" }, { tool: "get_google_analytics_site_search", state: "missing" }] });
     expect(html).toContain("Compatible en el catálogo");
-    expect(html).toContain("GA4: incompleto");
+    expect(html).toContain("GA4 páginas orgánicas: incompatible en catálogo");
     expect(html).toContain("no verifica OAuth");
     expect(html).toContain("No aparece");
     expect(html).not.toContain("Disponible");

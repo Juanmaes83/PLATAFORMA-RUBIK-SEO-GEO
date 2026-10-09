@@ -125,14 +125,16 @@ describe("hosted catalog check", () => {
       startDate: { type: "string" }, endDate: { type: "string" }, type: { type: "string", enum: ["web", "image", "video", "news", "discover", "googleNews"] }, dataState: { type: "string", enum: ["all", "final"] },
     } }, ...over,
   });
-  it("is available only when every tool is present, read-only and with the expected required input", () => {
+  it("reports catalog compatibility per implemented report, without gating on unrelated tools", () => {
     const full = GOOGLE_READ_TOOLS.map((n) => tool(n));
     expect(checkGoogleCatalog(full)).toMatchObject({ searchConsole: true, analytics: true });
     const missing = checkGoogleCatalog(full.filter((t) => t.name !== "inspect_urls"));
-    expect(missing.searchConsole).toBe(false);
+    expect(missing.searchConsole).toBe(true);
     expect(missing.checks.find((c) => c.tool === "inspect_urls")).toEqual({ tool: "inspect_urls", state: "missing" });
     const writable = checkGoogleCatalog(full.map((t) => t.name === "get_google_analytics_site_search" ? tool(t.name, { annotations: { readOnlyHint: false } }) : t));
-    expect(writable.analytics).toBe(false);
+    expect(writable.analytics).toBe(true);
+    const landingWritable = checkGoogleCatalog(full.map((t) => t.name === "get_google_analytics_organic_landing_pages" ? tool(t.name, { annotations: { readOnlyHint: false } }) : t));
+    expect(landingWritable.analytics).toBe(false);
     const changed = checkGoogleCatalog(full.map((t) => t.name === "get_search_console_performance" ? tool(t.name, { inputSchema: { required: ["projectId", "siteUrl"] } }) : t));
     expect(changed.checks.find((c) => c.tool === "get_search_console_performance")).toMatchObject({ state: "input-changed", detail: "projectId, siteUrl" });
     expect(checkGoogleCatalog([...full, full[0]]).searchConsole).toBe(false);
