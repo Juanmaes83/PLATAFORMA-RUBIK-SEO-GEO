@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Notice } from "@/components/Notice";
 import { PermissionTable } from "@/components/PermissionTable";
 import { ProjectNav } from "@/components/ProjectNav";
 import { EmptyState, PageHead, StatusPill } from "@/components/ui";
@@ -8,8 +9,8 @@ import { requireSession } from "@/lib/auth/session";
 import { MEASUREMENT_STATES, roleLabel } from "@/lib/labels";
 import { myProjectMembership } from "@/lib/tenancy";
 
-export default async function ProjectPage({ params }: { params: Promise<{ tenantId: string; projectId: string }> }) {
-  const [{ tenantId, projectId }, { user, supabase }] = await Promise.all([params, requireSession()]);
+export default async function ProjectPage({ params, searchParams }: { params: Promise<{ tenantId: string; projectId: string }>; searchParams: Promise<{ aviso?: string }> }) {
+  const [{ tenantId, projectId }, { aviso }, { user, supabase }] = await Promise.all([params, searchParams, requireSession()]);
   // The slugs in the URL are only a lookup key: RLS returns the row only to a member, and the
   // Core decides the permissions for that membership's role.
   const access = projectAccess(await myProjectMembership(supabase, user.id, tenantId, projectId));
@@ -21,6 +22,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ tenant
   return (
     <>
       <PageHead title={project.name} />
+      <Notice tone="info" text={aviso === "invitacion" ? "Te has unido al proyecto con la invitación." : null} />
       <p className="muted small">{project.tenantName}{project.domain ? ` · ${project.domain}` : ""} · tu rol: {roleLabel(role)}</p>
       <ProjectNav base={base} current={null} />
 
@@ -47,8 +49,9 @@ export default async function ProjectPage({ params }: { params: Promise<{ tenant
 
       {role === "owner" && (
         <section aria-labelledby="s-consumo" className="section">
-          <h2 id="s-consumo">Consumo</h2>
+          <h2 id="s-consumo">Gestión del proyecto</h2>
           <p><Link href={`${base}/consumo`}>Consumo y presupuesto del mes</Link></p>
+          <p><Link href={`${base}/invitaciones`}>Invitar a personas</Link></p>
         </section>
       )}
 
