@@ -1154,3 +1154,19 @@ Archivos del commit:
   - El tercer hallazgo, sobre la fase 4 de la web, queda fuera de este frente.
 - **Coordinación:** Claude Code es el agente principal en esta sesión y solo escribe en sus propias ramas. Antes de cada relevo deja aquí constancia expresa de parada.
 - **Siguiente unidad:** recuperación del piloto. Hoy `exportProject` no incluye jobs OpenSEO, conexiones ni propiedades webmaster. Se abordará con fixtures y pruebas locales, sin escribir en Preview ni en producción.
+## 09/10/2026 — recuperación del piloto: exportación v2 y verificación offline (rama `feat/recuperacion-piloto`)
+
+- Base: `main@588345c`.
+- **Hecho:**
+  - La exportación pasa a `rubik-project-export-v2`. Añade `operations`, leído solo con RPC de lectura del owner:
+    - conexión OpenSEO activa;
+    - trabajo activo;
+    - jobs ligados a los `auditId` firmados;
+    - propiedades de Search Console y Bing;
+    - lista `notIncluded`.
+  - Cada parte lleva su propio código de error.
+  - `verifyProjectExport` recalcula la cadena y las firmas de un fichero sin base de datos y señala las discrepancias.
+  - Documentado en [RECUPERACION-PILOTO](RECUPERACION-PILOTO.md) y en el ADR 0004 §4.
+- **Pruebas:** `tests/recovery.test.ts` (6 pruebas: manipulación, claves ajenas y rotadas, ficheros inválidos, fallos parciales y solo comandos de lectura) y `npm run verify` en local.
+- **No hecho:** restauración a una base nueva, prueba en alojado y custodia del keyring. No se escribió en Preview ni en producción.
+- **Validación humana:** la próxima vez que Juanma descargue la exportación de Sarah, comprobar que llega en v2 con `operations`, sin claves, y que `connection` es `null` mientras siga en `legacy`. Descargar solo añade el evento `project.export` a la auditoría.
