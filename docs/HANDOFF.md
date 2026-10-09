@@ -943,3 +943,14 @@ CI inicial de esta entrega: verify Node22/24 pasa; integración falló al crear 
   - Mutación comprobada: quitar la validación de dominio o de `rowLimit` hace fallar la suite.
 - Hallazgo de contrato: la evidencia de la procedencia del Core está en lista cerrada, así que el rango y las dimensiones de la consulta no se firman. Se propondrá al Core por separado antes de guardar snapshots.
 - Bloqueos: el OAuth (fase B) necesita la decisión del almacén de secretos y un cliente OAuth creado por el propietario. La fase C (propiedad por proyecto con RLS) se puede hacer sin credenciales y es el siguiente paso.
+
+## 09/10/2026 — Search Console y Bing, fase C: propiedad por proyecto (rama `claude/webmaster-propiedades`, apilada sobre #37)
+
+- Migración `20261009180000_webmaster_properties.sql`, módulo `src/lib/webmaster/properties.ts` y tipos regenerados con la CLI.
+- Sin credenciales, interfaz ni llamadas a proveedores.
+- Pruebas:
+  - pgTAP `webmaster_properties` 25/25 en un contenedor limpio (solo migraciones de `main` más esta) y las suites existentes sin fallos.
+  - Unit `webmaster-properties.test.ts`; integración Data API (solo en CI).
+  - `npm run verify`: 225/225.
+- Orden: fusionar y aplicar la cadena OpenSEO #31–#36 antes que #37 y esta rama, para que las versiones de migración se apliquen en orden.
+- Siguiente: la fase D (lectura manual, snapshot firmado e interfaz) depende de la fase B (OAuth y almacén de secretos) y de la propuesta al Core sobre el contexto de la consulta.

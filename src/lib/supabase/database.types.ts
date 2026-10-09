@@ -158,6 +158,9 @@ isOneToOne: false
                            },
 "openseo_release_starting_job":
 { Args: { "p_job_id": string,"p_project_id": string }; Returns: Json
+                           },
+"webmaster_property":
+{ Args: { "p_command": string,"p_payload"?: Json,"p_project_id": string,"p_provider": string }; Returns: Json
                            }
           }
           Enums: {
