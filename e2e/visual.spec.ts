@@ -14,6 +14,7 @@ const PAGES: { name: string; path: string; user?: UserKey; form?: boolean; statu
   { name: "01-inicio", path: "/" },
   { name: "02-acceso", path: "/acceso", form: true },
   { name: "03-registro", path: "/registro", form: true },
+  { name: "03b-recuperar", path: "/recuperar", form: true },
   { name: "04-panel", path: "/panel", user: "owner" },
   { name: "05-proyectos", path: "/proyectos", user: "owner" },
   { name: "06-organizaciones", path: "/organizaciones", user: "owner", form: true },
@@ -111,14 +112,16 @@ test("navigation: mobile menu disclosure vs desktop sidebar", async ({ page }, i
 
 test("the overflow check detects a too-wide element (self-test)", async ({ page }) => {
   await page.goto("/");
+  // Inject after hydration and outside React's tree, so a re-render cannot remove the probe
+  // before it is measured (a race seen once at 360 px).
+  await page.waitForLoadState("networkidle");
   await page.evaluate(() => {
     const wide = document.createElement("div");
     wide.style.width = "2000px";
     wide.style.height = "1px";
-    document.querySelector("main")?.append(wide);
+    document.body.append(wide);
   });
-  const overflow = await horizontalOverflow(page);
-  expect(overflow.scroll).toBeGreaterThan(overflow.width);
+  await expect.poll(async () => { const o = await horizontalOverflow(page); return o.scroll > o.width; }).toBe(true);
 });
 
 test("honest empty states: no invented numbers on the dashboard", async ({ page }) => {

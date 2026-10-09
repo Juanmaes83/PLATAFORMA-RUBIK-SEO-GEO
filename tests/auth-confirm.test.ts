@@ -38,7 +38,17 @@ describe("server auth confirmation", () => {
     await expect(GET(request(`?code=fixture-code&next=${encodeURIComponent(next)}`))).rejects.toThrow("redirect:/panel");
   });
 
-  it.each(["recovery", "invite", "magiclink", "unknown"])("does not enable the %s OTP flow", async (type) => {
+  it("a recovery link always continues to /restablecer, whatever next says", async () => {
+    for (const next of ["/proyectos/rubik/sarah", "https://evil.example", ""]) {
+      await expect(GET(request(`?token_hash=fixture&type=recovery&next=${encodeURIComponent(next)}`))).rejects.toThrow("redirect:/restablecer");
+    }
+    expect(mocks.verifyOtp).toHaveBeenCalledWith({ type: "recovery", token_hash: "fixture" });
+    mocks.verifyOtp.mockResolvedValue({ error: { message: "fixture-error" } });
+    await expect(GET(request("?token_hash=fixture&type=recovery"))).rejects.toThrow("redirect:/recuperar?error=enlace");
+    expect(mocks.exchange).not.toHaveBeenCalled();
+  });
+
+  it.each(["invite", "magiclink", "unknown"])("does not enable the %s OTP flow", async (type) => {
     await expect(GET(request(`?token_hash=fixture&type=${type}&code=fixture-code`))).rejects.toThrow(failure);
     expect(mocks.verifyOtp).not.toHaveBeenCalled();
     expect(mocks.exchange).not.toHaveBeenCalled();
