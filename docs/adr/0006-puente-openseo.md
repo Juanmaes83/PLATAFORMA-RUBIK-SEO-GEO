@@ -157,6 +157,19 @@ guardado. Esta unidad todavía no inserta filas. La deduplicación, adquisición
 atómica del job y escritura conjunta necesitan la migración y transacción
 pendientes; hasta entonces la interfaz sigue declarando los resultados sin
 guardar.
+
+### Adenda 09/10/2026 — historial verificable
+
+La página de auditoría puede listar únicamente metadatos de `provider_results`
+acotados por los UUID del proyecto. Abrir un elemento exige volver a cargarlo
+con los mismos UUID y verificar firma HMAC, huella, `keyId` y contexto firmado
+antes de mostrar las filas normalizadas de OpenSEO. Un resultado alterado se
+marca no confiable y sus datos permanecen ocultos.
+
+La ausencia de claves o un fallo de lectura (incluida una migración todavía no
+aplicada) se presenta como «no disponible», no como una lista vacía válida. La
+lista no contiene payload, firma, huella ni datos. Esto deja preparada la
+recarga, pero no crea resultados ni activa las tablas alojadas.
 - **Una sola instancia y un solo proyecto de OpenSEO por servidor.** El enlace de cada proyecto con su propio `projectId` de OpenSEO (un id opaco en `seo.integrations.openseo`) llegará con la persistencia.
 - **Conexión real verificada.** Producción devuelve `CONNECTED`, salud correcta y autorización verificada. El propietario consultó la auditoría `02f2f04d-c7ea-4fe9-bb05-be1c39509938`: completada, 10/10 páginas y dos incidencias visibles. No se declaran persistencia ni piloto completo.
 - **Pendientes tras la primera prueba real:**
