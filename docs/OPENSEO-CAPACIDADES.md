@@ -12,6 +12,14 @@
 
 Es el entregable de la fase A de la §15 de [SEO-CAPABILITIES-BACKLOG](SEO-CAPABILITIES-BACKLOG.md).
 
+## Modelo de cobro en alojado (código de referencia)
+
+- **Créditos:** según el spec 0002, en modo alojado las consultas a DataForSEO se cobran en créditos de Autumn, a razón de **1000 créditos = 1 USD**. Antes de cada llamada se comprueba el saldo y después se registra el coste real devuelto por el proveedor. El plan base da créditos recurrentes y se pueden comprar recargas.
+- **Auditorías (`run_site_audit`):** en el código no consumen créditos de DataForSEO. El acceso depende del plan (`resolveAuditLimitTier`):
+  - sin acceso gestionado responde `PAYMENT_REQUIRED`;
+  - el límite de páginas depende de si el plan es gratuito o de pago.
+- Lo anterior hay que confirmarlo con la cuenta real, como ya se vio en la auditoría de Sarah.
+
 ## Lo que Rubik usa hoy
 
 ADR 0006 permite cinco herramientas:
