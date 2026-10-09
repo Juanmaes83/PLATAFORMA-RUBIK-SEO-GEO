@@ -1154,6 +1154,54 @@ Archivos del commit:
   - El tercer hallazgo, sobre la fase 4 de la web, queda fuera de este frente.
 - **Coordinación:** Claude Code es el agente principal en esta sesión y solo escribe en sus propias ramas. Antes de cada relevo deja aquí constancia expresa de parada.
 - **Siguiente unidad:** recuperación del piloto. Hoy `exportProject` no incluye jobs OpenSEO, conexiones ni propiedades webmaster. Se abordará con fixtures y pruebas locales, sin escribir en Preview ni en producción.
+## 09/10/2026 — recuperación del piloto: exportación v2 y verificación offline (rama `feat/recuperacion-piloto`)
+
+- Base: `main@588345c`.
+- **Hecho:**
+  - La exportación pasa a `rubik-project-export-v2`. Añade `operations`, leído solo con RPC de lectura del owner:
+    - conexión OpenSEO activa;
+    - trabajo activo;
+    - jobs ligados a los `auditId` firmados;
+    - propiedades de Search Console y Bing;
+    - lista `notIncluded`.
+  - Cada parte lleva su propio código de error.
+  - `verifyProjectExport` recalcula la cadena y las firmas de un fichero sin base de datos y señala las discrepancias.
+  - Documentado en [RECUPERACION-PILOTO](RECUPERACION-PILOTO.md) y en el ADR 0004 §4.
+- **Pruebas:** `tests/recovery.test.ts` (6 pruebas: manipulación, claves ajenas y rotadas, ficheros inválidos, fallos parciales y solo comandos de lectura) y `npm run verify` en local.
+- **No hecho:** restauración a una base nueva, prueba en alojado y custodia del keyring. No se escribió en Preview ni en producción.
+- **Validación humana:** la próxima vez que Juanma descargue la exportación de Sarah, comprobar que llega en v2 con `operations`, sin claves, y que `connection` es `null` mientras siga en `legacy`. Descargar solo añade el evento `project.export` a la auditoría.
+## 09/10/2026 — lista previa al modo `project` en el panel (rama `feat/openseo-preparacion-project`)
+
+- Base: `main@588345c`.
+- **Hecho:**
+  - `src/lib/openseo/readiness.ts` calcula una lista de solo lectura:
+    - bloquean: registro de trabajos, conexión `ACTIVE`, hosts que incluyen el dominio y trabajo activo;
+    - piden revisión: destino igual o distinto del `OPENSEO_PROJECT_ID` global, sin devolver ningún identificador, y hosts que hoy se auditan y dejarían de serlo.
+  - El panel del owner la muestra mientras el servidor sigue en `legacy`.
+  - La página lee la conexión una sola vez.
+- **Pruebas:**
+  - `tests/openseo-readiness.test.ts` (4).
+  - Render del panel en `tests/openseo-ui.test.tsx`: sin identificadores y sin ningún botón de activar.
+  - Aserciones nuevas en `e2e/openseo-connection.spec.ts`, que se ejecutan en CI.
+  - `npm run verify` en local.
+- **Evidencia visual:** `npm run visual:evidence` no se puede ejecutar en este entorno (la imagen de Kong está bloqueada). Las capturas de `docs/visual` no se han regenerado. La e2e de CI comprueba que no hay desbordamiento ni fallos de accesibilidad graves y guarda capturas como artefacto.
+- **Validación humana:** cuando Juanma abra Auditoría técnica de Sarah en producción tras el despliegue, el panel debe mostrar «Antes de activar el modo por proyecto» con «Con pendientes» y «Falta crear la conexión del proyecto». Es solo lectura: no escribe ni consume.
+- **No hecho:** crear la conexión y activar `project`; son decisiones de Juanma.
+## 09/10/2026 — matriz de capacidades de OpenSEO (rama `docs/openseo-capacidades`)
+
+- [OPENSEO-CAPACIDADES](OPENSEO-CAPACIDADES.md): las 57 herramientas MCP del repositorio de referencia `Juanmaes83/open-seo@0ffff93`, con *hints*, coste declarado y uso posible en Rubik. Es la primera versión del entregable de la fase A de la §15.
+- **Hallazgo:**
+  - OpenSEO expone Search Console (`get_search_console_performance`, `inspect_urls`) y GA4 (nueve herramientas más `get_search_opportunities`), de solo lectura y **sin créditos**.
+  - Usan un OAuth por proyecto de OpenSEO, con los tokens cifrados en OpenSEO.
+  - Con el ADR 0007, Rubik podría leer GSC y GA4 del piloto sin guardar tokens de Google.
+- **Decisión para Juanma:**
+  - vía OpenSEO para GSC y GA4 (recomendada para el piloto), o
+  - fase B propia del ADR 0009.
+- **Si elige la vía OpenSEO:**
+  - Juanma conecta la propiedad de Sarah en la instancia alojada de OpenSEO.
+  - Se confirma la instancia: herramientas y verificación de su app OAuth.
+  - Se amplía la lista blanca en un PR con mocks.
+- **Sin cambios de código:** no se amplió la lista blanca ni se hizo ninguna llamada a OpenSEO.
 
 ## 09/10/2026 — recuperación de contraseña (rama `feat/recuperar-clave`)
 
