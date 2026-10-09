@@ -391,7 +391,7 @@ export async function followSiteAudit(auditIdRaw: string, projectDomain: string 
       try {
         await deps.captureCompletedResults({ auditId, issues, pages });
       } catch {
-        captureError = { code: "CAPTURE_FAILED", message: "El resultado terminó, pero no pudo prepararse para guardarlo.", retryable: true };
+        captureError = { code: "CAPTURE_FAILED", message: "El resultado terminó, pero no pudo guardarse. Puedes volver a intentarlo.", retryable: true };
       }
     }
     return { progress, report, captureError };
