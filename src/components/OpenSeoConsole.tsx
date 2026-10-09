@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { StatusPill } from "@/components/ui";
 import { followAuditAction, startAuditAction, testConnectionAction } from "@/lib/openseo/actions";
 import { AUDIT_STATE_LABELS, CONNECTION_LABELS, REASON_TEXT, SEVERITY_LABELS, errorText } from "@/lib/openseo/labels";
@@ -29,6 +29,9 @@ export function OpenSeoConsole({ tenant, project, defaultUrl, maxPages, savingEn
   const [conn, testConnection, testing] = useActionState(testConnectionAction, null);
   const [start, startAudit, starting] = useActionState(startAuditAction, null);
   const [follow, followAudit, following] = useActionState(followAuditAction, null);
+  // React resets uncontrolled form fields after an Action completes. Keep the requested
+  // limit separate from the limit returned for the launched (or reused) audit.
+  const [selectedMaxPages, setSelectedMaxPages] = useState(() => String(Math.min(50, maxPages)));
   const startedId = start && !("denied" in start) && start.ok ? start.auditId ?? "" : "";
   const hidden = (
     <>
@@ -79,8 +82,8 @@ export function OpenSeoConsole({ tenant, project, defaultUrl, maxPages, savingEn
             <input id="o-url" name="url" type="url" required defaultValue={defaultUrl} inputMode="url" />
           </div>
           <div className="field">
-            <label htmlFor="o-max">Máximo de páginas (10–{maxPages})</label>
-            <input id="o-max" name="maxPages" type="number" required min={10} max={maxPages} step={1} defaultValue={Math.min(50, maxPages)} />
+            <label htmlFor="o-max">Máximo de páginas para el próximo lanzamiento (10–{maxPages})</label>
+            <input id="o-max" name="maxPages" type="number" required min={10} max={maxPages} step={1} value={selectedMaxPages} onChange={(event) => setSelectedMaxPages(event.currentTarget.value)} />
           </div>
           <div className="field field-check">
             <input id="o-confirm" name="confirm" type="checkbox" required />
@@ -90,7 +93,7 @@ export function OpenSeoConsole({ tenant, project, defaultUrl, maxPages, savingEn
         </form>
         {start && ("denied" in start ? <Denied /> : start.ok ? (
           <p className="notice notice-info" role="status">
-            {start.reused ? "Auditoría activa reutilizada" : "Auditoría iniciada"}{start.maxPages !== null ? ` con un máximo de ${start.maxPages} páginas` : ""}. Identificador: <code>{start.auditId}</code>
+            {start.reused ? "Auditoría activa reutilizada" : "Auditoría iniciada"}{start.maxPages !== null ? ` con un máximo de ${start.maxPages} páginas en esta ejecución` : ""}. Identificador: <code>{start.auditId}</code>
           </p>
         ) : start.error && <Problem code={start.error.code} message={start.error.message} />)}
       </section>
