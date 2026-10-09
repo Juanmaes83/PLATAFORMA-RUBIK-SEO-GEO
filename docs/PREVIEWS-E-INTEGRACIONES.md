@@ -20,7 +20,7 @@ Fecha: 09/10/2026. Documento de planificación: no conecta nada ni cambia ningun
 | B. Branching de Supabase | Ramas de base de datos por PR | Requiere plan de pago y se factura por uso (**por verificar**) | Automatiza las migraciones por PR, pero añade gasto e integración con GitHub |
 | C. Solo local o CI | Sin entorno alojado de pruebas | 0 € | Lo actual. No permite revisar en el navegador con datos alojados aislados |
 
-Precios y límites consultados el 09/10/2026: [FAQ de facturación de Supabase](https://supabase.com/docs/guides/platform/billing-faq), [facturación y cupo gratuito](https://supabase.com/docs/guides/platform/billing-on-supabase) y [pausa por inactividad](https://supabase.com/docs/guides/platform/free-project-pausing). No se ha comprobado el plan ni el cupo disponible de la organización de Rubik.
+Precios y límites consultados el 09/10/2026: [FAQ de facturación de Supabase](https://supabase.com/docs/guides/platform/billing-faq), [facturación y cupo gratuito](https://supabase.com/docs/guides/platform/billing-on-supabase) y [pausa por inactividad](https://supabase.com/docs/guides/platform/free-project-pausing). La consulta de solo lectura de la organización Supabase «Rubik Sota» devolvió plan `free`; **no** acreditó una plaza gratuita disponible, porque el listado de proyectos de la sesión no enumeró de forma completa los de esa organización. El coste específico de crear `rubik-preview` depende de confirmar organización y cupo con el propietario. No se ha solicitado coste vinculante ni creado un servicio.
 
 **Pasos de la opción A (los hace el propietario):**
 1. Crear el proyecto en la organización de Rubik, en la misma región.
