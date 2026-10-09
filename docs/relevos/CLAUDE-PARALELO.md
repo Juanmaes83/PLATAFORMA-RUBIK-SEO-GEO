@@ -9,7 +9,7 @@ Este es el checkpoint vivo de la rama `feat/invitaciones-proyecto`. Juanma la au
 - `src/lib/openseo/**` y `src/lib/openseo/google/**`;
 - `search-console`, `webmaster`, `bing`, `bridge` y `mcp-client`;
 - la auditoría técnica y el presupuesto o consumo;
-- `src/lib/recovery/*` y la ruta de exportación (solo se leen);
+- `src/lib/recovery/*` y la ruta de exportación (solo se leen; E2 vive en `src/lib/restore/`, carpeta nueva);
 - el Core;
 - ROADMAP, HANDOFF, OPERATIONS-STATUS y SEO-CAPABILITIES-BACKLOG;
 - `e2e/visual.spec.ts` y la página resumen del proyecto.
@@ -44,7 +44,7 @@ Nada se activa en alojado: ni migraciones, ni invitaciones reales, ni consumo.
 | Bloque | Estado | Evidencia |
 |---|---|---|
 | E1 · Invitaciones | Implementado y probado en local; CI pendiente del SHA publicado | pgTAP `project_invitations` 50/50, `rls_tenancy` 52/52, consumo 33/33 y 39/39; rollback probado y reaplicado; `npm run verify` 319/319 con el Core `18fd72c`. Las e2e solo corren en CI (este entorno no tiene Kong) |
-| E2 · Ensayo de restauración en base local desechable | Pendiente | — |
+| E2 · Ensayo de restauración en base local desechable | Implementado; probado en local (Vitest 4/4 y SQL ejecutado dos veces en PostgreSQL 17); la integración solo corre en CI | `src/lib/restore/plan.ts`, `tests/restore-plan.test.ts`, `tests/integration/restore.integration.test.ts`, [RECUPERACION-ENSAYO](../RECUPERACION-ENSAYO.md). Solo lee `recovery/verify-export`, sin modificarlo |
 | E3 · Custodia/rotación de claves y guion de aislamiento alojado con dos cuentas | Pendiente | — |
 | E4 · Retención y borrado: opciones para que decida Juanma | Pendiente | — |
 
