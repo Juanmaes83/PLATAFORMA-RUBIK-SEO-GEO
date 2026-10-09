@@ -52,7 +52,8 @@ begin
     end if;
   else
     select * into j from private.openseo_project_jobs
-      where id = p_job_id and project_id = p_project_id for update;
+      where project_id = p_project_id and (id = p_job_id or
+        (p_command = 'get' and p_job_id is null and audit_id = p_payload ->> 'auditId')) for update;
     if not found then
       raise exception 'OpenSEO job not found in project' using errcode = '22023';
     end if;

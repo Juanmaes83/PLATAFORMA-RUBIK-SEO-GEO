@@ -28,6 +28,7 @@ select is((select (public.openseo_job(project_id,'acquire')->>'jobId')::uuid fro
 select is((select public.openseo_job(project_id,'get',job.id)->>'state' from ids,job),'STARTING','reserved before network');
 select lives_ok($$select public.openseo_job(project_id,'bind',job.id,'{"auditId":"audit-a"}') from ids,job$$,'bind real identifier');
 select lives_ok($$select public.openseo_job(project_id,'bind',job.id,'{"auditId":"audit-a"}') from ids,job$$,'binding retry is idempotent');
+select is((select public.openseo_job(project_id,'get',null,'{"auditId":"audit-a"}')->>'auditId' from ids),'audit-a','follow lookup uses persisted project binding');
 select throws_ok($$select public.openseo_job(project_id,'bind',job.id,'{"auditId":"audit-other"}') from ids,job$$,'23514',null,'bound identifier cannot change');
 select throws_ok($$select public.openseo_job(project_id,'complete',job.id,'{}') from ids,job$$,'23514',null,'missing signed pair refused');
 select is((select count(*)::int from public.provider_results),0,'failed completion wrote nothing');
@@ -58,6 +59,7 @@ select is((select public.openseo_job(project_id,'acquire')->>'acquired' from ids
 
 select pg_temp.act_as('00000000-0000-4000-8000-0000000000b9');
 select throws_ok($$select public.openseo_job(project_id,'get',job.id) from ids,job$$,'42501',null,'other client cannot inspect job');
+select throws_ok($$select public.openseo_job(project_id,'get',null,'{"auditId":"audit-a"}') from ids$$,'42501',null,'audit lookup denies other client');
 select throws_ok($$select public.openseo_job(project_id,'acquire') from ids$$,'42501',null,'other client cannot acquire');
 select throws_ok($$select public.openseo_job(project_id,'fail',job.id) from ids,job$$,'42501',null,'other client cannot release lock');
 select * from finish();
