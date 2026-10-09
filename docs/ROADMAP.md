@@ -93,9 +93,11 @@ fusionado en `139e2f6`: verificación local 185/185 y CI completa en verde
 
 ### 09/10/2026 — captura y firma previas al almacenamiento
 
-La rama `feat/openseo-capture-sign` entrega el `ProviderResult` original y ya
+El PR #25, fusionado en `7330802`, entrega el `ProviderResult` original y ya
 limitado al proyecto a una frontera solo de servidor. Antes de firmar exige que
 los resultados sigan marcados como emitidos por el Core y que proveedor,
 operación y `auditId` coincidan. Los fallos de captura se distinguen del estado
-del rastreo. Esta unidad no escribe todavía: faltan idempotencia/transacción,
-tabla de jobs y migraciones alojadas.
+del rastreo. CI completa en verde (run `37889221102`) y producción Vercel
+`READY` en ese merge (`dpl_BmeUiNCPPnB1uS1LeKCAoa76H3CK`). Esta unidad no
+escribe todavía: faltan idempotencia/transacción, tabla de jobs y migraciones
+alojadas.
