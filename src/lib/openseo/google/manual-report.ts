@@ -53,6 +53,10 @@ export async function runManualGoogleReport(
   if (!resolved.ok) return { ok: false, error: resolved.error === "FORBIDDEN" ? "FORBIDDEN"
     : resolved.error === "NOT_CONNECTED" ? "NOT_CONNECTED" : "UNAVAILABLE" };
   const source = resolved.source;
+  // Core signs this server-resolved source identity with the report provenance.
+  // It is deliberately separate from provider input and never comes from browser IDs.
+  const sourceContext = { connectionId: source.connectionId, propertyBindingId: source.propertyBindingId,
+    providerProjectId: source.openseoProjectId, grantedAt: source.grantedAt };
   const mcp = (deps.mcpFactory ?? createOpenSeoMcpClient)({ mcpUrl: config.mcpUrl,
     apiKey: config.apiKey, maxPages: 10, googleReads: true, timeoutMs: 20_000 });
   try {
@@ -63,7 +67,7 @@ export async function runManualGoogleReport(
       const transport = createOpenSeoSearchConsoleTransport({ mcp, openseoProjectId: source.openseoProjectId,
         expectedSiteUrl: source.externalPropertyId, projectDomain: null, resolvedSource: source });
       const result = await providers.runProviderRequest({ provider: "search-console", operation: "searchAnalytics",
-        input, transport, budget: { maxUnits: 1, maxRequests: 1 }, clock: deps.clock });
+        input, sourceContext, transport, budget: { maxUnits: 1, maxRequests: 1 }, clock: deps.clock });
       return { ok: true, result, source };
     }
     const input = { report: "organic_landing_pages", propertyId: source.externalPropertyId,
@@ -71,7 +75,7 @@ export async function runManualGoogleReport(
     const transport = createOpenSeoAnalyticsTransport({ mcp, openseoProjectId: source.openseoProjectId,
       expectedPropertyId: source.externalPropertyId });
     const result = await providers.runProviderRequest({ provider: "google-analytics", operation: "report",
-      input, transport, budget: { maxUnits: 1, maxRequests: 1 }, clock: deps.clock });
+      input, sourceContext, transport, budget: { maxUnits: 1, maxRequests: 1 }, clock: deps.clock });
     return { ok: true, result, source };
   } finally {
     await mcp.close();

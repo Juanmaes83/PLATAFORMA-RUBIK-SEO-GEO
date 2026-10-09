@@ -8,7 +8,7 @@ Aplicación de la plataforma SEO/GEO de Rubik (CORE-9). Consume [RUBIK-SEO-GEO-C
 
 La web nueva o antigua de Sarah, Studio, su contenido y consentimiento web, DNS, lanzamiento e indexación pertenecen a otro frente: **no son entregables pendientes ni terminados de Rubik**. Sarah sigue siendo el primer piloto de esta plataforma. Rubik conserva sus capacidades genéricas de análisis, medición, históricos, seguimiento y propuestas para cualquier proyecto.
 
-La asociación GSC/GA4 por proyecto y conexión OpenSEO está integrada en código (#60), pero su migración no se ha aplicado en alojado ni se ha asociado una propiedad real de Sarah. La siguiente lectura manual acotada solo se ha probado con proveedor simulado; Rubik todavía no consulta, guarda ni recupera informes Google reales. El rastreo de producción continúa en `legacy`.
+La asociación GSC/GA4 por proyecto y conexión OpenSEO (#60) y el servicio servidor de lectura manual acotada (#61) están integrados en código, pero la migración de asociación no se ha aplicado en alojado ni se ha asociado una propiedad real de Sarah. La lectura solo se ha probado con proveedor simulado y no tiene caller alojado; Rubik todavía no consulta, guarda ni recupera informes Google reales. El rastreo de producción continúa en `legacy`.
 
 **Cierre de tanda:** #45, #46 y #47 están integradas; #45 conserva en el formulario el límite de páginas elegido. La carga en producción y el aspecto del panel se comprobaron en móvil y escritorio, pero la validación humana de este panel y del comportamiento del límite tras una acción real sigue pendiente. ADR 0010/#40 y el aislamiento de Preview esperan decisión de Juanma. El SHA, la CI exacta y el relevo están en [HANDOFF](docs/HANDOFF.md).
 
