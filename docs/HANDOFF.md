@@ -1115,3 +1115,42 @@ Archivos del commit:
 - Siguiente bloque: consultar CI del SHA vigente y resolver solo fallos concretos; después retomar #40 cuando Juanma decida y preparar conexión por proyecto sin confundir «Probar conexión» con selección de destino. No repetir las nueve migraciones ni la auditoría legacy; no lanzar/indexar Sarah, cambiar DNS o crear gasto. La validación humana del panel/formulario sigue pendiente aunque el guardado legacy esté aprobado.
 - Sarah web: HANDOFF conserva los hashes esperados del parche `13449e9cc3034b8d455586113b1d46b0fc5bbf556917b7bd3a0719aa03caa1f5` y bundle `1a63f2bcb47369e543ae8073cde460f7b1bffcc5b982fe58ab014e4761774a9d` para `claude/consentimiento-medicion@9be1173`, base `d5231afc9627aec44195cb97ef49ce5b53a7f358`. **No se facilitó una ruta accesible en esta sesión; no se localizaron, verificaron ni respaldaron aquí.** Pedir la ruta al propietario y comprobar SHA256 antes de aplicar; no recrear el trabajo.
 - Estado de escritores: Claude estaba detenido según el relevo; este worktree único no tenía cambios ni `index.lock` antes del checkpoint. No hay prueba de sesiones externas fuera de este equipo. Al publicar este PR Codex detiene ediciones; Claude puede asumir sin escrituras simultáneas de Codex.
+
+## 09/10/2026 — relevo Codex → Claude: estado, PR históricos y web de Sarah (rama `docs/vigencia-historicos`)
+
+- **Punto de partida comprobado:**
+  - `main@588345c` igual en local y en remoto; árbol limpio. CI de `main` [37937765822](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37937765822) en verde, según el relevo.
+  - PR abiertos: #40, #11 y #9.
+  - Sin cambios ni escrituras de Codex desde su checkpoint.
+- **Web de Sarah:**
+  - El parche y el bundle seguían en el scratchpad de esta sesión de Claude. Los SHA256 coinciden con los registrados: parche `13449e9c…`, bundle `1a63f2bc…`.
+  - `origin/main` sigue en `d5231af`, la base del commit.
+  - La rama `claude/consentimiento-medicion@9be1173` se ha subido sin cambios y está en [SARAHKATERINAWEBNUEVA#53](https://github.com/Juanmaes83/SARAHKATERINAWEBNUEVA/pull/53).
+  - `npm test` local: la primera ejecución en frío dio 3 fallos en 2 ficheros. No se capturó la salida, así que no se pueden identificar. Cuatro ejecuciones posteriores pasaron enteras (435 pruebas, 38 omitidas). La referencia es la CI del PR.
+  - **Incidencia de proceso:** la rama se subió en la misma orden encadenada que aquellos tests en frío; el PR se abrió después de repetirlos en verde.
+- **PR históricos:**
+  - **#9** (`docs/post-8-merge-status@0b937ee`, draft) registra el estado tras `377fa73`: «NOT DEPLOYED», migraciones sin aplicar y una nota de dry-run de §6/§7. Fusionarlo hoy introduciría afirmaciones falsas. No contiene nada vigente.
+  - **#11** (`docs/openseo-roadmap-phases@5a13399`, draft) es un plan de fases 3.1–3.4 que la §15 del backlog y las fases 5 y 6 del ROADMAP ya recogen con más criterio. Su única aportación vigente, los nombres de herramientas y la recurrencia semanal, se traslada a la §15 como dato por revalidar.
+  - **Recomendación:** que Juanma cierre ambos como sustituidos. Las ramas se conservan y este PR no los cierra.
+- **Coherencia documental:**
+  - Notas de vigencia en `MAIN-HEALTH-REPORT`, `RUBIK-CONSOLIDATION-AUDIT` y `RUBIK-DEPLOYMENT-READINESS` (esta última decía «NOT DEPLOYED»).
+  - Cuatro filas desfasadas de «Dependencias y siguiente acción» en OPERATIONS-STATUS: persistencia, migraciones, multicliente y Search Console/Bing.
+  - Nueva fila de la web de Sarah en los bloques de estado vigente.
+- **#40:**
+  - Validable ya, sin decisión: el módulo de cifrado y sus pruebas (CI en verde en `f9d4f40`).
+  - Pendiente de la decisión sobre el ADR 0010: tabla, RPC, OAuth y variables.
+  - No se asume aprobada la opción B.
+- Sin migraciones, auditorías, conexiones, cambios de modo, variables, DNS ni publicación.
+
+## 09/10/2026 — ajuste de alcance y hallazgos de Codex en #49
+
+- **Instrucción de Juanma (09/10/2026):** Claude no trabaja en la nueva web de Sarah ni en su Studio; Juanma gestiona ese frente por su cuenta. Claude se centra en Rubik SEO GEO y en el piloto de Sarah dentro de Rubik.
+  - Se retira de este PR la fila «Web de Sarah» que se había añadido al estado vigente.
+  - Las unidades 4 del ROADMAP no se tocan desde aquí.
+  - Claude ha dejado de seguir SARAHKATERINAWEBNUEVA#53.
+- **Hallazgos de Codex en #49, corregidos los que son de Rubik:**
+  - OPERATIONS-STATUS, «Un trabajo activo por proyecto»: ledger activo con un job `COMPLETED`, aclarando que esa prueba no verificó concurrencia ni reconciliación real.
+  - ADR 0004: su última frase queda marcada como estado histórico.
+  - El tercer hallazgo, sobre la fase 4 de la web, queda fuera de este frente.
+- **Coordinación:** Claude Code es el agente principal en esta sesión y solo escribe en sus propias ramas. Antes de cada relevo deja aquí constancia expresa de parada.
+- **Siguiente unidad:** recuperación del piloto. Hoy `exportProject` no incluye jobs OpenSEO, conexiones ni propiedades webmaster. Se abordará con fixtures y pruebas locales, sin escribir en Preview ni en producción.
