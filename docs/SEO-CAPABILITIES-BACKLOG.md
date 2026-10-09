@@ -165,7 +165,7 @@ El propietario solicitó estas tres capacidades para una plataforma con muchos c
 - Distinguir análisis de competidores SEO, comparación de auditorías y comparación de visibilidad GEO. Ninguno sustituye a los demás ni aporta rankings sin una fuente que los mida.
 - Para backlinks: verificar cobertura, fechas, frescura, límites, datos de dominios/URLs y condiciones de reutilización. No afirmar exhaustividad ni equiparar ausencia de datos con cero enlaces.
 - Para rank tracking: comprobar país, idioma, ubicación/dispositivo, motor, SERP, cadencia admitida y unidades por consulta; comparar el coste de keywords × proyectos × ubicaciones × frecuencia.
-- Entrega: matriz de capacidades/contratos y costes con estados confirmado/no confirmado, decisión de fuente y alcance. Hasta entonces no hay llamadas live ni ampliación silenciosa de la lista blanca.
+- Entrega: matriz de capacidades/contratos y costes con estados confirmado/no confirmado, decisión de fuente y alcance. **Primera versión:** [OPENSEO-CAPACIDADES](OPENSEO-CAPACIDADES.md), verificada contra el código de referencia el 09/10/2026; falta confirmarla en la instancia alojada. Hasta entonces no hay llamadas live ni ampliación silenciosa de la lista blanca.
 
 ### Fase B · Base multicliente y consultas manuales
 

@@ -1115,3 +1115,19 @@ Archivos del commit:
 - Siguiente bloque: consultar CI del SHA vigente y resolver solo fallos concretos; después retomar #40 cuando Juanma decida y preparar conexión por proyecto sin confundir «Probar conexión» con selección de destino. No repetir las nueve migraciones ni la auditoría legacy; no lanzar/indexar Sarah, cambiar DNS o crear gasto. La validación humana del panel/formulario sigue pendiente aunque el guardado legacy esté aprobado.
 - Sarah web: HANDOFF conserva los hashes esperados del parche `13449e9cc3034b8d455586113b1d46b0fc5bbf556917b7bd3a0719aa03caa1f5` y bundle `1a63f2bcb47369e543ae8073cde460f7b1bffcc5b982fe58ab014e4761774a9d` para `claude/consentimiento-medicion@9be1173`, base `d5231afc9627aec44195cb97ef49ce5b53a7f358`. **No se facilitó una ruta accesible en esta sesión; no se localizaron, verificaron ni respaldaron aquí.** Pedir la ruta al propietario y comprobar SHA256 antes de aplicar; no recrear el trabajo.
 - Estado de escritores: Claude estaba detenido según el relevo; este worktree único no tenía cambios ni `index.lock` antes del checkpoint. No hay prueba de sesiones externas fuera de este equipo. Al publicar este PR Codex detiene ediciones; Claude puede asumir sin escrituras simultáneas de Codex.
+
+## 09/10/2026 — matriz de capacidades de OpenSEO (rama `docs/openseo-capacidades`)
+
+- [OPENSEO-CAPACIDADES](OPENSEO-CAPACIDADES.md): las 57 herramientas MCP del repositorio de referencia `Juanmaes83/open-seo@0ffff93`, con *hints*, coste declarado y uso posible en Rubik. Es la primera versión del entregable de la fase A de la §15.
+- **Hallazgo:**
+  - OpenSEO expone Search Console (`get_search_console_performance`, `inspect_urls`) y GA4 (nueve herramientas más `get_search_opportunities`), de solo lectura y **sin créditos**.
+  - Usan un OAuth por proyecto de OpenSEO, con los tokens cifrados en OpenSEO.
+  - Con el ADR 0007, Rubik podría leer GSC y GA4 del piloto sin guardar tokens de Google.
+- **Decisión para Juanma:**
+  - vía OpenSEO para GSC y GA4 (recomendada para el piloto), o
+  - fase B propia del ADR 0009.
+- **Si elige la vía OpenSEO:**
+  - Juanma conecta la propiedad de Sarah en la instancia alojada de OpenSEO.
+  - Se confirma la instancia: herramientas y verificación de su app OAuth.
+  - Se amplía la lista blanca en un PR con mocks.
+- **Sin cambios de código:** no se amplió la lista blanca ni se hizo ninguna llamada a OpenSEO.
