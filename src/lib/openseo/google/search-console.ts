@@ -61,6 +61,7 @@ export function createOpenSeoSearchConsoleTransport(opts: {
       if (!searchConsolePropertyFor(opts.projectDomain, opts.expectedSiteUrl)) return { httpStatus: 403, message: "Property outside the project domain" };
       if (!validateSearchAnalyticsInput(input)) return { httpStatus: 400, message: "Invalid Search Analytics request" };
       if (input.siteUrl !== opts.expectedSiteUrl) return { httpStatus: 403, message: "Property does not match the request" };
+      if (input.dimensions.length < 1 || input.dimensions.length > 4) return { httpStatus: 400, message: "OpenSEO requires between 1 and 4 dimensions" };
       if (input.rowLimit > OPENSEO_MAX_ROWS) return { httpStatus: 400, message: "OpenSEO returns at most 1000 rows per call" };
       let result: { structuredContent?: unknown; isError?: boolean; content?: unknown };
       try {
@@ -92,6 +93,16 @@ export function createOpenSeoSearchConsoleTransport(opts: {
       if (JSON.stringify(sc.dimensions) !== JSON.stringify(input.dimensions) || sc.startDate !== input.startDate || sc.endDate !== input.endDate) {
         return { httpStatus: 502, message: "La respuesta no corresponde a la petición" };
       }
+      // Missing/malformed rows must not be signed as an honest empty report.
+      if (!Array.isArray(sc.rows) || sc.rowCount !== sc.rows.length || sc.rows.length > input.rowLimit
+        || typeof sc.hasMore !== "boolean" || !sc.rows.every((raw) => {
+          if (!raw || typeof raw !== "object") return false;
+          const row = raw as Record<string, unknown>;
+          return Array.isArray(row.keys) && row.keys.length === input.dimensions.length && row.keys.every((k) => typeof k === "string")
+            && ["clicks", "impressions", "ctr"].every((k) => typeof row[k] === "number" && Number.isFinite(row[k]) && (row[k] as number) >= 0)
+            && (row.ctr as number) <= 1
+            && (row.position === undefined || (typeof row.position === "number" && Number.isFinite(row.position) && row.position >= 1));
+        })) return { httpStatus: 502, message: "Malformed Search Analytics rows or pagination" };
       const rows = mapSearchAnalyticsRows(sc, input.dimensions);
       if (rows === null) return { httpStatus: 502, message: "Unexpected Search Analytics response" };
       return { rows, truncated: sc.hasMore === true || rows.length === input.rowLimit, sourceUrl: opts.expectedSiteUrl };

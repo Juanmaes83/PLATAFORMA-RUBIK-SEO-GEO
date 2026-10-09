@@ -1,5 +1,15 @@
 # Handoff
 
+## Estado vigente — corrección GA4 y separación de alcance (09/10/2026)
+
+- **Repositorios:** plataforma `Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO`; Core `Juanmaes83/RUBIK-SEO-GEO-CORE`. Core #27 corrigió el fallo semántico GA4 y se integró como `main@18fd72cc72640b7138198504d07b86f317816059`; [CI posterior](https://github.com/Juanmaes83/RUBIK-SEO-GEO-CORE/actions/runs/37977720531) completa verde. Plataforma #57 se integró como `main@83d5fd0240f536d57a2d10ffabdc2423ae9abde8` tras [CI del SHA `e4ab34e`](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37978152849) completa verde (Node 22/24 y e2e local). La [CI posterior de `main@83d5fd0`](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37978890623) también terminó verde, verificada en el SHA exacto.
+- **#58:** PR apilado inicialmente sobre #57; la continuación integra su rama y el nuevo `main`, fija el Core integrado y rechaza filas GA4 vacías o semánticamente inválidas antes de firmar. Verificar el SHA final y retarget a `main` antes de integrar. Las pruebas son simuladas; ningún informe Google se consultó ni persistió realmente en Rubik.
+- **Alcance:** la fase histórica 4 (web nueva/antigua, Studio, contenido, consentimiento web, DNS, lanzamiento e indexación de Sarah) está trasladada a otro frente, **no completada**. No pedir parche/bundle, legales ni acceso al repo de Sarah para continuar Rubik. Sarah sigue como piloto. Rubik conserva análisis, medición, históricos, seguimiento y propuestas genéricas para cualquier cliente. Entradas antiguas de este HANDOFF sobre la web de Sarah son historia de relevos anteriores, no pendientes actuales de Rubik.
+- **Guardado comprobado, no repetir:** auditId `d1899523-807d-4f02-8f1f-2bce653a43f8`, 10/10 páginas; evidencia visual de Juanma (F5, dos firmas OK, reintento sin duplicados) y SQL de solo lectura (job `COMPLETED`, un `auditIssues` y un `auditPages` del proyecto correcto, `connection_id=NULL`, sin reserva) ya documentadas en #44. Sigue en `legacy`.
+- **Sin acciones alojadas:** no se creó conexión Sarah, no se activó `project` ni lectura Google, no se configuraron secretos ni aplicaron migraciones nuevas. Preview comparte Supabase de producción; no usar fixtures allí. El merge a `main` dispara despliegue automático Vercel, pero los flags Google están apagados y la página no consulta el proveedor al cargar.
+- **Decisiones de Juanma pendientes:** asociación/autorización de propiedades .es/.com y conexión OpenSEO de Sarah; activación `project` y redeploy separados; ADR 0010 (credenciales, opción B no aprobada); Preview aislada y coste; autorización específica para cualquier lectura/consumo real o migración alojada. La vía GSC/GA4 por OpenSEO no exige que Rubik custodie tokens Google.
+- **Siguiente unidad funcional:** resolver conexión ACTIVE y propiedad autorizada por proyecto en servidor, independiente del modo de rastreo `legacy`; consulta manual GSC rendimiento y GA4 `organic_landing_pages` con mocks, idempotencia y persistencia firmada. Inventariar tablas existentes antes de migrar; no usar propiedad libre del navegador ni ID global como fallback. La validación humana del panel/formulario sigue pendiente, distinta de la prueba del guardado.
+
 ## Verificación real OpenSEO — 2026-10-08/09
 
 - Login de Rubik recuperado corrigiendo la URL de Supabase en Vercel. Organización Rubik y proyecto Sarah creados por el propietario.
@@ -1354,3 +1364,21 @@ Archivos del commit:
 - **Actualización:** el contrato GA4 se ha propuesto en el Core, [RUBIK-SEO-GEO-CORE#27](https://github.com/Juanmaes83/RUBIK-SEO-GEO-CORE/pull/27) (D-29: proveedor `google-analytics` con transporte inyectado, 346/346). Cuando se fusione:
   1. fijar el Core en ese commit;
   2. escribir el transporte OpenSEO de GA4, comprobando la propiedad antes de firmar.
+
+## 09/10/2026 — relevo de Claude a Codex autorizado por Juanma
+
+- Juanma confirma «Claude está detenido. Asume código y continúa». Codex trabaja en rama propia `codex/google-integrations-review`, partiendo del HEAD publicado de #57 `64b2db631e757a35ee9e3d4f4861024fbfa8c71c`; `git status` inicial limpio, `git fetch origin`, main `f0c304cedf98053b2519af5904e89c11d763c33a`.
+- #55/#56 integradas; #57 sigue abierto y su CI [37956403763](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37956403763) completa en verde. Core #27 abierto en `b25ba92dc0e6474d397a86e0b06b596f5c876885`: `npm run verify` independiente 346/346. No se ha fusionado.
+- Auditoría y correcciones: GSC 1–4 dimensiones y respuesta estructurada íntegra; catálogo tipado en campos usados, duplicados/paginación incompleta rechazados; estados visuales honestos probados sin configurar OpenSEO.
+- Nuevo: GA4 `organic_landing_pages` con propiedad/ventana/canal/paginación exactos, errores estables, cobertura parcial y firma por proyecto. Core fijado a #27: la continuación depende de revisar/integrar ese PR y #57; no duplicar contratos.
+- Invitaciones recuperables en remoto `feat/invitaciones-proyecto@8414e3259a073cc4d2180a624a89d968cb067b5a`: migración, tests pgTAP y tipos. UI/actions/client/e2e que Claude describió **no están en esa rama** ni en este entorno limpio. Conservar y buscar la copia local original antes de recrear.
+- Docker no está instalado en el entorno Codex: pgTAP/integración/e2e se comprobarán en CI; no confundir tests de render con prueba interactiva del botón. Nada se prueba escribiendo en Preview.
+- Web nueva/Studio/legacy de Sarah excluidos de pendientes Rubik por decisión del propietario, atendidos separadamente. Sarah permanece como piloto.
+- No se llaman Google/OpenSEO ni herramientas de pago, no hay nuevas migraciones hosted, secretos, conexión, activación, merge o despliegue manual. Validación visual humana pendiente.
+- Siguiente: CI del nuevo PR; ampliar informes GA4 con contratos propios de sus metadatos, recuperar trabajo local de invitaciones; tarifa/moneda/impuestos/cambio y decisiones ADR 0010/Preview requieren evidencia o decisión del propietario.
+
+- Gate local de esta continuación: `npm run verify` correcto (313/313 Vitest, lint, TypeScript, pin, guard de secretos y build); `git diff --check` correcto. CI del nuevo HEAD pendiente al publicar.
+
+- Publicado **PR #58**, base `feat/gsc-ga4-openseo` (#57), primer HEAD `c140e3a3ead86e60a798c57181c52e325c31565a`, árbol remoto `28bc47b468367662650e7c4d785169ed4e86b67d` idéntico al validado local. Publicación con conector GitHub por ausencia de autenticación del push HTTPS. Local alineado al commit remoto y limpio.
+- CI inicial del PR #58: [37959868314](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37959868314), en curso al publicar; esta anotación origina un nuevo HEAD y requiere su propia CI.
+- Fuentes públicas oficiales de precio ahora accesibles: plan 10 USD/mes con 10 USD de uso, ciclo de facturación y recargas no caducables; GSC/GA4 sin créditos declarados. Moneda/impuestos/cambio y equivalencia exacta en la cuenta siguen pendientes. [CONSUMO-Y-PRESUPUESTO](CONSUMO-Y-PRESUPUESTO.md) distingue evidencia pública y de código de la facturación privada. Ambigüedad pública de coste de auditorías registrada sin ejecutar ninguna.

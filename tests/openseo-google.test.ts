@@ -59,6 +59,8 @@ describe("Search Console via OpenSEO", () => {
     expect(await run(transport(mcp), { ...input, siteUrl: "https://www.cliente.example/" })).toMatchObject({ errors: [{ code: "FORBIDDEN" }] });
     expect(await run(transport(mcp, { openseoProjectId: "" }))).toMatchObject({ status: "NOT_CONNECTED" });
     expect(await run(transport(mcp), { ...input, rowLimit: 1001 })).toMatchObject({ errors: [{ code: "HTTP_400" }] });
+    expect(await run(transport(mcp), { ...input, dimensions: [] })).toMatchObject({ errors: [{ code: "HTTP_400" }] });
+    expect(await run(transport(mcp), { ...input, dimensions: ["date", "query", "page", "country", "device"] })).toMatchObject({ errors: [{ code: "HTTP_400" }] });
     expect(mcp.callTool).not.toHaveBeenCalled();
   });
 
@@ -78,6 +80,16 @@ describe("Search Console via OpenSEO", () => {
   it("a thrown FORBIDDEN or transport failure never yields rows", async () => {
     expect(await run(transport(fakeMcp(() => { throw new Error("FORBIDDEN"); })))).toMatchObject({ status: "ERROR", errors: [{ code: "FORBIDDEN" }] });
     expect(await run(transport(fakeMcp(() => { throw Object.assign(new Error("down"), { status: 503 }); })))).toMatchObject({ status: "ERROR", data: [] });
+  });
+
+  it("rejects missing, excessive or malformed rows instead of signing an empty report", async () => {
+    for (const over of [ { rows: undefined }, { rowCount: 2 }, { hasMore: undefined },
+      { rows: [{ keys: ["q"], clicks: 1, impressions: 1, ctr: 1 }] },
+      { rows: [{ keys: ["q", "p"], clicks: -1, impressions: 1, ctr: 1 }] },
+      { rows: [{ keys: ["q", "p"], clicks: 1, impressions: 1, ctr: 2 }] } ]) {
+      expect(await run(transport(fakeMcp(ok(over))))).toMatchObject({ status: "ERROR", data: [] });
+    }
+    expect(await run(transport(fakeMcp(ok({ rows: [], rowCount: 0 }))))).toMatchObject({ status: "EMPTY" });
   });
 
   it("more rows available is PARTIAL; a different window is refused", async () => {
@@ -105,18 +117,28 @@ describe("OpenSEO MCP client guard for Google tools", () => {
 
 describe("hosted catalog check", () => {
   const tool = (name: string, over: Partial<ListedTool> = {}): ListedTool => ({
-    name, annotations: { readOnlyHint: true, destructiveHint: false }, inputSchema: { required: [...EXPECTED_REQUIRED[name as keyof typeof EXPECTED_REQUIRED]] }, ...over,
+    name, annotations: { readOnlyHint: true, destructiveHint: false }, inputSchema: { type: "object", required: [...EXPECTED_REQUIRED[name as keyof typeof EXPECTED_REQUIRED]], properties: {
+      projectId: { type: "string" }, urls: { type: "array", items: { type: "string" }, minItems: 1, maxItems: 10 },
+      dimensions: { type: "array", minItems: 1, maxItems: 4, items: { type: "string", enum: ["date", "query", "page", "country", "device"] } },
+      limit: { type: "integer", minimum: 1, maximum: 1000 }, offset: { type: "integer", minimum: 0 },
+      rowLimit: { type: "integer", minimum: 1, maximum: 1000 }, startRow: { type: "integer", minimum: 0 },
+      startDate: { type: "string" }, endDate: { type: "string" }, type: { type: "string", enum: ["web", "image", "video", "news", "discover", "googleNews"] }, dataState: { type: "string", enum: ["all", "final"] },
+    } }, ...over,
   });
-  it("is available only when every tool is present, read-only and with the expected required input", () => {
+  it("reports catalog compatibility per implemented report, without gating on unrelated tools", () => {
     const full = GOOGLE_READ_TOOLS.map((n) => tool(n));
     expect(checkGoogleCatalog(full)).toMatchObject({ searchConsole: true, analytics: true });
     const missing = checkGoogleCatalog(full.filter((t) => t.name !== "inspect_urls"));
-    expect(missing.searchConsole).toBe(false);
+    expect(missing.searchConsole).toBe(true);
     expect(missing.checks.find((c) => c.tool === "inspect_urls")).toEqual({ tool: "inspect_urls", state: "missing" });
     const writable = checkGoogleCatalog(full.map((t) => t.name === "get_google_analytics_site_search" ? tool(t.name, { annotations: { readOnlyHint: false } }) : t));
-    expect(writable.analytics).toBe(false);
+    expect(writable.analytics).toBe(true);
+    const landingWritable = checkGoogleCatalog(full.map((t) => t.name === "get_google_analytics_organic_landing_pages" ? tool(t.name, { annotations: { readOnlyHint: false } }) : t));
+    expect(landingWritable.analytics).toBe(false);
     const changed = checkGoogleCatalog(full.map((t) => t.name === "get_search_console_performance" ? tool(t.name, { inputSchema: { required: ["projectId", "siteUrl"] } }) : t));
     expect(changed.checks.find((c) => c.tool === "get_search_console_performance")).toMatchObject({ state: "input-changed", detail: "projectId, siteUrl" });
+    expect(checkGoogleCatalog([...full, full[0]]).searchConsole).toBe(false);
+    expect(checkGoogleCatalog(full.map((t) => t.name === "get_search_console_performance" ? tool(t.name, { inputSchema: { type: "object", required: ["projectId"], properties: { projectId: { type: "number" } } } }) : t)).searchConsole).toBe(false);
     expect(checkGoogleCatalog([])).toMatchObject({ searchConsole: false, analytics: false });
   });
 });

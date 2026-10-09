@@ -2,7 +2,9 @@
 
 **Estado:** inventario de capacidades deseadas por el propietario, pendiente de priorización y de entrega por fases.  
 **Actualizado:** 09/10/2026.
-**Estado del producto:** producción Vercel, acceso real Supabase y primer cliente Sarah Katerina comprobados. OpenSEO está conectado y una auditoría real terminó con 10/10 páginas. El informe aún no se persiste; el conector usa un proyecto OpenSEO global. CORE-9.2/9.3 existe en código, pero sus migraciones no están aplicadas en el Supabase alojado. El resto del catálogo conserva su estado por capacidad.
+**Estado vigente (09/10/2026):** producción Vercel, acceso real Supabase y Sarah Katerina como primer proyecto piloto. Su auditoría de 10/10 páginas en OpenSEO `legacy` quedó guardada y verificada visualmente y por SQL de solo lectura: un resultado de páginas y uno de incidencias, firmados y sin duplicados tras reintento (HANDOFF/#44). Las nueve migraciones del primer paquete están aplicadas; las migraciones posteriores de presupuesto/consumo integradas en código no están aplicadas en alojado. No hay conexión OpenSEO de Sarah por proyecto, modo `project` ni lectura Google real desde Rubik. El resto del catálogo conserva su estado por capacidad.
+
+**Límite del producto:** web nueva o antigua de Sarah, Studio, contenido, consentimiento web, DNS, lanzamiento e indexación del sitio se gestionan en otro frente. Su traslado no es una entrega completada de Rubik. Las capacidades genéricas de análisis, medición, seguimiento y propuestas de Rubik siguen en este backlog para cualquier cliente.
 
 > **Interpretación:** esta lista registra lo que el propietario quiere que la plataforma pueda cubrir con el tiempo. No significa que ya exista, que todo deba entrar en una única entrega, ni que toda tarea sea automatizable. El orden, los límites, las fuentes de datos, los costes y las aprobaciones se concretarán antes de implementar cada bloque.
 
@@ -15,7 +17,7 @@
 
 ## Qué existe hoy en el Core y qué no
 
-El Core es una librería, no una suite SEO con interfaz ni datos propios. Tiene piezas reutilizables para metadatos por página, title/description/H1, Page Registry, schema.org por vertical, SEO de medios, canonical/hreflang, HTML inicial, sitemap y robots.txt; también contratos de conectores/proveedores, autoridad/citas, snapshots y borradores de acciones. La plataforma presenta ya una auditoría técnica real de OpenSEO para Sarah Katerina; eso no conecta automáticamente las demás piezas a su sitio ni implementa todo este catálogo. Persistencia productiva, otras integraciones y medición externa siguen pendientes.
+El Core es una librería, no una suite SEO con interfaz ni datos propios. Tiene piezas reutilizables para metadatos por página, title/description/H1, Page Registry, schema.org por vertical, SEO de medios, canonical/hreflang, HTML inicial, sitemap y robots.txt; también contratos de conectores/proveedores, autoridad/citas, snapshots y borradores de acciones. La plataforma presenta y persiste la auditoría técnica `legacy` comprobada de Sarah; eso no conecta automáticamente las demás piezas a su sitio ni implementa todo este catálogo. Persistencia de informes Google, otras integraciones y medición externa siguen pendientes.
 
 ## Catálogo deseado
 
