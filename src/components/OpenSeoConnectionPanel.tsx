@@ -19,7 +19,12 @@ const dateFormat = new Intl.DateTimeFormat("es-ES", { dateStyle: "long", timeSty
 function Outcome({ state }: { state: Awaited<ReturnType<typeof connectProjectAction>> }) {
   if (!state) return null;
   if ("denied" in state) return <p className="notice notice-error" role="alert">{CONNECTION_CHANGE_TEXT.CONNECTION_FORBIDDEN}</p>;
-  if (state.ok) return <p className="notice notice-info" role="status">{state.change === "connected" ? "Conexión guardada." : "Conexión revocada."}</p>;
+  if (state.ok) return (
+    <p className="notice notice-info" role="status">
+      {state.change === "connected" ? "Conexión guardada." : "Conexión revocada."}
+      {!state.audited && " El cambio no ha quedado en el registro de auditoría del proyecto: revisa la firma del servidor."}
+    </p>
+  );
   return (
     <p className="notice notice-error" role="alert">
       {CONNECTION_CHANGE_TEXT[state.error] ?? "No se ha podido completar el cambio."}

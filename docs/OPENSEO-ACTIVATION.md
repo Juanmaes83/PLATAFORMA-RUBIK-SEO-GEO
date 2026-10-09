@@ -62,3 +62,45 @@ Redeploy de activación comprobado `READY` el 09/10/2026: `dpl_6hzwqBBTJq4582stf
 Las auditorías anteriores al ledger no se adoptan automáticamente. Una respuesta de lanzamiento incierta conserva STARTING y requiere reconciliación administrativa antes de otro lanzamiento; no hay un botón para expirar esa reserva. OpenSEO mantiene un solo `OPENSEO_PROJECT_ID` global: el mapeo por cliente se diseña en [ADR 0007](adr/0007-openseo-conexion-por-proyecto.md) y su fase 1 no cambia este flujo. No se activan nuevas herramientas de pago, publicación ni indexación de Sarah.
 
 Fuentes de CLI consultadas el 09/10/2026: [flujo de desarrollo](https://supabase.com/docs/guides/local-development/cli-workflows) y [referencia CLI](https://supabase.com/docs/reference/cli/introduction).
+
+## Paquete de aplicación: multiempresa y reconciliación (PR #32, #33, #36)
+
+**Preparado para revisión del propietario, no ejecutado.** Solo procede después de fusionar #32, #33 y #36 en `main` y con la CI de `main` en verde. Mientras tanto, el código de producción es compatible con un alojado sin estas migraciones: modo `legacy` y sin panel de reconciliación activo.
+
+- **Destino:** `plataforma-rubik-seo-geo-dev`, referencia `yvdgmklgwlshizzgefpv`.
+- **Migraciones, en este orden:**
+  1. `20261009120000_openseo_project_connections.sql`: tabla privada y RPC de conexión.
+  2. `20261009150000_openseo_job_connection.sql`: columna `connection_id` y reemplazo de `private.openseo_job`.
+  3. `20261009170000_openseo_active_job.sql`: lectura del trabajo activo y liberación atómica.
+- **Requisito:** que no haya ningún trabajo STARTING o SYNCING en ese momento. La segunda migración reemplaza la función que usan los trabajos.
+
+Desde la copia de Windows, con el árbol limpio y `main` actualizado:
+
+```powershell
+git switch main; git pull --ff-only
+npx supabase@2.118.0 link --project-ref yvdgmklgwlshizzgefpv
+npx supabase@2.118.0 migration list --linked          # las cinco versiones actuales, sincronizadas
+npx supabase@2.118.0 db push --linked --dry-run       # debe proponer exactamente las tres versiones de arriba
+```
+
+**Detenerse** si el dry-run propone otra cosa. Si coincide:
+
+```powershell
+npx supabase@2.118.0 db push --linked
+npx supabase@2.118.0 migration list --linked          # ocho versiones sincronizadas
+npx supabase@2.118.0 db advisors --linked --type security --level info
+```
+
+En el Advisor se espera:
+- el INFO `rls_enabled_no_policy` también para `private.openseo_project_connections`, que es intencional, igual que el ledger;
+- el WARN de contraseñas filtradas, que ya existía.
+
+No crear políticas para silenciar el INFO.
+
+- **Qué cambia en producción al aplicarlas:** nada visible hasta el siguiente despliegue con #35. Después, el owner verá el panel de conexión. Las auditorías siguen en `legacy`, porque `OPENSEO_PROJECT_CONNECTIONS_MODE` no existe en Vercel.
+- **Riesgo:** previews y producción comparten Supabase. Una conexión creada desde una preview es real.
+- **Rollback:** primero copia de seguridad del proyecto y ningún trabajo activo.
+  1. Ejecutar [`docs/rollback/openseo-multitenant-rollback.sql`](rollback/openseo-multitenant-rollback.sql) en el editor SQL del proyecto.
+  2. Ejecutar `npx supabase@2.118.0 migration repair --status reverted 20261009170000 20261009150000 20261009120000`.
+  3. Probado en local: la función `private.openseo_job` queda idéntica a la original (mismo md5), los permisos se conservan y las suites de jobs, provenance, tenancy e importaciones pasan.
+- **Activar el modo por proyecto** es otra decisión posterior, que se presentará aparte: crear la conexión de Sarah, comprobar que no hay trabajos activos, definir la variable y hacer redeploy.

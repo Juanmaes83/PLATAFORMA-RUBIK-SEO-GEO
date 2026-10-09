@@ -907,3 +907,24 @@ CI inicial de esta entrega: verify Node22/24 pasa; integración falló al crear 
   - La página muestra el panel solo al owner.
 - Pruebas: `npm run verify` 227/227. La e2e nueva `e2e/openseo-connection.spec.ts` y el ajuste de `visual.spec.ts` (la página del owner ahora tiene formulario) **solo se ejecutan en CI**: en local no hay Kong. `docs/visual` no se ha regenerado; las capturas 18, 20 y 21 quedan en el artefacto `capturas-core-9-1` de la CI.
 - Revisión visual: en la preview solo se verá el estado «no disponible» hasta aplicar `20261009120000` en alojado. Al aplicarla, la preview escribiría en producción, así que crear la conexión de Sarah desde ella sería un cambio real y necesita autorización expresa.
+
+## 09/10/2026 — reconciliación de STARTING incierto (rama `claude/openseo-reconciliacion`)
+
+- [ADR 0008](adr/0008-reconciliacion-openseo.md). Migración `20261009170000_openseo_active_job.sql`:
+  - `openseo_active_job`: lectura del trabajo activo, sin crear reserva.
+  - `openseo_release_starting_job`: libera solo un STARTING sin `auditId`, bajo el mismo lock.
+  - Tipos regenerados con la CLI.
+- Código:
+  - `jobs.ts`: `findActiveAuditJob` y `releaseStartingAuditJob`.
+  - `project-audit.ts`: `reconcileStartingJob`.
+  - `actions.ts`: `reconcileAuditAction`, que pasa por `authorized` y exige confirmación.
+  - `OpenSeoReconcilePanel`, visible solo para el owner y solo con una reserva STARTING.
+- Corrección de interfaz existente: `errorText(code, message)` muestra el mensaje del servidor cuando el código no tiene texto. Antes `SIGNING_MISSING`, `START_UNCERTAIN`, `BIND_FAILED`, `AUDIT_NOT_BOUND`… mostraban solo «Error de OpenSEO.».
+- e2e: `OPENSEO_PROJECT_JOBS_ENABLED=true` solo en el servidor local de Playwright; OpenSEO sigue sin configurar. Nueva spec `openseo-reconcile.spec.ts`, que deja el proyecto sin trabajo activo al terminar.
+- Pruebas locales:
+  - pgTAP: ocho suites sin fallos (`openseo_active_job` 15/15).
+  - Unit: reconciliación y textos.
+  - `npm run verify`: resultado en el PR.
+  - e2e solo en CI.
+- Paquete de aplicación alojada preparado en OPENSEO-ACTIVATION: orden, dry-run esperado, Advisor y riesgos, y un rollback `docs/rollback/openseo-multitenant-rollback.sql` probado en local (función restaurada idéntica por md5, permisos intactos, suites antiguas en verde). **No ejecutado:** lo aplica el propietario tras fusionar.
+- Trazabilidad: conectar, revocar y reconciliar añaden un evento firmado a `audit_events`. Si falla el registro, la acción devuelve `audited: false` y la interfaz lo advierte. Test estático incluido. `npm run verify` 235/235.

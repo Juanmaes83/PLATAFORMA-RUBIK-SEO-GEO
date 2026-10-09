@@ -2,14 +2,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
 import type { Keyring } from "@/lib/provenance/keyring";
-import { startProjectAudit, followProjectAudit } from "@/lib/openseo/project-audit";
+import { startProjectAudit, followProjectAudit, reconcileStartingJob } from "@/lib/openseo/project-audit";
 import { projectJobsEnabled } from "@/lib/openseo/jobs";
 import { ERROR_TEXT } from "@/lib/openseo/labels";
 
-const m = vi.hoisted(() => ({ acquire: vi.fn(), bind: vi.fn(), complete: vi.fn(), fail: vi.fn(), find: vi.fn(),
+const m = vi.hoisted(() => ({ acquire: vi.fn(), bind: vi.fn(), complete: vi.fn(), fail: vi.fn(), find: vi.fn(), active: vi.fn(), release: vi.fn(),
   validate: vi.fn(), start: vi.fn(), follow: vi.fn(), prepare: vi.fn() }));
 vi.mock("@/lib/openseo/jobs", async original => ({ ...await original<typeof import("@/lib/openseo/jobs")>(),
-  acquireAuditJob: m.acquire, bindAuditJob: m.bind, completeAuditJob: m.complete, failAuditJob: m.fail, findAuditJob: m.find }));
+  acquireAuditJob: m.acquire, bindAuditJob: m.bind, completeAuditJob: m.complete, failAuditJob: m.fail, findAuditJob: m.find,
+  findActiveAuditJob: m.active, releaseStartingAuditJob: m.release }));
 vi.mock("@/lib/openseo/bridge", () => ({ validateAuditStart: m.validate, startSiteAudit: m.start, followSiteAudit: m.follow }));
 vi.mock("@/lib/openseo/persistence", () => ({ prepareCompletedAuditResults: m.prepare }));
 const client = {} as SupabaseClient<Database>;
@@ -165,5 +166,58 @@ describe("project audit lifecycle", () => {
     for (const code of ["PROJECT_NOT_CONNECTED", "CONNECTIONS_REQUIRE_JOBS", "CONNECTION_FORBIDDEN", "CONNECTION_UNAVAILABLE", "CONNECTION_NOT_ACTIVE", "JOB_CONNECTION_MISMATCH"]) {
       expect(ERROR_TEXT[code], code).toBeTruthy();
     }
+  });
+});
+
+describe("error copy", () => {
+  it("an unknown code shows the server's specific message, never only the generic text", async () => {
+    const { errorText } = await import("@/lib/openseo/labels");
+    expect(errorText("SIGNING_MISSING", "Faltan las claves de firma del servidor.")).toBe("Faltan las claves de firma del servidor.");
+    expect(errorText("TIMEOUT", "ignored")).toBe("OpenSEO no ha respondido a tiempo.");
+    expect(errorText("SOMETHING_NEW")).toBe("Error de OpenSEO.");
+    expect(errorText(null)).toBe("");
+  });
+});
+
+describe("uncertain launch reconciliation (ADR 0008)", () => {
+  const starting = { ...job, state: "STARTING", auditId: null, connectionId: null, createdAt: "2026-10-09T10:00:00Z" };
+  beforeEach(() => {
+    m.active.mockResolvedValue({ ok: true, job: starting });
+    m.release.mockResolvedValue({ ok: true, job: { ...starting, state: "FAILED" } });
+  });
+  it("binds the audit id the owner saw in OpenSEO, without contacting OpenSEO", async () => {
+    expect(await reconcileStartingJob(client, project, { mode: "bind", auditId: "aud-seen" })).toEqual({ ok: true, state: "SYNCING", auditId: "aud-seen" });
+    expect(m.bind).toHaveBeenCalledWith(client, project, job.jobId, "aud-seen");
+    expect(m.start).not.toHaveBeenCalled();
+    expect(m.follow).not.toHaveBeenCalled();
+  });
+  it("releases only through the atomic STARTING release, never the generic fail", async () => {
+    expect(await reconcileStartingJob(client, project, { mode: "release" })).toEqual({ ok: true, state: "FAILED", auditId: null });
+    expect(m.release).toHaveBeenCalledWith(client, project, job.jobId);
+    expect(m.fail).not.toHaveBeenCalled();
+  });
+  it("refuses when there is nothing uncertain to reconcile", async () => {
+    for (const value of [{ ok: true, job: null }, { ok: true, job: { ...starting, state: "SYNCING", auditId: "audit-1" } }]) {
+      m.active.mockResolvedValue(value);
+      expect(await reconcileStartingJob(client, project, { mode: "release" })).toMatchObject({ ok: false, error: { code: "NO_STARTING_JOB" } });
+    }
+    expect(m.release).not.toHaveBeenCalled();
+    expect(m.bind).not.toHaveBeenCalled();
+  });
+  it("refuses a malformed audit id before reading the ledger", async () => {
+    expect(await reconcileStartingJob(client, project, { mode: "bind", auditId: "../../x" })).toMatchObject({ error: { code: "INVALID_AUDIT_ID" } });
+    expect(m.active).not.toHaveBeenCalled();
+  });
+  it("a reservation of another connection is never touched", async () => {
+    const connection = { connectionId: "00000000-0000-4000-8000-0000000000c1", state: "ACTIVE" as const, credentialMode: "platform" as const,
+      openseoProjectId: "oseo-client", allowedHosts: ["example.test"], grantedAt: "2026-10-09T10:00:00Z", revokedAt: null };
+    expect(await reconcileStartingJob(client, project, { mode: "release" }, connection)).toMatchObject({ error: { code: "JOB_CONNECTION_MISMATCH" } });
+    expect(m.release).not.toHaveBeenCalled();
+  });
+  it("reports database refusals without claiming success", async () => {
+    m.bind.mockResolvedValue({ ok: false, error: "JOB_UNAVAILABLE" });
+    expect(await reconcileStartingJob(client, project, { mode: "bind", auditId: "aud-other" })).toMatchObject({ ok: false, error: { code: "RECONCILE_BIND_FAILED" } });
+    m.release.mockResolvedValue({ ok: false, error: "JOB_NOT_FOUND" });
+    expect(await reconcileStartingJob(client, project, { mode: "release" })).toMatchObject({ ok: false, error: { code: "RECONCILE_RELEASE_FAILED" } });
   });
 });
