@@ -4,6 +4,7 @@ import type { Database } from "@/lib/supabase/database.types";
 import type { Keyring } from "@/lib/provenance/keyring";
 import { startProjectAudit, followProjectAudit } from "@/lib/openseo/project-audit";
 import { projectJobsEnabled } from "@/lib/openseo/jobs";
+import { ERROR_TEXT } from "@/lib/openseo/labels";
 
 const m = vi.hoisted(() => ({ acquire: vi.fn(), bind: vi.fn(), complete: vi.fn(), fail: vi.fn(), find: vi.fn(),
   validate: vi.fn(), start: vi.fn(), follow: vi.fn(), prepare: vi.fn() }));
@@ -159,5 +160,10 @@ describe("project audit lifecycle", () => {
       await followProjectAudit(client, project, "audit-1", input.projectDomain, false, keyring, deps, connection);
       expect(m.follow.mock.calls[0][2]).toMatchObject({ env: deps.env, boundAuditId: "audit-1" });
     });
+  });
+  it("every refusal code of project mode has Spanish copy instead of the generic error", () => {
+    for (const code of ["PROJECT_NOT_CONNECTED", "CONNECTIONS_REQUIRE_JOBS", "CONNECTION_FORBIDDEN", "CONNECTION_UNAVAILABLE", "CONNECTION_NOT_ACTIVE", "JOB_CONNECTION_MISMATCH"]) {
+      expect(ERROR_TEXT[code], code).toBeTruthy();
+    }
   });
 });
