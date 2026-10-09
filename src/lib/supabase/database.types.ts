@@ -153,6 +153,9 @@ isOneToOne: false
 "openseo_connection":
 { Args: { "p_command": string,"p_payload"?: Json,"p_project_id": string }; Returns: Json
                            },
+"openseo_google_property":
+{ Args: { "p_command": string,"p_payload"?: Json,"p_project_id": string,"p_provider": string }; Returns: Json
+                           },
 "openseo_job":
 { Args: { "p_command": string,"p_job_id"?: string,"p_payload"?: Json,"p_project_id": string }; Returns: Json
                            },
