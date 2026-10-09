@@ -52,15 +52,17 @@ describe("per-client credential encryption (ADR 0010)", () => {
 
   it("rotates: old values open with the retired key, reseal moves them to the active key", () => {
     const k1 = key();
+    const k2 = key();
     const old = ring({ CREDENTIALS_ENCRYPTION_KEYS: `k1:${k1}`, CREDENTIALS_ACTIVE_KEY_ID: "k1" }).seal(SECRET, binding);
-    const rotated = ring({ CREDENTIALS_ENCRYPTION_KEYS: `k1:${k1},k2:${key()}`, CREDENTIALS_ACTIVE_KEY_ID: "k2" });
+    const rotated = ring({ CREDENTIALS_ENCRYPTION_KEYS: `k1:${k1},k2:${k2}`, CREDENTIALS_ACTIVE_KEY_ID: "k2" });
     expect(rotated.open(old, binding)).toBe(SECRET);
     const moved = rotated.reseal(old, binding);
     expect(moved?.keyId).toBe("k2");
     expect(rotated.open(moved, binding)).toBe(SECRET);
     // Once k1 is removed, only resealed values remain readable.
-    const after = ring({ CREDENTIALS_ENCRYPTION_KEYS: `k2:${key()}`, CREDENTIALS_ACTIVE_KEY_ID: "k2" });
+    const after = ring({ CREDENTIALS_ENCRYPTION_KEYS: `k2:${k2}`, CREDENTIALS_ACTIVE_KEY_ID: "k2" });
     expect(after.open(old, binding)).toBeNull();
+    expect(after.open(moved, binding)).toBe(SECRET);
   });
 
   it("refuses incomplete or unsafe configuration without echoing values", () => {
