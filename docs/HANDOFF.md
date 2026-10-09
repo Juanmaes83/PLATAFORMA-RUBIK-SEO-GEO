@@ -896,3 +896,14 @@ CI inicial de esta entrega: verify Node22/24 pasa; integración falló al crear 
 - Lección: un `throws_ok` con solo el SQLSTATE puede pasar por un motivo distinto. La fila sintética fallaba por `key_id` y daba el mismo código `23514`. Ahora los rechazos de identidad se comprueban por su mensaje y hay un control positivo.
 - Integración: mismo owner y dos proyectos a través de PostgREST. Se ejecuta solo en CI.
 - Siguiente: fase 3 (interfaz de conexión). Su revisión visual en preview dependerá de que la migración de la fase 1 esté en alojado (Preview usa el Supabase de producción).
+
+## 09/10/2026 — fase 3: panel de conexión del owner (rama `claude/openseo-fase3-interfaz`)
+
+- Va apilada sobre #34. Corrección previa en #33: textos en español para los códigos de rechazo del modo `project` (sin ellos la interfaz mostraba «Error de OpenSEO.»). Ya está fusionada en #34 y en esta rama.
+- Código:
+  - Server Actions `connectProjectAction` y `revokeProjectAction`. Pasan por `authorized` y exigen consentimiento o confirmación. El test estático ahora exige que todas las actions exportadas llamen a `authorized`.
+  - Componente `OpenSeoConnectionPanel`.
+  - Estilos de `fieldset`.
+  - La página muestra el panel solo al owner.
+- Pruebas: `npm run verify` 227/227. La e2e nueva `e2e/openseo-connection.spec.ts` y el ajuste de `visual.spec.ts` (la página del owner ahora tiene formulario) **solo se ejecutan en CI**: en local no hay Kong. `docs/visual` no se ha regenerado; las capturas 18, 20 y 21 quedan en el artefacto `capturas-core-9-1` de la CI.
+- Revisión visual: en la preview solo se verá el estado «no disponible» hasta aplicar `20261009120000` en alojado. Al aplicarla, la preview escribiría en producción, así que crear la conexión de Sarah desde ella sería un cambio real y necesita autorización expresa.

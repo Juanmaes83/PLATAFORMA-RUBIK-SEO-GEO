@@ -65,3 +65,14 @@ export const SEVERITY_LABELS: Readonly<Record<string, string>> = {
 };
 
 export const errorText = (code: string | null | undefined) => (code ? ERROR_TEXT[code] ?? "Error de OpenSEO." : "");
+
+// Per-project connection form (ADR 0007, phase 3).
+export const CONNECTION_CHANGE_TEXT: Readonly<Record<string, string>> = {
+  CONFIRMATION_REQUIRED: "Marca la confirmación para continuar.",
+  CONNECTION_FORBIDDEN: "Solo la persona titular del proyecto gestiona su conexión de OpenSEO.",
+  CONNECTION_INVALID: "Revisa el identificador del proyecto de OpenSEO y los hosts: solo se admite el dominio de este proyecto y su variante con o sin www.",
+  CONNECTION_CONFLICT: "Hay otra conexión activa o un trabajo de auditoría en curso. Revoca la conexión o espera a que el trabajo termine.",
+  CONNECTION_TAKEN: "Ese proyecto de OpenSEO ya está conectado a otro proyecto de la plataforma. Un proyecto de OpenSEO solo puede pertenecer a un cliente.",
+  CONNECTION_UNAVAILABLE: "Las conexiones por proyecto no están disponibles en este servidor ahora mismo.",
+  CONNECTION_INVALID_RESPONSE: "La respuesta del servidor no tiene la forma esperada. No se ha cambiado nada.",
+};

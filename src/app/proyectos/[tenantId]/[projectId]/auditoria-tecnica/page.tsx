@@ -13,7 +13,9 @@ import { serverKeyring } from "@/lib/provenance/keyring";
 import { listProviderResults } from "@/lib/provenance/repository";
 import { myProjectMembership } from "@/lib/tenancy";
 import { projectJobsEnabled } from "@/lib/openseo/jobs";
-import { resolveOpenSeoTarget } from "@/lib/openseo/target";
+import { connectionMode, resolveOpenSeoTarget } from "@/lib/openseo/target";
+import { getProjectConnection } from "@/lib/openseo/connections";
+import { OpenSeoConnectionPanel, type ConnectionPanelView } from "@/components/OpenSeoConnectionPanel";
 
 // Technical audit through OpenSEO (ADR 0006). The page itself never calls OpenSEO: it only
 // reads which configuration STATES exist on the server. Every call to OpenSEO is a Server
@@ -35,6 +37,7 @@ export default async function TechnicalAuditPage({ params }: { params: Promise<{
   const view = describeOpenSeoConfig(readOpenSeoConfig(targetEnv));
   const auditable = projectAuditable(project.domain, targetEnv);
   const domain = (project.domain ?? "").replace(/^https?:\/\//i, "").replace(/\/.*$/, "");
+  const connectionView = canManage ? await panelView(supabase, ref.projectId, domain) : null;
   const keyring = serverKeyring();
   const listed = keyring ? await listProviderResults(supabase, ref) : null;
   const historyState = !keyring ? "signing-missing" : listed?.ok ? "ready" : "unavailable";
@@ -52,6 +55,8 @@ export default async function TechnicalAuditPage({ params }: { params: Promise<{
         desde el servidor: las credenciales nunca llegan al navegador ni se guardan en el proyecto. La plataforma no da la
         conexión por buena hasta que una prueba con credenciales reales la verifica.
       </p>
+
+      {connectionView && <OpenSeoConnectionPanel tenant={project.tenantId} project={project.projectId} view={connectionView} projectMode={connectionMode() === "project"} />}
 
       {!canManage ? (
         <EmptyState title="Solo la persona titular del proyecto la gestiona">
@@ -85,4 +90,18 @@ export default async function TechnicalAuditPage({ params }: { params: Promise<{
       <OpenSeoHistory base={base} state={historyState} rows={historyRows} />
     </>
   );
+}
+
+/** Owner view of the connection: hosts and the last characters of the OpenSEO id, nothing else. */
+async function panelView(supabase: Parameters<typeof getProjectConnection>[0], projectId: string, domain: string): Promise<ConnectionPanelView> {
+  const found = await getProjectConnection(supabase, projectId);
+  if (!found.ok) return { state: "unavailable" };
+  if (found.connection?.state === "ACTIVE") {
+    const id = found.connection.openseoProjectId;
+    return { state: "active", hosts: found.connection.allowedHosts, grantedAt: found.connection.grantedAt, providerHint: id.length > 4 ? `…${id.slice(-4)}` : "…" };
+  }
+  const host = domain.toLowerCase();
+  if (!host) return { state: "none", hostOptions: [], defaultHost: null };
+  const apex = host.replace(/^www\./, "");
+  return { state: "none", hostOptions: [host, host === apex ? `www.${apex}` : apex], defaultHost: host };
 }

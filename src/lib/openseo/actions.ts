@@ -11,6 +11,7 @@ import { projectJobsEnabled } from "./jobs";
 import { followProjectAudit, startProjectAudit, type SaveStatus } from "./project-audit";
 import { followSiteAudit, startSiteAudit, testOpenSeoConnection, type AuditFollowUp, type AuditStart, type BridgeError, type ConnectionReport } from "./bridge";
 import { resolveOpenSeoTarget } from "./target";
+import { connectProject, revokeProjectConnection, type ConnectionError } from "./connections";
 
 // OpenSEO Server Actions (ADR 0006). Every action authenticates, loads the membership through
 // RLS and asks the Core whether the role may `manage-connectors` in THAT project; the hidden
@@ -79,4 +80,34 @@ export async function followAuditAction(_prev: AuditFollowState, formData: FormD
     progress: { ok: false, state: null, providerStatus: null, phase: null, pagesCrawled: null, pagesTotal: null, checkedAt: null,
       error: { code: "PERSISTENCE_DISABLED", message: "El guardado aún no está activado en este servidor.", retryable: false } } };
   return { auditId, ...(await followSiteAudit(auditId, access.project.domain)) };
+}
+
+// Per-project connection (ADR 0007, phase 3). Owner only, explicit consent, no secret: the form
+// sends the OpenSEO project identifier and the audit hosts, and the database rechecks both.
+export type ConnectionChangeState = { ok: true; change: "connected" | "revoked" } | { ok: false; error: ConnectionError | "CONFIRMATION_REQUIRED" } | Denied | null;
+
+const auditPath = (tenantId: string, projectId: string) => `/proyectos/${tenantId}/${projectId}/auditoria-tecnica`;
+
+export async function connectProjectAction(_prev: ConnectionChangeState, formData: FormData): Promise<ConnectionChangeState> {
+  const context = await authorized(formData);
+  if (!context) return { denied: true };
+  if (field(formData, "consent") !== "on") return { ok: false, error: "CONFIRMATION_REQUIRED" };
+  const result = await connectProject(context.client, context.project.projectId, {
+    openseoProjectId: field(formData, "openseoProjectId"),
+    allowedHosts: formData.getAll("host").map((h) => String(h)),
+    consent: true,
+  });
+  if (!result.ok) return { ok: false, error: result.error };
+  revalidatePath(auditPath(context.access.project.tenantId, context.access.project.projectId));
+  return { ok: true, change: "connected" };
+}
+
+export async function revokeProjectAction(_prev: ConnectionChangeState, formData: FormData): Promise<ConnectionChangeState> {
+  const context = await authorized(formData);
+  if (!context) return { denied: true };
+  if (field(formData, "confirm") !== "on") return { ok: false, error: "CONFIRMATION_REQUIRED" };
+  const result = await revokeProjectConnection(context.client, context.project.projectId);
+  if (!result.ok) return { ok: false, error: result.error };
+  revalidatePath(auditPath(context.access.project.tenantId, context.access.project.projectId));
+  return { ok: true, change: "revoked" };
 }
