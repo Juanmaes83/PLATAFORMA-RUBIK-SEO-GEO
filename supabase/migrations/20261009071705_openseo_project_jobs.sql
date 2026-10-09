@@ -92,6 +92,7 @@ begin
             or r ->> 'provider' is distinct from 'openseo'
             or r ->> 'operation' is distinct from operation_name
             or r ->> 'status' is null or r ->> 'status' not in ('OK', 'PARTIAL', 'EMPTY')
+            or r #>> '{signed_payload,scopeVersion}' is distinct from '1'
             or r #>> '{signed_payload,scope,tenantId}' is distinct from j.organization_id::text
             or r #>> '{signed_payload,scope,projectId}' is distinct from j.project_id::text
             or r #>> '{signed_payload,provenance,evidence,auditId}' is distinct from j.audit_id then

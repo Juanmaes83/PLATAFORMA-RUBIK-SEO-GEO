@@ -39,7 +39,7 @@ create function pg_temp.result_row(op text,other_project boolean default false) 
  'organization_id',organization_id,'provider','openseo','operation',op,'status','OK',
  'captured_at','2026-10-09T07:00:00Z','data','[]'::jsonb,'data_hash_alg','sha256',
  'data_hash',repeat('a',64),'key_id','test-key','signature',repeat('b',64),
- 'signed_payload',jsonb_build_object('provider','openseo','operation',op,'status','OK',
+ 'signed_payload',jsonb_build_object('scopeVersion',1,'provider','openseo','operation',op,'status','OK',
  'dataHashAlg','sha256','dataHash',repeat('a',64),
  'scope',jsonb_build_object('tenantId',organization_id,'projectId',project_id),
  'provenance',jsonb_build_object('evidence',jsonb_build_object('auditId','audit-a')))) from ids;
