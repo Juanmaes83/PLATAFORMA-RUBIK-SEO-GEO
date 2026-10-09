@@ -1,9 +1,15 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { randomBytes } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { auditResponseShape, checkAuditTarget, followSiteAudit, startSiteAudit, testOpenSeoConnection, whoamiVerifier } from "@/lib/openseo/bridge";
+import { providers } from "@/lib/core";
+import { auditResponseShape, checkAuditTarget, followSiteAudit, startSiteAudit, testOpenSeoConnection, whoamiVerifier, type CompletedAuditCapture } from "@/lib/openseo/bridge";
 import { MAX_PAGES_CEILING, describeOpenSeoConfig, publicOpenSeoLeak, readOpenSeoConfig } from "@/lib/openseo/config";
 import { ALLOWED_TOOLS, OpenSeoTransportError, createOpenSeoMcpClient } from "@/lib/openseo/mcp-client";
+import { prepareCompletedAuditResults } from "@/lib/openseo/persistence";
+import { loadKeyring } from "@/lib/provenance/keyring";
+import { openProviderResult } from "@/lib/provenance/results";
+import type { ProjectRef } from "@/lib/provenance/audit";
 
 // OpenSEO bridge (ADR 0006), exercised only against an in-memory mock of the OpenSEO MCP
 // server: no network, no real key. The fake key is assembled at run time so the secrets guard
@@ -23,6 +29,20 @@ const ENV = {
 };
 const DOMAIN = "www.cliente.example";
 const clock = () => new Date("2026-10-08T10:00:00Z");
+const PROJECT_REF: ProjectRef = {
+  projectId: "11111111-1111-4111-8111-111111111111",
+  organizationId: "22222222-2222-4222-8222-222222222222",
+  scope: { tenantId: "fixture", projectId: "client" },
+};
+
+const signingKeyring = () => {
+  const loaded = loadKeyring({
+    PROVENANCE_SIGNING_KEYS: `capture:${randomBytes(32).toString("base64")}`,
+    PROVENANCE_ACTIVE_KEY_ID: "capture",
+  });
+  if (!loaded.ok) throw new Error(loaded.error);
+  return loaded.keyring;
+};
 
 interface Call {
   url: string;
@@ -332,6 +352,7 @@ describe("audit follow-up and normalization through the Core", () => {
   });
 
   it("a completed audit returns issues and pages normalized by the Core, only for the project's domain", async () => {
+    let captured: CompletedAuditCapture | null = null;
     const mock = mockOpenSeo({
       get_audit_status: status("completed"),
       get_audit_issues: (args) => {
@@ -350,7 +371,12 @@ describe("audit follow-up and normalization through the Core", () => {
       },
       get_audit_pages: () => ({ structuredContent: { pages: [{ url: `https://${DOMAIN}/a`, html: "<html>secret text</html>" }, { url: "https://other.example/x" }], total: 2 } }),
     });
-    const r = await followSiteAudit("aud_1", DOMAIN, { env: ENV, fetchImpl: mock.fetchImpl, clock });
+    const r = await followSiteAudit("aud_1", DOMAIN, {
+      env: ENV,
+      fetchImpl: mock.fetchImpl,
+      clock,
+      captureCompletedResults: (value) => { captured = value; },
+    });
     expect(r.progress.state).toBe("COMPLETED");
     expect(r.report?.issues).toEqual([
       { id: `openseo:aud_1:missing-title:https://${DOMAIN}/a`, url: `https://${DOMAIN}/a`, category: "missing-title", severity: "ERROR", crawlAccess: null },
@@ -364,8 +390,54 @@ describe("audit follow-up and normalization through the Core", () => {
     expect(r.report?.hiddenPages).toBe(1);
     expect(r.report?.hiddenIssues).toBe(1);
     expect(r.report?.method).toBe("api");
+    expect(r.captureError).toBeNull();
+    expect(captured).not.toBeNull();
+    const original = captured as unknown as CompletedAuditCapture;
+    expect(providers.isTrustedResult(original.issues)).toBe(true);
+    expect(providers.isTrustedResult(original.pages)).toBe(true);
+    expect(original.issues.data).toHaveLength(3);
+    expect(original.pages.data).toHaveLength(1);
+    const keyring = signingKeyring();
+    const prepared = prepareCompletedAuditResults(original, PROJECT_REF, keyring);
+    expect(prepared.ok).toBe(true);
+    if (prepared.ok) {
+      expect(openProviderResult(prepared.prepared.issues, PROJECT_REF, keyring)).toMatchObject({ trust: "SIGNED_PROVENANCE", verified: true });
+      expect(openProviderResult(prepared.prepared.pages, PROJECT_REF, keyring)).toMatchObject({ trust: "SIGNED_PROVENANCE", verified: true });
+      expect(JSON.stringify(prepared)).not.toContain("other.example");
+    }
     noLeak(r);
     expect(mock.toolCalls().map((c) => c.name)).toEqual(["get_audit_status", "get_audit_issues", "get_audit_pages"]);
+  });
+
+  it("keeps a capture failure separate from the completed OpenSEO report and redacts its cause", async () => {
+    const mock = mockOpenSeo({
+      get_audit_status: status("completed"),
+      get_audit_issues: () => ({ structuredContent: { issues: [] } }),
+      get_audit_pages: () => ({ structuredContent: { pages: [], total: 0 } }),
+    });
+    const r = await followSiteAudit("aud_1", DOMAIN, {
+      env: ENV,
+      fetchImpl: mock.fetchImpl,
+      captureCompletedResults: async () => { throw new Error(KEY); },
+    });
+    expect(r.progress.state).toBe("COMPLETED");
+    expect(r.report).not.toBeNull();
+    expect(r.captureError).toEqual({ code: "CAPTURE_FAILED", message: "El resultado terminó, pero no pudo prepararse para guardarlo.", retryable: true });
+    noLeak(r);
+  });
+
+  it("refuses to sign a copied or cross-audit result", async () => {
+    let captured: CompletedAuditCapture | null = null;
+    const mock = mockOpenSeo({
+      get_audit_status: status("completed"),
+      get_audit_issues: () => ({ structuredContent: { issues: [] } }),
+      get_audit_pages: () => ({ structuredContent: { pages: [], total: 0 } }),
+    });
+    await followSiteAudit("aud_1", DOMAIN, { env: ENV, fetchImpl: mock.fetchImpl, captureCompletedResults: (value) => { captured = value; } });
+    const original = captured as unknown as CompletedAuditCapture;
+    const keyring = signingKeyring();
+    expect(prepareCompletedAuditResults({ ...original, auditId: "aud_other" }, PROJECT_REF, keyring)).toEqual({ ok: false, error: "RESULT_AUDIT_MISMATCH" });
+    expect(prepareCompletedAuditResults({ ...original, issues: JSON.parse(JSON.stringify(original.issues)) }, PROJECT_REF, keyring)).toEqual({ ok: false, error: "RESULT_AUDIT_MISMATCH" });
   });
 
   it.each([false, true])("includes the www/apex companion only with explicit authorization (%s)", async (allowCompanion) => {
