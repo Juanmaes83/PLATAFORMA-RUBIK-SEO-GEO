@@ -422,7 +422,7 @@ describe("audit follow-up and normalization through the Core", () => {
     });
     expect(r.progress.state).toBe("COMPLETED");
     expect(r.report).not.toBeNull();
-    expect(r.captureError).toEqual({ code: "CAPTURE_FAILED", message: "El resultado terminó, pero no pudo prepararse para guardarlo.", retryable: true });
+    expect(r.captureError).toEqual({ code: "CAPTURE_FAILED", message: "El resultado terminó, pero no pudo guardarse. Puedes volver a intentarlo.", retryable: true });
     noLeak(r);
   });
 
@@ -533,6 +533,7 @@ describe("static guarantees", () => {
       "OPENSEO_AUDIT_STATUS_COMPLETED",
       "OPENSEO_AUDIT_STATUS_FAILED",
       "OPENSEO_AUDIT_STATUS_PENDING",
+      "OPENSEO_PROJECT_JOBS_ENABLED",
     ]);
     for (const l of lines) expect(l, l).toMatch(/^[A-Z_]+=$/);
   });

@@ -174,6 +174,17 @@ export interface ActiveAuditJob {
   state: "SYNCING";
 }
 
+export function validateAuditStart(input: { url: string; maxPages: number; projectDomain: string | null }, deps: BridgeDeps = {}): BridgeError | null {
+  const c = configured(deps);
+  if ("error" in c) return c.error;
+  const target = checkAuditTarget(input.url, c.config.allowedHosts, input.projectDomain);
+  if (!target.ok) return { code: target.code, message: "Destino de auditoría no permitido.", retryable: false };
+  if (!Number.isInteger(input.maxPages) || input.maxPages < MIN_PAGES || input.maxPages > c.config.maxPages) {
+    return { code: "MAX_PAGES_NOT_ALLOWED", message: `El límite de páginas debe estar entre ${MIN_PAGES} y ${c.config.maxPages}.`, retryable: false };
+  }
+  return null;
+}
+
 export async function startSiteAudit(input: { url: string; maxPages: number; projectDomain: string | null }, deps: BridgeDeps = {}): Promise<AuditStart> {
   const fail = (error: BridgeError): AuditStart => ({ ok: false, auditId: null, url: null, maxPages: null, startedAt: null, reused: false, error });
   const c = configured(deps);
@@ -380,7 +391,7 @@ export async function followSiteAudit(auditIdRaw: string, projectDomain: string 
       try {
         await deps.captureCompletedResults({ auditId, issues, pages });
       } catch {
-        captureError = { code: "CAPTURE_FAILED", message: "El resultado terminó, pero no pudo prepararse para guardarlo.", retryable: true };
+        captureError = { code: "CAPTURE_FAILED", message: "El resultado terminó, pero no pudo guardarse. Puedes volver a intentarlo.", retryable: true };
       }
     }
     return { progress, report, captureError };

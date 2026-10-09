@@ -43,6 +43,7 @@ describe(".env.example", () => {
       "OPENSEO_AUDIT_STATUS_COMPLETED=",
       "OPENSEO_AUDIT_STATUS_FAILED=",
       "OPENSEO_AUDIT_STATUS_PENDING=",
+      "OPENSEO_PROJECT_JOBS_ENABLED=",
     ]);
     expect(lines.filter((l) => l.startsWith("NEXT_PUBLIC_") && /PROVENANCE|OPENSEO/.test(l))).toEqual([]);
   });
