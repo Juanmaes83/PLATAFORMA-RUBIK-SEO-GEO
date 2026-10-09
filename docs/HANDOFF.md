@@ -1065,3 +1065,10 @@ Archivos del commit:
    - el banner y la carga del tag llegan con el primer proveedor aprobado;
    - verificación en navegador.
 5. **Dos cuentas alojadas para probar el aislamiento:** depende del entorno de previews aislado.
+
+## 09/10/2026 — previews aisladas e integraciones (rama `claude/previews-integraciones`)
+
+- [PREVIEWS-E-INTEGRACIONES](PREVIEWS-E-INTEGRACIONES.md):
+  - Recomendación: un segundo proyecto Supabase «rubik-preview» para las variables *Preview*. El coste está por verificar si no queda una plaza gratuita. Pasos para el propietario.
+  - Estado real de cada integración, distinguiendo entre invitación, código y conexión.
+- Sin cambios de configuración. Siguiente paso: decisión del propietario sobre la opción A.
