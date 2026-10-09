@@ -1187,3 +1187,18 @@ Archivos del commit:
 - **Evidencia visual:** `npm run visual:evidence` no se puede ejecutar en este entorno (la imagen de Kong está bloqueada). Las capturas de `docs/visual` no se han regenerado. La e2e de CI comprueba que no hay desbordamiento ni fallos de accesibilidad graves y guarda capturas como artefacto.
 - **Validación humana:** cuando Juanma abra Auditoría técnica de Sarah en producción tras el despliegue, el panel debe mostrar «Antes de activar el modo por proyecto» con «Con pendientes» y «Falta crear la conexión del proyecto». Es solo lectura: no escribe ni consume.
 - **No hecho:** crear la conexión y activar `project`; son decisiones de Juanma.
+## 09/10/2026 — matriz de capacidades de OpenSEO (rama `docs/openseo-capacidades`)
+
+- [OPENSEO-CAPACIDADES](OPENSEO-CAPACIDADES.md): las 57 herramientas MCP del repositorio de referencia `Juanmaes83/open-seo@0ffff93`, con *hints*, coste declarado y uso posible en Rubik. Es la primera versión del entregable de la fase A de la §15.
+- **Hallazgo:**
+  - OpenSEO expone Search Console (`get_search_console_performance`, `inspect_urls`) y GA4 (nueve herramientas más `get_search_opportunities`), de solo lectura y **sin créditos**.
+  - Usan un OAuth por proyecto de OpenSEO, con los tokens cifrados en OpenSEO.
+  - Con el ADR 0007, Rubik podría leer GSC y GA4 del piloto sin guardar tokens de Google.
+- **Decisión para Juanma:**
+  - vía OpenSEO para GSC y GA4 (recomendada para el piloto), o
+  - fase B propia del ADR 0009.
+- **Si elige la vía OpenSEO:**
+  - Juanma conecta la propiedad de Sarah en la instancia alojada de OpenSEO.
+  - Se confirma la instancia: herramientas y verificación de su app OAuth.
+  - Se amplía la lista blanca en un PR con mocks.
+- **Sin cambios de código:** no se amplió la lista blanca ni se hizo ninguna llamada a OpenSEO.
