@@ -86,6 +86,7 @@ y estos parámetros solo son una frontera interna probada.
 Core PR #23 (`a6071fc`) permite al host filtrar URLs después de normalizar y
 antes de emitir confianza. La plataforma prepara su consumo: incidencias y
 páginas externas no llegan al `ProviderResult` que posteriormente se firmará;
-el conteo `scopeFiltered` mantiene la explicación visual. La verificación local
-del consumidor pasa (185/185, lint, tipos, secretos y pin); falta CI remota y
-sigue sin existir almacenamiento operativo.
+el conteo `scopeFiltered` mantiene la explicación visual. Plataforma PR #23
+fusionado en `139e2f6`: verificación local 185/185 y CI completa en verde
+(run `37871833027`). Producción Vercel `READY` en ese merge
+(`dpl_6EnsH1iR2k42ki7GVdtNFt3GBKLs`). Sigue sin existir almacenamiento operativo.
