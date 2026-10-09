@@ -60,6 +60,11 @@ select is(pg_temp.b('bud-p1','settle',jsonb_build_object('spendId',pg_temp.kid('
 select is((pg_temp.b('bud-p1','get')->>'used')::int,250,'actual replaces estimate');
 select throws_ok($$select pg_temp.b('bud-p1','settle',jsonb_build_object('spendId',pg_temp.kid('r1'),'actual',1))$$,'22023','No open reservation','settle only once');
 select throws_ok($$select pg_temp.b('bud-p1','reserve','{"operation":"x","estimated":51}')$$,'23514',null,'remaining cap respected after settlement');
+-- Since 20261010150000 an actual cost above the reserved maximum blocks the provider until the
+-- owner sets the limit again (docs/CONSUMO-Y-PRESUPUESTO.md).
+select is(pg_temp.b('bud-p1','get')->>'blocked','true','overrun blocks the provider');
+select is((pg_temp.b('bud-p1','set','{"monthlyLimit":300}')->>'available')::int,50,'owner review: limit set again, history kept');
+select throws_ok($$select pg_temp.b('bud-p1','reserve','{"operation":"x","estimated":51}')$$,'23514','Monthly budget exceeded','remaining cap respected after review');
 insert into k select 'r2',(pg_temp.b('bud-p1','reserve','{"operation":"x","estimated":50}')->'spend'->>'spendId')::uuid;
 select is((pg_temp.b('bud-p1','release',jsonb_build_object('spendId',pg_temp.kid('r2')))->>'used')::int,250,'release frees the estimate');
 select throws_ok($$select pg_temp.b('bud-p1','release',jsonb_build_object('spendId',pg_temp.kid('r2')))$$,'22023',null,'release only once');

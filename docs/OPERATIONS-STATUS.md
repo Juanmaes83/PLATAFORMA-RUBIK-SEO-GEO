@@ -8,6 +8,8 @@ Este registro separa lo observado de lo pendiente; las autorizaciones del propie
 
 PR #49–#54 integradas; producción `READY` en `main@9e8f818` (`dpl_EbGrPjMmzkgAndoLp6f9erY55uGX`). Siguen en `legacy` y sin conexión de Sarah. Migración `20261010090000` (presupuesto y consumo) integrada en el código pero **no aplicada** en alojado; nada la usa todavía. Recuperación de contraseña desplegada; en alojado falta personalizar la plantilla «Reset password» (SETUP-SUPABASE). La revisión humana del panel, ADR 0010, Preview aislada, ID/hosts y consentimiento de Sarah y el modo `project` esperan a Juanma; detalle en [HANDOFF](HANDOFF.md).
 
+**Decisiones del propietario (09/10/2026):** (1) Search Console y GA4 del piloto Sarah **vía OpenSEO**; Juanma hace la conexión Google desde OpenSEO. (2) Techo de **gasto variable de 10 € por mes natural y proyecto** (techo, no objetivo); suscripciones y costes fijos aparte. Permiten implementar y probar con simulaciones; **no** autorizan llamadas de pago, conexión de Sarah en Rubik, modo `project`, secretos ni servicios nuevos. Detalle y datos pendientes de confirmar: [CONSUMO-Y-PRESUPUESTO](CONSUMO-Y-PRESUPUESTO.md).
+
 Supabase Rubik `yvdgmklgwlshizzgefpv`: el propietario aplicó con su CLI las cuatro migraciones del paquete. El relevo anterior confirmó **nueve versiones sincronizadas** y RLS sin privilegios directos en las tablas privadas. La verificación SQL alojada posterior del `auditId` de Sarah fue de solo lectura; no se repitieron migraciones. Ver [HANDOFF](HANDOFF.md) para separar su resultado de la prueba visual comunicada por Juanma.
 
 | Área | Integrado en `main` | Alojado / desplegado | Verificación real | Siguiente acción |

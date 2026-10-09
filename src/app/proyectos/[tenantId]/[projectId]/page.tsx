@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PermissionTable } from "@/components/PermissionTable";
 import { ProjectNav } from "@/components/ProjectNav";
@@ -43,6 +44,13 @@ export default async function ProjectPage({ params }: { params: Promise<{ tenant
           </dl>
         </details>
       </section>
+
+      {role === "owner" && (
+        <section aria-labelledby="s-consumo" className="section">
+          <h2 id="s-consumo">Consumo</h2>
+          <p><Link href={`${base}/consumo`}>Consumo y presupuesto del mes</Link></p>
+        </section>
+      )}
 
       <section aria-labelledby="s-permisos" className="section">
         <h2 id="s-permisos">Tus permisos en este proyecto</h2>
