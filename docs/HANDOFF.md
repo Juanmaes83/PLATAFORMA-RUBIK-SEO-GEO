@@ -804,6 +804,11 @@ CI inicial de esta entrega: verify Node22/24 pasa; integración falló al crear 
 - El detalle exige `loadProviderResult` con UUID de organización/proyecto y un keyring disponible. Solo `verification.verified` permite renderizar las filas conocidas de `auditIssues`/`auditPages`; una fila alterada o reasignada no muestra datos.
 - Claves ausentes y fallos de lectura tienen estados distintos de una lista válida sin resultados. Así una tabla alojada todavía inexistente no se presenta como historial vacío.
 - Pruebas dirigidas 85/85 y suite 192/192; pin, lint, TypeScript, secretos y diff correctos. Build y e2e pendientes de CI por el límite conocido del runtime local. No hay migración, escritura, secretos, llamadas live/de pago ni cambios en Sarah.
+## 09/10/2026 — aviso de titularidad
+
+- Por instrucción expresa del titular: Juan Manuel Espinosa Galant, DNI 48553293V; Rubik SEO GEO pertenece a Rubik Sota y su uso/comercialización requieren autorización expresa del titular.
+- Rama `feat/proprietary-notice`: `NOTICE.md`, `LICENSE`, README, pie global y página `/aviso-titularidad`. El aviso distingue los elementos propios de las licencias de terceros.
+- No certifica registros de marca ni altera licencias de dependencias. La restricción se documenta; no se ha añadido un sistema de licencias o activación comercial.
 
 ## 09/10/2026 — migración oficial de trabajos OpenSEO
 
@@ -820,3 +825,6 @@ CI inicial de esta entrega: verify Node22/24 pasa; integración falló al crear 
 - Autorización expresa del propietario para aplicar migraciones recibida el 09/10/2026. Bloqueo nuevo comprobado: el conector Supabase lista cinco proyectos (incluido Sarah Studio), pero no el de Rubik SEO GEO. Vercel lista URL publicable como variable sensitive sin valor recuperable y no muestra claves PROVENANCE. No se aplica SQL a otro proyecto ni se afirma persistencia alojada.
 - Se han creado en Vercel, solo producción, `PROVENANCE_SIGNING_KEYS` (Secret/sensitive, 32 bytes aleatorios) y `PROVENANCE_ACTIVE_KEY_ID`; sin leer ni reemplazar claves anteriores (no existían). La clave no se imprime ni se guarda en Git/DB. Configuración persistida; verificación en proceso desplegado aún pendiente. Jobs sigue sin activar.
 - Primera CI del guardado: firma/escritura/lectura real y reintento sin duplicados pasan en Supabase local. Dos listas estáticas de nombres de `.env.example` necesitaban incluir el nuevo flag; corregidas, suite completa 210/210 tras el ajuste. La comprobación alojada sigue bloqueada por acceso al proyecto correcto, no por permiso del propietario.
+- PR #28 validado en CI completa `37900821388` (Node 22/24, pgTAP, tipos, concurrencia entre ocho sesiones, integración y navegador), integrado en `248850a0411fb5dd7f0c4a82e47898fede235a9d`. La migración alojada sigue pendiente de acceso comprobado; su fichero oficial ya está en main.
+- Aviso de titularidad PR #29 integrado en `a03d37250449ccd4de11bd1ac4f226ce296c8992`, después de CI completa `37901636730`. Incluye el DNI y la vinculación a Rubik Sota solicitados por el propietario. Despliegue exacto pendiente de comprobación.
+- Procedimiento alojado y comandos PowerShell en `docs/OPENSEO-ACTIVATION.md`; nunca sustituir el destino por otro proyecto ni duplicar timestamps por otra vía.
