@@ -796,3 +796,11 @@ CI inicial de esta entrega: verify Node22/24 pasa; integración falló al crear 
 - Pruebas dirigidas 70/70 y suite completa 187/187; pin, lint, TypeScript, secretos y diff correctos. CI completa del run `37889221102` en verde: verify Node 22/24 y e2e con Supabase local, RLS, Data API, build y navegador.
 - Producción Vercel verificada `READY` exactamente en el merge: `dpl_BmeUiNCPPnB1uS1LeKCAoa76H3CK`.
 - No hay escritura ni activación: faltan migración de jobs, deduplicación/transacción, claves alojadas y migraciones 9.2/9.3. No se usaron secretos, OpenSEO live ni funciones de pago; Sarah no se modificó.
+
+## 09/10/2026 — historial firmado OpenSEO
+
+- Base revisada: `main@ec236b0`; no se observó otra rama activa sobre el historial. La CLI `supabase@2.118.0 migration new openseo_project_jobs` volvió a abortar con el crash de Bun antes de crear fichero alguno.
+- Rama `feat/openseo-signed-history`: la pantalla de auditoría lista metadatos con `listProviderResults`, siempre bajo el `ProjectRef` cargado por RLS. No envía payload, firma, huella ni clave a la lista.
+- El detalle exige `loadProviderResult` con UUID de organización/proyecto y un keyring disponible. Solo `verification.verified` permite renderizar las filas conocidas de `auditIssues`/`auditPages`; una fila alterada o reasignada no muestra datos.
+- Claves ausentes y fallos de lectura tienen estados distintos de una lista válida sin resultados. Así una tabla alojada todavía inexistente no se presenta como historial vacío.
+- Pruebas dirigidas 85/85 y suite 192/192; pin, lint, TypeScript, secretos y diff correctos. Build y e2e pendientes de CI por el límite conocido del runtime local. No hay migración, escritura, secretos, llamadas live/de pago ni cambios en Sarah.

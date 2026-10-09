@@ -1,12 +1,16 @@
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { OpenSeoConsole } from "@/components/OpenSeoConsole";
+import { OpenSeoHistory } from "@/components/OpenSeoHistory";
 import { ProjectNav } from "@/components/ProjectNav";
 import { EmptyState, PageHead, StatusPill } from "@/components/ui";
 import { projectAccess } from "@/lib/access";
 import { requireSession } from "@/lib/auth/session";
 import { projectAuditable } from "@/lib/openseo/bridge";
 import { describeOpenSeoConfig, readOpenSeoConfig } from "@/lib/openseo/config";
+import { loadProjectRef } from "@/lib/imports/repository";
+import { serverKeyring } from "@/lib/provenance/keyring";
+import { listProviderResults } from "@/lib/provenance/repository";
 import { myProjectMembership } from "@/lib/tenancy";
 
 // Technical audit through OpenSEO (ADR 0006). The page itself never calls OpenSEO: it only
@@ -18,11 +22,17 @@ export default async function TechnicalAuditPage({ params }: { params: Promise<{
   const access = projectAccess(await myProjectMembership(supabase, user.id, tenantId, projectId));
   if (!access) notFound();
   const { project } = access;
+  const ref = await loadProjectRef(supabase, { tenantId: project.tenantId, projectId: project.projectId });
+  if (!ref) notFound();
   const base = `/proyectos/${project.tenantId}/${project.projectId}`;
   const canManage = access.permissions.find((p) => p.action === "manage-connectors")?.decision.allowed === true;
   const view = describeOpenSeoConfig(readOpenSeoConfig());
   const auditable = projectAuditable(project.domain);
   const domain = (project.domain ?? "").replace(/^https?:\/\//i, "").replace(/\/.*$/, "");
+  const keyring = serverKeyring();
+  const listed = keyring ? await listProviderResults(supabase, ref) : null;
+  const historyState = !keyring ? "signing-missing" : listed?.ok ? "ready" : "unavailable";
+  const historyRows = listed?.ok ? listed.rows : [];
 
   return (
     <>
@@ -59,6 +69,7 @@ export default async function TechnicalAuditPage({ params }: { params: Promise<{
       ) : (
         <OpenSeoConsole tenant={project.tenantId} project={project.projectId} defaultUrl={`https://${domain}/`} maxPages={view.maxPages ?? 10} />
       )}
+      <OpenSeoHistory base={base} state={historyState} rows={historyRows} />
     </>
   );
 }
