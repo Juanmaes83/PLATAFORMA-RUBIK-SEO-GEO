@@ -884,3 +884,15 @@ CI inicial de esta entrega: verify Node22/24 pasa; integración falló al crear 
   - Integración Data API añadida, ejecutada solo en CI.
 - No verificado: nada en alojado. Activar el modo requiere aplicar `20261009120000` y `20261009150000`, crear la conexión de Sarah (fase 6) y definir la variable. Cada paso se presentará antes con dry-run y rollback.
 - Siguiente: fase 5 (pruebas negativas ampliadas de servidor y Data API) y después la fase 3 (interfaz).
+
+## 09/10/2026 — fase 5: matriz negativa de aislamiento (rama `claude/openseo-fase5-negativas`)
+
+- Solo pruebas: no cambia el producto. Va apilada sobre #33.
+- `openseo_isolation.test.sql`, 25/25 en local:
+  - Mismo owner con dos proyectos: no puede lanzar con la conexión del otro, usar su dominio, reclamar su `auditId` (`23505`), leer, liberar o completar su job, ni guardar filas de otro proyecto o de otro `auditId`.
+  - Viewer y account-manager: sin acceso.
+  - Otra organización: sin acceso, tampoco a través de su propio proyecto.
+  - Anon: sin acceso.
+- Lección: un `throws_ok` con solo el SQLSTATE puede pasar por un motivo distinto. La fila sintética fallaba por `key_id` y daba el mismo código `23514`. Ahora los rechazos de identidad se comprueban por su mensaje y hay un control positivo.
+- Integración: mismo owner y dos proyectos a través de PostgREST. Se ejecuta solo en CI.
+- Siguiente: fase 3 (interfaz de conexión). Su revisión visual en preview dependerá de que la migración de la fase 1 esté en alojado (Preview usa el Supabase de producción).

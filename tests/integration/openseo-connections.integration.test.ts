@@ -65,3 +65,22 @@ it("a job records the project's active connection and refuses a foreign one (pha
   expect((await a.rpc("openseo_job", { p_project_id: projects.a, p_command: "fail", p_job_id: jobId })).error).toBeNull();
   expect(await revokeProjectConnection(a, projects.a)).toMatchObject({ ok: true, connection: { state: "REVOKED" } });
 }, 60_000);
+
+it("the same owner cannot move an audit or a connection between two projects (phase 5)", async () => {
+  const a = await signedIn("conn-a");
+  const org = await a.from("organizations").select("id").eq("slug", slugs[0]).single();
+  expect(org.error).toBeNull();
+  expect((await a.from("projects").insert({ organization_id: org.data!.id, slug: "second", name: "Second", domain: `a2-${RUN}.example` })).error).toBeNull();
+  const second = (await a.from("projects").select("id").eq("organization_id", org.data!.id).eq("slug", "second").single()).data!.id;
+  const first = await connectProject(a, projects.a, { openseoProjectId: `iso-a-${RUN}`, allowedHosts: [`a-${RUN}.example`], consent: true });
+  if (!first.ok || !first.connection) throw new Error("fixture connection");
+  const job = await a.rpc("openseo_job", { p_project_id: projects.a, p_command: "acquire", p_payload: { connectionId: first.connection.connectionId } });
+  const jobId = (job.data as { jobId: string }).jobId;
+  expect((await a.rpc("openseo_job", { p_project_id: projects.a, p_command: "bind", p_job_id: jobId, p_payload: { auditId: `aud-${RUN}` } })).error).toBeNull();
+
+  const moved = await a.rpc("openseo_job", { p_project_id: second, p_command: "acquire", p_payload: { connectionId: first.connection.connectionId } });
+  expect(moved.error?.code).toBe("23514");
+  expect((await a.rpc("openseo_job", { p_project_id: second, p_command: "get", p_payload: { auditId: `aud-${RUN}` } })).error?.code).toBe("22023");
+  expect((await a.rpc("openseo_job", { p_project_id: second, p_command: "get", p_job_id: jobId })).error?.code).toBe("22023");
+  expect((await a.rpc("openseo_job", { p_project_id: projects.a, p_command: "fail", p_job_id: jobId })).error).toBeNull();
+}, 60_000);
