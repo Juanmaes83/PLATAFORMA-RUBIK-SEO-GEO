@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { providers } from "@/lib/core";
 import { checkGoogleCatalog, EXPECTED_REQUIRED } from "@/lib/openseo/google/catalog";
 import { createOpenSeoSearchConsoleTransport, searchConsoleFailure } from "@/lib/openseo/google/search-console";
-import { createOpenSeoMcpClient, GOOGLE_READ_TOOLS, googleReadsEnabled, type ListedTool } from "@/lib/openseo/mcp-client";
+import { createOpenSeoMcpClient, GOOGLE_READ_TOOLS, googleCatalogCheckEnabled, googleReadsEnabled, type ListedTool } from "@/lib/openseo/mcp-client";
 import type { ProjectRef } from "@/lib/provenance/audit";
 import { loadKeyring } from "@/lib/provenance/keyring";
 import { openProviderResult, sealProviderResult } from "@/lib/provenance/results";
@@ -97,6 +97,9 @@ describe("OpenSEO MCP client guard for Google tools", () => {
     expect(googleReadsEnabled({})).toBe(false);
     expect(googleReadsEnabled({ OPENSEO_GOOGLE_READS_ENABLED: "1" })).toBe(false);
     expect(googleReadsEnabled({ OPENSEO_GOOGLE_READS_ENABLED: "true" })).toBe(true);
+    expect(googleCatalogCheckEnabled({})).toBe(false);
+    expect(googleCatalogCheckEnabled({ OPENSEO_GOOGLE_CATALOG_CHECK_ENABLED: "1" })).toBe(false);
+    expect(googleCatalogCheckEnabled({ OPENSEO_GOOGLE_CATALOG_CHECK_ENABLED: "true" })).toBe(true);
   });
 });
 

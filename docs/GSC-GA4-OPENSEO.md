@@ -87,6 +87,7 @@ Las herramientas de Google forman su propia lista (`GOOGLE_READ_TOOLS`).
 - El cliente MCP solo las admite con `OPENSEO_GOOGLE_READS_ENABLED=true`, que ningún entorno define.
 - Sin esa variable, las rechaza antes de enviar ninguna petición.
 - Las herramientas de pago siguen fuera de cualquier lista.
+- La comprobación manual `tools/list` tiene su propio flag `OPENSEO_GOOGLE_CATALOG_CHECK_ENABLED=true`, apagado por defecto. Sin él, el botón no se renderiza y la acción rechaza incluso una petición directa antes de hablar con OpenSEO. El flag de catálogo no habilita lecturas Google.
 
 **Comprobación de la instancia alojada.** `listTools()` hace `tools/list`, que no ejecuta ninguna herramienta y es gratis. Después, `checkGoogleCatalog()` exige para cada herramienta:
 
@@ -99,7 +100,7 @@ Si falta algo, la integración no se declara disponible.
 Orden previsto:
 
 1. **Juanma** conecta en OpenSEO Search Console y GA4 del proyecto de OpenSEO de Sarah, con la cuenta que tenga acceso a esas propiedades.
-2. **Comprobación del catálogo** contra la instancia alojada, con la clave del servidor. Es una lectura gratuita que Juanma autoriza aparte.
+2. **Comprobación del catálogo** contra la instancia alojada, con la clave del servidor. Es una lectura gratuita que Juanma autoriza aparte; solo entonces se activa temporalmente el flag de catálogo.
 3. **Conexión del proyecto Rubik de Sarah con su proyecto de OpenSEO** (ADR 0007), que ya es una decisión pendiente de Juanma, y confirmación de la propiedad esperada.
 4. **Activación** de `OPENSEO_GOOGLE_READS_ENABLED` y de la interfaz, en un PR y con una decisión aparte.
 
