@@ -6,6 +6,7 @@ import type { Keyring } from "@/lib/provenance/keyring";
 import { followSiteAudit, startSiteAudit, validateAuditStart, type AuditStart, type AuditFollowUp, type BridgeDeps } from "./bridge";
 import { acquireAuditJob, bindAuditJob, completeAuditJob, failAuditJob, findAuditJob } from "./jobs";
 import { prepareCompletedAuditResults } from "./persistence";
+import type { OpenSeoProjectConnection } from "./connections";
 
 const failStart = (code: string, message: string): AuditStart => ({ ok: false, auditId: null, url: null,
   maxPages: null, startedAt: null, reused: false, error: { code, message, retryable: false } });
@@ -13,14 +14,24 @@ const unavailable = (code: string, message: string): AuditFollowUp => ({ progres
   providerStatus: null, phase: null, pagesCrawled: null, pagesTotal: null, checkedAt: null,
   error: { code, message, retryable: false } }, report: null, captureError: null });
 
-/** Database reservation happens before the first provider request, across sessions. */
+/**
+ * Database reservation happens before the first provider request, across sessions. With a
+ * connection (project mode) `deps.env` must already carry that connection's OpenSEO ids and
+ * the job records the connection; a job reserved under another connection is never reused.
+ */
 export async function startProjectAudit(client: SupabaseClient<Database>, project: ProjectRef,
-  input: { url: string; maxPages: number; projectDomain: string | null }, deps: BridgeDeps = {}): Promise<AuditStart> {
+  input: { url: string; maxPages: number; projectDomain: string | null }, deps: BridgeDeps = {},
+  connection: OpenSeoProjectConnection | null = null): Promise<AuditStart> {
   const validation = validateAuditStart(input, deps);
   if (validation) return { ...failStart(validation.code, validation.message), error: validation };
-  const acquired = await acquireAuditJob(client, project);
-  if (!acquired.ok) return failStart(acquired.error, "El registro de trabajos no está disponible. No se ha lanzado ningún rastreo.");
+  const acquired = await acquireAuditJob(client, project, connection?.connectionId);
+  if (!acquired.ok) return acquired.error === "JOB_CONNECTION_REFUSED"
+    ? failStart("CONNECTION_NOT_ACTIVE", "La conexión de OpenSEO de este proyecto ya no está activa. No se ha lanzado ningún rastreo.")
+    : failStart(acquired.error, "El registro de trabajos no está disponible. No se ha lanzado ningún rastreo.");
   const job = acquired.job;
+  if ((connection?.connectionId ?? null) !== (job.connectionId ?? null)) {
+    return failStart("JOB_CONNECTION_MISMATCH", "Hay un trabajo activo lanzado con otra conexión de OpenSEO. Reconcílialo antes de iniciar otro.");
+  }
   if (!job.acquired) {
     if (job.state === "SYNCING" && job.auditId) return { ok: true, auditId: job.auditId,
       url: null, maxPages: null, startedAt: null, reused: true, error: null };
@@ -46,13 +57,19 @@ export async function startProjectAudit(client: SupabaseClient<Database>, projec
 export type SaveStatus = "not-requested" | "saved" | "pending" | "unavailable";
 export type ProjectAuditFollow = AuditFollowUp & { saveStatus: SaveStatus };
 
-/** Browser submits only a reference and intent; original trusted rows stay on server. */
+/**
+ * Browser submits only a reference and intent; original trusted rows stay on server. With a
+ * connection (project mode) the job must have been launched with that same ACTIVE connection:
+ * legacy jobs and jobs of a revoked or replaced connection are refused before any request.
+ */
 export async function followProjectAudit(client: SupabaseClient<Database>, project: ProjectRef,
   auditId: string, projectDomain: string | null, save: boolean, keyring: Keyring | null,
-  deps: BridgeDeps = {}): Promise<ProjectAuditFollow> {
+  deps: BridgeDeps = {}, connection: OpenSeoProjectConnection | null = null): Promise<ProjectAuditFollow> {
   const found = await findAuditJob(client, project, auditId);
   if (!found.ok) return { ...unavailable(found.error === "JOB_NOT_FOUND" ? "AUDIT_NOT_BOUND" : found.error,
     "No se ha encontrado una auditoría vinculada a este proyecto."), saveStatus: "unavailable" };
+  if ((connection?.connectionId ?? null) !== (found.job.connectionId ?? null)) return { ...unavailable("JOB_CONNECTION_MISMATCH",
+    "Esta auditoría se lanzó con otra conexión de OpenSEO, ya revocada o sustituida. No se ha consultado."), saveStatus: "unavailable" };
   if (save && !keyring) return { ...unavailable("SIGNING_MISSING", "Faltan las claves de firma del servidor. No se ha consultado ni guardado el resultado."), saveStatus: "unavailable" };
   if (found.job.state === "FAILED") return { ...unavailable("AUDIT_FAILED", "Este trabajo terminó con un fallo confirmado."), saveStatus: "unavailable" };
   let saveStatus: SaveStatus = save ? "pending" : "not-requested";

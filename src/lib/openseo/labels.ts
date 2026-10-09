@@ -42,6 +42,13 @@ export const ERROR_TEXT: Readonly<Record<string, string>> = {
   CONFIRMATION_REQUIRED: "Marca la confirmación para lanzar la auditoría.",
   INVALID_AUDIT_ID: "El identificador de auditoría no es válido.",
   HEALTH: "La comprobación de salud de OpenSEO ha fallado.",
+  // Per-project connections (ADR 0007): the server refused before contacting OpenSEO.
+  PROJECT_NOT_CONNECTED: "Este proyecto no tiene una conexión de OpenSEO activa. No se ha contactado con OpenSEO.",
+  CONNECTIONS_REQUIRE_JOBS: "El modo por proyecto exige el registro de trabajos activado en el servidor.",
+  CONNECTION_FORBIDDEN: "Solo la persona titular del proyecto gestiona su conexión de OpenSEO.",
+  CONNECTION_UNAVAILABLE: "No se pudo leer la conexión de OpenSEO de este proyecto. No se ha contactado con OpenSEO.",
+  CONNECTION_NOT_ACTIVE: "La conexión de OpenSEO de este proyecto ya no está activa. No se ha lanzado ningún rastreo.",
+  JOB_CONNECTION_MISMATCH: "Este trabajo pertenece a otra conexión de OpenSEO. No se ha consultado ni lanzado nada.",
 };
 
 export const AUDIT_STATE_LABELS: Readonly<Record<string, { label: string; tone: "neutral" | "warn" | "ok" | "no" }>> = {

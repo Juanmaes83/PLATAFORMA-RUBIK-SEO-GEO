@@ -865,3 +865,22 @@ CI inicial de esta entrega: verify Node22/24 pasa; integración falló al crear 
 - ROADMAP: se corrigen las filas que aún decían «sin aplicar en alojado» (9.2 y 9.3) o «sin persistencia» (OpenSEO). Se añaden las filas de jobs y multicliente con su estado real.
 - ADR 0007: orden 1 → 4 → 5 → 3, por la dependencia de Preview con la base de datos de producción.
 - Siguiente: fase 4 en su propia rama, apilada sobre #32.
+
+## 09/10/2026 — fase 4: run/follow ligados a la conexión (rama `claude/openseo-fase4-cableado`)
+
+- Base: `claude/zealous-noether-dq91ll@ae8a64f` (PR #32). Orden de fusión: #31 → #32 → este PR.
+- Migración `20261009150000_openseo_job_connection.sql`: añade `connection_id` anulable al job y reemplaza solo `private.openseo_job`. `acquire` valida la conexión ACTIVE del proyecto y la devuelve en `connectionId`. El wrapper público y sus permisos no cambian; pgTAP comprueba que `authenticated` sigue pudiendo ejecutar y `anon` no.
+- Código:
+  - `target.ts`: resolver de modo y entorno por conexión.
+  - `jobs.ts`: `connectionId` en el job y en `acquire`.
+  - `project-audit.ts`: rechaza jobs de otra conexión o legacy en ambos modos.
+  - `actions.ts`: las tres actions resuelven el destino antes de cualquier llamada.
+  - Página de auditoría: en modo `project` lee la conexión y muestra un estado vacío si no hay ninguna activa.
+- Compatibilidad: si el alojado aún no tiene la migración, `connectionId` falta en la respuesta y se trata como nulo. El modo `legacy` funciona igual.
+- Pruebas locales:
+  - pgTAP con el contenedor `supabase/postgres:17.6.1.171`: siete suites sin fallos (`openseo_job_connection` 14/14).
+  - `npm run verify` 226/226.
+  - Tipos regenerados idénticos.
+  - Integración Data API añadida, ejecutada solo en CI.
+- No verificado: nada en alojado. Activar el modo requiere aplicar `20261009120000` y `20261009150000`, crear la conexión de Sarah (fase 6) y definir la variable. Cada paso se presentará antes con dry-run y rollback.
+- Siguiente: fase 5 (pruebas negativas ampliadas de servidor y Data API) y después la fase 3 (interfaz).

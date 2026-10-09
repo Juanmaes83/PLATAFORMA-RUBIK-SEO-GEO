@@ -48,3 +48,20 @@ it("isolates connections between clients through the Data API", async () => {
   expect(await revokeProjectConnection(a, projects.a)).toMatchObject({ ok: true, connection: { state: "REVOKED" } });
   expect(await getProjectConnection(a, projects.a)).toEqual({ ok: true, connection: null });
 }, 60_000);
+
+it("a job records the project's active connection and refuses a foreign one (phase 4)", async () => {
+  const a = await signedIn("conn-a");
+  const b = await signedIn("conn-b");
+  const ownA = await connectProject(a, projects.a, { openseoProjectId: `jobs-a-${RUN}`, allowedHosts: [`a-${RUN}.example`], consent: true });
+  const ownB = await connectProject(b, projects.b, { openseoProjectId: `jobs-b-${RUN}`, allowedHosts: [`b-${RUN}.example`], consent: true });
+  if (!ownA.ok || !ownA.connection || !ownB.ok || !ownB.connection) throw new Error("fixture connections");
+  const foreign = await a.rpc("openseo_job", { p_project_id: projects.a, p_command: "acquire", p_payload: { connectionId: ownB.connection.connectionId } });
+  expect(foreign.error?.code).toBe("23514");
+  const job = await a.rpc("openseo_job", { p_project_id: projects.a, p_command: "acquire", p_payload: { connectionId: ownA.connection.connectionId } });
+  expect(job.error).toBeNull();
+  expect(job.data).toMatchObject({ acquired: true, state: "STARTING", connectionId: ownA.connection.connectionId });
+  expect(await revokeProjectConnection(a, projects.a)).toEqual({ ok: false, error: "CONNECTION_CONFLICT" });
+  const jobId = (job.data as { jobId: string }).jobId;
+  expect((await a.rpc("openseo_job", { p_project_id: projects.a, p_command: "fail", p_job_id: jobId })).error).toBeNull();
+  expect(await revokeProjectConnection(a, projects.a)).toMatchObject({ ok: true, connection: { state: "REVOKED" } });
+}, 60_000);
