@@ -770,3 +770,12 @@ CI inicial de esta entrega: verify Node22/24 pasa; integración falló al crear 
 - Rama `feat/provider-signed-scope`: pin y tipos actualizados. Se firma `{tenantId:organizationId, projectId:projectId}` con los UUID; lectura y exportación pasan el proyecto autorizado, nunca confían en los UUID de la fila por sí solos. Slugs renombrados no invalidan la firma. Las firmas legacy sin contexto quedan UNTRUSTED (`SCOPE_REQUIRED`); no se re-firman automáticamente.
 - Local: 181 pruebas, ESLint, TypeScript, pin, secretos y diff--check correctos. Cuatro regresiones nuevas (replay tenant/proyecto, slugs, legacy, UUID inválido) y prueba de integración que copia una firma genuina a una fila de otro proyecto del mismo titular. Build/DB/e2e pendientes CI; Docker no disponible localmente.
 - Todavía pendientes: migraciones alojadas 9.2/9.3 y claves HMAC, captura persistida de auditorías OpenSEO, UI de historial y exclusión atómica de auditorías concurrentes. No se han lanzado llamadas live/de pago ni modificado contenido/indexación de Sarah.
+
+## 09/10/2026 — preparación del enlace auditId/trabajo por proyecto
+
+- Base `main@7ddc9d9`, con PR #19/#20 integrados, CI completa verde y producción comprobada. PR abiertos revisados: solo #9/#11 documentales históricos; no había otra rama activa sobre jobs OpenSEO.
+- Rama `feat/openseo-project-jobs`: `BridgeDeps.activeJob` solo admite un job `SYNCING` coherente y lo entrega al contrato existente del Core; la respuesta distingue `reused`. Un job inválido se rechaza antes de crear cliente MCP.
+- `BridgeDeps.boundAuditId` es una frontera de servidor: cuando el futuro repositorio la aporta, la consulta rechaza ID ausente/distinto con `AUDIT_NOT_BOUND` antes de la red. `undefined` mantiene temporalmente el primer tramo; no debe alimentarse con el formulario.
+- Pruebas dirigidas: 68/68; ESLint y TypeScript correctos. Sin peticiones live: servidor MCP simulado. Pendiente batería completa/CI.
+- Bloqueo nuevo: `supabase@2.118.0 migration --help` y `migration new --help` abortan en este runtime por un crash de Bun 1.4.1. Conforme al flujo del repositorio, no se inventó una migración. La tabla de jobs, adquisición atómica, RLS y pruebas de carrera siguen pendientes de CLI/CI funcional.
+- No se aplicaron migraciones alojadas, no se usaron secretos, no se lanzó auditoría y no se tocó contenido/indexación de Sarah.

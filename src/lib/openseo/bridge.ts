@@ -18,6 +18,10 @@ export interface BridgeDeps {
   env?: Record<string, string | undefined>;
   fetchImpl?: FetchLike;
   clock?: () => Date;
+  /** Loaded server-side from this Rubik project's job binding, never from form data. */
+  activeJob?: ActiveAuditJob | null;
+  /** When present, only this server-side project binding may be followed. */
+  boundAuditId?: string | null;
 }
 
 export type BridgeError = { code: string; message: string; retryable: boolean; diagnostic?: string };
@@ -158,11 +162,18 @@ export interface AuditStart {
   url: string | null;
   maxPages: number | null;
   startedAt: string | null;
+  reused: boolean;
   error: BridgeError | null;
 }
 
+export interface ActiveAuditJob {
+  jobId: string;
+  auditId: string;
+  state: "SYNCING";
+}
+
 export async function startSiteAudit(input: { url: string; maxPages: number; projectDomain: string | null }, deps: BridgeDeps = {}): Promise<AuditStart> {
-  const fail = (error: BridgeError): AuditStart => ({ ok: false, auditId: null, url: null, maxPages: null, startedAt: null, error });
+  const fail = (error: BridgeError): AuditStart => ({ ok: false, auditId: null, url: null, maxPages: null, startedAt: null, reused: false, error });
   const c = configured(deps);
   if ("error" in c) return fail(c.error);
   const { config } = c;
@@ -171,6 +182,10 @@ export async function startSiteAudit(input: { url: string; maxPages: number; pro
   if (!Number.isInteger(input.maxPages) || input.maxPages < MIN_PAGES || input.maxPages > config.maxPages) {
     return fail({ code: "MAX_PAGES_NOT_ALLOWED", message: `El límite de páginas debe estar entre ${MIN_PAGES} y ${config.maxPages}.`, retryable: false });
   }
+  const activeJob = deps.activeJob ?? null;
+  if (activeJob && (activeJob.state !== "SYNCING" || activeJob.jobId !== activeJob.auditId || !AUDIT_ID.test(activeJob.auditId))) {
+    return fail({ code: "INVALID_ACTIVE_JOB", message: "El trabajo activo del proyecto no es válido.", retryable: false });
+  }
   const r = await withClient(config, deps, (mcp) =>
     providers.runProviderRequest({
       provider: "openseo",
@@ -178,11 +193,12 @@ export async function startSiteAudit(input: { url: string; maxPages: number; pro
       input: { projectId: config.projectId, url: target.url, maxPages: input.maxPages, runLighthouse: false, trigger: "manual" },
       mcp,
       clock: deps.clock,
+      activeJob,
     }),
   );
-  const job = (r.status === "OK" ? r.data[0] : null) as { auditId?: string; startedAt?: string; maxPages?: number; url?: string } | null;
+  const job = (r.status === "OK" ? r.data[0] : null) as { auditId?: string; startedAt?: string; maxPages?: number; url?: string; reused?: boolean } | null;
   if (!job?.auditId) return fail(cleanError(r.errors[0]) ?? { code: r.status, message: "OpenSEO no inició la auditoría.", retryable: false });
-  return { ok: true, auditId: job.auditId, url: job.url ?? target.url, maxPages: job.maxPages ?? input.maxPages, startedAt: job.startedAt ?? null, error: null };
+  return { ok: true, auditId: job.auditId, url: job.url ?? target.url, maxPages: job.maxPages ?? input.maxPages, startedAt: job.startedAt ?? null, reused: job.reused === true, error: null };
 }
 
 export interface AuditProgress {
@@ -258,6 +274,11 @@ export async function followSiteAudit(auditIdRaw: string, projectDomain: string 
   const { config } = c;
   const auditId = auditIdRaw.trim();
   if (!AUDIT_ID.test(auditId)) return empty({ code: "INVALID_AUDIT_ID", message: "Identificador de auditoría no válido.", retryable: false });
+  // `undefined` preserves the first-tranche behaviour. Once the job repository is wired,
+  // `null` or a mismatch fail closed before any OpenSEO request.
+  if (deps.boundAuditId !== undefined && (!deps.boundAuditId || !AUDIT_ID.test(deps.boundAuditId) || deps.boundAuditId !== auditId)) {
+    return empty({ code: "AUDIT_NOT_BOUND", message: "La auditoría no pertenece a este proyecto.", retryable: false });
+  }
 
   return withClient(config, deps, async (mcp) => {
     let responseShape = "";

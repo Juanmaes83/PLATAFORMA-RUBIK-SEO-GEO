@@ -65,3 +65,18 @@ o sin contexto, también en exportación. 181 pruebas locales correctas; DB/e2e
 del consumidor pendientes CI. PR #19 (historial por proyecto) ya integrado y
 desplegado. Esto no completa #17/#18: faltan almacenamiento de auditorías,
 historial visible, jobs exclusivos y mapping/configuración por cliente.
+
+### 09/10/2026 — frontera de trabajos OpenSEO preparada
+
+La rama `feat/openseo-project-jobs` prepara dos controles del siguiente tramo
+sin activar persistencia alojada: `startSiteAudit` acepta únicamente un trabajo
+activo de servidor coherente (`jobId === auditId`, estado `SYNCING`) y el Core lo
+reutiliza sin llamar a `run_site_audit`; `followSiteAudit` puede exigir el
+`auditId` vinculado al proyecto y rechaza ausencia o discrepancia antes de abrir
+MCP. La vinculación debe proceder del repositorio/RLS, nunca del formulario.
+
+La tabla y adquisición atómica siguen pendientes. La CLI fijada de Supabase
+abortó en este entorno incluso al ejecutar `migration --help`; no se creó a mano
+un fichero de migración ni se tocó el proyecto alojado. Hasta cablear y probar el
+repositorio, las acciones conservan el comportamiento del primer tramo y estos
+parámetros solo son una frontera interna probada.

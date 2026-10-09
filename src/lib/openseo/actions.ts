@@ -36,7 +36,7 @@ export async function startAuditAction(_prev: AuditStartState, formData: FormDat
   const access = await authorized(formData);
   if (!access) return { denied: true };
   if (field(formData, "confirm") !== "on") {
-    return { ok: false, auditId: null, url: null, maxPages: null, startedAt: null, error: { code: "CONFIRMATION_REQUIRED", message: "Confirma el lanzamiento manual.", retryable: false } };
+    return { ok: false, auditId: null, url: null, maxPages: null, startedAt: null, reused: false, error: { code: "CONFIRMATION_REQUIRED", message: "Confirma el lanzamiento manual.", retryable: false } };
   }
   return startSiteAudit({ url: field(formData, "url"), maxPages: Number(field(formData, "maxPages")), projectDomain: access.project.domain });
 }

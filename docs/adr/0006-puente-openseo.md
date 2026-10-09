@@ -112,6 +112,20 @@ El inicio pasa por el Core con estas entradas:
 ## Consecuencias y límites de este tramo
 
 - **Sin persistencia.** Los resultados se muestran y no se guardan. El siguiente tramo los persistirá con la auditoría firmada (ADR 0004) y con un único job activo por proyecto (`activeJob` del Core). Mientras tanto, la doble ejecución la frena OpenSEO con `AUDIT_ALREADY_RUNNING`.
+
+### Adenda 09/10/2026 — frontera previa al repositorio de jobs
+
+El puente admite un `activeJob` inyectado exclusivamente por código de servidor.
+Solo se acepta `{jobId,auditId,state:'SYNCING'}` con identificadores iguales y
+válidos; el Core lo reutiliza sin ejecutar `run_site_audit`. La respuesta marca
+`reused` para que la interfaz no afirme que se inició una segunda auditoría.
+
+El seguimiento admite además `boundAuditId`. Cuando el repositorio esté
+cableado, `null` o un ID distinto produce `AUDIT_NOT_BOUND` antes de cualquier
+petición a OpenSEO. La fuente autorizada debe ser la fila del proyecto bajo RLS,
+nunca un campo del navegador. `undefined` conserva provisionalmente el flujo ya
+desplegado, por lo que esta adenda no declara exclusión atómica ni asociación
+operativa: faltan tabla, migración, políticas, adquisición y pruebas de carrera.
 - **Una sola instancia y un solo proyecto de OpenSEO por servidor.** El enlace de cada proyecto con su propio `projectId` de OpenSEO (un id opaco en `seo.integrations.openseo`) llegará con la persistencia.
 - **Conexión real verificada.** Producción devuelve `CONNECTED`, salud correcta y autorización verificada. El propietario consultó la auditoría `02f2f04d-c7ea-4fe9-bb05-be1c39509938`: completada, 10/10 páginas y dos incidencias visibles. No se declaran persistencia ni piloto completo.
 - **Pendientes tras la primera prueba real:**

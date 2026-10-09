@@ -251,6 +251,28 @@ describe("manual site audit", () => {
     noLeak(r);
   });
 
+  it("reuses a valid active project job without calling an OpenSEO tool", async () => {
+    const mock = mockOpenSeo({ run_site_audit: () => ({ structuredContent: { auditId: "other" } }) });
+    const activeJob = { jobId: "aud_active", auditId: "aud_active", state: "SYNCING" as const };
+    const r = await startSiteAudit(
+      { url: `https://${DOMAIN}/`, maxPages: 20, projectDomain: DOMAIN },
+      { env: ENV, fetchImpl: mock.fetchImpl, activeJob },
+    );
+    expect(r).toMatchObject({ ok: true, auditId: "aud_active", reused: true });
+    expect(mock.toolCalls()).toEqual([]);
+  });
+
+  it("refuses a malformed active job before opening an MCP session", async () => {
+    const mock = mockOpenSeo({});
+    const activeJob = { jobId: "different", auditId: "aud_active", state: "SYNCING" as const };
+    const r = await startSiteAudit(
+      { url: `https://${DOMAIN}/`, maxPages: 20, projectDomain: DOMAIN },
+      { env: ENV, fetchImpl: mock.fetchImpl, activeJob },
+    );
+    expect(r).toMatchObject({ ok: false, reused: false, error: { code: "INVALID_ACTIVE_JOB" } });
+    expect(mock.calls).toEqual([]);
+  });
+
   it.each([
     ["above the server limit", 101, "MAX_PAGES_NOT_ALLOWED"],
     ["below 10", 9, "MAX_PAGES_NOT_ALLOWED"],
@@ -376,6 +398,20 @@ describe("audit follow-up and normalization through the Core", () => {
     const r = await followSiteAudit("../../x", DOMAIN, { env: ENV, fetchImpl: mock.fetchImpl });
     expect(r.progress.error?.code).toBe("INVALID_AUDIT_ID");
     expect(mock.calls).toHaveLength(0);
+  });
+
+  it("refuses an audit id not bound to this project before calling OpenSEO", async () => {
+    const mock = mockOpenSeo({});
+    const r = await followSiteAudit("aud_other", DOMAIN, { env: ENV, fetchImpl: mock.fetchImpl, boundAuditId: "aud_project" });
+    expect(r.progress.error?.code).toBe("AUDIT_NOT_BOUND");
+    expect(mock.calls).toEqual([]);
+  });
+
+  it("fails closed when the project has no bound audit", async () => {
+    const mock = mockOpenSeo({});
+    const r = await followSiteAudit("aud_other", DOMAIN, { env: ENV, fetchImpl: mock.fetchImpl, boundAuditId: null });
+    expect(r.progress.error?.code).toBe("AUDIT_NOT_BOUND");
+    expect(mock.calls).toEqual([]);
   });
 });
 
