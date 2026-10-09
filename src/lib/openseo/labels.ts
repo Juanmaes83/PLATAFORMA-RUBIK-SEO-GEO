@@ -42,6 +42,20 @@ export const ERROR_TEXT: Readonly<Record<string, string>> = {
   CONFIRMATION_REQUIRED: "Marca la confirmación para lanzar la auditoría.",
   INVALID_AUDIT_ID: "El identificador de auditoría no es válido.",
   HEALTH: "La comprobación de salud de OpenSEO ha fallado.",
+  // Per-project connections (ADR 0007): the server refused before contacting OpenSEO.
+  PROJECT_NOT_CONNECTED: "Este proyecto no tiene una conexión de OpenSEO activa. No se ha contactado con OpenSEO.",
+  CONNECTIONS_REQUIRE_JOBS: "El modo por proyecto exige el registro de trabajos activado en el servidor.",
+  CONNECTION_FORBIDDEN: "Solo la persona titular del proyecto gestiona su conexión de OpenSEO.",
+  CONNECTION_UNAVAILABLE: "No se pudo leer la conexión de OpenSEO de este proyecto. No se ha contactado con OpenSEO.",
+  CONNECTION_NOT_ACTIVE: "La conexión de OpenSEO de este proyecto ya no está activa. No se ha lanzado ningún rastreo.",
+  JOB_CONNECTION_MISMATCH: "Este trabajo pertenece a otra conexión de OpenSEO. No se ha consultado ni lanzado nada.",
+  // Uncertain launch reconciliation (ADR 0008).
+  START_IN_PROGRESS: "Hay un lanzamiento pendiente de confirmar. Reconcílialo en el aviso de esta página antes de iniciar otro.",
+  NO_STARTING_JOB: "No hay ningún lanzamiento pendiente de confirmar.",
+  RECONCILE_BIND_FAILED: "No se pudo vincular ese identificador: puede que ya pertenezca a otro trabajo o que la reserva haya cambiado.",
+  RECONCILE_RELEASE_FAILED: "La reserva ya no está pendiente (quizá se vinculó mientras tanto). No se ha liberado nada.",
+  PERSISTENCE_DISABLED: "El registro de trabajos no está activado en este servidor.",
+  JOB_UNAVAILABLE: "El registro de trabajos no está disponible ahora mismo.",
 };
 
 export const AUDIT_STATE_LABELS: Readonly<Record<string, { label: string; tone: "neutral" | "warn" | "ok" | "no" }>> = {
@@ -57,4 +71,17 @@ export const SEVERITY_LABELS: Readonly<Record<string, string>> = {
   OPPORTUNITY: "Oportunidad",
 };
 
-export const errorText = (code: string | null | undefined) => (code ? ERROR_TEXT[code] ?? "Error de OpenSEO." : "");
+/** Known codes use this copy; an unknown code keeps the server's specific message before the generic one. */
+export const errorText = (code: string | null | undefined, message?: string | null) =>
+  (code ? ERROR_TEXT[code] ?? (message || "Error de OpenSEO.") : message || "");
+
+// Per-project connection form (ADR 0007, phase 3).
+export const CONNECTION_CHANGE_TEXT: Readonly<Record<string, string>> = {
+  CONFIRMATION_REQUIRED: "Marca la confirmación para continuar.",
+  CONNECTION_FORBIDDEN: "Solo la persona titular del proyecto gestiona su conexión de OpenSEO.",
+  CONNECTION_INVALID: "Revisa el identificador del proyecto de OpenSEO y los hosts: solo se admite el dominio de este proyecto y su variante con o sin www.",
+  CONNECTION_CONFLICT: "Hay otra conexión activa o un trabajo de auditoría en curso. Revoca la conexión o espera a que el trabajo termine.",
+  CONNECTION_TAKEN: "Ese proyecto de OpenSEO ya está conectado a otro proyecto de la plataforma. Un proyecto de OpenSEO solo puede pertenecer a un cliente.",
+  CONNECTION_UNAVAILABLE: "Las conexiones por proyecto no están disponibles en este servidor ahora mismo.",
+  CONNECTION_INVALID_RESPONSE: "La respuesta del servidor no tiene la forma esperada. No se ha cambiado nada.",
+};
