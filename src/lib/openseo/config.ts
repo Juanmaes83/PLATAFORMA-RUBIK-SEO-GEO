@@ -65,6 +65,22 @@ export function publicOpenSeoLeak(env: Env): string | null {
   return null;
 }
 
+/** Google reads resolve the OpenSEO project from an ACTIVE per-project association. */
+export function readOpenSeoMcpConfig(env: Env = process.env):
+  | { state: "configured"; mcpUrl: string; apiKey: string }
+  | { state: "not-configured" | "invalid" } {
+  if (publicOpenSeoLeak(env)) return { state: "invalid" };
+  const endpointRaw = (env.OPENSEO_ENDPOINT ?? "").trim();
+  const apiKey = (env.OPENSEO_API_KEY ?? "").trim();
+  if (!endpointRaw || !apiKey) return { state: "not-configured" };
+  if (!/^oseo_[A-Za-z0-9_-]{8,}$/.test(apiKey)) return { state: "invalid" };
+  try {
+    const url = new URL(endpointRaw);
+    if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) return { state: "invalid" };
+    return { state: "configured", mcpUrl: `${url.origin}${url.pathname.replace(/\/+$/, "")}/mcp`, apiKey };
+  } catch { return { state: "invalid" }; }
+}
+
 export function readOpenSeoConfig(env: Env = process.env): OpenSeoConfigState {
   const leak = publicOpenSeoLeak(env);
   if (leak) return { state: "invalid", problems: [`${leak} no puede contener datos de OpenSEO: las variables NEXT_PUBLIC_* llegan al navegador.`] };

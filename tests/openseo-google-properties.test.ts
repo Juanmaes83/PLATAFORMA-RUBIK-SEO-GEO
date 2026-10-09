@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
 import { connectGoogleProperty, resolveGoogleSource } from "@/lib/openseo/google/properties";
+import { createOpenSeoSearchConsoleTransport } from "@/lib/openseo/google/search-console";
 
 const projectId = "11111111-1111-4111-8111-111111111111";
 const otherProjectId = "22222222-2222-4222-8222-222222222222";
@@ -55,5 +56,25 @@ describe("explicit Google property source, in-memory only", () => {
     await connectGoogleProperty(client, projectId, "search-console", { externalPropertyId: "https://sarah.es/", consent: true });
     expect(rpc).toHaveBeenCalledWith("openseo_google_property", { p_project_id: projectId, p_provider: "search-console",
       p_command: "connect", p_payload: { externalPropertyId: "https://sarah.es/", consent: true } });
+  });
+  it("accepts a cross-TLD GSC property only with the issued server binding, never a forged copy", async () => {
+    const resolved = await resolveGoogleSource(setup().client, projectId, "search-console");
+    if (!resolved.ok) throw new Error(resolved.error);
+    const callTool = vi.fn(async () => ({ structuredContent: { ok: true, siteUrl: "https://sarah.es/",
+      startDate: "2026-09-01", endDate: "2026-09-28", dimensions: ["page"], rowCount: 1,
+      rows: [{ keys: ["https://sarah.es/"], clicks: 1, impressions: 10, ctr: 0.1, position: 3 }],
+      hasMore: false, nextStartRow: 1 } }));
+    const options = { mcp: { callTool }, openseoProjectId: "openseo-a", expectedSiteUrl: "https://sarah.es/",
+      projectDomain: "sarah.com" };
+    const input = { siteUrl: "https://sarah.es/", startDate: "2026-09-01", endDate: "2026-09-28",
+      dimensions: ["page"], rowLimit: 10 };
+    const rejected = await createOpenSeoSearchConsoleTransport({ ...options,
+      resolvedSource: { ...resolved.source } }).request("searchAnalytics", input);
+    expect(rejected).toMatchObject({ httpStatus: 403 });
+    expect(callTool).not.toHaveBeenCalled();
+    const accepted = await createOpenSeoSearchConsoleTransport({ ...options,
+      resolvedSource: resolved.source }).request("searchAnalytics", input);
+    expect(accepted).toMatchObject({ sourceUrl: "https://sarah.es/" });
+    expect(callTool).toHaveBeenCalledTimes(1);
   });
 });

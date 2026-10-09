@@ -28,6 +28,11 @@ export type GoogleSource = {
   source: "OWNER_DECLARED";
   grantedAt: string;
 };
+// Only an object issued by this server-side resolver may authorize a cross-TLD transport.
+// It cannot be recreated from a browser payload or a serialized copy.
+const ISSUED_SOURCES = new WeakSet<object>();
+export const isResolvedGoogleSource = (value: unknown): value is GoogleSource =>
+  !!value && typeof value === "object" && ISSUED_SOURCES.has(value);
 type SourceOutcome = { ok: true; source: GoogleSource } | { ok: false; error: GooglePropertyError | "NOT_CONNECTED" };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -90,11 +95,13 @@ export async function resolveGoogleSource(client: SupabaseClient<Database>, proj
     || binding.property.state !== "ACTIVE" || binding.property.connectionId !== connection.connection.connectionId) {
     return { ok: false, error: "NOT_CONNECTED" };
   }
-  return { ok: true, source: {
+  const source: GoogleSource = Object.freeze({
     connectionId: connection.connection.connectionId,
     propertyBindingId: binding.property.propertyId,
     openseoProjectId: connection.connection.openseoProjectId,
     externalPropertyId: binding.property.externalPropertyId,
     provider, source: binding.property.source, grantedAt: binding.property.grantedAt,
-  } };
+  });
+  ISSUED_SOURCES.add(source);
+  return { ok: true, source };
 }
