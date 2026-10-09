@@ -74,3 +74,9 @@ Docker no existe en este workspace. El build local de Next/Turbopack falla por `
 No hay una sesión de Claude Code accesible y confirmada. La revisión interna independiente no debe presentarse como trabajo de Claude. El lanzamiento/indexación y la publicación de contenidos de Sarah siguen fuera de estas entregas.
 
 Contrato y límites de API OpenSEO comprobados por código/documentación: [OPENSEO-API-CAPABILITIES](OPENSEO-API-CAPABILITIES.md). Coste alojado y del proveedor deben presupuestarse antes de ampliar el puente.
+
+## Relevo Codex — 09/10/2026
+
+El propietario confirma parada de Claude y autoriza continuidad de código. Main remoto `f0c304cedf98053b2519af5904e89c11d763c33a`. CI GSC #57 completa verde en `64b2db6` ([37956403763](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37956403763)); Core #27 abierto en `b25ba92`, 346/346 locales reproducidas. Continuación en `codex/google-integrations-review`, con primer informe GA4 y correcciones GSC/catálogo; no integrada ni desplegada en producción.
+
+La instancia alojada y su tarifa **no** se han verificado en este relevo. 10 € no tienen equivalencia confirmada a créditos. Legacy de Sarah conserva la validación anterior sin repetirla. Conexión por proyecto, activación y revisión humana pendientes. No hay acciones hosted ni coste. Web/Studio/legacy web excluidos de Rubik y atendidos en un frente separado.

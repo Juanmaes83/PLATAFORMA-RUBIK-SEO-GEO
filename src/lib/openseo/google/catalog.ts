@@ -36,11 +36,39 @@ export function checkGoogleCatalog(listed: readonly ListedTool[]): { searchConso
   const byName = new Map(listed.map((t) => [t.name, t]));
   const checks = GOOGLE_READ_TOOLS.map((tool): ToolCheck => {
     const found = byName.get(tool);
+    if (listed.filter((t) => t.name === tool).length > 1) return { tool, state: "input-changed", detail: "nombre duplicado" };
     if (!found) return { tool, state: "missing" };
     if (found.annotations?.readOnlyHint !== true || found.annotations?.destructiveHint === true) return { tool, state: "not-read-only" };
     const required = requiredOf(found.inputSchema);
     const expected = [...EXPECTED_REQUIRED[tool]].sort();
     if (!required || JSON.stringify(required) !== JSON.stringify(expected)) return { tool, state: "input-changed", detail: required ? required.join(", ") : "sin esquema" };
+    const schema = found.inputSchema as { type?: unknown; properties?: Record<string, { type?: unknown }> };
+    if (schema.type !== "object" || schema.properties?.projectId?.type !== "string") return { tool, state: "input-changed", detail: "projectId debe ser string en un esquema object" };
+    if (tool === "inspect_urls") {
+      const urls = schema.properties?.urls as { type?: unknown; items?: { type?: unknown }; minItems?: unknown; maxItems?: unknown } | undefined;
+      if (urls?.type !== "array" || urls.items?.type !== "string" || urls.minItems !== 1 || urls.maxItems !== 10) return { tool, state: "input-changed", detail: "urls debe admitir entre 1 y 10 cadenas" };
+    }
+    if (tool === "get_search_console_performance") {
+      const p = schema.properties as Record<string, Record<string, unknown>>;
+      const dims = p.dimensions;
+      const items = dims?.items as { type?: unknown; enum?: unknown } | undefined;
+      if (dims?.type !== "array" || dims.minItems !== 1 || dims.maxItems !== 4 || items?.type !== "string"
+        || !Array.isArray(items.enum) || !["date", "query", "page", "country", "device"].every((d) => (items.enum as unknown[]).includes(d))
+        || p.rowLimit?.type !== "integer" || p.rowLimit.minimum !== 1 || p.rowLimit.maximum !== 1000
+        || p.startRow?.type !== "integer" || p.startRow.minimum !== 0
+        || p.startDate?.type !== "string" || p.endDate?.type !== "string"
+        || !["web", "image", "video", "news", "discover", "googleNews"].every((v) => Array.isArray(p.type?.enum) && p.type.enum.includes(v))
+        || !["all", "final"].every((v) => Array.isArray(p.dataState?.enum) && p.dataState.enum.includes(v))) {
+        return { tool, state: "input-changed", detail: "tipos, dimensiones, fechas o límites GSC distintos" };
+      }
+    }
+    if (tool === "get_google_analytics_organic_landing_pages") {
+      const p = schema.properties as Record<string, Record<string, unknown>>;
+      if (p.startDate?.type !== "string" || p.endDate?.type !== "string" || p.limit?.type !== "integer"
+        || p.limit.minimum !== 1 || p.limit.maximum !== 1000 || p.offset?.type !== "integer" || p.offset.minimum !== 0) {
+        return { tool, state: "input-changed", detail: "fechas o paginación GA4 distintas" };
+      }
+    }
     return { tool, state: "ok" };
   });
   const ok = (names: readonly string[]) => names.every((n) => checks.find((c) => c.tool === n)?.state === "ok");

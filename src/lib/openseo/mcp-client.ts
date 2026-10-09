@@ -200,6 +200,7 @@ export function createOpenSeoMcpClient(opts: McpClientOptions): OpenSeoMcpClient
       await ensureSession();
       const tools: ListedTool[] = [];
       let cursor: string | undefined;
+      const seenCursors = new Set<string>();
       // Bounded pagination: a misbehaving server cannot keep the request open forever.
       for (let page = 0; page < 10; page += 1) {
         const result = (await rpc("tools/list", cursor ? { cursor } : {})) as { tools?: unknown; nextCursor?: unknown } | null;
@@ -207,10 +208,12 @@ export function createOpenSeoMcpClient(opts: McpClientOptions): OpenSeoMcpClient
         for (const t of result.tools) {
           if (t && typeof t === "object" && typeof (t as ListedTool).name === "string") tools.push(t as ListedTool);
         }
-        if (typeof result.nextCursor !== "string" || !result.nextCursor) return tools;
+        if (result.nextCursor === undefined || result.nextCursor === null || result.nextCursor === "") return tools;
+        if (typeof result.nextCursor !== "string" || seenCursors.has(result.nextCursor)) throw new OpenSeoTransportError("Invalid tools/list pagination");
+        seenCursors.add(result.nextCursor);
         cursor = result.nextCursor;
       }
-      return tools;
+      throw new OpenSeoTransportError("Incomplete tools/list catalog");
     },
     async close() {
       if (!sessionId) return;

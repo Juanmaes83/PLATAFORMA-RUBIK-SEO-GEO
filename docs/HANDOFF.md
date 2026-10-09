@@ -1352,3 +1352,17 @@ Archivos del commit:
 - **Actualización:** el contrato GA4 se ha propuesto en el Core, [RUBIK-SEO-GEO-CORE#27](https://github.com/Juanmaes83/RUBIK-SEO-GEO-CORE/pull/27) (D-29: proveedor `google-analytics` con transporte inyectado, 346/346). Cuando se fusione:
   1. fijar el Core en ese commit;
   2. escribir el transporte OpenSEO de GA4, comprobando la propiedad antes de firmar.
+
+## 09/10/2026 — relevo de Claude a Codex autorizado por Juanma
+
+- Juanma confirma «Claude está detenido. Asume código y continúa». Codex trabaja en rama propia `codex/google-integrations-review`, partiendo del HEAD publicado de #57 `64b2db631e757a35ee9e3d4f4861024fbfa8c71c`; `git status` inicial limpio, `git fetch origin`, main `f0c304cedf98053b2519af5904e89c11d763c33a`.
+- #55/#56 integradas; #57 sigue abierto y su CI [37956403763](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37956403763) completa en verde. Core #27 abierto en `b25ba92dc0e6474d397a86e0b06b596f5c876885`: `npm run verify` independiente 346/346. No se ha fusionado.
+- Auditoría y correcciones: GSC 1–4 dimensiones y respuesta estructurada íntegra; catálogo tipado en campos usados, duplicados/paginación incompleta rechazados; estados visuales honestos probados sin configurar OpenSEO.
+- Nuevo: GA4 `organic_landing_pages` con propiedad/ventana/canal/paginación exactos, errores estables, cobertura parcial y firma por proyecto. Core fijado a #27: la continuación depende de revisar/integrar ese PR y #57; no duplicar contratos.
+- Invitaciones recuperables en remoto `feat/invitaciones-proyecto@8414e3259a073cc4d2180a624a89d968cb067b5a`: migración, tests pgTAP y tipos. UI/actions/client/e2e que Claude describió **no están en esa rama** ni en este entorno limpio. Conservar y buscar la copia local original antes de recrear.
+- Docker no está instalado en el entorno Codex: pgTAP/integración/e2e se comprobarán en CI; no confundir tests de render con prueba interactiva del botón. Nada se prueba escribiendo en Preview.
+- Web nueva/Studio/legacy de Sarah excluidos de pendientes Rubik por decisión del propietario, atendidos separadamente. Sarah permanece como piloto.
+- No se llaman Google/OpenSEO ni herramientas de pago, no hay nuevas migraciones hosted, secretos, conexión, activación, merge o despliegue manual. Validación visual humana pendiente.
+- Siguiente: CI del nuevo PR; ampliar informes GA4 con contratos propios de sus metadatos, recuperar trabajo local de invitaciones; tarifa/moneda/impuestos/cambio y decisiones ADR 0010/Preview requieren evidencia o decisión del propietario.
+
+- Gate local de esta continuación: `npm run verify` correcto (313/313 Vitest, lint, TypeScript, pin, guard de secretos y build); `git diff --check` correcto. CI del nuevo HEAD pendiente al publicar.
