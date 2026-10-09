@@ -161,6 +161,8 @@ Una sola auditoría controlada, lanzada por Juanma, con el límite de páginas v
 
 Solo con los pasos 2–5 superados se puede declarar «guardado real verificado», indicando la fecha y el `auditId`.
 
+**Evidencia alojada del 09/10/2026:** sección A superada para `d1899523-807d-4f02-8f1f-2bce653a43f8`, sin repetir la auditoría. La prueba visual comunicada por Juanma (10/10 páginas; F5, «Firma verificada» en ambas entradas e idempotencia al volver a guardar) y la comprobación SQL de solo lectura (job `COMPLETED`, una `auditIssues` y una `auditPages` `OK` ligadas a Sarah, cero reservas activas) se registran **por separado** en [HANDOFF](HANDOFF.md). El guardado en `legacy` queda verificado; esto no valida todavía el modo `project` ni otras cuentas.
+
 ## B. Activación controlada del modo por proyecto
 
 Requisitos previos, todos obligatorios:
@@ -168,6 +170,8 @@ Requisitos previos, todos obligatorios:
 - Sección A superada.
 - Juanma ha revisado el panel de conexión.
 - En la cuenta de OpenSEO, Juanma comprueba qué proyecto corresponde a Sarah y qué dominio audita. Su identificador debe ser el mismo que usa hoy la configuración global, salvo que él decida otra cosa. Esta sesión no lee el valor de `OPENSEO_PROJECT_ID`.
+
+**Preparación verificada, sin activar:** Sarah (`rubik/sarah-katerina`) tiene dominio `www.sarahkaterina.com`; la consulta alojada del 09/10/2026 encontró 0 conexiones activas o revocadas y 0 jobs activos. `connection_id` del job de prueba es nulo, como corresponde a `legacy`. Falta la revisión humana del panel de conexión y el contraste del identificador de OpenSEO y de los hosts antes del paso 1. No crear una conexión desde Preview mientras comparta la base de producción.
 
 Pasos:
 
