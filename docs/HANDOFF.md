@@ -1115,3 +1115,25 @@ Archivos del commit:
 - Siguiente bloque: consultar CI del SHA vigente y resolver solo fallos concretos; después retomar #40 cuando Juanma decida y preparar conexión por proyecto sin confundir «Probar conexión» con selección de destino. No repetir las nueve migraciones ni la auditoría legacy; no lanzar/indexar Sarah, cambiar DNS o crear gasto. La validación humana del panel/formulario sigue pendiente aunque el guardado legacy esté aprobado.
 - Sarah web: HANDOFF conserva los hashes esperados del parche `13449e9cc3034b8d455586113b1d46b0fc5bbf556917b7bd3a0719aa03caa1f5` y bundle `1a63f2bcb47369e543ae8073cde460f7b1bffcc5b982fe58ab014e4761774a9d` para `claude/consentimiento-medicion@9be1173`, base `d5231afc9627aec44195cb97ef49ce5b53a7f358`. **No se facilitó una ruta accesible en esta sesión; no se localizaron, verificaron ni respaldaron aquí.** Pedir la ruta al propietario y comprobar SHA256 antes de aplicar; no recrear el trabajo.
 - Estado de escritores: Claude estaba detenido según el relevo; este worktree único no tenía cambios ni `index.lock` antes del checkpoint. No hay prueba de sesiones externas fuera de este equipo. Al publicar este PR Codex detiene ediciones; Claude puede asumir sin escrituras simultáneas de Codex.
+
+## 09/10/2026 — presupuesto y registro de consumo por proyecto (rama `feat/presupuesto-consumo`)
+
+- Base: `main@588345c`.
+- **Hecho:**
+  - Migración nueva `20261010090000_provider_budget_ledger.sql`:
+    - tablas privadas `provider_budgets` (límite mensual por proyecto y proveedor) y `provider_spend` (reservas, liquidaciones y liberaciones);
+    - RPC `provider_budget` solo para el owner, con bloqueo por proyecto y proveedor;
+    - falla cerrado sin presupuesto: el coste real se registra aunque supere lo estimado, y el mes es el natural en UTC.
+  - Cliente `src/lib/budget/ledger.ts`. `withSpend` reserva, llama, y después liquida con el coste reportado o libera si no hubo gasto.
+  - Rollback probado en `docs/rollback/provider-budget-rollback.sql`.
+- **Pruebas:**
+  - pgTAP local `provider_budget` 36/36, con Postgres 17.6.1.171 en Docker y solo el stack local.
+  - Las suites existentes siguen en verde, salvo dos diferencias propias del entorno local:
+    - `rls_auto_enable` comprueba que el propietario sea `postgres`, y aquí las migraciones se aplican como `supabase_admin`;
+    - aviso de JSON al final de `audit_provenance`.
+  - La CI con la CLI de Supabase es la referencia.
+  - Vitest `tests/budget-ledger.test.ts` (6). Tipos regenerados: el diff es solo `provider_budget`. `npm run verify` en local.
+- **No hecho:**
+  - No se ha aplicado en alojado. Lo aplicaría Juanma con su CLI cuando se quiera usar.
+  - Ninguna herramienta de pago lo usa todavía, ni hay interfaz para fijar el límite.
+- **Decisión para Juanma (cuando toque):** límite mensual de créditos para Sarah antes de habilitar cualquier herramienta de pago de la fase 5.
