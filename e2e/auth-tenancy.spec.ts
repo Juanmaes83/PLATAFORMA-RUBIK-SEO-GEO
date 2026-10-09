@@ -74,11 +74,14 @@ test("password recovery: same answer for any address, link only leads to /restab
   await page.goto("/acceso");
   await page.getByRole("link", { name: "¿Has olvidado tu contraseña?" }).click();
   await page.getByLabel("Correo").fill(`nadie-${Date.now().toString(36)}@ejemplo.test`);
+  // The first submit compiles the action in `next dev`: wait for the redirect, not only 5 s.
   await page.getByRole("button", { name: "Enviar enlace" }).click();
+  await expect(page).toHaveURL(/\/recuperar\?aviso=enviado$/, { timeout: 20_000 });
   const notice = "Si hay una cuenta con ese correo, te hemos enviado un enlace";
   await expect(page.locator("main").getByRole("status").filter({ hasText: notice })).toBeVisible();
   await page.getByLabel("Correo").fill(address);
   await page.getByRole("button", { name: "Enviar enlace" }).click();
+  await expect(page).toHaveURL(/\/recuperar\?aviso=enviado$/, { timeout: 20_000 });
   await expect(page.locator("main").getByRole("status").filter({ hasText: notice })).toBeVisible();
 
   const link = await mailLink(mailpitUrl, address, "Restablece tu contraseña", "recovery");
@@ -88,11 +91,12 @@ test("password recovery: same answer for any address, link only leads to /restab
   await page.getByLabel("Contraseña nueva").fill(fresh);
   await page.getByLabel("Repite la contraseña").fill(`${fresh}x`);
   await page.getByRole("button", { name: "Guardar contraseña" }).click();
+  await expect(page).toHaveURL(/\/restablecer\?error=distintas$/, { timeout: 20_000 });
   await expect(page.locator("main").getByRole("alert")).toHaveText("Las dos contraseñas no coinciden.");
   await page.getByLabel("Contraseña nueva").fill(fresh);
   await page.getByLabel("Repite la contraseña").fill(fresh);
   await page.getByRole("button", { name: "Guardar contraseña" }).click();
-  await expect(page).toHaveURL(/\/acceso\?aviso=clave$/);
+  await expect(page).toHaveURL(/\/acceso\?aviso=clave$/, { timeout: 20_000 });
 
   // The link works once; the old password no longer does; the new one does.
   await page.goto(link);
