@@ -13,6 +13,7 @@ import { followProjectAudit, reconcileStartingJob, startProjectAudit, type Recon
 import { checkGoogleTools, followSiteAudit, startSiteAudit, testOpenSeoConnection, type AuditFollowUp, type AuditStart, type BridgeError, type ConnectionReport, type GoogleToolsReport } from "./bridge";
 import { resolveOpenSeoTarget } from "./target";
 import { connectProject, revokeProjectConnection, type ConnectionError } from "./connections";
+import { googleCatalogCheckEnabled } from "./mcp-client";
 
 // OpenSEO Server Actions (ADR 0006). Every action authenticates, loads the membership through
 // RLS and asks the Core whether the role may `manage-connectors` in THAT project; the hidden
@@ -154,6 +155,7 @@ export type GoogleToolsState = GoogleToolsReport | Denied | null;
 export async function checkGoogleToolsAction(_prev: GoogleToolsState, formData: FormData): Promise<GoogleToolsState> {
   const context = await authorized(formData);
   if (!context) return { denied: true };
+  if (!googleCatalogCheckEnabled()) return { ok: false, error: { code: "GOOGLE_CATALOG_DISABLED", message: "La comprobación del catálogo de Google no está activada.", retryable: false } };
   const target = await resolveOpenSeoTarget(context.client, context.project.projectId);
   if ("error" in target) return { ok: false, error: target.error };
   return checkGoogleTools({ env: target.env });

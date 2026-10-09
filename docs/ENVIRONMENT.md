@@ -36,6 +36,8 @@ Next.js incrusta las variables `NEXT_PUBLIC_*` al compilar. Un `npm run build` s
 
 `OPENSEO_PROJECT_JOBS_ENABLED=true` activa la reserva de trabajos y el guardado manual firmado. Es una variable exclusiva del servidor, apagada por defecto. Activarla solo después de aplicar las migraciones oficiales 9.2, 9.3 y `20261009071705_openseo_project_jobs`, configurar el keyring de provenance y comprobar el aislamiento alojado. No usar `NEXT_PUBLIC_`.
 
+`OPENSEO_GOOGLE_CATALOG_CHECK_ENABLED=true` muestra al owner la comprobación manual de `tools/list` y permite su acción de servidor. Está apagada por defecto y separada de `OPENSEO_GOOGLE_READS_ENABLED`: ninguna de las dos se configura en esta entrega. El guard de la acción rechaza también una petición directa cuando el flag está apagado. Activarla supone una llamada a OpenSEO y requiere autorización específica, aunque no ejecute una herramienta Google ni consuma créditos según el contrato de referencia.
+
 Con el modo activo, cada lanzamiento obtiene una reserva en PostgreSQL antes de contactar con OpenSEO. «Consultar y guardar resultados» captura y firma las filas originales del Core y guarda la pareja en una transacción. Una auditoría no vinculada queda rechazada antes de salir a la red. Las auditorías históricas anteriores al ledger no se adoptan automáticamente.
 
 Los estados STARTING tras timeout o error ambiguo requieren reconciliación: no caducan ni se relanzan automáticamente. El modo `legacy` permanece disponible mientras no se active la variable y **sí puede guardar** con el ledger y la firma habilitados; el informe de Sarah se verificó en este modo el 09/10/2026. Los trabajos `legacy` tienen `connection_id` nulo y no se siguen desde `project`.

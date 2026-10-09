@@ -1338,7 +1338,9 @@ Archivos del commit:
     - Exige que la propiedad esté dentro del dominio del proyecto y que OpenSEO responda con esa misma propiedad y la misma ventana. Si no, no devuelve filas.
   - **Cliente MCP:** `GOOGLE_READ_TOOLS` (2 de GSC, 9 de GA4 y `get_search_opportunities`) solo se admite con `OPENSEO_GOOGLE_READS_ENABLED=true`, que no está definida en ningún entorno.
   - **Comprobación del catálogo alojado:** `listTools()` (`tools/list`, gratis) más `checkGoogleCatalog()`, que exige presencia, solo lectura y los campos obligatorios esperados.
-  - **Botón para el titular** «Comprobar herramientas de Google» en Auditoría técnica, visible solo con OpenSEO configurado. No llama a Google.
+  - **Botón para el titular** «Comprobar herramientas de Google» en Auditoría técnica, visible solo con OpenSEO configurado **y** `OPENSEO_GOOGLE_CATALOG_CHECK_ENABLED=true`. Apagado por defecto; la acción también falla cerrada sin ese flag. No llama a Google.
+
+**Revisión de #57:** el merge a `main` de esta plataforma inicia un despliegue automático de Producción en Vercel (comprobado en despliegues anteriores de `main`). Para que el despliegue no abra una consulta nueva al proveedor, la comprobación `tools/list` quedó detrás de un flag propio apagado por defecto, tanto en la página como en la Server Action. `OPENSEO_GOOGLE_READS_ENABLED` también sigue apagado. La CI y el SHA final de este PR deben comprobarse tras este cambio; no se activó ningún flag ni se llamó a OpenSEO.
 - **GA4:** el Core no tiene proveedor ni operaciones de GA4, así que sus resultados no se pueden firmar todavía. Se propondrá en RUBIK-SEO-GEO-CORE, sin duplicarlo aquí. Mientras tanto queda apagado y sin interfaz.
 - **Pruebas:**
   - Vitest `openseo-google` (9), con un MCP simulado: aislamiento, errores, firma y guarda del cliente.
