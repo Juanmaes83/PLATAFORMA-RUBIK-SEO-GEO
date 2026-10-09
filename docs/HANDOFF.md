@@ -954,3 +954,9 @@ CI inicial de esta entrega: verify Node22/24 pasa; integración falló al crear 
   - `npm run verify`: 225/225.
 - Orden: fusionar y aplicar la cadena OpenSEO #31–#36 antes que #37 y esta rama, para que las versiones de migración se apliquen en orden.
 - Siguiente: la fase D (lectura manual, snapshot firmado e interfaz) depende de la fase B (OAuth y almacén de secretos) y de la propuesta al Core sobre el contexto de la consulta.
+
+## 09/10/2026 — credenciales por cliente (rama `claude/credenciales-cliente`)
+
+- [ADR 0010](adr/0010-credenciales-por-cliente.md): Vault (public alpha y descifrado alcanzable por el JWT del usuario), cifrado autenticado en la aplicación, KMS externo y variables de Vercel por cliente (descartada). **Recomendación: cifrado autenticado en la aplicación (AES-256-GCM)**, con keyring de servidor siguiendo el patrón del HMAC, y paso a KMS si crece el riesgo.
+- Implementado sin secretos reales: `src/lib/credentials/crypto.ts` y 5 pruebas. No hay tabla, flujo ni variables configuradas.
+- Bloqueo: decisión del propietario sobre la opción, y después las dos variables en Vercel. Para trabajos programados hará falta otra decisión: una identidad de servidor propia.
