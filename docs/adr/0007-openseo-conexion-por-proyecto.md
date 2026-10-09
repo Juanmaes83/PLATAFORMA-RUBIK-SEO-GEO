@@ -32,6 +32,14 @@ Con una clave compartida, el aislamiento depende del mapeo. Por eso la fase 1 im
 | 6 — Migración de proyectos existentes | Script/instrucción del propietario: crear la conexión de Sarah con los valores actuales; activar `project` solo tras comprobarlo | Dry-run local; rollback = volver a `legacy` (flag) sin borrar filas | Fase 4. Lo aplica el propietario |
 | 7 — Prueba alojada | Dos cuentas y dos proyectos autorizados; prueba de conexión y negativas | Solo IDs/estados en la evidencia | Aprobación expresa; sin auditorías de pago salvo autorización concreta |
 
+## Orden de ejecución (decisión del 09/10/2026)
+
+Las fases se ejecutan en este orden: **1 → 4 → 5 → 3**. La 2 queda bloqueada por decisión y la 6 y la 7 son acciones del propietario.
+
+- La fase 2 está bloqueada: falta decidir el almacén de secretos.
+- La fase 3 se retrasa por una dependencia técnica comprobada en Vercel (solo nombres de variables). El entorno Preview comparte el Supabase de producción y no tiene variables de OpenSEO. Una interfaz que llama a `openseo_connection` fallaría en preview hasta que el propietario aplique la migración de la fase 1 en alojado. Además, cualquier conexión creada en preview quedaría en la base de datos de producción.
+- La fase 4 no tiene interfaz ni depende del alojado. Por defecto mantiene el comportamiento actual (`legacy`) y se valida entera en CI. La fase 5 se apoya en ella.
+
 ## Límites de secretos y RLS
 
 - La tabla vive en `private` (no expuesta), con RLS activado, sin políticas y sin privilegios para `anon`/`authenticated`. Mismo patrón y mismo INFO esperado del Security Advisor que el ledger de jobs: no abrir políticas para silenciarlo.

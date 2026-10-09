@@ -857,3 +857,11 @@ CI inicial de esta entrega: verify Node22/24 pasa; integración falló al crear 
 - Pruebas locales: pgTAP con el contenedor `supabase/postgres:17.6.1.171`, aplicando las seis migraciones en orden: `openseo_connections` 32/32 y las cinco suites existentes sin fallos. Kong no se pudo descargar (límite del registro), así que la integración con la Data API (`tests/integration/openseo-connections.integration.test.ts`) se valida solo en CI. `npm run verify` en local; resultado de CI en el PR.
 - Bloqueos: la fase 2 (clave por cliente) necesita que el propietario decida el almacén de secretos y confirme con OpenSEO si hay claves limitadas por proyecto. La migración nueva **no** se aplica en alojado; la aplicará el propietario cuando se fusione.
 - Siguiente paso: (propietario) auditoría nueva con créditos para cerrar la verificación del guardado; revisar y fusionar #31 y este PR. (Desarrollo) fase 4: resolver run/follow por conexión con flag `legacy` por defecto y `connection_id` en el job.
+
+## 09/10/2026 — ciclo 1: estado verificado y orden de fases
+
+- GitHub (re-verificado): #31 en Draft, `2bab218`, CI [37906609239](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37906609239) en verde y preview `Ready`. #32 en Draft, apilado sobre #31, `a42767d`, CI [37911481664](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37911481664) en verde y preview `Ready`. `main@afb5a38` sin cambios. Sin otros PR o ramas activos aparte de los históricos #9 y #11.
+- Vercel, solo lectura de nombres: Preview comparte el Supabase de producción y no tiene variables de OpenSEO ni HMAC (detalle en OPERATIONS-STATUS).
+- ROADMAP: se corrigen las filas que aún decían «sin aplicar en alojado» (9.2 y 9.3) o «sin persistencia» (OpenSEO). Se añaden las filas de jobs y multicliente con su estado real.
+- ADR 0007: orden 1 → 4 → 5 → 3, por la dependencia de Preview con la base de datos de producción.
+- Siguiente: fase 4 en su propia rama, apilada sobre #32.

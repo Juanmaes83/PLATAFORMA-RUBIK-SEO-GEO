@@ -19,6 +19,11 @@ Este registro separa lo observado de lo pendiente; las autorizaciones del propie
 
 ## Comprobaciones alojadas de solo lectura
 
+- Vercel, 09/10/2026, autorizada por el propietario (solo nombres y destino, sin valores):
+  - Producción tiene `OPENSEO_ENDPOINT`, `OPENSEO_API_KEY`, `OPENSEO_PROJECT_ID`, `OPENSEO_AUDIT_ALLOWED_HOSTS`, `OPENSEO_AUDIT_MAX_PAGES`, `OPENSEO_WHOAMI_IDENTITY_FIELD`, `OPENSEO_AUDIT_STATUS_COMPLETED`, `OPENSEO_AUDIT_STATUS_FAILED`, `OPENSEO_PROJECT_JOBS_ENABLED`, `PROVENANCE_SIGNING_KEYS`, `PROVENANCE_ACTIVE_KEY_ID` y las dos públicas de Supabase.
+  - Preview solo tiene `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, en la misma entrada que producción: **las previews usan el Supabase de producción**.
+  - `OPENSEO_AUDIT_STATUS_PENDING` no está definida.
+  - Preview del PR #32: `/api/salud` responde 200 (`CORE-9.3`, `auth: supabase`). Se consultó mediante el acceso de Vercel; el bloqueo de acceso directo para terceros no se ha comprobado.
 - Supabase: el propietario aplicó CORE-9.2/9.3/jobs con su CLI en `yvdgmklgwlshizzgefpv` y `migration list` muestra las cinco versiones sincronizadas (evidencia compartida el 09/10/2026). El conector de este entorno sigue sin listar ese proyecto: tablas, RLS y permisos alojados no se han inspeccionado desde aquí. No se escribe en Sarah Studio.
 - Vercel: `PROVENANCE_SIGNING_KEYS` (Secret/sensitive, 32 bytes aleatorios) y `PROVENANCE_ACTIVE_KEY_ID` creados solo para producción y su metadata comprobada el 09/10/2026. No se sustituyeron claves anteriores ni se publicaron sus valores. La existencia del keyring no certifica todavía su uso en una escritura alojada; el flag de jobs sigue apagado.
 - Security Advisor: un aviso `auth_leaked_password_protection`; protección contra contraseñas filtradas desactivada. [Supabase documenta que requiere Pro o superior](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection). No se contrata ningún plan para resolverlo automáticamente.
