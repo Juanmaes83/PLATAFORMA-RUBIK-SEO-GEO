@@ -59,6 +59,6 @@ Registrar el resultado real y comprobar tablas, RLS y permisos RPC con acceso de
 
 Redeploy de activación comprobado `READY` el 09/10/2026: `dpl_6hzwqBBTJq4582stffdxcU8VmdGF`, SHA `afb5a3838981a78b9f126acc280fdc0138bfdae0`, alias público asignado. Esto confirma despliegue/configuración, no una escritura real del informe.
 
-Las auditorías anteriores al ledger no se adoptan automáticamente. Una respuesta de lanzamiento incierta conserva STARTING y requiere reconciliación administrativa antes de otro lanzamiento; no hay un botón para expirar esa reserva. OpenSEO mantiene un solo `OPENSEO_PROJECT_ID` global: el mapeo de instancias/proyectos del proveedor para varios clientes es una fase posterior. No se activan nuevas herramientas de pago, publicación ni indexación de Sarah.
+Las auditorías anteriores al ledger no se adoptan automáticamente. Una respuesta de lanzamiento incierta conserva STARTING y requiere reconciliación administrativa antes de otro lanzamiento; no hay un botón para expirar esa reserva. OpenSEO mantiene un solo `OPENSEO_PROJECT_ID` global: el mapeo por cliente se diseña en [ADR 0007](adr/0007-openseo-conexion-por-proyecto.md) y su fase 1 no cambia este flujo. No se activan nuevas herramientas de pago, publicación ni indexación de Sarah.
 
 Fuentes de CLI consultadas el 09/10/2026: [flujo de desarrollo](https://supabase.com/docs/guides/local-development/cli-workflows) y [referencia CLI](https://supabase.com/docs/reference/cli/introduction).
