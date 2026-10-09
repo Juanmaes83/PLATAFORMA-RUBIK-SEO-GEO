@@ -6,7 +6,7 @@ El catálogo de capacidades SEO/GEO que el propietario quiere cubrir, con el est
 
 ## Continuación GA4 y alcance — 09/10/2026
 
-Core #27 se corrigió e integró en `main@18fd72cc72640b7138198504d07b86f317816059`; su CI posterior está verde. Plataforma #57 añadió el flag separado de catálogo, apagado por defecto, y está pendiente de completar su CI del SHA actualizado antes de integrarse. Plataforma #58 se actualiza sobre #57 con pin del Core integrado y validación semántica/paginación GA4; no se debe integrar hasta superar su nueva CI. Google sigue sin lectura ni persistencia real desde Rubik. La fase histórica 4 se trasladó al frente web de Sarah, **no se completó**; no bloquea el desarrollo funcional de Rubik.
+Core #27 se corrigió e integró en `main@18fd72cc72640b7138198504d07b86f317816059`; su CI posterior está verde. Plataforma #57 añadió el flag separado de catálogo, apagado por defecto, y se integró en `main@83d5fd0240f536d57a2d10ffabdc2423ae9abde8`: CI del PR y [CI posterior de main](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37978890623) completas verdes. Plataforma #58 se actualiza sobre main con pin del Core integrado y validación semántica/paginación GA4; no se debe integrar hasta superar su nueva CI. Google sigue sin lectura ni persistencia real desde Rubik. La fase histórica 4 se trasladó al frente web de Sarah, **no se completó**; no bloquea el desarrollo funcional de Rubik.
 
 ## Historial: relevo Codex al abrir #58 — 09/10/2026
 
