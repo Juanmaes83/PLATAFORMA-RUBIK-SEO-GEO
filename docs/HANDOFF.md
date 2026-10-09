@@ -791,7 +791,8 @@ CI inicial de esta entrega: verify Node22/24 pasa; integración falló al crear 
 ## 09/10/2026 — captura y firma del resultado OpenSEO original
 
 - Base revisada: `main@5b2259b`; solo permanecen abiertos los PR documentales históricos #9/#11, sin otra rama activa observada sobre persistencia.
-- Rama `feat/openseo-capture-sign`: `followSiteAudit` entrega opcionalmente, solo en servidor, los resultados originales de incidencias y páginas después del filtro de proyecto. Un error de captura se informa aparte y no falsea el estado completado de OpenSEO.
+- PR #25 fusionado en `733080266043f7dee07820f853a3ab5c25013253`: `followSiteAudit` entrega opcionalmente, solo en servidor, los resultados originales de incidencias y páginas después del filtro de proyecto. Un error de captura se informa aparte y no falsea el estado completado de OpenSEO.
 - `prepareCompletedAuditResults` exige la marca de confianza del Core, proveedor `openseo`, operaciones exactas y el mismo `auditId` en provenance; luego firma ambos resultados con el contexto UUID de organización/proyecto. Copias JSON y cruces de auditoría quedan rechazados.
-- Pruebas dirigidas 70/70 y suite completa 187/187; pin, lint, TypeScript, secretos y diff correctos. El build local llega a Turbopack y falla por el `ENOENT uv_resident_set_memory` conocido de este runtime; build y e2e quedan pendientes de CI.
+- Pruebas dirigidas 70/70 y suite completa 187/187; pin, lint, TypeScript, secretos y diff correctos. CI completa del run `37889221102` en verde: verify Node 22/24 y e2e con Supabase local, RLS, Data API, build y navegador.
+- Producción Vercel verificada `READY` exactamente en el merge: `dpl_BmeUiNCPPnB1uS1LeKCAoa76H3CK`.
 - No hay escritura ni activación: faltan migración de jobs, deduplicación/transacción, claves alojadas y migraciones 9.2/9.3. No se usaron secretos, OpenSEO live ni funciones de pago; Sarah no se modificó.
