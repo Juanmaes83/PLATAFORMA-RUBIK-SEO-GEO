@@ -33,7 +33,10 @@ export function OpenSeoHistory({ base, state, rows }: {
         </EmptyState>
       ) : (
         <ul className="cards">
-          {rows.map((row) => (
+          {rows.map((row, index) => {
+            // Rows arrive newest first: the previous capture is the next issues row in the list.
+            const previous = row.operation === "auditIssues" ? rows.slice(index + 1).find((r) => r.operation === "auditIssues") : undefined;
+            return (
             <li className="card" key={row.id}>
               <div className="card-head">
                 <h3><Link href={`${base}/auditoria-tecnica/resultados/${row.id}`}>{OPERATION_LABELS[row.operation] ?? row.operation}</Link></h3>
@@ -44,8 +47,10 @@ export function OpenSeoHistory({ base, state, rows }: {
                 <div><dt>Capturado</dt><dd>{formatDateTime(row.captured_at)}</dd></div>
                 <div><dt>Guardado</dt><dd>{formatDateTime(row.created_at)}</dd></div>
               </dl>
+              {previous && <p><Link href={`${base}/auditoria-tecnica/comparar?antes=${previous.id}&despues=${row.id}`}>Comparar con la captura anterior</Link></p>}
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
     </section>

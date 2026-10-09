@@ -21,6 +21,14 @@ describe("OpenSEO signed history", () => {
     expect(html).not.toMatch(/signed_payload|signature|data_hash|private/);
   });
 
+  it("links each issues capture to the previous issues capture only", () => {
+    const older = { ...row, id: "22222222-2222-4222-8222-222222222222", created_at: "2026-10-08T05:01:00.000Z" };
+    const pages = { ...row, id: "33333333-3333-4333-8333-333333333333", operation: "auditPages" };
+    const html = renderToStaticMarkup(<OpenSeoHistory base={base} state="ready" rows={[row, pages, older]} />);
+    expect(html).toContain(`${base}/auditoria-tecnica/comparar?antes=${older.id}&amp;despues=${row.id}`);
+    expect(html.match(/Comparar con la captura anterior/g)).toHaveLength(1);
+  });
+
   it.each([
     ["signing-missing" as const, "Claves de firma"],
     ["unavailable" as const, "no se presenta como un historial vacío"],
