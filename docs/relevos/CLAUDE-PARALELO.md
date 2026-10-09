@@ -1,5 +1,7 @@
 # Trabajo paralelo de Claude — Entrega E (acceso multicliente y recuperación)
 
+> **Integrado el 10/10/2026.** #59 está en `main@ac70b1d` (después de #62 en `main@22a83eb`). La lista «Al integrar» se completó en la rama `claude/zealous-noether-dq91ll`: tipos verificados con todas las migraciones, inventario ampliado con la tabla de #60 (migración `20261012110000`) y ROADMAP, HANDOFF y OPERATIONS-STATUS actualizados sin borrar historial. Lo que sigue pendiente es de Juanma: migraciones alojadas, validación humana, prueba de aislamiento y decisiones K3, K4, D2, D5 y D6. Este documento queda como registro histórico de la entrega.
+
 Este es el checkpoint vivo de la rama `feat/invitaciones-proyecto`. Juanma la autorizó el 09/10/2026 como trabajo **paralelo** al de Codex, que sigue con las entregas B → C → D de su encargo: propiedades y resolución multicliente, GSC/GA4 de principio a fin, e históricos y propuestas.
 
 ## Reglas para no entrar en conflicto con Codex

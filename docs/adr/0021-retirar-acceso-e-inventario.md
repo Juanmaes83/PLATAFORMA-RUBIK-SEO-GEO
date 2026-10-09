@@ -1,6 +1,6 @@
 # ADR 0021 · Retirar el acceso a una persona e inventario de datos del proyecto
 
-**Estado:** propuesto en la rama `feat/invitaciones-proyecto` (PR #59), sin integrar en `main`. **No está aplicado** en el Supabase alojado.
+**Estado:** integrado en `main@ac70b1d` (PR #59). **No está aplicado** en el Supabase alojado. Ampliado por la migración `20261012110000`, que suma al inventario las propiedades Google de OpenSEO (#60).
 **Fecha:** 09/10/2026.
 **Depende de:** ADR 0003 (tenancy), ADR 0020 (invitaciones) y la decisión **D3** de Juanma en [RETENCION-Y-BORRADO](../RETENCION-Y-BORRADO.md): una baja es retirar el acceso, sin borrar la cuenta.
 
@@ -28,7 +28,7 @@
 ### Inventario de datos (`/proyectos/<org>/<proyecto>/datos`)
 
 - **Quién:** solo la titularidad de la organización.
-- **Qué:** recuentos (y primera y última fecha cuando aplica) de las 13 tablas del inventario de E4: auditoría, resultados, importaciones, membresías, invitaciones abiertas y cerradas, trabajos y conexiones de OpenSEO, propiedades de GSC/Bing, presupuestos y movimientos de consumo.
+- **Qué:** recuentos (y primera y última fecha cuando aplica) de las tablas del inventario de E4: auditoría, resultados, importaciones, membresías, invitaciones abiertas y cerradas, trabajos y conexiones de OpenSEO, propiedades de GSC/Bing, propiedades Google asociadas en OpenSEO (desde `20261012110000`), presupuestos y movimientos de consumo.
 - **Solo lectura:** no muestra contenido ni permite borrar. Remite a la exportación para el detalle.
 
 ### Almacenamiento y acceso
