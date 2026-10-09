@@ -960,3 +960,18 @@ CI inicial de esta entrega: verify Node22/24 pasa; integración falló al crear 
 - [ADR 0010](adr/0010-credenciales-por-cliente.md): Vault (public alpha y descifrado alcanzable por el JWT del usuario), cifrado autenticado en la aplicación, KMS externo y variables de Vercel por cliente (descartada). **Recomendación: cifrado autenticado en la aplicación (AES-256-GCM)**, con keyring de servidor siguiendo el patrón del HMAC, y paso a KMS si crece el riesgo.
 - Implementado sin secretos reales: `src/lib/credentials/crypto.ts` y 5 pruebas. No hay tabla, flujo ni variables configuradas.
 - Bloqueo: decisión del propietario sobre la opción, y después las dos variables en Vercel. Para trabajos programados hará falta otra decisión: una identidad de servidor propia.
+
+## 09/10/2026 — estado por capas y tareas paralelas
+
+| Pieza | Código integrado | Migración aplicada | Conexión real verificada |
+|---|---|---|---|
+| OpenSEO por proyecto (120000/150000/170000) | Sí, en `main@8d56e18`. CI [37922017052](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37922017052) en verde | No. El propietario la aplicará con su CLI | No. El modo `project` no se activa hasta comprobar la conexión de Sarah |
+| Propiedades de Search Console y Bing (180000) | Sí, en `main@8d56e18` | No | No |
+| Credenciales por cliente (ADR 0010) | No. PR #40 abierto | No hay migración | No |
+| Contexto de consulta en la procedencia (Core) | No. Core PR #24 abierto, 337 pruebas en verde. El pin se actualiza tras la fusión | No aplica | No |
+
+- Paquete de migraciones: cuatro (120000, 150000, 170000, 180000). Resultado esperado: nueve versiones sincronizadas. Está en el PR #39 (CI en verde) y sustituye a la guía anterior de tres/ocho.
+- Web de Sarah (`SARAHKATERINAWEBNUEVA`):
+  - Esta sesión no tiene permiso de escritura en ese repositorio. Rama local `claude/consentimiento-medicion` (`9be1173`): registro de consentimiento versionado, mapeo Consent Mode v2, adaptador de analítica condicionado al consentimiento y nota de preparación legal. 435 pruebas en verde.
+  - No se ha añadido ningún tag, ID, banner ni texto legal.
+  - Los datos del responsable (nombre legal, NIF, domicilio, registro) **no están verificados** en ninguna fuente del repositorio.
