@@ -43,7 +43,9 @@ describe("bounded Google manual read through project association, in-memory only
   it("reads GSC .es via the bound project without requiring the global crawl project", async () => {
     const s = setup("search-console", gscReply);
     const r = await runManualGoogleReport(s.client, projectId, gscQuery, { env, mcpFactory: s.mcpFactory });
-    expect(r).toMatchObject({ ok: true, result: { status: "OK", provenance: { evidence: { sourceUrl: "https://sarah.es/" } } },
+    expect(r).toMatchObject({ ok: true, result: { status: "OK", provenance: { evidence: { sourceUrl: "https://sarah.es/" },
+      sourceContext: { connectionId, propertyBindingId: bindingId, providerProjectId: "client-project",
+        grantedAt: "2026-10-09T10:10:00.000Z" } } },
       source: { openseoProjectId: "client-project", externalPropertyId: "https://sarah.es/" } });
     expect(s.callTool).toHaveBeenCalledWith("get_search_console_performance", expect.objectContaining({ projectId: "client-project" }));
     expect(s.mcpFactory).toHaveBeenCalledWith(expect.objectContaining({ mcpUrl: "https://openseo.example/mcp", googleReads: true, timeoutMs: 20_000 }));
@@ -52,7 +54,8 @@ describe("bounded Google manual read through project association, in-memory only
   it("reads only the implemented GA4 landing report and preserves Core normalization", async () => {
     const s = setup("google-analytics", ga4Reply);
     const r = await runManualGoogleReport(s.client, projectId, ga4Query, { env, mcpFactory: s.mcpFactory });
-    expect(r).toMatchObject({ ok: true, result: { status: "OK", data: [{ sessions: 10, activeUsers: 8 }] },
+    expect(r).toMatchObject({ ok: true, result: { status: "OK", data: [{ sessions: 10, activeUsers: 8 }],
+      provenance: { sourceContext: { connectionId, propertyBindingId: bindingId, providerProjectId: "client-project" } } },
       source: { externalPropertyId: "properties/123" } });
     expect(s.callTool).toHaveBeenCalledWith("get_google_analytics_organic_landing_pages",
       { projectId: "client-project", startDate: "2026-09-01", endDate: "2026-09-28", limit: 10, offset: 0 });
