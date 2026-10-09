@@ -977,3 +977,91 @@ CI inicial de esta entrega: verify Node22/24 pasa; integración falló al crear 
   - nueva sección B: activación controlada del modo `project` (requisitos previos, conexión de Sarah, una sola conexión activa, cero trabajos activos, variable solo en producción, redeploy del mismo SHA, efecto esperado y rollback).
 - El estado vigente de README, ROADMAP y OPERATIONS-STATUS se ha actualizado.
 - Siguiente paso: Juanma ejecuta la sección A. Con ella superada y el panel revisado, la sección B. En paralelo, decidir el ADR 0010 (PR #40) y fusionar el Core PR #24 para actualizar el pin.
+
+## 09/10/2026 11:40 UTC — CHECKPOINT DE RELEVO (Claude → Codex)
+
+Claude detiene aquí las ediciones. Todo el trabajo está subido salvo la rama local de la web de Sarah, que se entrega como parche y bundle (ver más abajo).
+
+### Ramas y PR
+
+| Repositorio | Rama | Último commit | PR | CI del último commit | Estado |
+|---|---|---|---|---|---|
+| PLATAFORMA-RUBIK-SEO-GEO | `claude/paquete-migraciones` | este checkpoint (antes `a3bf0dc`) | #39 | `a3bf0dc`: [37923777993](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37923777993) en verde. Falta confirmar la CI del commit de este checkpoint (solo documentación) | Listo para revisión |
+| PLATAFORMA-RUBIK-SEO-GEO | `claude/credenciales-cliente` | `f99a30e` | #40 | [37923525529](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37923525529) en verde | Espera la decisión sobre la opción B del ADR 0010 |
+| PLATAFORMA-RUBIK-SEO-GEO | `claude/previews-integraciones` | `01ff21b` | #41 | [37923901339](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37923901339) en verde (verify en Node 22 y 24, y e2e) | Listo para revisión |
+| RUBIK-SEO-GEO-CORE | `feat/provenance-request-context` | `4dd7546` | Core #24 | [37923502833](https://github.com/Juanmaes83/RUBIK-SEO-GEO-CORE/actions/runs/37923502833) en verde (Node 20 y 22) | Listo para revisión. Tras fusionarlo, PR en la plataforma para actualizar el pin |
+| SARAHKATERINAWEBNUEVA | `claude/consentimiento-medicion` (**solo local**) | `9be1173` sobre la base `d5231afc9627aec44195cb97ef49ce5b53a7f358` (`origin/main`) | — | Sin CI: no se ha subido | Esta sesión no tiene permiso de escritura en ese repositorio |
+
+No quedan cambios sin guardar en ninguna rama.
+
+### Conflictos previsibles entre PR
+
+Los PR #39, #40 y #41 añaden entradas al final de `docs/HANDOFF.md`. Además, #39 y #40 tocan `docs/ENVIRONMENT.md` y #40 el bloque de estado. Al fusionar uno, los demás necesitan merge de `main` y conservar todas las entradas en orden cronológico.
+
+### Web de Sarah: cómo aplicar el trabajo local
+
+Se entregan dos archivos por el chat. No se subieron a ningún repositorio para no mezclar repositorios.
+
+- `0001-Consent-record-and-consent-gated-analytics-adapter-p.patch` (sha256 `13449e9cc3034b8d455586113b1d46b0fc5bbf556917b7bd3a0719aa03caa1f5`).
+- `claude-consentimiento-medicion.bundle` (sha256 `1a63f2bcb47369e543ae8073cde460f7b1bffcc5b982fe58ab014e4761774a9d`). Contiene `origin/main..claude/consentimiento-medicion` y necesita la base `d5231af`.
+
+Aplicar con el parche:
+
+```bash
+git checkout -b claude/consentimiento-medicion d5231afc9627aec44195cb97ef49ce5b53a7f358
+git am 0001-Consent-record-and-consent-gated-analytics-adapter-p.patch
+```
+
+O con el bundle:
+
+```bash
+git fetch ./claude-consentimiento-medicion.bundle claude/consentimiento-medicion:claude/consentimiento-medicion
+```
+
+Es un solo commit, sin archivos sin seguimiento: solo `node_modules`, que está ignorado.
+
+Archivos del commit:
+- `lib/consent/consent.ts`
+- `lib/analytics/consented.ts`
+- `tests/consent.test.ts`
+- `docs/legal-consent-readiness-2026-10-09.md`
+
+### Pruebas ejecutadas de verdad en esta sesión
+
+- **Plataforma:** `npm run verify` en local para cada rama.
+  - #40: 255 pruebas.
+  - #39 y #41: 250 pruebas, guard de secretos y build.
+  - La CI de GitHub de los tres PR, en verde.
+- **Core:** `npm test` con 337 pruebas (4 nuevas). CI en verde.
+- **Web de Sarah:** `npm ci`, `npm test` (31 ficheros, 435 pruebas, 38 omitidas), `tsc --noEmit`, `eslint` (0 errores, 8 avisos ya existentes) y `prettier --check` de los archivos nuevos. El `prettier --check .` global falla en 170 archivos que ya fallaban antes; no se ha corregido.
+- **No ejecutado:** e2e y evidencias visuales en local (Kong bloqueado), cualquier prueba contra Supabase alojado, OpenSEO u otro servicio real.
+
+### Comprobaciones pendientes por PR
+
+- **#39:**
+  - confirmar la CI del commit de este checkpoint;
+  - revisar que el estado vigente coincide con la evidencia del propietario y de Codex (nueve versiones, RLS);
+  - fusionar.
+- **#40:**
+  - decidir la opción B del ADR 0010 (o A o C);
+  - si se aprueba, PR siguiente con la tabla `private.provider_credentials`, RPC solo para el owner, pgTAP y tipos;
+  - después, las dos variables en Vercel (solo producción, *Sensitive*).
+- **#41:**
+  - decidir el aislamiento de previews (opción A);
+  - verificar en la página de precios de Supabase el coste de un segundo proyecto.
+- **Core #24:**
+  - revisar y fusionar;
+  - después, en la plataforma: actualizar el pin del Core (`package.json` y el guard del pin), pasar `requestContext` en las lecturas de Search Console y Bing y ejecutar `npm run verify`.
+
+### Pendientes y bloqueos generales
+
+1. **Guardado real:** sección A de OPENSEO-ACTIVATION, ejecutada por Juanma. Bloquea la sección B.
+2. **Modo `project`:** sección B, tras revisar el panel. No activar antes de comprobar la conexión de Sarah.
+3. **Fase B de Search Console y Bing (OAuth):** depende de la decisión sobre el ADR 0010.
+4. **Web de Sarah:**
+   - aplicar el parche;
+   - datos legales verificados del responsable;
+   - aprobación de proveedor y textos;
+   - el banner y la carga del tag llegan con el primer proveedor aprobado;
+   - verificación en navegador.
+5. **Dos cuentas alojadas para probar el aislamiento:** depende del entorno de previews aislado.
