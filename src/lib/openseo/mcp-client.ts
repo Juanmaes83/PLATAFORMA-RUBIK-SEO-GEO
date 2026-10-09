@@ -14,6 +14,26 @@ import "server-only";
 export const ALLOWED_TOOLS = Object.freeze(["whoami", "run_site_audit", "get_audit_status", "get_audit_issues", "get_audit_pages"] as const);
 export type AllowedTool = (typeof ALLOWED_TOOLS)[number];
 
+/**
+ * Read-only, credit-free Google tools (owner decision of 09/10/2026, docs/GSC-GA4-OPENSEO.md).
+ * Reachable only when the server sets OPENSEO_GOOGLE_READS_ENABLED=true, which no environment
+ * does yet: availability is declared only after the hosted instance is confirmed.
+ */
+export const GOOGLE_READ_TOOLS = Object.freeze([
+  "get_search_console_performance",
+  "inspect_urls",
+  "get_google_analytics_organic_overview",
+  "get_google_analytics_organic_landing_pages",
+  "get_google_analytics_page_performance",
+  "get_google_analytics_key_events",
+  "get_google_analytics_traffic_acquisition",
+  "get_google_analytics_ecommerce_performance",
+  "get_google_analytics_site_search",
+  "get_google_analytics_audience_breakdown",
+  "get_google_analytics_measurement_health",
+  "get_search_opportunities",
+] as const);
+
 const PROTOCOL_VERSION = "2025-06-18";
 const CLIENT_INFO = { name: "plataforma-rubik-seo-geo", version: "0.1.0" };
 const MAX_BODY_BYTES = 2_000_000;
@@ -25,6 +45,8 @@ export interface McpClientOptions {
   apiKey: string;
   /** Hard ceiling for run_site_audit.maxPages, enforced again here (defence in depth). */
   maxPages: number;
+  /** Allows GOOGLE_READ_TOOLS. Off unless OPENSEO_GOOGLE_READS_ENABLED=true on the server. */
+  googleReads?: boolean;
   fetchImpl?: FetchLike;
   timeoutMs?: number;
 }
@@ -32,6 +54,15 @@ export interface McpClientOptions {
 export interface ToolResult {
   structuredContent?: unknown;
   isError?: boolean;
+  content?: unknown;
+}
+
+/** Name and schemas of a tool as `tools/list` reports it; listing runs no tool and costs nothing. */
+export interface ListedTool {
+  name: string;
+  inputSchema?: unknown;
+  outputSchema?: unknown;
+  annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean; openWorldHint?: boolean };
 }
 
 /** Error shape the Core's `openseoFailure` understands: status, retryAfter, code. */
@@ -50,11 +81,17 @@ export class OpenSeoTransportError extends Error {
 export interface OpenSeoMcpClient {
   kind: "live";
   callTool(name: string, args: Record<string, unknown>): Promise<ToolResult>;
+  listTools(): Promise<ListedTool[]>;
   close(): Promise<void>;
 }
 
-function guardArgs(name: string, args: Record<string, unknown>, maxPages: number) {
-  if (!(ALLOWED_TOOLS as readonly string[]).includes(name)) {
+export const googleReadsEnabled = (env: Record<string, string | undefined> = process.env) => env.OPENSEO_GOOGLE_READS_ENABLED === "true";
+/** Catalog inspection is a separate, explicit hosted-network gate. It never enables Google reads. */
+export const googleCatalogCheckEnabled = (env: Record<string, string | undefined> = process.env) => env.OPENSEO_GOOGLE_CATALOG_CHECK_ENABLED === "true";
+
+function guardArgs(name: string, args: Record<string, unknown>, maxPages: number, googleReads = false) {
+  const google = googleReads && (GOOGLE_READ_TOOLS as readonly string[]).includes(name);
+  if (!google && !(ALLOWED_TOOLS as readonly string[]).includes(name)) {
     throw new OpenSeoTransportError("Tool not allowed by the platform bridge", undefined, "TOOL_NOT_ALLOWED");
   }
   if (name === "run_site_audit") {
@@ -156,10 +193,29 @@ export function createOpenSeoMcpClient(opts: McpClientOptions): OpenSeoMcpClient
   return {
     kind: "live",
     async callTool(name, args) {
-      guardArgs(name, args, opts.maxPages);
+      guardArgs(name, args, opts.maxPages, opts.googleReads === true);
       await ensureSession();
       const result = await rpc("tools/call", { name, arguments: args });
       return (result && typeof result === "object" ? result : {}) as ToolResult;
+    },
+    async listTools() {
+      await ensureSession();
+      const tools: ListedTool[] = [];
+      let cursor: string | undefined;
+      const seenCursors = new Set<string>();
+      // Bounded pagination: a misbehaving server cannot keep the request open forever.
+      for (let page = 0; page < 10; page += 1) {
+        const result = (await rpc("tools/list", cursor ? { cursor } : {})) as { tools?: unknown; nextCursor?: unknown } | null;
+        if (!result || !Array.isArray(result.tools)) throw new OpenSeoTransportError("Unexpected tools/list response");
+        for (const t of result.tools) {
+          if (t && typeof t === "object" && typeof (t as ListedTool).name === "string") tools.push(t as ListedTool);
+        }
+        if (result.nextCursor === undefined || result.nextCursor === null || result.nextCursor === "") return tools;
+        if (typeof result.nextCursor !== "string" || seenCursors.has(result.nextCursor)) throw new OpenSeoTransportError("Invalid tools/list pagination");
+        seenCursors.add(result.nextCursor);
+        cursor = result.nextCursor;
+      }
+      throw new OpenSeoTransportError("Incomplete tools/list catalog");
     },
     async close() {
       if (!sessionId) return;

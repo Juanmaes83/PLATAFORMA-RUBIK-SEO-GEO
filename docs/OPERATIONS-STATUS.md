@@ -2,6 +2,8 @@
 
 Este registro separa lo observado de lo pendiente; las autorizaciones del propietario para avanzar permanecen vigentes. No hay que volver a pedir permiso para preparar cambios de código, pruebas o PR dentro del alcance autorizado.
 
+**Actualización técnica (09/10/2026):** Core GA4 #27 integrado (`18fd72c`, CI posterior verde); plataforma #57 integrada (`83d5fd0`, [CI del PR](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37978152849) y [CI posterior de main](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37978890623) completas verdes). #58 aún en corrección y pruebas: primer transporte GA4 simulado, pin del Core corregido, validación de filas/paginación y catálogo por informe. Ninguna lectura Google ni persistencia de esos informes se verificó realmente desde Rubik. El merge de #57 causa despliegue Vercel de producción, pero la consulta del catálogo y las lecturas están apagadas por defecto. La web de Sarah y su fase histórica 4 están trasladadas a otro frente, no completadas en Rubik. El guardado `legacy` comprobado de #44 permanece como evidencia separada; producción sigue sin `project`.
+
 ## Entrega actual
 
 **Estado vigente (09/10/2026, tras aplicar el paquete de migraciones). Las viñetas siguientes son el histórico de cada entrega; prevalece este bloque.**
@@ -74,3 +76,9 @@ Docker no existe en este workspace. El build local de Next/Turbopack falla por `
 No hay una sesión de Claude Code accesible y confirmada. La revisión interna independiente no debe presentarse como trabajo de Claude. El lanzamiento/indexación y la publicación de contenidos de Sarah siguen fuera de estas entregas.
 
 Contrato y límites de API OpenSEO comprobados por código/documentación: [OPENSEO-API-CAPABILITIES](OPENSEO-API-CAPABILITIES.md). Coste alojado y del proveedor deben presupuestarse antes de ampliar el puente.
+
+## Relevo Codex — 09/10/2026
+
+El propietario confirma parada de Claude y autoriza continuidad de código. Main remoto `f0c304cedf98053b2519af5904e89c11d763c33a`. CI GSC #57 completa verde en `64b2db6` ([37956403763](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37956403763)); Core #27 abierto en `b25ba92`, 346/346 locales reproducidas. Continuación en `codex/google-integrations-review`, con primer informe GA4 y correcciones GSC/catálogo; no integrada ni desplegada en producción.
+
+El catálogo autenticado de la instancia y las condiciones de la cuenta **no** se han verificado en este relevo. La tarifa pública oficial (10 USD/mes con 10 USD de uso) sí se consultó; detalle y límites en CONSUMO-Y-PRESUPUESTO. 10 € no tienen equivalencia confirmada a créditos. Legacy de Sarah conserva la validación anterior sin repetirla. Conexión por proyecto, activación y revisión humana pendientes. No hay acciones hosted ni coste. La fase histórica 4 (web nueva/antigua, Studio, contenido, consentimiento web y lanzamiento de Sarah) está **trasladada a otro frente, no completada**; no bloquea las capacidades genéricas de análisis, medición y propuestas de Rubik.

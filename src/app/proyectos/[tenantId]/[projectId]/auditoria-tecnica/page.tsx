@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { OpenSeoConsole } from "@/components/OpenSeoConsole";
 import { OpenSeoHistory } from "@/components/OpenSeoHistory";
+import { GoogleToolsCheck } from "@/components/GoogleToolsCheck";
 import { ProjectNav } from "@/components/ProjectNav";
 import { EmptyState, PageHead, StatusPill } from "@/components/ui";
 import { projectAccess } from "@/lib/access";
@@ -18,6 +19,7 @@ import { connectionMode, resolveOpenSeoTarget } from "@/lib/openseo/target";
 import { getProjectConnection } from "@/lib/openseo/connections";
 import { OpenSeoConnectionPanel, type ConnectionPanelView } from "@/components/OpenSeoConnectionPanel";
 import { projectModeReadiness } from "@/lib/openseo/readiness";
+import { googleCatalogCheckEnabled } from "@/lib/openseo/mcp-client";
 
 // Technical audit through OpenSEO (ADR 0006). The page itself never calls OpenSEO: it only
 // reads which configuration STATES exist on the server. Every call to OpenSEO is a Server
@@ -100,6 +102,7 @@ export default async function TechnicalAuditPage({ params }: { params: Promise<{
         <OpenSeoConsole tenant={project.tenantId} project={project.projectId} defaultUrl={`https://${domain}/`} maxPages={view.maxPages ?? 10} savingEnabled={projectJobsEnabled() && !!keyring} />
       )}
       <OpenSeoHistory base={base} state={historyState} rows={historyRows} />
+      {googleCatalogCheckEnabled() && canManage && target && !("error" in target) && view.state === "configured" && <GoogleToolsCheck tenant={project.tenantId} project={project.projectId} />}
     </>
   );
 }
