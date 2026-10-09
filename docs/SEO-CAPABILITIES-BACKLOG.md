@@ -166,6 +166,11 @@ El propietario solicitó estas tres capacidades para una plataforma con muchos c
 - Para backlinks: verificar cobertura, fechas, frescura, límites, datos de dominios/URLs y condiciones de reutilización. No afirmar exhaustividad ni equiparar ausencia de datos con cero enlaces.
 - Para rank tracking: comprobar país, idioma, ubicación/dispositivo, motor, SERP, cadencia admitida y unidades por consulta; comparar el coste de keywords × proyectos × ubicaciones × frecuencia.
 - Entrega: matriz de capacidades/contratos y costes con estados confirmado/no confirmado, decisión de fuente y alcance. **Primera versión:** [OPENSEO-CAPACIDADES](OPENSEO-CAPACIDADES.md), verificada contra el código de referencia el 09/10/2026; falta confirmarla en la instancia alojada. Hasta entonces no hay llamadas live ni ampliación silenciosa de la lista blanca.
+- Herramientas de OpenSEO MCP identificadas el 08/10/2026 (trasladado del PR #11; **hay que revalidarlas contra la instancia real** antes de usarlas):
+  - competidores: `get_domain_overview`, `get_ranked_keywords` y `find_serp_competitors`;
+  - backlinks: `get_backlinks_overview` y `get_backlinks_profile`;
+  - rank tracking: `estimate_rank_tracker_cost`, que debe llamarse y aceptarse antes de configurar o ejecutar nada.
+  - Según la documentación de entonces, estas consultas usan DataForSEO, consumen créditos con tarifa variable, y el rank tracking de OpenSEO es semanal por defecto. Rubik no activa ninguna recurrencia sin consentimiento y presupuesto.
 
 ### Fase B · Base multicliente y consultas manuales
 

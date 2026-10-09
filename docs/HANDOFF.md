@@ -1116,6 +1116,77 @@ Archivos del commit:
 - Sarah web: HANDOFF conserva los hashes esperados del parche `13449e9cc3034b8d455586113b1d46b0fc5bbf556917b7bd3a0719aa03caa1f5` y bundle `1a63f2bcb47369e543ae8073cde460f7b1bffcc5b982fe58ab014e4761774a9d` para `claude/consentimiento-medicion@9be1173`, base `d5231afc9627aec44195cb97ef49ce5b53a7f358`. **No se facilitó una ruta accesible en esta sesión; no se localizaron, verificaron ni respaldaron aquí.** Pedir la ruta al propietario y comprobar SHA256 antes de aplicar; no recrear el trabajo.
 - Estado de escritores: Claude estaba detenido según el relevo; este worktree único no tenía cambios ni `index.lock` antes del checkpoint. No hay prueba de sesiones externas fuera de este equipo. Al publicar este PR Codex detiene ediciones; Claude puede asumir sin escrituras simultáneas de Codex.
 
+## 09/10/2026 — relevo Codex → Claude: estado, PR históricos y web de Sarah (rama `docs/vigencia-historicos`)
+
+- **Punto de partida comprobado:**
+  - `main@588345c` igual en local y en remoto; árbol limpio. CI de `main` [37937765822](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/37937765822) en verde, según el relevo.
+  - PR abiertos: #40, #11 y #9.
+  - Sin cambios ni escrituras de Codex desde su checkpoint.
+- **Web de Sarah:**
+  - El parche y el bundle seguían en el scratchpad de esta sesión de Claude. Los SHA256 coinciden con los registrados: parche `13449e9c…`, bundle `1a63f2bc…`.
+  - `origin/main` sigue en `d5231af`, la base del commit.
+  - La rama `claude/consentimiento-medicion@9be1173` se ha subido sin cambios y está en [SARAHKATERINAWEBNUEVA#53](https://github.com/Juanmaes83/SARAHKATERINAWEBNUEVA/pull/53).
+  - `npm test` local: la primera ejecución en frío dio 3 fallos en 2 ficheros. No se capturó la salida, así que no se pueden identificar. Cuatro ejecuciones posteriores pasaron enteras (435 pruebas, 38 omitidas). La referencia es la CI del PR.
+  - **Incidencia de proceso:** la rama se subió en la misma orden encadenada que aquellos tests en frío; el PR se abrió después de repetirlos en verde.
+- **PR históricos:**
+  - **#9** (`docs/post-8-merge-status@0b937ee`, draft) registra el estado tras `377fa73`: «NOT DEPLOYED», migraciones sin aplicar y una nota de dry-run de §6/§7. Fusionarlo hoy introduciría afirmaciones falsas. No contiene nada vigente.
+  - **#11** (`docs/openseo-roadmap-phases@5a13399`, draft) es un plan de fases 3.1–3.4 que la §15 del backlog y las fases 5 y 6 del ROADMAP ya recogen con más criterio. Su única aportación vigente, los nombres de herramientas y la recurrencia semanal, se traslada a la §15 como dato por revalidar.
+  - **Recomendación:** que Juanma cierre ambos como sustituidos. Las ramas se conservan y este PR no los cierra.
+- **Coherencia documental:**
+  - Notas de vigencia en `MAIN-HEALTH-REPORT`, `RUBIK-CONSOLIDATION-AUDIT` y `RUBIK-DEPLOYMENT-READINESS` (esta última decía «NOT DEPLOYED»).
+  - Cuatro filas desfasadas de «Dependencias y siguiente acción» en OPERATIONS-STATUS: persistencia, migraciones, multicliente y Search Console/Bing.
+  - Nueva fila de la web de Sarah en los bloques de estado vigente.
+- **#40:**
+  - Validable ya, sin decisión: el módulo de cifrado y sus pruebas (CI en verde en `f9d4f40`).
+  - Pendiente de la decisión sobre el ADR 0010: tabla, RPC, OAuth y variables.
+  - No se asume aprobada la opción B.
+- Sin migraciones, auditorías, conexiones, cambios de modo, variables, DNS ni publicación.
+
+## 09/10/2026 — ajuste de alcance y hallazgos de Codex en #49
+
+- **Instrucción de Juanma (09/10/2026):** Claude no trabaja en la nueva web de Sarah ni en su Studio; Juanma gestiona ese frente por su cuenta. Claude se centra en Rubik SEO GEO y en el piloto de Sarah dentro de Rubik.
+  - Se retira de este PR la fila «Web de Sarah» que se había añadido al estado vigente.
+  - Las unidades 4 del ROADMAP no se tocan desde aquí.
+  - Claude ha dejado de seguir SARAHKATERINAWEBNUEVA#53.
+- **Hallazgos de Codex en #49, corregidos los que son de Rubik:**
+  - OPERATIONS-STATUS, «Un trabajo activo por proyecto»: ledger activo con un job `COMPLETED`, aclarando que esa prueba no verificó concurrencia ni reconciliación real.
+  - ADR 0004: su última frase queda marcada como estado histórico.
+  - El tercer hallazgo, sobre la fase 4 de la web, queda fuera de este frente.
+- **Coordinación:** Claude Code es el agente principal en esta sesión y solo escribe en sus propias ramas. Antes de cada relevo deja aquí constancia expresa de parada.
+- **Siguiente unidad:** recuperación del piloto. Hoy `exportProject` no incluye jobs OpenSEO, conexiones ni propiedades webmaster. Se abordará con fixtures y pruebas locales, sin escribir en Preview ni en producción.
+## 09/10/2026 — recuperación del piloto: exportación v2 y verificación offline (rama `feat/recuperacion-piloto`)
+
+- Base: `main@588345c`.
+- **Hecho:**
+  - La exportación pasa a `rubik-project-export-v2`. Añade `operations`, leído solo con RPC de lectura del owner:
+    - conexión OpenSEO activa;
+    - trabajo activo;
+    - jobs ligados a los `auditId` firmados;
+    - propiedades de Search Console y Bing;
+    - lista `notIncluded`.
+  - Cada parte lleva su propio código de error.
+  - `verifyProjectExport` recalcula la cadena y las firmas de un fichero sin base de datos y señala las discrepancias.
+  - Documentado en [RECUPERACION-PILOTO](RECUPERACION-PILOTO.md) y en el ADR 0004 §4.
+- **Pruebas:** `tests/recovery.test.ts` (6 pruebas: manipulación, claves ajenas y rotadas, ficheros inválidos, fallos parciales y solo comandos de lectura) y `npm run verify` en local.
+- **No hecho:** restauración a una base nueva, prueba en alojado y custodia del keyring. No se escribió en Preview ni en producción.
+- **Validación humana:** la próxima vez que Juanma descargue la exportación de Sarah, comprobar que llega en v2 con `operations`, sin claves, y que `connection` es `null` mientras siga en `legacy`. Descargar solo añade el evento `project.export` a la auditoría.
+## 09/10/2026 — lista previa al modo `project` en el panel (rama `feat/openseo-preparacion-project`)
+
+- Base: `main@588345c`.
+- **Hecho:**
+  - `src/lib/openseo/readiness.ts` calcula una lista de solo lectura:
+    - bloquean: registro de trabajos, conexión `ACTIVE`, hosts que incluyen el dominio y trabajo activo;
+    - piden revisión: destino igual o distinto del `OPENSEO_PROJECT_ID` global, sin devolver ningún identificador, y hosts que hoy se auditan y dejarían de serlo.
+  - El panel del owner la muestra mientras el servidor sigue en `legacy`.
+  - La página lee la conexión una sola vez.
+- **Pruebas:**
+  - `tests/openseo-readiness.test.ts` (4).
+  - Render del panel en `tests/openseo-ui.test.tsx`: sin identificadores y sin ningún botón de activar.
+  - Aserciones nuevas en `e2e/openseo-connection.spec.ts`, que se ejecutan en CI.
+  - `npm run verify` en local.
+- **Evidencia visual:** `npm run visual:evidence` no se puede ejecutar en este entorno (la imagen de Kong está bloqueada). Las capturas de `docs/visual` no se han regenerado. La e2e de CI comprueba que no hay desbordamiento ni fallos de accesibilidad graves y guarda capturas como artefacto.
+- **Validación humana:** cuando Juanma abra Auditoría técnica de Sarah en producción tras el despliegue, el panel debe mostrar «Antes de activar el modo por proyecto» con «Con pendientes» y «Falta crear la conexión del proyecto». Es solo lectura: no escribe ni consume.
+- **No hecho:** crear la conexión y activar `project`; son decisiones de Juanma.
 ## 09/10/2026 — matriz de capacidades de OpenSEO (rama `docs/openseo-capacidades`)
 
 - [OPENSEO-CAPACIDADES](OPENSEO-CAPACIDADES.md): las 57 herramientas MCP del repositorio de referencia `Juanmaes83/open-seo@0ffff93`, con *hints*, coste declarado y uso posible en Rubik. Es la primera versión del entregable de la fase A de la §15.

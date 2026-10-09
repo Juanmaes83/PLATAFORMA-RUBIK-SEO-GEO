@@ -1,5 +1,7 @@
 # Preparación para el despliegue de Rubik
 
+> **Vigencia (09/10/2026):** fotografía histórica. El estado actual está en el bloque «Estado vigente» de [ROADMAP](ROADMAP.md) y [OPERATIONS-STATUS](OPERATIONS-STATUS.md). El «NOT DEPLOYED» de abajo ya no es cierto: la plataforma funciona en Vercel, con despliegues de producción `READY` comprobados por SHA y migraciones alojadas aplicadas. Esta nota no cambia la decisión de plan para uso comercial ([HOSTING](HOSTING.md)).
+
 **Fecha:** 2026-10-07.
 
 **Estado: NOT DEPLOYED.** No hay hosting, URL, dominio ni build desplegada ([HOSTING](HOSTING.md)). Que las pruebas locales y la CI estén en verde no significa que la plataforma esté operativa.

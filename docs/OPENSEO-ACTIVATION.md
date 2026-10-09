@@ -165,6 +165,19 @@ Solo con los pasos 2–5 superados se puede declarar «guardado real verificado�
 
 ## B. Activación controlada del modo por proyecto
 
+**Lista previa en la aplicación (09/10/2026):** mientras el servidor siga en `legacy`, el panel «Conexión de OpenSEO del proyecto» de Auditoría técnica muestra al owner, en solo lectura, el bloque «Antes de activar el modo por proyecto». Comprueba:
+
+| Comprobación | Si falla |
+|---|---|
+| Registro de trabajos activado | Bloquea |
+| Conexión `ACTIVE` | Bloquea |
+| Hosts de la conexión que incluyen el dominio | Bloquea |
+| Ningún trabajo activo | Bloquea |
+| Destino de OpenSEO igual o distinto del global actual (sin mostrar ningún identificador) | Hay que revisarlo |
+| Hosts que hoy se auditan y dejarían de serlo | Hay que revisarlo |
+
+No activa nada ni sustituye las comprobaciones SQL de abajo.
+
 Requisitos previos, todos obligatorios:
 
 - Sección A superada.

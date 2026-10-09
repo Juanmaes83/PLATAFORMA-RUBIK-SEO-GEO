@@ -62,6 +62,7 @@ Esta primera unidad cubre dos puertos: la **auditoría** y los **resultados de p
   - la auditoría y su verificación;
   - cada resultado y su verificación.
   - Nunca incluye claves.
+- Desde el 09/10/2026, la ruta de exportación entrega `rubik-project-export-v2`: el contenido v1 más `operations`, el estado operativo leído con las RPC del owner (conexión OpenSEO, trabajo activo, jobs ligados a los `auditId` guardados y propiedades de Search Console y Bing). `verifyProjectExport` vuelve a verificar un fichero sin base de datos. Ver [RECUPERACION-PILOTO](../RECUPERACION-PILOTO.md).
 - `eraseProviderResults` borra los resultados del proyecto (RLS: solo `owner`) y registra `provider-results.erase` en la auditoría.
 - La auditoría no se borra a petición: se conserva mientras exista el tenant, según la §4.3.
 - La validación legal de plazos sigue pendiente del propietario.
@@ -93,5 +94,7 @@ frente a copiar un resultado legítimo a otra fila/proyecto accesible al actor.
 Las firmas sin contexto no acreditan aislamiento y quedan UNTRUSTED en este
 consumidor. No se les asigna confianza re-firmando UUID de una fila mutable.
 Si existen datos legacy, deben recuperarse desde su origen autorizado antes
-de volver a emitir un resultado vinculado. La infraestructura alojada aún no
-tiene las tablas/claves 9.2 activas según la última comprobación documentada.
+de volver a emitir un resultado vinculado. *(Estado histórico de cuando se escribió el ADR: entonces la infraestructura alojada
+aún no tenía activas las tablas y claves de 9.2. Desde el 09/10/2026 están aplicadas
+y el guardado firmado en `legacy` está comprobado para el piloto Sarah
+(auditId `d1899523-…`; ver HANDOFF). No repetir migraciones ni auditoría.)*
