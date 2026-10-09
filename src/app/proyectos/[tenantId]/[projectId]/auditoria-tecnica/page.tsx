@@ -12,6 +12,7 @@ import { loadProjectRef } from "@/lib/imports/repository";
 import { serverKeyring } from "@/lib/provenance/keyring";
 import { listProviderResults } from "@/lib/provenance/repository";
 import { myProjectMembership } from "@/lib/tenancy";
+import { projectJobsEnabled } from "@/lib/openseo/jobs";
 
 // Technical audit through OpenSEO (ADR 0006). The page itself never calls OpenSEO: it only
 // reads which configuration STATES exist on the server. Every call to OpenSEO is a Server
@@ -67,7 +68,7 @@ export default async function TechnicalAuditPage({ params }: { params: Promise<{
           <p>OpenSEO está configurado, pero el dominio de este proyecto no figura entre los hosts que el servidor permite auditar.</p>
         </EmptyState>
       ) : (
-        <OpenSeoConsole tenant={project.tenantId} project={project.projectId} defaultUrl={`https://${domain}/`} maxPages={view.maxPages ?? 10} />
+        <OpenSeoConsole tenant={project.tenantId} project={project.projectId} defaultUrl={`https://${domain}/`} maxPages={view.maxPages ?? 10} savingEnabled={projectJobsEnabled() && !!keyring} />
       )}
       <OpenSeoHistory base={base} state={historyState} rows={historyRows} />
     </>

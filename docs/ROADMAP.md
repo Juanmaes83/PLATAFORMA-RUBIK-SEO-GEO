@@ -114,3 +114,4 @@ migraciones y cablear la escritura idempotente.
 
 - Migración oficial generada por el propietario y completada en `feat/openseo-project-jobs`: reserva atómica, aislamiento por proyecto y finalización transaccional de dos resultados. Validación SQL/tipos pendiente de CI.
 - Pendiente: conectar las actions al ledger, verificar concurrencia entre sesiones, probar fallos de red sin liberar reservas inciertas y activar solo tras migraciones/claves alojadas comprobadas. No declarar persistencia operativa por existir el RPC.
+- Botón y cableado de guardado preparados en `feat/openseo-project-save`; reserva PostgreSQL previa a MCP, lookup de auditId dentro del proyecto y finalización transaccional firmada. Pendiente CI y activación alojada con acceso a la cuenta correcta, migraciones oficiales y keyring. Sin activación automática ni adopción de auditorías históricas.

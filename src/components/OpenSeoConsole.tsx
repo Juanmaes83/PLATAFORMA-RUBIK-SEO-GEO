@@ -25,7 +25,7 @@ function Problem({ code, message, diagnostic }: { code: string; message?: string
 
 const Denied = () => <p className="notice notice-error" role="alert">Tu rol no permite gestionar conectores en este proyecto.</p>;
 
-export function OpenSeoConsole({ tenant, project, defaultUrl, maxPages }: { tenant: string; project: string; defaultUrl: string; maxPages: number }) {
+export function OpenSeoConsole({ tenant, project, defaultUrl, maxPages, savingEnabled = false }: { tenant: string; project: string; defaultUrl: string; maxPages: number; savingEnabled?: boolean }) {
   const [conn, testConnection, testing] = useActionState(testConnectionAction, null);
   const [start, startAudit, starting] = useActionState(startAuditAction, null);
   const [follow, followAudit, following] = useActionState(followAuditAction, null);
@@ -90,7 +90,7 @@ export function OpenSeoConsole({ tenant, project, defaultUrl, maxPages }: { tena
         </form>
         {start && ("denied" in start ? <Denied /> : start.ok ? (
           <p className="notice notice-info" role="status">
-            {start.reused ? "Auditoría activa reutilizada" : "Auditoría iniciada"} con un máximo de {start.maxPages} páginas. Identificador: <code>{start.auditId}</code>
+            {start.reused ? "Auditoría activa reutilizada" : "Auditoría iniciada"}{start.maxPages !== null ? ` con un máximo de ${start.maxPages} páginas` : ""}. Identificador: <code>{start.auditId}</code>
           </p>
         ) : start.error && <Problem code={start.error.code} message={start.error.message} />)}
       </section>
@@ -104,7 +104,9 @@ export function OpenSeoConsole({ tenant, project, defaultUrl, maxPages }: { tena
             <label htmlFor="o-audit">Identificador de auditoría</label>
             <input id="o-audit" name="auditId" type="text" required key={startedId} pattern="[A-Za-z0-9_\-]{1,64}" maxLength={64} defaultValue={startedId} onFocus={(e) => e.currentTarget.select()} autoComplete="off" />
           </div>
-          <button type="submit" className="btn btn-block" disabled={following || starting}>{following ? "Consultando…" : "Consultar estado"}</button>
+          <button type="submit" name="intent" value="status" className="btn btn-block" disabled={following || starting}>{following ? "Consultando…" : "Consultar estado"}</button>
+          <button type="submit" name="intent" value="save" className="btn btn-block" disabled={!savingEnabled || following || starting}>Consultar y guardar resultados</button>
+          {!savingEnabled && <p className="muted small">El guardado estará disponible cuando el servidor tenga configurado el almacenamiento y la firma.</p>}
         </form>
         {follow && ("denied" in follow ? <Denied /> : (
           <div className="card" role="status">
@@ -117,6 +119,8 @@ export function OpenSeoConsole({ tenant, project, defaultUrl, maxPages }: { tena
             {startedId && startedId !== follow.auditId && <p className="notice notice-info">Este resultado pertenece a una auditoría anterior. La última iniciada es <code>{startedId}</code>; puedes consultar la última iniciada con ese identificador.</p>}
             {follow.progress.error && <Problem code={follow.progress.error.code} message={follow.progress.error.message} diagnostic={follow.progress.error.diagnostic} />}
             {follow.captureError && <Problem code={follow.captureError.code} message={follow.captureError.message} />}
+            {follow.saveStatus === "saved" && <p className="notice notice-info">Resultados guardados en el historial de este proyecto.</p>}
+            {follow.saveStatus === "pending" && <p className="notice notice-info">La auditoría sigue en curso. Cuando termine, vuelve a pulsar «Consultar y guardar resultados».</p>}
             <dl className="facts">
               <div><dt>Estado en OpenSEO</dt><dd>{follow.progress.providerStatus ?? "Desconocido"}{follow.progress.phase ? ` · ${follow.progress.phase}` : ""}</dd></div>
               <div><dt>Páginas rastreadas</dt><dd>{follow.progress.pagesCrawled ?? "Desconocido"}{follow.progress.pagesTotal !== null ? ` de ${follow.progress.pagesTotal}` : ""}</dd></div>
@@ -140,7 +144,7 @@ export function OpenSeoConsole({ tenant, project, defaultUrl, maxPages }: { tena
                   Páginas del dominio en el informe: {follow.report.pages.length}
                   {follow.report.pagesTotal !== null ? ` de ${follow.report.pagesTotal}` : ""}.
                   {follow.report.outsideProject > 0 ? ` Fuera del ámbito del proyecto: ${follow.report.hiddenPages} páginas y ${follow.report.hiddenIssues} incidencias ocultas.` : ""}
-                  {" "}Resultados sin guardar: la persistencia firmada llega en el siguiente tramo.
+                  {follow.saveStatus !== "saved" && <> Resultados sin guardar.{savingEnabled ? " Puedes guardarlos con «Consultar y guardar resultados»." : " El guardado aún no está activado."}</>}
                 </p>
                 {follow.report.errors.map((e) => <Problem key={e.code} code={e.code} message={e.message} />)}
               </>
