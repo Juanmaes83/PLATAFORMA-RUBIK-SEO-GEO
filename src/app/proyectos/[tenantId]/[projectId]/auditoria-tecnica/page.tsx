@@ -17,6 +17,7 @@ import { OpenSeoReconcilePanel } from "@/components/OpenSeoReconcilePanel";
 import { connectionMode, resolveOpenSeoTarget } from "@/lib/openseo/target";
 import { getProjectConnection } from "@/lib/openseo/connections";
 import { OpenSeoConnectionPanel, type ConnectionPanelView } from "@/components/OpenSeoConnectionPanel";
+import { projectModeReadiness } from "@/lib/openseo/readiness";
 
 // Technical audit through OpenSEO (ADR 0006). The page itself never calls OpenSEO: it only
 // reads which configuration STATES exist on the server. Every call to OpenSEO is a Server
@@ -38,9 +39,14 @@ export default async function TechnicalAuditPage({ params }: { params: Promise<{
   const view = describeOpenSeoConfig(readOpenSeoConfig(targetEnv));
   const auditable = projectAuditable(project.domain, targetEnv);
   const domain = (project.domain ?? "").replace(/^https?:\/\//i, "").replace(/\/.*$/, "");
-  const connectionView = canManage ? await panelView(supabase, ref.projectId, domain) : null;
+  const found = canManage ? await getProjectConnection(supabase, ref.projectId) : null;
+  const connectionView = found ? panelView(found, domain) : null;
   // An uncertain STARTING reservation blocks new launches until its owner reconciles it.
   const active = canManage && projectJobsEnabled() ? await findActiveAuditJob(supabase, ref) : null;
+  // Read-only checklist for the owner while the server is still in legacy mode (OPENSEO-ACTIVATION B).
+  const readiness = found && connectionMode() === "legacy"
+    ? projectModeReadiness({ env: process.env, projectDomain: domain, connection: found.ok ? found : { ok: false }, activeJob: active })
+    : undefined;
   const uncertain = active?.ok && active.job?.state === "STARTING" ? active.job : null;
   const keyring = serverKeyring();
   const listed = keyring ? await listProviderResults(supabase, ref) : null;
@@ -62,7 +68,7 @@ export default async function TechnicalAuditPage({ params }: { params: Promise<{
 
       {uncertain && <OpenSeoReconcilePanel tenant={project.tenantId} project={project.projectId} createdAt={uncertain.createdAt} />}
 
-      {connectionView && <OpenSeoConnectionPanel tenant={project.tenantId} project={project.projectId} view={connectionView} projectMode={connectionMode() === "project"} />}
+      {connectionView && <OpenSeoConnectionPanel tenant={project.tenantId} project={project.projectId} view={connectionView} projectMode={connectionMode() === "project"} readiness={readiness} />}
 
       {!canManage ? (
         <EmptyState title="Solo la persona titular del proyecto la gestiona">
@@ -99,8 +105,7 @@ export default async function TechnicalAuditPage({ params }: { params: Promise<{
 }
 
 /** Owner view of the connection: hosts and the last characters of the OpenSEO id, nothing else. */
-async function panelView(supabase: Parameters<typeof getProjectConnection>[0], projectId: string, domain: string): Promise<ConnectionPanelView> {
-  const found = await getProjectConnection(supabase, projectId);
+function panelView(found: Awaited<ReturnType<typeof getProjectConnection>>, domain: string): ConnectionPanelView {
   if (!found.ok) return { state: "unavailable" };
   if (found.connection?.state === "ACTIVE") {
     const id = found.connection.openseoProjectId;

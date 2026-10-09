@@ -31,6 +31,9 @@ test("owner connects with consent, sees only the last characters, and revokes", 
   await expect(panel).toContainText("configuración global");
   await expect(panel.getByLabel("restaurante.ejemplo.test", { exact: true })).toBeChecked();
   await expect(panel.getByLabel("www.restaurante.ejemplo.test")).not.toBeChecked();
+  // Read-only readiness list while the server stays in legacy mode: nothing to activate here.
+  await expect(panel.getByRole("heading", { name: "Antes de activar el modo por proyecto" })).toBeVisible();
+  await expect(panel).toContainText("Falta crear la conexión del proyecto");
 
   await panel.getByLabel("Identificador del proyecto en OpenSEO").fill(provider);
   await panel.getByRole("button", { name: "Conectar OpenSEO" }).click();
@@ -43,6 +46,8 @@ test("owner connects with consent, sees only the last characters, and revokes", 
   await expect(panel).toContainText(`Termina en …${provider.slice(-4)}`);
   await expect(panel).toContainText("restaurante.ejemplo.test");
   expect(await page.content()).not.toContain(provider);
+  await expect(panel).toContainText("Conexión del proyecto activa, con consentimiento registrado.");
+  await expect(panel).toContainText("Los hosts de la conexión incluyen restaurante.ejemplo.test.");
   await checked(page, "20-auditoria-tecnica-conexion-activa");
 
   await panel.getByLabel(/al revocarla/).check();

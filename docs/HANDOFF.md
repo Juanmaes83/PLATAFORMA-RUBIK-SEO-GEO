@@ -1115,3 +1115,21 @@ Archivos del commit:
 - Siguiente bloque: consultar CI del SHA vigente y resolver solo fallos concretos; después retomar #40 cuando Juanma decida y preparar conexión por proyecto sin confundir «Probar conexión» con selección de destino. No repetir las nueve migraciones ni la auditoría legacy; no lanzar/indexar Sarah, cambiar DNS o crear gasto. La validación humana del panel/formulario sigue pendiente aunque el guardado legacy esté aprobado.
 - Sarah web: HANDOFF conserva los hashes esperados del parche `13449e9cc3034b8d455586113b1d46b0fc5bbf556917b7bd3a0719aa03caa1f5` y bundle `1a63f2bcb47369e543ae8073cde460f7b1bffcc5b982fe58ab014e4761774a9d` para `claude/consentimiento-medicion@9be1173`, base `d5231afc9627aec44195cb97ef49ce5b53a7f358`. **No se facilitó una ruta accesible en esta sesión; no se localizaron, verificaron ni respaldaron aquí.** Pedir la ruta al propietario y comprobar SHA256 antes de aplicar; no recrear el trabajo.
 - Estado de escritores: Claude estaba detenido según el relevo; este worktree único no tenía cambios ni `index.lock` antes del checkpoint. No hay prueba de sesiones externas fuera de este equipo. Al publicar este PR Codex detiene ediciones; Claude puede asumir sin escrituras simultáneas de Codex.
+
+## 09/10/2026 — lista previa al modo `project` en el panel (rama `feat/openseo-preparacion-project`)
+
+- Base: `main@588345c`.
+- **Hecho:**
+  - `src/lib/openseo/readiness.ts` calcula una lista de solo lectura:
+    - bloquean: registro de trabajos, conexión `ACTIVE`, hosts que incluyen el dominio y trabajo activo;
+    - piden revisión: destino igual o distinto del `OPENSEO_PROJECT_ID` global, sin devolver ningún identificador, y hosts que hoy se auditan y dejarían de serlo.
+  - El panel del owner la muestra mientras el servidor sigue en `legacy`.
+  - La página lee la conexión una sola vez.
+- **Pruebas:**
+  - `tests/openseo-readiness.test.ts` (4).
+  - Render del panel en `tests/openseo-ui.test.tsx`: sin identificadores y sin ningún botón de activar.
+  - Aserciones nuevas en `e2e/openseo-connection.spec.ts`, que se ejecutan en CI.
+  - `npm run verify` en local.
+- **Evidencia visual:** `npm run visual:evidence` no se puede ejecutar en este entorno (la imagen de Kong está bloqueada). Las capturas de `docs/visual` no se han regenerado. La e2e de CI comprueba que no hay desbordamiento ni fallos de accesibilidad graves y guarda capturas como artefacto.
+- **Validación humana:** cuando Juanma abra Auditoría técnica de Sarah en producción tras el despliegue, el panel debe mostrar «Antes de activar el modo por proyecto» con «Con pendientes» y «Falta crear la conexión del proyecto». Es solo lectura: no escribe ni consume.
+- **No hecho:** crear la conexión y activar `project`; son decisiones de Juanma.
