@@ -22,6 +22,8 @@ export interface BridgeDeps {
   activeJob?: ActiveAuditJob | null;
   /** When present, only this server-side project binding may be followed. */
   boundAuditId?: string | null;
+  /** Receives the exact Core-issued results, after project scoping and before serialization. */
+  captureCompletedResults?: (capture: CompletedAuditCapture) => void | Promise<void>;
 }
 
 export type BridgeError = { code: string; message: string; retryable: boolean; diagnostic?: string };
@@ -241,6 +243,15 @@ export interface AuditFollowUp {
   progress: AuditProgress;
   /** Only when the Core classifies the audit as COMPLETED. */
   report: AuditReport | null;
+  /** Separate from the provider state: a capture failure never turns OpenSEO into FAILED. */
+  captureError: BridgeError | null;
+}
+
+/** Server-only material that may be signed; it must never be rebuilt from the browser DTO. */
+export interface CompletedAuditCapture {
+  auditId: string;
+  issues: ProviderResult;
+  pages: ProviderResult;
 }
 
 
@@ -272,7 +283,7 @@ const scopeFilteredOf = (r: ProviderResult) => {
  * another project never shows its URLs here.
  */
 export async function followSiteAudit(auditIdRaw: string, projectDomain: string | null, deps: BridgeDeps = {}): Promise<AuditFollowUp> {
-  const empty = (error: BridgeError): AuditFollowUp => ({ progress: { ok: false, state: null, providerStatus: null, phase: null, pagesCrawled: null, pagesTotal: null, checkedAt: null, error }, report: null });
+  const empty = (error: BridgeError): AuditFollowUp => ({ progress: { ok: false, state: null, providerStatus: null, phase: null, pagesCrawled: null, pagesTotal: null, checkedAt: null, error }, report: null, captureError: null });
   const c = configured(deps);
   if ("error" in c) return empty(c.error);
   const { config } = c;
@@ -308,7 +319,7 @@ export async function followSiteAudit(auditIdRaw: string, projectDomain: string 
       error: cleanError(s.errors[0]),
     };
     if (progress.error?.code === "INVALID_RESPONSE") progress.error.diagnostic = responseShape;
-    if (row?.state !== "COMPLETED") return { progress, report: null };
+    if (row?.state !== "COMPLETED") return { progress, report: null, captureError: null };
 
     const host = hostOf(projectDomain);
     const onProject = (url: string) => {
@@ -364,6 +375,14 @@ export async function followSiteAudit(auditIdRaw: string, projectDomain: string 
       hiddenPages,
       errors: [...issues.errors, ...pages.errors].map((e) => cleanError(e)).filter((e): e is BridgeError => e !== null),
     };
-    return { progress, report };
+    let captureError: BridgeError | null = null;
+    if (deps.captureCompletedResults) {
+      try {
+        await deps.captureCompletedResults({ auditId, issues, pages });
+      } catch {
+        captureError = { code: "CAPTURE_FAILED", message: "El resultado terminó, pero no pudo prepararse para guardarlo.", retryable: true };
+      }
+    }
+    return { progress, report, captureError };
   });
 }

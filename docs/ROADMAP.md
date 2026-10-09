@@ -90,3 +90,12 @@ el conteo `scopeFiltered` mantiene la explicación visual. Plataforma PR #23
 fusionado en `139e2f6`: verificación local 185/185 y CI completa en verde
 (run `37871833027`). Producción Vercel `READY` en ese merge
 (`dpl_6EnsH1iR2k42ki7GVdtNFt3GBKLs`). Sigue sin existir almacenamiento operativo.
+
+### 09/10/2026 — captura y firma previas al almacenamiento
+
+La rama `feat/openseo-capture-sign` entrega el `ProviderResult` original y ya
+limitado al proyecto a una frontera solo de servidor. Antes de firmar exige que
+los resultados sigan marcados como emitidos por el Core y que proveedor,
+operación y `auditId` coincidan. Los fallos de captura se distinguen del estado
+del rastreo. Esta unidad no escribe todavía: faltan idempotencia/transacción,
+tabla de jobs y migraciones alojadas.

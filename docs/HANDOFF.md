@@ -787,3 +787,11 @@ CI inicial de esta entrega: verify Node22/24 pasa; integración falló al crear 
 - Se conserva una incidencia global sin URL y la regla www/apex explícitamente autorizada. El predicado solo usa el dominio del proyecto autorizado y la allowlist de servidor.
 - Plataforma PR #23 fusionado en `139e2f63749fd70e8db3f98cf49df815fd6096c8`. Verificación local: 185/185 pruebas, lint, TypeScript, pin del Core, secretos y `git diff --check` correctos. CI completa del run `37871833027` en verde: verify Node 22/24 y e2e con Supabase local, RLS, Data API, build y navegador.
 - Producción Vercel verificada `READY` en el merge exacto: `dpl_6EnsH1iR2k42ki7GVdtNFt3GBKLs`. No añade almacenamiento, migración ni llamada live. La CLI `supabase@2.118.0 migration new openseo_project_jobs` volvió a abortar por el crash de Bun; no se creó manualmente la migración.
+
+## 09/10/2026 — captura y firma del resultado OpenSEO original
+
+- Base revisada: `main@5b2259b`; solo permanecen abiertos los PR documentales históricos #9/#11, sin otra rama activa observada sobre persistencia.
+- Rama `feat/openseo-capture-sign`: `followSiteAudit` entrega opcionalmente, solo en servidor, los resultados originales de incidencias y páginas después del filtro de proyecto. Un error de captura se informa aparte y no falsea el estado completado de OpenSEO.
+- `prepareCompletedAuditResults` exige la marca de confianza del Core, proveedor `openseo`, operaciones exactas y el mismo `auditId` en provenance; luego firma ambos resultados con el contexto UUID de organización/proyecto. Copias JSON y cruces de auditoría quedan rechazados.
+- Pruebas dirigidas 70/70 y suite completa 187/187; pin, lint, TypeScript, secretos y diff correctos. El build local llega a Turbopack y falla por el `ENOENT uv_resident_set_memory` conocido de este runtime; build y e2e quedan pendientes de CI.
+- No hay escritura ni activación: faltan migración de jobs, deduplicación/transacción, claves alojadas y migraciones 9.2/9.3. No se usaron secretos, OpenSEO live ni funciones de pago; Sarah no se modificó.

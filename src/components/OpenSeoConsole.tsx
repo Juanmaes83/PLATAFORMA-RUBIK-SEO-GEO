@@ -116,6 +116,7 @@ export function OpenSeoConsole({ tenant, project, defaultUrl, maxPages }: { tena
             </div>
             {startedId && startedId !== follow.auditId && <p className="notice notice-info">Este resultado pertenece a una auditoría anterior. La última iniciada es <code>{startedId}</code>; puedes consultar la última iniciada con ese identificador.</p>}
             {follow.progress.error && <Problem code={follow.progress.error.code} message={follow.progress.error.message} diagnostic={follow.progress.error.diagnostic} />}
+            {follow.captureError && <Problem code={follow.captureError.code} message={follow.captureError.message} />}
             <dl className="facts">
               <div><dt>Estado en OpenSEO</dt><dd>{follow.progress.providerStatus ?? "Desconocido"}{follow.progress.phase ? ` · ${follow.progress.phase}` : ""}</dd></div>
               <div><dt>Páginas rastreadas</dt><dd>{follow.progress.pagesCrawled ?? "Desconocido"}{follow.progress.pagesTotal !== null ? ` de ${follow.progress.pagesTotal}` : ""}</dd></div>
