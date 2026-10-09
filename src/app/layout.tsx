@@ -44,6 +44,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <SideNav />
           <main id="contenido" tabIndex={-1}>{children}</main>
         </div>
+        <footer className="ownership-footer">
+          <span>© Juan Manuel Espinosa Galant · Rubik Sota. Uso y comercialización sujetos a autorización expresa.</span>{" "}
+          <Link href="/aviso-titularidad">Titularidad y autorización</Link>
+        </footer>
       </body>
     </html>
   );

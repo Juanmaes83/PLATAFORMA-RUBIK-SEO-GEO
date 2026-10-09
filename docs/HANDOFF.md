@@ -804,3 +804,9 @@ CI inicial de esta entrega: verify Node22/24 pasa; integración falló al crear 
 - El detalle exige `loadProviderResult` con UUID de organización/proyecto y un keyring disponible. Solo `verification.verified` permite renderizar las filas conocidas de `auditIssues`/`auditPages`; una fila alterada o reasignada no muestra datos.
 - Claves ausentes y fallos de lectura tienen estados distintos de una lista válida sin resultados. Así una tabla alojada todavía inexistente no se presenta como historial vacío.
 - Pruebas dirigidas 85/85 y suite 192/192; pin, lint, TypeScript, secretos y diff correctos. Build y e2e pendientes de CI por el límite conocido del runtime local. No hay migración, escritura, secretos, llamadas live/de pago ni cambios en Sarah.
+# 09/10/2026 — aviso de titularidad
+
+- Por instrucción expresa del titular: Juan Manuel Espinosa Galant, DNI 48553293V; Rubik SEO GEO pertenece a Rubik Sota y su uso/comercialización requieren autorización expresa del titular.
+- Rama `feat/proprietary-notice`: `NOTICE.md`, `LICENSE`, README, pie global y página `/aviso-titularidad`. El aviso distingue los elementos propios de las licencias de terceros.
+- No certifica registros de marca ni altera licencias de dependencias. La restricción se documenta; no se ha añadido un sistema de licencias o activación comercial.
+

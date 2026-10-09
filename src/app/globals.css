@@ -252,3 +252,5 @@ main:focus { outline: none; }
 .field-check input[type=checkbox] { width: 1.5rem; height: var(--tap); min-height: var(--tap); margin: 0; }
 .field-check label { font-weight: 400; min-height: var(--tap); display: flex; align-items: center; }
 .break { overflow-wrap: anywhere; }
+/* Owner notice stays readable on narrow screens. */
+.ownership-footer { padding: 1rem; font-size: .8rem; line-height: 1.6; overflow-wrap: anywhere; }
