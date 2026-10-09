@@ -18,6 +18,8 @@ describe("OpenSEO owner console (initial render, no request made)", () => {
     expect(html).toContain("sin Lighthouse");
     expect(html).toMatch(/max="80"/);
     expect(html).toMatch(/min="10"/);
+    expect(html).toContain("Máximo de páginas para el próximo lanzamiento (10–80)");
+    expect(html).toMatch(/id="o-max"[^>]*value="50"/);
     expect(html).toMatch(/id="o-confirm"[^>]*type="checkbox"[^>]*required/);
     expect(html).toContain('value="https://www.cliente.example/"');
     expect(html).not.toMatch(/oseo_|OPENSEO_|\/mcp|api\/health/);
