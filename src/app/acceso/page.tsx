@@ -42,6 +42,7 @@ export default async function AccessPage({ searchParams }: { searchParams: Promi
             </div>
             <button type="submit" className="btn btn-block">Entrar</button>
           </form>
+          <p><Link href="/recuperar">¿Has olvidado tu contraseña?</Link></p>
           <p>¿No tienes cuenta? <Link href="/registro">Crear una cuenta</Link></p>
         </>
       )}

@@ -1154,3 +1154,25 @@ Archivos del commit:
   - El tercer hallazgo, sobre la fase 4 de la web, queda fuera de este frente.
 - **Coordinación:** Claude Code es el agente principal en esta sesión y solo escribe en sus propias ramas. Antes de cada relevo deja aquí constancia expresa de parada.
 - **Siguiente unidad:** recuperación del piloto. Hoy `exportProject` no incluye jobs OpenSEO, conexiones ni propiedades webmaster. Se abordará con fixtures y pruebas locales, sin escribir en Preview ni en producción.
+
+## 09/10/2026 — recuperación de contraseña (rama `feat/recuperar-clave`)
+
+- Base: `main@c2f9eaf`.
+- **Hecho:**
+  - `/recuperar` responde lo mismo exista o no la cuenta.
+  - `/auth/confirm` admite `recovery` y siempre continúa a `/restablecer`, ignorando `next`.
+  - `/restablecer` exige la sesión creada por el enlace, valida la contraseña y su confirmación, y después cierra todas las sesiones (`scope: global`).
+  - Enlace «¿Has olvidado tu contraseña?» en `/acceso`.
+  - Plantilla local `supabase/templates/recovery.html`.
+- **Pruebas:**
+  - Vitest: `auth-confirm` ampliado y `auth-recovery` nuevo.
+  - e2e en CI con Mailpit: registro, petición de enlace con una dirección inexistente y con la real, `next` malicioso ignorado, contraseñas distintas, cambio, enlace de un solo uso, la contraseña antigua falla y la nueva entra.
+  - `/recuperar` añadido a la revisión visual a 360, 390 y 1280 px.
+  - `npm run verify` en local.
+- **Paso de Juanma en alojado:** personalizar la plantilla «Reset password» como indica SETUP-SUPABASE. Hasta entonces el enlace por defecto lleva a `/panel`.
+- **Validación humana tras desplegar:**
+  1. En Producción, «¿Has olvidado tu contraseña?» con tu correo.
+  2. Abrir el enlace y elegir una contraseña nueva.
+  3. Confirmar que se vuelve a `/acceso` y que la nueva funciona.
+
+  Cambia la contraseña real de la cuenta usada; no consume créditos.

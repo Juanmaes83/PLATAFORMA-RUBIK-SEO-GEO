@@ -14,6 +14,7 @@ const PAGES: { name: string; path: string; user?: UserKey; form?: boolean; statu
   { name: "01-inicio", path: "/" },
   { name: "02-acceso", path: "/acceso", form: true },
   { name: "03-registro", path: "/registro", form: true },
+  { name: "03b-recuperar", path: "/recuperar", form: true },
   { name: "04-panel", path: "/panel", user: "owner" },
   { name: "05-proyectos", path: "/proyectos", user: "owner" },
   { name: "06-organizaciones", path: "/organizaciones", user: "owner", form: true },
