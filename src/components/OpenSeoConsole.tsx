@@ -90,7 +90,7 @@ export function OpenSeoConsole({ tenant, project, defaultUrl, maxPages }: { tena
         </form>
         {start && ("denied" in start ? <Denied /> : start.ok ? (
           <p className="notice notice-info" role="status">
-            Auditoría iniciada con un máximo de {start.maxPages} páginas. Identificador: <code>{start.auditId}</code>
+            {start.reused ? "Auditoría activa reutilizada" : "Auditoría iniciada"} con un máximo de {start.maxPages} páginas. Identificador: <code>{start.auditId}</code>
           </p>
         ) : start.error && <Problem code={start.error.code} message={start.error.message} />)}
       </section>
