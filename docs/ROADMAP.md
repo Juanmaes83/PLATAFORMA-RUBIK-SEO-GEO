@@ -101,3 +101,17 @@ del rastreo. CI completa en verde (run `37889221102`) y producción Vercel
 `READY` en ese merge (`dpl_BmeUiNCPPnB1uS1LeKCAoa76H3CK`). Esta unidad no
 escribe todavía: faltan idempotencia/transacción, tabla de jobs y migraciones
 alojadas.
+
+### 09/10/2026 — interfaz de historial firmado preparada
+
+La rama `feat/openseo-signed-history` añade lista por proyecto y detalle con
+verificación criptográfica previa. Solo un resultado verificado muestra sus
+filas; una firma alterada, otro proyecto, claves ausentes o lectura fallida no
+exponen datos. El estado distingue «sin resultados» de «almacenamiento no
+disponible». La funcionalidad seguirá vacía/no disponible hasta aplicar las
+migraciones y cablear la escritura idempotente.
+# Trabajo en revisión: jobs OpenSEO (09/10/2026)
+
+- Migración oficial generada por el propietario y completada en `feat/openseo-project-jobs`: reserva atómica, aislamiento por proyecto y finalización transaccional de dos resultados. Validación SQL/tipos pendiente de CI.
+- Pendiente: conectar las actions al ledger, verificar concurrencia entre sesiones, probar fallos de red sin liberar reservas inciertas y activar solo tras migraciones/claves alojadas comprobadas. No declarar persistencia operativa por existir el RPC.
+

@@ -513,6 +513,14 @@ describe("static guarantees", () => {
     }
   });
 
+  it("the history detail verifies the stored row before rendering provider data", () => {
+    const detail = read("src/app/proyectos/[tenantId]/[projectId]/auditoria-tecnica/resultados/[resultId]/page.tsx");
+    expect(detail).toMatch(/loadProviderResult\(supabase, ref, resultId, keyring\)/);
+    expect(detail).toMatch(/verification\.verified \? verification\.result/);
+    expect(detail).toMatch(/!verification\.verified/);
+    expect(detail).not.toMatch(/signed_payload|row\.data\b/);
+  });
+
   it(".env.example lists only empty, server-only OpenSEO names", () => {
     const lines = read(".env.example").split("\n").filter((l) => /OPENSEO/.test(l) && !l.startsWith("#"));
     expect(lines.map((l) => l.split("=")[0])).toEqual([
