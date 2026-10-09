@@ -28,6 +28,8 @@ const PAGES: { name: string; path: string; user?: UserKey; form?: boolean; statu
   { name: "16-importaciones-cliente", path: `${P}/importaciones`, user: "client" },
   { name: "18-auditoria-tecnica-titular", path: `${P}/auditoria-tecnica`, user: "owner", form: true },
   { name: "19-auditoria-tecnica-analista", path: `${P}/auditoria-tecnica`, user: "analyst" },
+  { name: "22-comparar-sin-seleccion", path: `${P}/auditoria-tecnica/comparar`, user: "analyst" },
+  { name: "23-comparar-resultado-inexistente", path: `${P}/auditoria-tecnica/comparar?antes=00000000-0000-4000-8000-000000000001&despues=00000000-0000-4000-8000-000000000002`, user: "analyst", status: 404 },
 ];
 
 const horizontalOverflow = (page: Page) =>
