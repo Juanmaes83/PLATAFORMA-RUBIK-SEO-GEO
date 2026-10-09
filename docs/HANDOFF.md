@@ -928,3 +928,18 @@ CI inicial de esta entrega: verify Node22/24 pasa; integración falló al crear 
   - e2e solo en CI.
 - Paquete de aplicación alojada preparado en OPENSEO-ACTIVATION: orden, dry-run esperado, Advisor y riesgos, y un rollback `docs/rollback/openseo-multitenant-rollback.sql` probado en local (función restaurada idéntica por md5, permisos intactos, suites antiguas en verde). **No ejecutado:** lo aplica el propietario tras fusionar.
 - Trazabilidad: conectar, revocar y reconciliar añaden un evento firmado a `audit_events`. Si falla el registro, la acción devuelve `audited: false` y la interfaz lo advierte. Test estático incluido. `npm run verify` 235/235.
+## 09/10/2026 — Search Console y Bing en solo lectura, fase A (rama `claude/gsc-bing-lectura`)
+
+- Base inicial `main@afb5a38`, independiente de la cadena OpenSEO. Tras fusionarse #31–#36, se integró `main@0695b44` en esta rama; los conflictos, solo de documentación, se resolvieron conservando ambas partes.
+- Código:
+  - `src/lib/webmaster/http.ts`: sin redirecciones, `no-store`, timeout y límite de tamaño; los errores solo llevan el código de estado.
+  - `src/lib/search-console/transport.ts`: `searchAnalytics`.
+  - `src/lib/bing/transport.ts`: `urlInfo`.
+- Fuentes: endpoints, alcance `webmasters.readonly`, límites y formas tomados de developers.google.com y learn.microsoft.com mediante búsqueda acotada. La descarga directa está bloqueada por la red del entorno; hay que releerlos antes de la prueba real.
+- Pruebas: `tests/webmaster-transports.test.ts`, 11 casos a través de `runProviderRequest` y `toReleaseC`.
+  - Petición documentada; 401, 403 y 429 sin fuga de token ni clave; `EMPTY` y `PARTIAL`.
+  - Rechazos sin red: propiedad ajena, sin credencial, entrada inválida, otra operación, sin presupuesto.
+  - Fechas WCF de Bing.
+  - Mutación comprobada: quitar la validación de dominio o de `rowLimit` hace fallar la suite.
+- Hallazgo de contrato: la evidencia de la procedencia del Core está en lista cerrada, así que el rango y las dimensiones de la consulta no se firman. Se propondrá al Core por separado antes de guardar snapshots.
+- Bloqueos: el OAuth (fase B) necesita la decisión del almacén de secretos y un cliente OAuth creado por el propietario. La fase C (propiedad por proyecto con RLS) se puede hacer sin credenciales y es el siguiente paso.

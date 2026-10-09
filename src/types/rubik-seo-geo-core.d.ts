@@ -204,6 +204,13 @@ declare module "@rubik/seo-geo-core/intelligence" {
       fetchImpl?: (input: string, init: RequestInit) => Promise<Response>;
       timeout?: number;
     }) => { connectivity(): Promise<OpenSEOHealth> };
+    /** Release C normalizer used by providers.toReleaseC for search-console rows (ADR 0009). */
+    SearchConsoleAdapter: new (options?: { property?: string; dateRange?: "7d" | "28d" | "90d" }) => {
+      normalize(rows: unknown[]): {
+        query: string; page: string; date: string; clicks: number | null; impressions: number | null; ctr: number | null;
+        averagePosition: number | null; country: string | null; device: string | null; provider: "searchConsole"; property: string; dateRange: string; fetchedAt: string;
+      }[];
+    };
   }
   const api: Intelligence;
   export = api;
