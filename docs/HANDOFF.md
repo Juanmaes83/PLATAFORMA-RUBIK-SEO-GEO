@@ -1245,3 +1245,87 @@ Archivos del commit:
   3. Confirmar que se vuelve a `/acceso` y que la nueva funciona.
 
   Cambia la contraseña real de la cuenta usada; no consume créditos.
+
+## 09/10/2026 — checkpoint consolidado tras #49–#54 y comparación de auditorías (rama `feat/comparar-auditorias`)
+
+- **Integrado en `main` (CI verde en el SHA de cada PR antes de fusionar):**
+  - #49 vigencia de informes;
+  - #50 exportación v2 y verificación offline;
+  - #51 lista previa al modo `project`;
+  - #52 capacidades de OpenSEO;
+  - #53 presupuesto y registro de consumo;
+  - #54 recuperación de contraseña.
+- **Producción:**
+  - `main@9e8f818`, `dpl_EbGrPjMmzkgAndoLp6f9erY55uGX` `READY`, comprobado por SHA en Vercel.
+  - Sigue en `legacy`, sin conexión de Sarah ni jobs activos conocidos.
+- **Nuevo en esta rama (primer tramo de CORE-9.6):** `auditoria-tecnica/comparar?antes=…&despues=…`.
+  - Vuelve a verificar los dos resultados: firma, huella y contexto del proyecto, a través de RLS.
+  - Solo compara `auditIssues` de OpenSEO.
+  - Identifica cada incidencia por categoría y URL. URLs `https` sin fragmento; host en minúsculas.
+  - Clasifica las incidencias en nuevas, que ya no aparecen, que cambian de severidad y sin cambios, con totales por severidad.
+  - Ordena las capturas por fecha. Si una es parcial o ambas son de la misma auditoría, avisa de que la diferencia puede no reflejar el sitio.
+  - Enlace «Comparar con la captura anterior» en el historial firmado.
+  - Sin llamadas a OpenSEO ni consumo.
+- **Pruebas:**
+  - Vitest `openseo-compare` (6) y `openseo-history-ui` ampliado.
+  - `npm run verify` en local.
+  - e2e en CI: estado vacío sin selección y 404 para resultados que no son del proyecto, a 360, 390 y 1280 px.
+  - El caso con dos resultados firmados reales no tiene e2e porque requiere resultados emitidos por el Core en memoria. Queda cubierto por Vitest y por la validación humana.
+- **Validación humana (Producción, owner de Sarah, solo lectura, sin consumo):**
+  - Hoy Sarah tiene una sola auditoría guardada, así que el enlace no aparece. Es lo esperado.
+  - Con una segunda auditoría que Juanma decida lanzar:
+    1. Abrir Auditoría técnica → Historial firmado → «Comparar con la captura anterior», en móvil y escritorio.
+    2. Comprobar que los totales cuadran con cada resultado y que no hay scroll horizontal.
+- **Decisiones pendientes de Juanma:**
+  - custodia de credenciales (ADR 0010, #40);
+  - Preview aislada y su coste;
+  - ID real y hosts del proyecto OpenSEO de Sarah, y consentimiento para crear su conexión;
+  - activación de `project` y su redeploy, como decisión aparte;
+  - GSC/GA4 vía OpenSEO o fase B propia;
+  - límite mensual de créditos de Sarah;
+  - plantilla alojada «Reset password»;
+  - aplicar la migración `20261010090000` cuando se quiera usar el presupuesto.
+- **Siguiente paso:** CI de esta rama, revisión del diff y fusión. Después, la siguiente unidad independiente con simulaciones: invitaciones a proyecto (fase 2) o un informe exportable de la comparación.
+## 09/10/2026 — decisiones de Juanma y controles de consumo (rama `feat/controles-consumo`)
+
+- **Decisiones del propietario:**
+  1. Search Console y GA4 del piloto Sarah vía OpenSEO. Juanma hace la conexión Google desde OpenSEO.
+  2. Techo de gasto variable de 10 € por mes natural y proyecto. Es un techo, no un objetivo; las suscripciones y costes fijos van aparte.
+  - Permiten implementar y probar con simulaciones.
+  - No autorizan llamadas de pago, la conexión de Sarah en Rubik, `project`, secretos ni servicios nuevos.
+  - ADR 0010 y Preview siguen pendientes.
+- **Hallazgos (código de referencia `open-seo@0ffff93`; detalle en [CONSUMO-Y-PRESUPUESTO](CONSUMO-Y-PRESUPUESTO.md)):**
+  - Se cobra en USD, a 1000 créditos por USD.
+  - El cobro llega después de la llamada: coste real de DataForSEO × 1,28. Antes solo se exige saldo mayor que cero, y el saldo puede quedar en negativo.
+  - Las respuestas no informan del coste por llamada.
+  - Solo `run_rank_tracker` acepta un tope, y limita la estimación.
+  - No hay recargas automáticas.
+  - El IVA no está confirmado.
+  - GSC (2 herramientas) y GA4 (9 + `get_search_opportunities`) son gratis y de solo lectura. La propiedad la fija OpenSEO para cada proyecto.
+- **Fuentes no accesibles desde este entorno** (bloqueadas por la política de red): `openseo.so/pricing` y `www.ecb.europa.eu`.
+- **Hecho en esta rama:**
+  - **Migración `20261010150000`:**
+    - claves de idempotencia;
+    - bloqueo del proveedor si el coste real supera el máximo reservado, que solo se levanta cuando el titular vuelve a fijar el límite;
+    - conversión documentada guardada con el límite;
+    - comando `summary`.
+  - Rollback probado.
+  - **Cliente:**
+    - `withSpend` no vuelve a llamar en un reintento;
+    - si la llamada falla, la reserva queda abierta por su máximo;
+    - `monthlySummary`.
+  - `conversion.ts`: el techo en euros se traduce a créditos y falla cerrado si la tarifa, el tipo de cambio o el IVA no están confirmados.
+  - `paid-tools.ts`: todas las herramientas de pago quedan bloqueadas por no tener un máximo verificable.
+  - Página `consumo` para el titular, enlazada desde el resumen del proyecto.
+- **Pruebas:**
+  - pgTAP local: `provider_spend_controls` 33/33 y `provider_budget` 39/39 (36/36 antes del cambio, tras el rollback).
+  - Tipos sin cambios.
+  - Vitest y `npm run verify`.
+  - e2e en CI.
+- **Para Juanma:**
+  - Confirmar, con la facturación o una factura de OpenSEO: moneda y precio de los créditos, IVA o inversión del sujeto pasivo, y comisión de cambio.
+  - Elegir el tipo de cambio de referencia y su fecha.
+  - Con esos datos se fija el límite de Sarah en créditos, en un paso aparte.
+  - Antes, aplicar en alojado las migraciones `20261010090000` y `20261010150000`.
+- **Rama aparcada:** `feat/invitaciones-proyecto` (migración, pgTAP 40/40 y tipos; falta la interfaz). Queda por detrás de GSC/GA4.
+- **Siguiente:** integraciones GSC y GA4 vía OpenSEO con simulaciones.
