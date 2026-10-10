@@ -1,5 +1,18 @@
 # Handoff
 
+## C3 · ADR 0023, identidad del ejecutor de las capturas periódicas — 10/10/2026 (rama `claude/sleepy-rubin-1fjebx`)
+
+- **Base:** `main@37934f1`, tras fusionar #77 (C1) con la CI en verde en su SHA `c304118`.
+- **Qué añade:** [ADR 0023](adr/0023-identidad-ejecutor-capturas-periodicas.md), solo documentación.
+  - Se descartan dos opciones: A, una ruta con la clave secreta de Supabase, y B, una Edge Function o `pg_cron` con `service_role`. Las dos se saltan el RLS, y B duplica además la custodia del anillo.
+  - **Fase 1 recomendada (D):** semiautomática. El planificador propone las ventanas pendientes y la titularidad las confirma con su sesión.
+  - **Fase 2 (C):** cuenta ejecutora dedicada con la clave publicable y una RPC acotada a las programaciones activas.
+  - Hechos de Vercel Cron y Supabase consultados en la documentación oficial y citados en el ADR.
+- **Decisiones para Juanma:** E1 (aprobar la fase 1), E2 (C como dirección) y E3 (el reloj, que se decide con J8).
+- **Pruebas:** no hay código. `npm run verify` en verde (374 tests).
+- **Nada alojado tocado.**
+- **Siguiente:** con E1 aprobada, C4 (migración de programaciones y ejecuciones con pgTAP, sin ejecutar nada).
+
 ## C1 · Herramienta local para verificar la exportación — 10/10/2026 (rama `claude/sleepy-rubin-1fjebx`)
 
 - **Base:** `main@87b3947` (tras fusionar #76, el relevo, con la CI en verde en su SHA `aa60346`).

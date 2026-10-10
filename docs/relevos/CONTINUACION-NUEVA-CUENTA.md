@@ -86,8 +86,8 @@ Estado de partida: `main@992003b`, CI posterior en verde. Este documento sirve p
 |---|---|---|---|
 | C1 | Herramienta local para verificar una exportación | **Hecho (10/10/2026): `npm run verify:export`, procedimiento en RECUPERACION-PILOTO.** Script que Juanma ejecuta en su equipo, por ejemplo `npm run verify:export -- archivo.json`. Llama a `verifyProjectExport` (`src/lib/recovery/verify-export.ts`) con el anillo de su entorno. No envía nada y no imprime claves. Incluye pruebas y documentación en RECUPERACION-PILOTO | — (desbloquea J3) |
 | C2 | Rehacer el ADR 0010 sobre `main` | Reutilizar `src/lib/credentials/crypto.ts` y sus pruebas de #40. Migración `private.provider_credentials` con RLS y RPC solo para la titularidad, pgTAP y tipos regenerados. Sin variables ni OAuth real. Después, cerrar #40 como sustituido | J6 = B |
-| C3 | ADR de la identidad del ejecutor periódico | Opciones y recomendación, solo documentación, según [CAPTURAS-PERIODICAS](../CAPTURAS-PERIODICAS.md) §«Qué falta» | — |
-| C4 | Migración de programaciones de captura, en pausa | `private.google_capture_schedules` y el registro de ejecuciones, con RLS, pgTAP y tipos. Nada las ejecuta | C3 aprobado |
+| C3 | ADR de la identidad del ejecutor periódico | **Hecho (10/10/2026): [ADR 0023](../adr/0023-identidad-ejecutor-capturas-periodicas.md), pendiente de E1–E3.** Opciones y recomendación, solo documentación, según [CAPTURAS-PERIODICAS](../CAPTURAS-PERIODICAS.md) §«Qué falta» | — |
+| C4 | Migración de programaciones de captura, en pausa | `private.google_capture_schedules` y el registro de ejecuciones, con RLS, pgTAP y tipos. Nada las ejecuta | E1 del ADR 0023 aprobada |
 | C5 | Capturas visuales | Regenerar `docs/visual` con `npm run visual:evidence` (stack local) para las capturas 33–35, o anotar que la CI las genera como artefacto | — |
 | C6 | Acompañar las tareas de Juanma | Tras J1–J5: registrar la evidencia en OPERATIONS-STATUS, ROADMAP y HANDOFF, y verificar con SQL de solo lectura si Juanma lo autoriza | J1–J5 |
 | C7 | Cierre | Cuando J1–J7 estén hechas, marcar los hitos 1 y 2 del ROADMAP como cerrados, con su evidencia | Todo lo anterior |
