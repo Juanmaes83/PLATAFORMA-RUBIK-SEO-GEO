@@ -104,6 +104,7 @@ describe("operational state for recovery", () => {
     const rpc = vi.fn(async (fn: string, args: Record<string, unknown>) => {
       if (fn === "openseo_connection") return { data: { state: "NONE" }, error: null };
       if (fn === "openseo_active_job") return { data: { state: "NONE" }, error: null };
+      if (fn === "google_recovery_state") return { data: { connections: [], bindings: [], captures: [] }, error: null };
       if (fn === "webmaster_property") return args.p_provider === "bing-webmaster"
         ? { data: null, error: { code: "42501", message: "denied" } } : { data: { state: "NONE", provider: args.p_provider }, error: null };
       if (fn === "openseo_job") {
@@ -120,6 +121,7 @@ describe("operational state for recovery", () => {
       { auditId: "aud-2", job: { ok: false, error: "JOB_NOT_FOUND" } },
     ]);
     expect(state.webmaster).toEqual({ searchConsole: { ok: true, value: null }, bing: { ok: false, error: "PROPERTY_FORBIDDEN" } });
+    expect(state.google).toEqual({ ok: true, value: { connections: [], bindings: [], captures: [] } });
     expect(state.notIncluded).toEqual([...NOT_INCLUDED]);
     // Only read commands: never acquire, bind, complete, fail, connect or revoke.
     for (const [, args] of rpc.mock.calls) expect(["get", undefined]).toContain((args as { p_command?: string }).p_command);

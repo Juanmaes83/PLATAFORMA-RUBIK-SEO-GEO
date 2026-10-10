@@ -121,3 +121,90 @@ describe("restore plan", () => {
     expect(tags.length).toBe(6);
   });
 });
+
+// Google state (migration 20261012130000): restored only when it agrees with the signed results.
+describe("restore plan · Google state", () => {
+  const ids = { project: randomUUID(), org: randomUUID(), actor: randomUUID() };
+  const conn = randomUUID(), bind = randomUUID(), captureId = randomUUID();
+  async function googleExport(over: { bindingProperty?: string; captureBinding?: string } = {}) {
+    const keyring = ring();
+    const { doc, project } = await drillExport(keyring, ids);
+    const signed = await providers.runProviderRequest({
+      provider: "search-console", operation: "searchAnalytics", input: { siteUrl: "sc-domain:ejemplo.test", startDate: "2026-09-01", endDate: "2026-09-28", rowLimit: 1 },
+      sourceContext: { connectionId: conn, propertyBindingId: bind, providerProjectId: "cliente-openseo", grantedAt: "2026-10-01T10:00:00.000Z" },
+      transport: { kind: "live", request: async () => ({ rows: [], truncated: false }) },
+      clock: () => new Date("2026-10-09T10:00:00Z"), budget: { maxUnits: 2, maxRequests: 2 },
+    });
+    const sealed = sealProviderResult(signed, project, keyring);
+    if (!sealed.ok) throw new Error(sealed.error);
+    const resultId = randomUUID();
+    doc.results.push({ row: { ...sealed.row, id: resultId, created_by: ids.actor, created_at: "2026-10-09T10:06:00.000Z" }, verification: { trust: "VERIFIED", verified: true, reason: null } });
+    const scope = { project_id: ids.project, organization_id: ids.org };
+    const google = {
+      connections: [{ id: conn, ...scope, state: "ACTIVE", credential_mode: "platform", openseo_project_id: "cliente-openseo", allowed_hosts: ["ejemplo.test"],
+        granted_by: ids.actor, granted_at: "2026-10-01T10:00:00.000Z", revoked_by: null, revoked_at: null }],
+      bindings: [{ id: bind, ...scope, connection_id: conn, provider: "search-console", external_property_id: over.bindingProperty ?? "sc-domain:ejemplo.test",
+        state: "ACTIVE", source: "OWNER_DECLARED", granted_by: ids.actor, granted_at: "2026-10-01T10:00:00.000Z", revoked_by: null, revoked_at: null }],
+      captures: [{ id: captureId, ...scope, idempotency_key: "clave-de-captura-0001", provider: "search-console", connection_id: conn,
+        property_binding_id: over.captureBinding ?? bind, state: "STORED", result_id: resultId, created_by: ids.actor,
+        created_at: "2026-10-09T10:06:00.000Z", reserved_at: "2026-10-09T10:05:00.000Z", closed_at: "2026-10-09T10:06:00.000Z" }],
+    };
+    return { keyring, doc: { ...doc, operations: { google: { ok: true, value: google } } }, resultId, project };
+  }
+
+  it("restores connections, bindings and stored captures that agree with the signed results", async () => {
+    const { keyring, doc, resultId, project } = await googleExport();
+    const r = planRestore(doc, keyring, { operatorId: randomUUID() });
+    if (!r.ok) throw new Error(r.error);
+    expect(r.plan.counts.google).toEqual({ connections: 1, bindings: 1, captures: 1, skippedCaptures: 0 });
+    // Setup rows before results, captures after them; conflicts checked before any write.
+    const sql = r.plan.sql;
+    expect(sql.indexOf("ya está conectado a otro proyecto")).toBeLessThan(sql.indexOf("insert into public.organizations"));
+    expect(sql.indexOf("insert into private.openseo_google_properties")).toBeLessThan(sql.indexOf("insert into public.provider_results"));
+    expect(sql.indexOf("insert into private.google_captures")).toBeGreaterThan(sql.indexOf("insert into public.provider_results"));
+    if (process.env.RESTORE_DRILL_OUT) {
+      mkdirSync(process.env.RESTORE_DRILL_OUT, { recursive: true });
+      writeFileSync(join(process.env.RESTORE_DRILL_OUT, "restore-google.sql"), sql);
+      writeFileSync(join(process.env.RESTORE_DRILL_OUT, "ids-google.json"), JSON.stringify({ ...project, resultId, conn, bind, captureId }));
+    }
+  });
+
+  it("refuses a capture whose binding or property disagrees with what was signed", async () => {
+    for (const over of [{ captureBinding: randomUUID() }, { bindingProperty: "sc-domain:otro.test" }]) {
+      const { keyring, doc } = await googleExport(over);
+      expect(planRestore(doc, keyring, { operatorId: randomUUID() })).toEqual({ ok: false, error: "GOOGLE_STATE_MISMATCH" });
+    }
+  });
+
+  it("refuses a capture pointing at a result missing from the file, and malformed or foreign rows", async () => {
+    const { keyring, doc } = await googleExport();
+    const missing = structuredClone(doc);
+    missing.operations.google.value.captures[0].result_id = randomUUID();
+    expect(planRestore(missing, keyring, { operatorId: randomUUID() })).toEqual({ ok: false, error: "GOOGLE_STATE_MISMATCH" });
+    const foreign = structuredClone(doc);
+    foreign.operations.google.value.bindings[0].project_id = randomUUID();
+    expect(planRestore(foreign, keyring, { operatorId: randomUUID() })).toEqual({ ok: false, error: "GOOGLE_STATE_MISMATCH" });
+    const malformed = structuredClone(doc) as unknown as { operations: { google: { ok: boolean; value: unknown } } };
+    malformed.operations.google.value = { connections: "nope" };
+    expect(planRestore(malformed, keyring, { operatorId: randomUUID() })).toEqual({ ok: false, error: "GOOGLE_STATE_MISMATCH" });
+  });
+
+  it("restores no Google state from an older export or one that could not read it", async () => {
+    const { keyring, doc } = await googleExport();
+    for (const operations of [{}, { google: { ok: false, error: "FORBIDDEN" } }]) {
+      const r = planRestore({ ...doc, operations }, keyring, { operatorId: randomUUID() });
+      expect(r).toMatchObject({ ok: true, plan: { counts: { google: null } } });
+      if (r.ok) expect(r.plan.sql).not.toContain("private.google_captures");
+    }
+  });
+
+  it("drops the capture record of a result skipped as unverified", async () => {
+    const { keyring, doc } = await googleExport();
+    const changed = structuredClone(doc);
+    const last = changed.results.length - 1;
+    (changed.results[last].row as { data: unknown }).data = ["alterado"];
+    delete (changed.results[last] as { verification?: unknown }).verification;
+    expect(planRestore(changed, keyring, { operatorId: randomUUID(), skipUnverified: true }))
+      .toMatchObject({ ok: true, plan: { counts: { skippedUnverified: 1, google: { captures: 0, skippedCaptures: 1 } } } });
+  });
+});

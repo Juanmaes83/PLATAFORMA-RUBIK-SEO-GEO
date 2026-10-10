@@ -53,14 +53,20 @@ La primera versión añadía al operador como titular aunque la organización ya
 
 ### Qué recupera y qué no
 
-**Recupera:** el proyecto y su organización (ids y slugs), la cadena de auditoría firmada, los resultados firmados y las importaciones manuales del archivo.
+**Recupera:** el proyecto y su organización (ids y slugs), la cadena de auditoría firmada, los resultados firmados, las importaciones manuales y, desde la migración `20261012130000`, el **estado Google** de `operations.google`: conexiones de OpenSEO (también las revocadas), asociaciones de propiedad (también las revocadas) y capturas guardadas con su clave de idempotencia.
+
+### Estado Google: cuándo se restaura (10/10/2026)
+
+El bloque `operations.google` no está firmado, así que solo se restaura si **cuadra con lo firmado** (`src/lib/restore/google.ts`). Cada captura debe apuntar a un resultado restaurado cuyo `sourceContext` firmado nombre la misma conexión, la misma asociación y el mismo proyecto de OpenSEO, y cuya consulta firmada (`siteUrl` o `propertyId`) sea la propiedad de la asociación. Si algo no cuadra, el plan se rechaza con `GOOGLE_STATE_MISMATCH` antes de generar SQL. En la base de datos se aplica la misma regla que al resto: una fila existente e idéntica se deja como está; si es distinta, si ya hay otra conexión o propiedad activa, o si el proyecto de OpenSEO está conectado a otro proyecto, se cancela toda la transacción. Las personas (`granted_by`, `revoked_by`, `created_by`) que no existan en el destino pasan a ser el operador. Una exportación antigua sin el bloque, o que no pudo leerlo, restaura lo demás sin estado Google (`counts.google = null`).
+
+Tras restaurar, la propiedad vuelve a estar activa y **un reintento con la misma clave devuelve la captura guardada sin consultar a Google**. Probado en PostgreSQL 17 local (dos ejecuciones idénticas, reintento `STORED` con el mismo resultado y conflicto rechazado) y en la integración de CI `tests/integration/restore-google.integration.test.ts`.
 
 **No recupera:**
 - nombre, dominio y vertical de la organización y del proyecto (el nombre pasa a ser el slug);
 - membresías, invitaciones y cuentas de Auth;
 - credenciales, el anillo de firma ni ningún secreto ([CUSTODIA-CLAVES](CUSTODIA-CLAVES.md));
-- conexiones y trabajos de OpenSEO, propiedades de GSC/Bing, presupuesto y consumo;
-- asociaciones `openseo_google_properties` y el ledger `google_captures`: un resultado Google firmado se restaura como `provider_results`, pero no queda una propiedad ACTIVE ni se recupera su clave de idempotencia; hay que volver a asociar la propiedad antes de capturas nuevas;
+- trabajos de OpenSEO, propiedades directas de GSC/Bing (`webmaster_properties`), presupuesto y consumo;
+- capturas Google reservadas o liberadas: no tienen resultado y se pueden perder sin efecto;
 - el resto de la base de datos. No sustituye las copias de seguridad del proveedor.
 
 ## Pruebas
