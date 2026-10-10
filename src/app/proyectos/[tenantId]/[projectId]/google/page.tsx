@@ -160,6 +160,8 @@ export default async function GooglePage({ params, searchParams }: {
         ) : history.rows.length === 0 ? (
           <EmptyState title="Sin capturas"><p>Este proyecto aún no tiene capturas de Google guardadas.</p></EmptyState>
         ) : (
+          <>
+          {history.rows.length >= 2 && <p><Link href={`${base}/google/comparar`}>Comparar dos capturas</Link></p>}
           <ul className="cards">
             {history.rows.map((r) => (
               <li className="card" key={r.id}>
@@ -174,6 +176,7 @@ export default async function GooglePage({ params, searchParams }: {
               </li>
             ))}
           </ul>
+          </>
         )}
       </section>
       <p><Link href={base}>← Volver al proyecto</Link></p>

@@ -120,6 +120,24 @@ La lectura manual se guarda como resultado firmado en `provider_results`, con id
 
 Reintentos, timeouts y procedimiento seguro para comprobar el reintento en producción sin consultar a Google: [REINTENTO-CAPTURAS](REINTENTO-CAPTURAS.md).
 
+## 3 ter. Comparar dos capturas guardadas (rama `claude/comparar-capturas`)
+
+`/proyectos/<org>/<proyecto>/google/comparar` deja elegir dos capturas del historial y las compara **sin consultar a Google**. Lo ve cualquier miembro del proyecto. Las dos se cargan con el cliente RLS del usuario y se verifican de nuevo (firma, huella y contexto del proyecto) antes de comparar una sola fila. La consulta de cada una se lee de su `requestContext` firmado, nunca de un formulario.
+
+| Situación | Resultado |
+|---|---|
+| Firma no verificada, otra fuente (GSC frente a GA4), otra propiedad, dimensiones GSC distintas o periodo inválido | **No se compara**; se explica el motivo y no se muestran filas |
+| Periodos de distinta duración, solapados o iguales | Se compara con aviso |
+| Distinto límite o desplazamiento de filas (paginación) | Se compara con aviso: una fila ausente en un lado no prueba que no exista |
+| Captura `PARTIAL` en cualquiera de los lados | Se compara con aviso: no representa el total |
+| Captura sin filas (`EMPTY`) | Se compara con aviso |
+
+- Las filas se emparejan por los valores de las dimensiones (GSC) o por `hostName` + `landingPage` (GA4). Cada métrica muestra antes → después y la diferencia; las tasas, en puntos porcentuales.
+- Una fila que solo aparece en un lado se marca «Solo en la anterior/posterior» y su valor es «—», **nunca cero**.
+- Los lados se ordenan por fecha de inicio del periodo, sea cual sea el orden elegido.
+- Código: `src/lib/openseo/google/compare.ts` (función pura) y `src/components/GoogleComparisonView.tsx`. Pruebas: `tests/openseo-google-compare.test.tsx` (7) y estado sin capturas en e2e (captura 35).
+- **Limitación honesta:** con las dos capturas reales de Sarah no hay comparación posible, porque una es de GSC y otra de GA4 (y de propiedades distintas). Hace falta una segunda captura de la misma propiedad, lo que exige consultar a Google con la autorización de Juanma.
+
 ## 4. Pruebas
 
 `tests/openseo-google.test.ts`, con un MCP simulado en memoria:

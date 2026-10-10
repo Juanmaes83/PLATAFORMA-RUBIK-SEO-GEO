@@ -1,5 +1,10 @@
 # Handoff
 
+## Comparar capturas Google — 10/10/2026 (rama `claude/comparar-capturas`)
+
+- Nueva página `/google/comparar`: compara dos capturas guardadas de la misma propiedad sin consultar a Google, tras verificar las dos firmas. Bloquea fuente, propiedad o dimensiones GSC distintas; avisa de periodos de distinta duración, solapados o iguales, paginación distinta, capturas `PARTIAL` o `EMPTY`. Lo ausente en un lado es «no observado», nunca cero. Detalle en [GSC-GA4-OPENSEO §3 ter](GSC-GA4-OPENSEO.md).
+- Pruebas: Vitest 7 nuevas; e2e captura 35 (sin capturas). Con los datos reales de Sarah no se puede comparar todavía: sus dos capturas son de GSC y de GA4.
+
 ## Reintento de capturas — 10/10/2026 (rama `claude/reintento-capturas`)
 
 - Pruebas nuevas: timeout de Google (no guarda, libera la clave y el mismo formulario puede reintentar) y respuesta perdida tras un guardado completado (el reintento devuelve lo guardado sin consultar). pgTAP: liberar una clave guardada no la cambia. Una comprobación de borrado queda acotada al proyecto de la prueba.
