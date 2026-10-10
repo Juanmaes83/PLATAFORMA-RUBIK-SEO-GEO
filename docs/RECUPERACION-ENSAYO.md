@@ -23,7 +23,7 @@ Completa [RECUPERACION-PILOTO](RECUPERACION-PILOTO.md), que cubre la exportació
    Con `skipUnverified` se restauran solo los resultados válidos. Los no verificados se informan y no se restauran.
 3. **Genera una única transacción SQL**, que el operador revisa y ejecuta con `psql` contra la base que controla. El módulo nunca se conecta a nada.
 
-**Estado:** implementado en la rama del PR #59, sin integrar en `main`. Probado en local y en CI (ver «Pruebas»). No se ha ejecutado nunca contra Preview ni producción.
+**Estado:** integrado en `main` (#59; estado Google en #71). Probado en local y en CI (ver «Pruebas»). No se ha ejecutado nunca contra Preview ni producción.
 
 ### Garantías del SQL (revisado el 09/10/2026)
 

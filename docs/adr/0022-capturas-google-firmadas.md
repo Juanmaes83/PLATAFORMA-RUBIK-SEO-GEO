@@ -1,6 +1,6 @@
 # ADR 0022 · Capturas manuales de Search Console y GA4, firmadas e idempotentes
 
-**Estado:** propuesto en la rama `claude/google-captura`, sin integrar. Migración `20261012120000` **sin aplicar** en el Supabase alojado. Las lecturas siguen apagadas (`OPENSEO_GOOGLE_READS_ENABLED`).
+**Estado:** aceptado e integrado en #66. Migración `20261012120000` aplicada en alojado por Juanma; `OPENSEO_GOOGLE_READS_ENABLED=true` solo en Production; capturas reales de Sarah `STORED/OK` el 10/10/2026. *(Al proponerse estaba en la rama `claude/google-captura`, sin aplicar y con las lecturas apagadas.)*
 **Fecha:** 10/10/2026.
 **Depende de:** ADR 0004 (procedencia firmada), ADR 0007 (conexión OpenSEO por proyecto), #60 (asociación de propiedad), #61 (lectura manual acotada) y #62 (origen firmado, Core D-30).
 

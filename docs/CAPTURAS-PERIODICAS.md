@@ -1,6 +1,6 @@
 # Capturas periódicas de Google: diseño y pruebas simuladas (Bloque 4)
 
-Fecha: 10/10/2026. Rama `claude/capturas-periodicas`.
+Fecha: 10/10/2026. Integrado en #74 (`742ef55`).
 
 **Estado: solo diseño y simulación. No está activado.** Ninguna ruta, acción, cron, tabla ni variable usa este código. Una prueba lo comprueba: ningún archivo de `src` importa el planificador y no hay `crons` en `vercel.json`. No se consulta a Google ni se gasta cuota.
 
