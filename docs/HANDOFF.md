@@ -8,7 +8,8 @@
 - Verificación de esta unidad: lectura de README, ROADMAP, HANDOFF, instrucciones de repositorio, plan/especificación Core, PR abiertos/cerrados y CI remota. No se reprodujeron `npm run verify`, pgTAP, integración ni e2e en este entorno para esta corrección documental. La CI del nuevo PR se comprueba separadamente.
 - No se verifica producción Vercel, aplicación alojada de migraciones, asociación real Sarah ni lectura Google. Esos estados siguen pendientes; rastreo `legacy` y lecturas Google apagadas según el relevo.
 - Hallazgo de recuperación tras #66: la exportación incluye las capturas Google como `provider_results` firmados y el ensayo las restaura y verifica, pero no exporta/restaura `openseo_google_properties` ni `google_captures`. El informe histórico se conserva; la asociación ACTIVE y la idempotencia operacional no. Documentado en RECUPERACION-PILOTO y RECUPERACION-ENSAYO.
-- Próxima unidad: revisión funcional de capturas #66; después informes/comparativas y pruebas independientes, respetando trabajo activo. Migraciones y lectura real requieren autorización y acceso comprobado.
+- Paquete alojado preparado, **no ejecutado**: [MIGRACIONES-PENDIENTES-20261010](MIGRACIONES-PENDIENTES-20261010.md) enumera las siete migraciones pendientes sobre las nueve versiones documentadas, el dry-run esperado y las condiciones de parada. Se añadió el rollback que faltaba para `20261010160000`; no se afirma historial remoto actual sin repetir `migration list --linked`.
+- Próxima unidad: el propietario compara el historial y dry-run con el paquete, con copia de seguridad, antes de decidir una aplicación. Después se valida interfaz/aislamiento sin proveedor; lectura real y conexiones requieren autorización específica.
 
 
 ## 10/10/2026 — fase 3: capturas Google guardadas (rama `claude/google-captura`)
