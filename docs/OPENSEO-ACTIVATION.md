@@ -165,6 +165,19 @@ Solo con los pasos 2–5 superados se puede declarar «guardado real verificado�
 
 ## B. Activación controlada del modo por proyecto
 
+### Procedimiento vigente (10/10/2026): preparar, no ejecutar sin decisión
+
+La conexión de Sarah **ya existe**. La lectura SQL de esta tanda confirmó exactamente una `ACTIVE`, solo `www.sarahkaterina.com` en `allowed_hosts`, cero jobs `STARTING/SYNCING` y 16 migraciones registradas en Rubik `yvdgmklgwlshizzgefpv`. No repetir el alta, no añadir apex/subdominios y no volver a aplicar migraciones. GSC `https://sarahkaterina.es/` y GA4 `properties/519462393` están asociadas para lecturas Google, pero son scopes distintos del host auditado; su funcionamiento en `legacy` no demuestra el encaminamiento del rastreo en `project`.
+
+1. **Lista previa, solo lectura:** Juanma contrasta en OpenSEO el identificador completo del proyecto de Sarah y su host permitido; en Rubik revisa el bloque «Antes de activar el modo por proyecto». Repetir SQL de conexión `ACTIVE`, hosts exactos y cero jobs activos inmediatamente antes del cambio. Confirmar que el flag de jobs sigue operativo. Si el proyecto o los hosts no coinciden, detenerse; «Probar conexión» comprueba autenticación/salud, no el destino de `run`/`follow`.
+2. **Decisión A — modo:** Juanma autoriza por separado cambiar `OPENSEO_PROJECT_CONNECTIONS_MODE=project` **solo en Production** y redesplegar el SHA exacto entonces vigente. El cambio de variable y el redeploy escriben configuración/despliegue reales; no lanzan una auditoría por sí mismos. Verificar `Ready/Latest` para ese SHA y que un proyecto sin conexión falla cerrado, sin caer en `OPENSEO_PROJECT_ID` global. Preview comparte la base de Producción y no sirve para pruebas de escritura.
+3. **Decisión B — prueba de encaminamiento:** solo tras A, Juanma fija una auditoría de Sarah con máximo de páginas y presupuesto máximo de créditos/coste verificable. Sin esa autorización no llamar a `run`/`follow`. Tras el lanzamiento autorizado, comprobar en OpenSEO el proyecto destino y en SQL que el nuevo job lleva el `connection_id` ACTIVE de Sarah; verificar resultados firmados, historial, recarga y ausencia de duplicados. No reutilizar el `auditId` de la auditoría `legacy` ya probada. Si el inicio queda incierto, conservar la reserva y reconciliarla según ADR 0008; no relanzar.
+4. **Rollback:** antes de volver a `legacy`, comprobar que no hay jobs `STARTING/SYNCING` en `project`. Si los hay, terminarlos o reconciliarlos en ese modo: un job ligado a conexión no se sigue en `legacy`. Con cero jobs activos, retirar el flag o fijar `legacy`, redesplegar el mismo SHA y verificar `Ready/Latest`; conservar las conexiones y los resultados históricos. No revocar una conexión para simular rollback.
+
+Las decisiones A y B son independientes. La evidencia actual permite preparar A, **no** da permiso para ejecutarla ni para consumir créditos con B. La validación humana del panel y del destino sigue pendiente.
+
+### Registro histórico de preparación (09/10/2026; no repetir sus altas)
+
 **Lista previa en la aplicación (09/10/2026):** mientras el servidor siga en `legacy`, el panel «Conexión de OpenSEO del proyecto» de Auditoría técnica muestra al owner, en solo lectura, el bloque «Antes de activar el modo por proyecto». Comprueba:
 
 | Comprobación | Si falla |
