@@ -60,6 +60,7 @@ La primera versión añadía al operador como titular aunque la organización ya
 - membresías, invitaciones y cuentas de Auth;
 - credenciales, el anillo de firma ni ningún secreto ([CUSTODIA-CLAVES](CUSTODIA-CLAVES.md));
 - conexiones y trabajos de OpenSEO, propiedades de GSC/Bing, presupuesto y consumo;
+- asociaciones `openseo_google_properties` y el ledger `google_captures`: un resultado Google firmado se restaura como `provider_results`, pero no queda una propiedad ACTIVE ni se recupera su clave de idempotencia; hay que volver a asociar la propiedad antes de capturas nuevas;
 - el resto de la base de datos. No sustituye las copias de seguridad del proveedor.
 
 ## Pruebas
