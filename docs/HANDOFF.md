@@ -1,5 +1,13 @@
 # Handoff
 
+## Continuidad de exportación y recuperación — 10/10/2026
+
+PR #68 integró la evidencia alojada y corrigió el estado vigente del ROADMAP; no activó ningún flujo. La siguiente unidad, PR #69, pagina por cursor la exportación de `audit_events`, `provider_results` e `imports`, comprueba recuentos y falla cerrado ante truncamiento o más de 10 000 filas. La exportación v2 avisa expresamente de que no conserva asociaciones Google ni el ledger `google_captures`. El ensayo de restauración en Supabase local/CI conserva UUID, hashes y firmas de resultados firmados y no duplica filas al repetirlo, pero **no** acredita restauración operativa de las capturas reales de Sarah.
+
+Consulta SQL de solo lectura de esta tanda, destino Rubik `yvdgmklgwlshizzgefpv`: 16 migraciones, una conexión OpenSEO `ACTIVE` de Sarah con solo `www.sarahkaterina.com`, cero jobs `STARTING/SYNCING`, una asociación `ACTIVE` GSC `https://sarahkaterina.es/` y una GA4 `properties/519462393`. Inventario de `provider_results` para el proyecto: dos OpenSEO (`auditIssues` y `auditPages`), un GSC (`searchAnalytics`) y un GA4 (`report`), todos `OK` y con `data_hash_alg=sha256`. Es una lectura de relaciones y metadatos; no vuelve a verificar HMAC ni genera informes.
+
+**Siguiente acción segura:** obtener una ruta accesible al archivo exportado real de Sarah y verificar offline que contiene esos cuatro resultados, sus hashes, firmas y scope. El propietario conserva el keyring: no enviarlo por chat, no subirlo ni subir la exportación a Git. Descargar de nuevo desde Producción crea un evento `project.export` aunque no consulta proveedores; explicar el efecto antes de hacerlo. Después, decidir una recuperación transaccional del estado Google y probar un reintento alojado con la misma clave mediante un procedimiento que garantice no releer al proveedor. Ninguna ausencia de duplicados observada sustituye esas pruebas. El rastreo sigue en `legacy`; no activar `project` ni lanzar auditorías sin aprobación específica del cambio y presupuesto.
+
 ## Verificación SQL alojada y próximos cierres — 10/10/2026
 
 Consulta directa de solo lectura a Rubik `yvdgmklgwlshizzgefpv`, posterior a las capturas visuales de Juanma. Aunque el listado del conector omite este proyecto, execute_sql permitió consultar su base; no se deduce ausencia de acceso del listado.
