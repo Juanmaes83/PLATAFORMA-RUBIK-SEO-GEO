@@ -1,5 +1,15 @@
 # Handoff
 
+## 10/10/2026 — revisión documental tras #66 (rama docs/checkpoint-google-captures-20261010)
+
+- Base comprobada: `main@aea14abadedd04539ddd0e08b697f72411237378`, merge de #66; [CI posterior completa verde](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/38009409329). Última CI del PR #66 también verde en `63037cb83857798fd967197b9f7f997f3ab7d512` ([38008780641](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/38008780641)).
+- README y ROADMAP conservaban el corte #61/#62 («sin caller/persistencia/UI»). Se corrigen los estados vigentes para reflejar #66; se conserva el historial original identificado como histórico.
+- Solo documentación en rama independiente. No se modifica código, configuración, flags, datos, migraciones ni ramas de otros agentes. La comprobación de agentes de esta sesión solo mostró al revisor; no permite afirmar que no haya agentes externos trabajando.
+- Verificación de esta unidad: lectura de README, ROADMAP, HANDOFF, instrucciones de repositorio, plan/especificación Core, PR abiertos/cerrados y CI remota. No se reprodujeron `npm run verify`, pgTAP, integración ni e2e en este entorno para esta corrección documental. La CI del nuevo PR se comprueba separadamente.
+- No se verifica producción Vercel, aplicación alojada de migraciones, asociación real Sarah ni lectura Google. Esos estados siguen pendientes; rastreo `legacy` y lecturas Google apagadas según el relevo.
+- Próxima unidad: revisión funcional de capturas #66; después informes/comparativas y pruebas independientes, respetando trabajo activo. Migraciones y lectura real requieren autorización y acceso comprobado.
+
+
 ## 10/10/2026 — fase 3: capturas Google guardadas (rama `claude/google-captura`)
 
 - Integrados antes: #64 (seguridad, `main@601d555`) y #65 (borrado sin huérfanos, `main@4e78608`), los dos con la CI de PR completa y verde.
