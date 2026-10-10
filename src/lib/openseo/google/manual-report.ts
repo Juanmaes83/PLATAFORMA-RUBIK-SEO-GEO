@@ -22,7 +22,7 @@ const day = (value: unknown): value is string => typeof value === "string" && /^
   && Number.isFinite(Date.parse(`${value}T00:00:00Z`))
   && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
 const dims = new Set(["date", "query", "page", "country", "device"]);
-const validQuery = (q: ManualGoogleQuery) => {
+export const validQuery = (q: ManualGoogleQuery) => {
   if (!q || (q.provider !== "search-console" && q.provider !== "google-analytics")
     || !day(q.startDate) || !day(q.endDate)) return false;
   const days = (Date.parse(`${q.endDate}T00:00:00Z`) - Date.parse(`${q.startDate}T00:00:00Z`)) / 86400000;

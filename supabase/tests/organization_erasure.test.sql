@@ -1,6 +1,6 @@
 -- Organization erasure (docs/RETENCION-Y-BORRADO.md §3, decision D1: at the end of a contract the
 -- project is exported and erased). An administrator deleting an organization must leave no row
--- of it in any of the 14 tables of the data inventory, must not touch another organization, and
+-- of it in any of the 15 tables of the data inventory, must not touch another organization, and
 -- must keep the Auth accounts (D3: people are never deleted with a client). Rows are written as
 -- the superuser, as the administrator's deletion is, so every table is populated even where the
 -- app only writes through RPCs.
@@ -43,6 +43,9 @@ insert into private.webmaster_properties(project_id,organization_id,provider,sit
  select prj,org,'search-console','sc-domain:era-'||name||'.test','ACTIVE',owner from fx;
 insert into private.openseo_google_properties(project_id,organization_id,connection_id,provider,external_property_id,state,granted_by)
  select f.prj,f.org,c.id,'google-analytics','properties/123','ACTIVE',f.owner from fx f join private.openseo_project_connections c on c.project_id=f.prj;
+insert into private.google_captures(project_id,organization_id,idempotency_key,provider,connection_id,property_binding_id,state,created_by)
+ select f.prj,f.org,'era-capture-key-'||f.name,'google-analytics',c.id,g.id,'RESERVED',f.owner
+ from fx f join private.openseo_project_connections c on c.project_id=f.prj join private.openseo_google_properties g on g.project_id=f.prj;
 insert into private.provider_budgets(project_id,organization_id,provider,monthly_limit,set_by)
  select prj,org,'openseo',1000,owner from fx;
 insert into private.provider_spend(project_id,organization_id,provider,operation,estimated,state,reserved_by)
@@ -50,7 +53,7 @@ insert into private.provider_spend(project_id,organization_id,provider,operation
 insert into private.project_invitations(project_id,organization_id,email,role,token_hash,created_by,expires_at)
  select prj,org,'invitada-'||name||'@example.test','viewer',md5('t'||name)||md5('u'||name),owner,now()+interval '7 days' from fx;
 
--- Rows of one organization in each of the 14 tables.
+-- Rows of one organization in each of the 15 tables.
 create function pg_temp.counts(o uuid) returns table(t text, n bigint) language sql as $$
   select 'organizations', count(*) from public.organizations where id=o
   union all select 'organization_members', count(*) from public.organization_members where organization_id=o
@@ -63,13 +66,14 @@ create function pg_temp.counts(o uuid) returns table(t text, n bigint) language 
   union all select 'openseo_project_jobs', count(*) from private.openseo_project_jobs where organization_id=o
   union all select 'webmaster_properties', count(*) from private.webmaster_properties where organization_id=o
   union all select 'openseo_google_properties', count(*) from private.openseo_google_properties where organization_id=o
+  union all select 'google_captures', count(*) from private.google_captures where organization_id=o
   union all select 'provider_budgets', count(*) from private.provider_budgets where organization_id=o
   union all select 'provider_spend', count(*) from private.provider_spend where organization_id=o
   union all select 'project_invitations', count(*) from private.project_invitations where organization_id=o
 $$;
 create temp table before_b as select * from pg_temp.counts((select org from fx where name='b'));
 
-select is((select count(*)::int from pg_temp.counts((select org from fx where name='a'))), 14, 'the inventory covers 14 tables');
+select is((select count(*)::int from pg_temp.counts((select org from fx where name='a'))), 15, 'the inventory covers 15 tables');
 select is((select count(*)::int from pg_temp.counts((select org from fx where name='a')) where n = 0), 0, 'organization A has rows in every table before the erasure');
 
 -- The administrator's erasure: no user session, like a deletion from the Supabase dashboard.

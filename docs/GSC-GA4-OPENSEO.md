@@ -112,6 +112,10 @@ Orden previsto:
 3. **Conexión del proyecto Rubik de Sarah con su proyecto de OpenSEO** (ADR 0007), que ya es una decisión pendiente de Juanma, y confirmación de la propiedad esperada.
 4. **Activación** de `OPENSEO_GOOGLE_READS_ENABLED` y de la interfaz, en un PR y con una decisión aparte.
 
+## 3 bis. Captura guardada (ADR 0022, rama `claude/google-captura`)
+
+La lectura manual se guarda como resultado firmado en `provider_results`, con idempotencia y revalidación de la fuente en la misma transacción ([ADR 0022](adr/0022-capturas-google-firmadas.md)). La pantalla `/proyectos/<org>/<proyecto>/google` permite a la titularidad asociar o revocar la propiedad de cada proveedor y, **solo con las lecturas activadas**, capturar un periodo. El historial y el detalle (firma verificada, periodo, propiedad, origen y filas) los ve cualquier miembro. Las capturas entran en la exportación y en el ensayo de restauración. Abrir las páginas no consulta a Google. Sin activación, sin propiedad real de Sarah y sin migración alojada, todo esto sigue siendo código probado en local y en CI.
+
 ## 4. Pruebas
 
 `tests/openseo-google.test.ts`, con un MCP simulado en memoria:

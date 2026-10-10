@@ -150,6 +150,9 @@ isOneToOne: false
             "accept_project_invitation":
 { Args: { "p_token": string }; Returns: Json
                            },
+"google_capture":
+{ Args: { "p_command": string,"p_payload"?: Json,"p_project_id": string }; Returns: Json
+                           },
 "openseo_active_job":
 { Args: { "p_project_id": string }; Returns: Json
                            },

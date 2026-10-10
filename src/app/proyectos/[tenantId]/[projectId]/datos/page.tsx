@@ -68,6 +68,7 @@ export default async function DataInventoryPage({ params }: { params: Promise<{ 
               <div><dt>Conexiones de OpenSEO</dt><dd>{r.inventory.openseoConnections}</dd></div>
               <div><dt>Propiedades de Search Console y Bing (directas)</dt><dd>{r.inventory.webmasterProperties}</dd></div>
               <div><dt>Propiedades de Google asociadas en OpenSEO</dt><dd>{r.inventory.googleProperties}</dd></div>
+              <div><dt>Capturas manuales de Google (registro)</dt><dd>{r.inventory.googleCaptures}</dd></div>
               <div><dt>Presupuestos</dt><dd>{r.inventory.budgets}</dd></div>
               <div><dt>Movimientos de consumo</dt><dd>{r.inventory.spendEntries}</dd></div>
             </dl>

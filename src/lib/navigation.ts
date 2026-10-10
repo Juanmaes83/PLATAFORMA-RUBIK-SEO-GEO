@@ -54,7 +54,7 @@ export interface ProjectSection {
   nextStep: string;
 }
 
-/** Project sub-sections; the summary is the project page itself. Built: Importaciones (CORE-9.3) and Auditoría técnica (ADR 0006). */
+/** Project sub-sections; the summary is the project page itself. Built: Importaciones (CORE-9.3), Auditoría técnica (ADR 0006), Search Console y GA4 and Personas (ADR 0020/0021). */
 export const PROJECT_SECTIONS: readonly ProjectSection[] = [
   {
     slug: "importaciones", label: "Importaciones", stage: "CORE-9.3", available: true,
@@ -67,6 +67,12 @@ export const PROJECT_SECTIONS: readonly ProjectSection[] = [
     description: "Auditoría técnica del sitio con OpenSEO, lanzada a mano desde el servidor, sin Lighthouse ni funciones de pago.",
     requires: [],
     nextStep: "Probar la conexión, lanzar una auditoría manual y consultar sus incidencias.",
+  },
+  {
+    slug: "google", label: "Search Console y GA4", stage: "CORE-9.4 (vía OpenSEO)", available: true,
+    description: "Capturas manuales firmadas de Search Console y GA4 a través de OpenSEO, con su propiedad asociada y su historial.",
+    requires: [],
+    nextStep: "Asociar la propiedad y capturar un periodo cuando las lecturas estén activadas.",
   },
   {
     slug: "mediciones", label: "Mediciones", stage: "CORE-9.3 a 9.5",
@@ -99,10 +105,10 @@ export const PROJECT_SECTIONS: readonly ProjectSection[] = [
     nextStep: "Conectar Search Console o Bing Webmaster en modo de solo lectura y comprobar la primera lectura.",
   },
   {
-    slug: "miembros", label: "Miembros", stage: "una etapa posterior, sin planificar",
-    description: "Quién tiene acceso a este proyecto y con qué rol. Los roles ya se guardan y se aplican; falta la pantalla para gestionarlos.",
-    requires: ["Invitaciones por correo aprobadas por el propietario", "Registro de auditoría de cambios de rol (CORE-9.2)"],
-    nextStep: "Invitar a miembros del equipo o del cliente con el rol adecuado.",
+    slug: "personas", label: "Personas", stage: "ADR 0020 y 0021", available: true,
+    description: "Quién tiene acceso a este proyecto, invitaciones por enlace y retirada de acceso.",
+    requires: [],
+    nextStep: "Invitar a una persona o retirar el acceso de quien ya no deba tenerlo.",
   },
 ];
 

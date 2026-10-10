@@ -1,5 +1,12 @@
 # Handoff
 
+## 10/10/2026 — fase 3: capturas Google guardadas (rama `claude/google-captura`)
+
+- Integrados antes: #64 (seguridad, `main@601d555`) y #65 (borrado sin huérfanos, `main@4e78608`), los dos con la CI de PR completa y verde.
+- **Nuevo:** migración `20261012120000` (registro `private.google_captures` y RPC `google_capture` begin/store/release), servicio `captureGoogleReport`, acciones y página `/proyectos/<org>/<proyecto>/google` con asociación de propiedad, captura manual, historial y detalle. Navegación del proyecto: «Search Console y GA4» y «Personas» (sustituye a «Miembros», que era una página de «no disponible»). Inventario y prueba de borrado ampliados a 15 tablas. [ADR 0022](adr/0022-capturas-google-firmadas.md).
+- **Pruebas locales:** pgTAP `google_captures` 30, `project_people` 44, `organization_erasure` 7; rollback probado y reaplicado; Vitest de captura 5; `npm run verify`. La integración (stack local con API) y las e2e solo corren en CI.
+- **Sin cambios en alojado:** lecturas apagadas, ninguna propiedad real asociada, migraciones sin aplicar. Activar requiere decisión de Juanma: aplicar `20261010160000` y `20261012120000`, conectar Sarah en OpenSEO, asociar la propiedad y poner `OPENSEO_GOOGLE_READS_ENABLED=true`.
+
 ## 10/10/2026 — seguridad de dependencias (rama `claude/seguridad-dependencias`)
 
 - `npm audit --omit=dev` en `main` marcaba dos avisos altos de producción: `next@16.3.6` (seis avisos: SSRF en la optimización de imágenes, envenenamiento de caché SSG/ISR, fugas de Draft Mode y de rutas de imagen de metadatos, y del endpoint MCP del servidor de desarrollo; rango vulnerable 16.0.0–16.3.7) y `source-map-js@1.2.1` (denegación de servicio).

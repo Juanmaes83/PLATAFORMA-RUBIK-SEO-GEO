@@ -6,7 +6,7 @@
 
 ## 1. Inventario (comprobado en `supabase/migrations`, 09/10/2026)
 
-14 tablas de la aplicación más `auth.users` (la 14.ª, `private.openseo_google_properties`, llegó con #60). Revisado de nuevo el 09/10/2026 contra las 12 migraciones de la rama, con una prueba en PostgreSQL 17 local (§1.1).
+15 tablas de la aplicación más `auth.users` (`private.openseo_google_properties` llegó con #60 y `private.google_captures` con ADR 0022). Revisado de nuevo el 09/10/2026 contra las 12 migraciones de la rama, con una prueba en PostgreSQL 17 local (§1.1).
 
 | Dato | Tabla | Datos personales posibles | Exportación hoy | Borrado hoy |
 |---|---|---|---|---|
@@ -19,6 +19,7 @@
 | Trabajos y conexión de OpenSEO | `private.openseo_project_jobs`, `private.openseo_project_connections` | Identificadores de proveedor y de auditoría, autor del consentimiento | Estado operativo en la exportación v2 | Revocar la conexión; el borrado de filas solo llega con el proyecto |
 | Propiedades de GSC/Bing | `private.webmaster_properties` | Propiedad y autor | No | Con el proyecto |
 | Propiedades Google asociadas en OpenSEO (#60) | `private.openseo_google_properties` | Propiedad GSC/GA4, autor y revocación | No | Revocar; las filas se borran con el proyecto o la conexión |
+| Registro de capturas Google (ADR 0022) | `private.google_captures` | Clave de idempotencia, origen y autor | Las capturas, sí (son `provider_results`); el registro, no | Con el resultado, la propiedad, la conexión o el proyecto |
 | Presupuesto y consumo | `private.provider_budgets`, `private.provider_spend` | Autor de las reservas | Resumen mensual en pantalla | Con el proyecto |
 | Invitaciones (#59) | `private.project_invitations` | **Correo de la persona invitada**, hash del token | No | Revocar; las filas permanecen como historial |
 
@@ -73,7 +74,7 @@ Cada decisión tiene una recomendación técnica. **No es asesoramiento legal**:
 ## 3. Lo que se puede implementar sin decisión legal
 
 - **Inventario de datos de un proyecto (solo lectura): implementado en #59, sin integrar** ([ADR 0021](adr/0021-retirar-acceso-e-inventario.md)). En `/proyectos/<org>/<proyecto>/datos`, solo para la titularidad de la organización: recuentos y fechas de las tablas del inventario, sin contenido. No incluye lo que guardan Auth, Vercel u OpenSEO.
-- **Prueba en CI de que borrar una organización no deja filas huérfanas: hecha** (`supabase/tests/organization_erasure.test.sql`). Puebla las 14 tablas del inventario para dos organizaciones, borra una como lo haría el administrador y comprueba que no queda ninguna fila suya, que la otra conserva todas y que las cuentas de Auth se mantienen (D3). Cubre también la clave `openseo_project_jobs.connection_id`, que no tiene `ON DELETE`: el borrado en cascada la resuelve en la misma sentencia. Es la garantía técnica del borrado de cierre de D1; el borrado alojado sigue siendo una acción de Juanma.
+- **Prueba en CI de que borrar una organización no deja filas huérfanas: hecha** (`supabase/tests/organization_erasure.test.sql`). Puebla las 15 tablas del inventario para dos organizaciones, borra una como lo haría el administrador y comprueba que no queda ninguna fila suya, que la otra conserva todas y que las cuentas de Auth se mantienen (D3). Cubre también la clave `openseo_project_jobs.connection_id`, que no tiene `ON DELETE`: el borrado en cascada la resuelve en la misma sentencia. Es la garantía técnica del borrado de cierre de D1; el borrado alojado sigue siendo una acción de Juanma.
 
 Las dos encajan en la Entrega E sin tocar las zonas de Codex. Se hacen si Juanma lo pide.
 
