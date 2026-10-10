@@ -2,6 +2,7 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import type { Keyring } from "@/lib/provenance/keyring";
 import { verifyProjectExport } from "@/lib/recovery/verify-export";
+import { checkGoogleState, googleSql } from "./google";
 
 // Restore drill (Entrega E2, docs/RECUPERACION-ENSAYO.md). Turns a VERIFIED project export into
 // one SQL transaction that an operator runs with psql against a database they control (the
@@ -29,13 +30,15 @@ const SLUG = /^[a-z0-9][a-z0-9-]{1,62}$/;
 
 export type RestoreRefusal =
   | "NOT_AN_EXPORT" | "UNSUPPORTED_FORMAT" | "MIXED_PROJECTS" | "EMPTY_SCOPE"
-  | "TAMPERED" | "AUDIT_CHAIN_INVALID" | "UNVERIFIED_RESULTS" | "INVALID_OPERATOR" | "INVALID_ROWS";
+  | "TAMPERED" | "AUDIT_CHAIN_INVALID" | "UNVERIFIED_RESULTS" | "INVALID_OPERATOR" | "INVALID_ROWS" | "GOOGLE_STATE_MISMATCH";
 
 export interface RestorePlan {
   projectId: string;
   organizationId: string;
   scope: { tenantId: string; projectId: string };
-  counts: { audit: number; results: number; imports: number; skippedUnverified: number };
+  counts: { audit: number; results: number; imports: number; skippedUnverified: number;
+    /** Google state (operations.google): null when the export has none (older file) or could not read it. */
+    google: { connections: number; bindings: number; captures: number; skippedCaptures: number } | null };
   /** One transaction: adds only what is missing, or changes nothing at all on a conflict. */
   sql: string;
 }
@@ -71,7 +74,7 @@ export function planRestore(doc: unknown, keyring: Keyring, opts: { operatorId: 
   if (check.results.failed.length > 0 && !opts.skipUnverified) return { ok: false, error: "UNVERIFIED_RESULTS" };
 
   const d = doc as { scope: { tenantId: string; projectId: string }; audit: { rows: Record<string, unknown>[] };
-    results: { row: Record<string, unknown> }[]; imports?: unknown };
+    results: { row: Record<string, unknown> }[]; imports?: unknown; operations?: { google?: unknown } };
   const { projectId, organizationId } = check.project;
   const scope = { tenantId: d.scope.tenantId, projectId: d.scope.projectId };
   if (!SLUG.test(scope.tenantId) || !SLUG.test(scope.projectId)) return { ok: false, error: "EMPTY_SCOPE" };
@@ -89,11 +92,15 @@ export function planRestore(doc: unknown, keyring: Keyring, opts: { operatorId: 
     || !unique(results.map((r) => r.id)) || !unique(imports.map((r) => r.id)) || !unique(imports.map((r) => r.file_sha256))) {
     return { ok: false, error: "INVALID_ROWS" };
   }
+  const skippedIds = new Set(d.results.filter((_, i) => failed.has(i)).map((r) => r.row?.id as string));
+  const google = checkGoogleState(d.operations?.google, { projectId, organizationId }, results, skippedIds);
+  if (!google.ok) return { ok: false, error: "GOOGLE_STATE_MISMATCH" };
 
   const op = `'${opts.operatorId}'::uuid`;
   const org = `'${organizationId}'::uuid`, prj = `'${projectId}'::uuid`;
   const orgSlug = `'${scope.tenantId}'`, prjSlug = `'${scope.projectId}'`;
   const msg = (text: string, ...args: string[]) => `format('${RESTORE_CONFLICT}: ${text}'${args.map((a) => `, ${a}`).join("")})`;
+  const g = google.state ? googleSql(google.state, { literal, op, prj, fail, msg, differs }) : { load: [], checks: [], setup: [], captures: [] };
   const lines = [
     "-- Rubik restore drill. Generated from a verified export; review before running with psql.",
     "-- Adds only what is missing. Any conflict aborts the whole transaction: nothing is written.",
@@ -118,6 +125,7 @@ export function planRestore(doc: unknown, keyring: Keyring, opts: { operatorId: 
     // Author of a row who no longer exists in this database: the operator (NOT NULL, not signed).
     `update rubik_results r set created_by = ${op} where not exists (select 1 from auth.users u where u.id = r.created_by);`,
     `update rubik_imports i set created_by = ${op} where not exists (select 1 from auth.users u where u.id = i.created_by);`,
+    ...g.load,
 
     "-- 3 · Rows that already exist must be identical; otherwise nothing is restored.",
     fail(msg("el evento de auditoría %s del proyecto ya existe con otro contenido.", "a.seq::text"),
@@ -132,6 +140,7 @@ export function planRestore(doc: unknown, keyring: Keyring, opts: { operatorId: 
       `from rubik_imports s join public.imports i on i.id = s.id where ${differs("i", "s", IMPORT_COLS)}`),
     fail(msg("el archivo %s ya está importado en el proyecto con otro id (%s, no %s).", "s.file_sha256", "i.id::text", "s.id::text"),
       `from rubik_imports s join public.imports i on i.project_id = s.project_id and i.file_sha256 = s.file_sha256 where i.id <> s.id`),
+    ...g.checks,
 
     "-- 4 · Create only what is missing. Existing memberships and roles are never touched.",
     `create temp table rubik_restore_state on commit drop as select not exists (select 1 from public.organizations where id = ${org}) as new_org, `
@@ -141,6 +150,7 @@ export function planRestore(doc: unknown, keyring: Keyring, opts: { operatorId: 
     `insert into public.projects (id, organization_id, slug, name) select ${prj}, ${org}, ${prjSlug}, ${prjSlug} from rubik_restore_state where new_project;`,
     `insert into public.project_members (project_id, organization_id, user_id, role) select ${prj}, ${org}, ${op}, 'owner' from rubik_restore_state `
       + `where new_project and exists (select 1 from public.organization_members m where m.organization_id = ${org} and m.user_id = ${op} and m.role = 'owner');`,
+    ...g.setup,
     // In seq order, one row at a time: the chain trigger checks each link against the previous.
     "do $rubik_chain$ declare r public.audit_events; begin",
     "  for r in select * from rubik_audit a where not exists (select 1 from public.audit_events e where e.project_id = a.project_id and e.seq = a.seq) order by a.seq loop",
@@ -149,11 +159,14 @@ export function planRestore(doc: unknown, keyring: Keyring, opts: { operatorId: 
     "end $rubik_chain$;",
     "insert into public.provider_results select * from rubik_results r where not exists (select 1 from public.provider_results p where p.id = r.id);",
     "insert into public.imports select * from rubik_imports s where not exists (select 1 from public.imports i where i.id = s.id);",
+    // Capture records point at results, so they go last.
+    ...g.captures,
     "commit;",
   ];
   return {
     ok: true,
     skipped: check.results.failed,
-    plan: { projectId, organizationId, scope, counts: { audit: audit.length, results: results.length, imports: imports.length, skippedUnverified: failed.size }, sql: lines.join("\n") + "\n" },
+    plan: { projectId, organizationId, scope, counts: { audit: audit.length, results: results.length, imports: imports.length, skippedUnverified: failed.size,
+      google: google.state ? { connections: google.state.connections.length, bindings: google.state.bindings.length, captures: google.state.captures.length, skippedCaptures: google.skippedCaptures } : null }, sql: lines.join("\n") + "\n" },
   };
 }

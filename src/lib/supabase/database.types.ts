@@ -153,6 +153,9 @@ isOneToOne: false
 "google_capture":
 { Args: { "p_command": string,"p_payload"?: Json,"p_project_id": string }; Returns: Json
                            },
+"google_recovery_state":
+{ Args: { "p_project_id": string }; Returns: Json
+                           },
 "openseo_active_job":
 { Args: { "p_project_id": string }; Returns: Json
                            },

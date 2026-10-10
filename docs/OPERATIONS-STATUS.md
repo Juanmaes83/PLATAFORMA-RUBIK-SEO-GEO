@@ -1,5 +1,7 @@
 # Estado operativo comprobado — 10/10/2026
 
+**Recuperación (rama `claude/recuperacion-google`):** la migración `20261012130000` (RPC de solo lectura `google_recovery_state`) queda pendiente de aplicación alojada autorizada. Sin ella, la exportación de producción no incluye el estado Google.
+
 ## Verificación SQL alojada y próximos cierres — 10/10/2026
 
 Consulta directa de solo lectura a Rubik `yvdgmklgwlshizzgefpv`, posterior a las capturas visuales de Juanma. Aunque el listado del conector omite este proyecto, execute_sql permitió consultar su base; no se deduce ausencia de acceso del listado.

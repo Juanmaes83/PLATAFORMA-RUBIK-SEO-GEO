@@ -6,6 +6,7 @@ import type { ProviderResultRow } from "@/lib/provenance/results";
 import { getProjectConnection, type OpenSeoProjectConnection } from "@/lib/openseo/connections";
 import { findActiveAuditJob, findAuditJob, type ProjectAuditJob } from "@/lib/openseo/jobs";
 import { getWebmasterProperty, type WebmasterProperty } from "@/lib/webmaster/properties";
+import { readGoogleRecoveryState, type GoogleRecoveryState } from "./google-state";
 
 // Pilot recovery (ROADMAP phase 1): operational state that the signed export alone does not
 // carry. Read through the owner's session RPCs only (private tables are never reachable
@@ -19,23 +20,23 @@ function part<T>(r: { ok: true } | { ok: false; error: string }, value: () => T)
 
 export interface OperationalState {
   openseo: {
-    /** Current ACTIVE connection or null. Revoked history is not readable through the RPC. */
+    /** Current ACTIVE connection or null (the full history, revoked included, is in `google`). */
     connection: Part<OpenSeoProjectConnection | null>;
     activeJob: Part<(ProjectAuditJob & { createdAt: string }) | null>;
     /** Jobs linked to the audit ids found in the exported OpenSEO results. */
     jobs: { auditId: string; job: Part<ProjectAuditJob> }[];
   };
   webmaster: { searchConsole: Part<WebmasterProperty | null>; bing: Part<WebmasterProperty | null> };
+  /** Connections, property bindings (revoked included) and stored captures, restorable since 20261012130000. */
+  google: Part<GoogleRecoveryState>;
   /** What a restore cannot recover from this file; stated so nobody assumes otherwise. */
   notIncluded: string[];
 }
 
 export const NOT_INCLUDED = Object.freeze([
   "signing-keys: the HMAC keyring lives outside the database and must be kept separately by the owner",
-  "revoked-openseo-connections: only the active connection is readable through the owner RPC",
   "openseo-jobs-without-stored-results: jobs that never stored a result have no audit id to look them up",
-  "google-property-bindings: GSC/GA4 property associations are not in export v2 and require explicit reauthorization after restore",
-  "google-captures-ledger: stored result signatures survive but capture idempotency keys and ledger rows are not restored",
+  "google-captures-in-flight: reserved or released capture keys hold no result and are not exported; only stored captures are",
   "credentials: no provider credential is stored by the platform or exported",
 ]);
 
@@ -54,11 +55,12 @@ export function auditIdsFromResults(rows: Pick<ProviderResultRow, "provider" | "
 
 export async function readOperationalState(client: SupabaseClient<Database>, project: ProjectRef,
   results: Pick<ProviderResultRow, "provider" | "signed_payload">[]): Promise<OperationalState> {
-  const [connection, activeJob, searchConsole, bing] = await Promise.all([
+  const [connection, activeJob, searchConsole, bing, google] = await Promise.all([
     getProjectConnection(client, project.projectId),
     findActiveAuditJob(client, project),
     getWebmasterProperty(client, project.projectId, "search-console"),
     getWebmasterProperty(client, project.projectId, "bing-webmaster"),
+    readGoogleRecoveryState(client, project.projectId),
   ]);
   const jobs = [];
   for (const auditId of auditIdsFromResults(results)) {
@@ -75,6 +77,7 @@ export async function readOperationalState(client: SupabaseClient<Database>, pro
       searchConsole: part(searchConsole, () => (searchConsole as { property: WebmasterProperty | null }).property),
       bing: part(bing, () => (bing as { property: WebmasterProperty | null }).property),
     },
+    google: part(google, () => (google as { value: GoogleRecoveryState }).value),
     notIncluded: [...NOT_INCLUDED],
   };
 }

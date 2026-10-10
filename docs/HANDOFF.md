@@ -1,5 +1,13 @@
 # Handoff
 
+## Recuperación completa del estado Google — 10/10/2026 (rama `claude/recuperacion-google`)
+
+- #70 (procedimiento del modo `project`, solo documentación, CI verde) integrado en `main@e71b85a`.
+- **Cierra el hueco declarado en #69:** migración `20261012130000` con la RPC `google_recovery_state`, solo para la titularidad y de solo lectura. La exportación v2 añade `operations.google`: conexiones de OpenSEO y asociaciones (también las revocadas) y las capturas `STORED`. `notIncluded` ya no excluye las asociaciones ni el registro de capturas.
+- **Restauración:** `src/lib/restore/google.ts` solo restaura el bloque si cuadra con los resultados firmados (conexión, asociación, proyecto de OpenSEO y propiedad firmados). Si no cuadra, `GOOGLE_STATE_MISMATCH`. En base de datos, idéntico = sin cambios y distinto = rechazo total.
+- **Pruebas:** pgTAP `google_recovery_state` 13; Vitest del plan con estado Google 5 casos nuevos; ensayo en PostgreSQL 17 local (dos restauraciones idénticas, reintento con la misma clave `STORED` sin nueva reserva, conflicto rechazado); integración `restore-google` en CI; rollback probado y reaplicado.
+- **Pendiente de Juanma:** aplicar `20261012130000` en alojado. Hasta entonces, la exportación de producción marca `operations.google` como no disponible y la restauración no recupera ese estado. La verificación de la exportación real de Sarah con su anillo sigue pendiente.
+
 ## Continuidad de exportación y recuperación — 10/10/2026
 
 PR #68 integró la evidencia alojada y corrigió el estado vigente del ROADMAP; no activó ningún flujo. La siguiente unidad, PR #69, pagina por cursor la exportación de `audit_events`, `provider_results` e `imports`, comprueba recuentos y falla cerrado ante truncamiento o más de 10 000 filas. La exportación v2 avisa expresamente de que no conserva asociaciones Google ni el ledger `google_captures`. El ensayo de restauración en Supabase local/CI conserva UUID, hashes y firmas de resultados firmados y no duplica filas al repetirlo, pero **no** acredita restauración operativa de las capturas reales de Sarah.
