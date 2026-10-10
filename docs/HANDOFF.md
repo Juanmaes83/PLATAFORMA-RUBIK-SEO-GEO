@@ -1,5 +1,14 @@
 # Handoff
 
+## Relevo a cuenta nueva — 10/10/2026 (rama `claude/relevo-cuenta-nueva`)
+
+- **Punto de partida:** `main@992003b`, CI en verde. El prompt de continuación y las tareas por responsable (J1–J13 de Juanma, C1–C7 de Claude) están en [relevos/CONTINUACION-NUEVA-CUENTA](relevos/CONTINUACION-NUEVA-CUENTA.md).
+- **Desfases corregidos en documentación:**
+  - ROADMAP: nuevo bloque vigente con la definición de cierre; filas de recuperación, credenciales, Preview, GSC y fase 5.
+  - OPERATIONS-STATUS: corte vigente.
+  - ADR 0022 (aceptado e integrado), GSC-GA4-OPENSEO §3 bis y ter, RECUPERACION-ENSAYO y CAPTURAS-PERIODICAS: referencias a ramas ya fusionadas.
+- **Siguiente:** C1, la herramienta local para verificar la exportación, que desbloquea J3. En paralelo, Juanma con J1–J5 y J7.
+
 ## Cierre de la tanda del 10/10/2026 — B, C y bloques 2, 3 y 4
 
 | Punto | PR | Fusión en `main` |

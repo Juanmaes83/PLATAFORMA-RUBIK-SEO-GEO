@@ -1,6 +1,9 @@
 # Estado operativo comprobado — 10/10/2026
 
-**Recuperación (rama `claude/recuperacion-google`):** la migración `20261012130000` (RPC de solo lectura `google_recovery_state`) queda pendiente de aplicación alojada autorizada. Sin ella, la exportación de producción no incluye el estado Google.
+**Corte vigente (10/10/2026, tarde):** `main@992003b`, con la CI posterior en verde. Integrados #70 a #75: modo `project` preparado, recuperación del estado Google (migración `20261012130000`), reintento seguro, comparación de capturas, capturas periódicas solo en diseño y recomendación para el ADR 0010 y la Preview.
+- **Alojado:** 16 migraciones aplicadas. **Falta aplicar `20261012130000`**: sin ella, la exportación de producción marca `operations.google` como no disponible.
+- **Sin cambios alojados en esta tanda:** ni variables, ni llamadas a proveedores, ni servicios.
+- **Siguiente:** las tareas de Juanma en [relevos/CONTINUACION-NUEVA-CUENTA](relevos/CONTINUACION-NUEVA-CUENTA.md).
 
 ## Verificación SQL alojada y próximos cierres — 10/10/2026
 

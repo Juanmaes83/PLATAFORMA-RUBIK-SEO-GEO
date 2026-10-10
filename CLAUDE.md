@@ -7,7 +7,7 @@
 - Este repositorio es la **aplicación** de la plataforma SEO/GEO (CORE-9). Es el único destino de aplicación designado por el propietario en la decisión D-26 de [RUBIK-SEO-GEO-CORE](https://github.com/Juanmaes83/RUBIK-SEO-GEO-CORE).
 - Los contratos compartidos, la lógica SEO/GEO y las decisiones de producto viven en RUBIK-SEO-GEO-CORE. Aquí **no se copia** código del Core; se consume como dependencia fijada a un commit (ver [ADR 0001](docs/adr/0001-stack-y-dependencia-core.md)).
 - Prohibido acceder, clonar, leer o modificar WEB-RESTAURACI-N-PREMIUM-DIN-MICA o cualquier repositorio distinto de este y del Core.
-- Antes de trabajar, leer [docs/HANDOFF.md](docs/HANDOFF.md), [docs/ROADMAP.md](docs/ROADMAP.md) y, en el Core, `docs/core-9/EXECUTION-PLAN.md` y `docs/core-9/PLATFORM-SPEC.md`.
+- Antes de trabajar, leer [docs/relevos/CONTINUACION-NUEVA-CUENTA.md](docs/relevos/CONTINUACION-NUEVA-CUENTA.md) (relevo vigente y tareas por responsable), [docs/HANDOFF.md](docs/HANDOFF.md), [docs/ROADMAP.md](docs/ROADMAP.md) y, en el Core, `docs/core-9/EXECUTION-PLAN.md` y `docs/core-9/PLATFORM-SPEC.md`.
 
 ## Qué no hacer sin autorización humana expresa y concreta
 

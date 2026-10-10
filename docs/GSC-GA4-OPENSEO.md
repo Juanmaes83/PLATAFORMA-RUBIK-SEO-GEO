@@ -114,13 +114,13 @@ Orden previsto:
 3. **Conexión del proyecto Rubik de Sarah con su proyecto de OpenSEO** (ADR 0007), que ya es una decisión pendiente de Juanma, y confirmación de la propiedad esperada.
 4. **Activación** de `OPENSEO_GOOGLE_READS_ENABLED` y de la interfaz, en un PR y con una decisión aparte.
 
-## 3 bis. Captura guardada (ADR 0022, rama `claude/google-captura`)
+## 3 bis. Captura guardada (ADR 0022, #66)
 
-La lectura manual se guarda como resultado firmado en `provider_results`, con idempotencia y revalidación de la fuente en la misma transacción ([ADR 0022](adr/0022-capturas-google-firmadas.md)). La pantalla `/proyectos/<org>/<proyecto>/google` permite a la titularidad asociar o revocar la propiedad de cada proveedor y, **solo con las lecturas activadas**, capturar un periodo. El historial y el detalle (firma verificada, periodo, propiedad, origen y filas) los ve cualquier miembro. Las capturas entran en la exportación y en el ensayo de restauración. Abrir las páginas no consulta a Google. Sin activación, sin propiedad real de Sarah y sin migración alojada, todo esto sigue siendo código probado en local y en CI.
+La lectura manual se guarda como resultado firmado en `provider_results`, con idempotencia y revalidación de la fuente en la misma transacción ([ADR 0022](adr/0022-capturas-google-firmadas.md)). La pantalla `/proyectos/<org>/<proyecto>/google` permite a la titularidad asociar o revocar la propiedad de cada proveedor y, **solo con las lecturas activadas**, capturar un periodo. El historial y el detalle (firma verificada, periodo, propiedad, origen y filas) los ve cualquier miembro. Las capturas entran en la exportación y en el ensayo de restauración. Abrir las páginas no consulta a Google. **Estado al 10/10/2026:** migración `20261012120000` aplicada en alojado, lecturas activadas solo en Production y una captura real `STORED/OK` por proveedor para Sarah (GSC `https://sarahkaterina.es/` y GA4 `properties/519462393`). Detalle en OPERATIONS-STATUS.
 
 Reintentos, timeouts y procedimiento seguro para comprobar el reintento en producción sin consultar a Google: [REINTENTO-CAPTURAS](REINTENTO-CAPTURAS.md).
 
-## 3 ter. Comparar dos capturas guardadas (rama `claude/comparar-capturas`)
+## 3 ter. Comparar dos capturas guardadas (#73)
 
 `/proyectos/<org>/<proyecto>/google/comparar` deja elegir dos capturas del historial y las compara **sin consultar a Google**. Lo ve cualquier miembro del proyecto. Las dos se cargan con el cliente RLS del usuario y se verifican de nuevo (firma, huella y contexto del proyecto) antes de comparar una sola fila. La consulta de cada una se lee de su `requestContext` firmado, nunca de un formulario.
 
