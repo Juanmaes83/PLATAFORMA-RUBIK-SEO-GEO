@@ -4,7 +4,18 @@ Fuente de estado de este repositorio. El plan global y sus criterios están en [
 
 El catálogo de capacidades SEO/GEO que el propietario quiere cubrir, con el estado actual, piezas parciales del Core y dependencias, está en [SEO-CAPABILITIES-BACKLOG.md](SEO-CAPABILITIES-BACKLOG.md).
 
-## Estado vigente — 10/10/2026
+## Checkpoint vigente — 10/10/2026, revisión de main@aea14ab
+
+**Prevalece sobre los estados anteriores de este documento.** #57–#66 están integrados; solo permanecen abiertos #40 y los PR documentales históricos #9/#11 en la comprobación de GitHub. La [CI de main@aea14abadedd04539ddd0e08b697f72411237378](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/38009409329) terminó completa en verde. No se comprobó aquí un despliegue Vercel ni acceso alojado.
+
+- **Google (#66): código integrado** para asociación, captura manual GSC/GA4, resultado firmado e idempotente, historial y detalle en `/proyectos/<org>/<proyecto>/google`. La evidencia del flujo es local/CI con proveedor simulado. Las frases anteriores «sin caller», «no guarda capturas» o «sin UI» describen los cortes #60–#62, no este estado.
+- **Acceso y recuperación (#59/#63):** invitaciones por enlace de un solo uso, retirada de acceso, ensayo de restauración e inventario integrados; custodia e aislamiento alojado requieren completar los pasos del propietario.
+- **Seguridad (#64/#65):** parche de dependencias integrado y prueba de borrado de organización sin huérfanos; #66 amplía el inventario a 15 tablas. La auditoría de dependencias local figura en HANDOFF; esta revisión no la volvió a ejecutar.
+- **Alojado pendiente:** asociación real de Sarah, lectura Google real, validación humana y migraciones nuevas. No se aplicó ninguna migración, no se cambió ningún flag ni se llamó a proveedor durante esta revisión.
+- **Próximos cierres:** revisar la captura/persistencia de #66 y su cobertura; preparar paquete de migraciones según el listado real local/remoto; validar interfaz y el flujo real solo tras autorización concreta. Ampliación de informes y comparativas continúa como trabajo de desarrollo independiente.
+- **Alcance:** web nueva/antigua, Studio, contenido y consentimiento web de Sarah siguen trasladados a otro frente, no completados. Sarah permanece como piloto de Rubik.
+
+## Historial — entregas #59–#62 (10/10/2026)
 
 **Entrega E integrada (Claude, en paralelo a Codex).** [#59](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/59) se integró en `main@ac70b1dfa7fe3e1a6da9419f96ceef63e752fffd` tras [#62](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/62) (`main@22a83eb`, [CI posterior verde](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/38003705280)). Su última CI de PR (`d61c630`, [38001107067](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/38001107067)) fue completa y verde; la [CI posterior de main](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/38005005297) es la del merge. Incluye: invitaciones por enlace de un solo uso (ADR 0020), ensayo de restauración que falla cerrado ante conflictos, retirada de acceso sin borrar la cuenta (ADR 0021, decisión D3) e inventario de datos en solo lectura, más los documentos de custodia de claves, aislamiento alojado y retención. Migraciones `20261012090000`, `20261012100000` y `20261012110000` **sin aplicar en alojado**. Decisiones de Juanma del 09/10: K1, K2, A1–A4, D1, D3 y D4; pendientes K3, K4, D2, D5 y D6. Detalle y validación humana en [CLAUDE-PARALELO](relevos/CLAUDE-PARALELO.md).
 
