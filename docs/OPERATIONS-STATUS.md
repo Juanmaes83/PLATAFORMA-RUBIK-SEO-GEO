@@ -1,6 +1,6 @@
 # Estado operativo comprobado — 10/10/2026
 
-**C1 (10/10/2026):** herramienta local `npm run verify:export` disponible en la rama `claude/sleepy-rubin-1fjebx` (PR pendiente de fusión) para que Juanma verifique la exportación de Sarah con el anillo (J3), según [RECUPERACION-PILOTO](RECUPERACION-PILOTO.md). Sin cambios alojados. `main@87b3947` incluye ya el relevo (#76).
+**C1 (10/10/2026):** herramienta local `npm run verify:export` fusionada en #77 (`main@37934f1`), para que Juanma verifique la exportación de Sarah con el anillo (J3), según [RECUPERACION-PILOTO](RECUPERACION-PILOTO.md). **C3:** ADR 0023 propuesto, solo documentación. Sin cambios alojados.
 
 **Corte vigente (10/10/2026, tarde):** `main@992003b`, con la CI posterior en verde. Integrados #70 a #75: modo `project` preparado, recuperación del estado Google (migración `20261012130000`), reintento seguro, comparación de capturas, capturas periódicas solo en diseño y recomendación para el ADR 0010 y la Preview.
 - **Alojado:** 16 migraciones aplicadas. **Falta aplicar `20261012130000`**: sin ella, la exportación de producción marca `operations.google` como no disponible.
