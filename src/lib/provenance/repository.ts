@@ -15,6 +15,35 @@ type Client = SupabaseClient<Database>;
 type Failure = { ok: false; error: string };
 
 const CHAIN_RACE = new Set(["23505", "23514"]);
+const EXPORT_PAGE = 500;
+const EXPORT_MAX_ROWS = 10_000;
+
+// PostgREST may cap a response below the requested limit. Count first and walk by a stable
+// cursor; an empty page, changed count or excessive export fails instead of silently omitting
+// signed rows. The cap is explicit because this route builds one in-memory download.
+async function readCompleteRows<T>(
+  countRows: () => Promise<{ count: number | null; error: unknown }>,
+  pageRows: (after: string | number | null) => Promise<{ data: T[] | null; error: unknown }>,
+  cursorOf: (row: T) => string | number,
+): Promise<{ ok: true; rows: T[] } | Failure> {
+  const first = await countRows();
+  if (first.error || first.count === null) return { ok: false, error: "READ_FAILED" };
+  if (first.count > EXPORT_MAX_ROWS) return { ok: false, error: "EXPORT_TOO_LARGE" };
+  const rows: T[] = [];
+  let after: string | number | null = null;
+  while (rows.length < first.count) {
+    const page = await pageRows(after);
+    if (page.error) return { ok: false, error: "READ_FAILED" };
+    if (!page.data?.length || rows.length + page.data.length > first.count) return { ok: false, error: "EXPORT_CHANGED" };
+    const next = cursorOf(page.data.at(-1)!);
+    if (next === after) return { ok: false, error: "EXPORT_CHANGED" };
+    rows.push(...page.data);
+    after = next;
+  }
+  const last = await countRows();
+  if (last.error || last.count !== first.count) return { ok: false, error: "EXPORT_CHANGED" };
+  return { ok: true, rows };
+}
 
 export type AppendInput = Omit<AuditInput, "at"> & { at?: string };
 
@@ -43,9 +72,17 @@ export async function appendAudit(
 }
 
 export async function readAuditTrail(client: Client, project: ProjectRef, keyring: Keyring): Promise<{ ok: true; rows: AuditRow[]; verification: AuditVerification } | Failure> {
-  const { data, error } = await client.from("audit_events").select("*").eq("project_id", project.projectId).order("seq");
-  if (error) return { ok: false, error: "READ_FAILED" };
-  const rows = data as AuditRow[];
+  const complete = await readCompleteRows<AuditRow>(
+    async () => client.from("audit_events").select("seq", { count: "exact", head: true }).eq("project_id", project.projectId).eq("organization_id", project.organizationId),
+    async (after) => {
+      let query = client.from("audit_events").select("*").eq("project_id", project.projectId).eq("organization_id", project.organizationId).order("seq").limit(EXPORT_PAGE);
+      if (after !== null) query = query.gt("seq", Number(after));
+      return await query;
+    },
+    (row) => row.seq,
+  );
+  if (!complete.ok) return complete;
+  const rows = complete.rows;
   return { ok: true, rows, verification: verifyAuditTrail(rows, project, keyring) };
 }
 
@@ -111,15 +148,31 @@ export interface ProjectExport {
 export async function exportProject(client: Client, project: ProjectRef, keyring: Keyring, at: string): Promise<{ ok: true; export: ProjectExport } | Failure> {
   const audit = await readAuditTrail(client, project, keyring);
   if (!audit.ok) return audit;
-  const res = await client.from("provider_results").select("*").eq("project_id", project.projectId).eq("organization_id", project.organizationId).order("created_at");
-  if (res.error) return { ok: false, error: "READ_FAILED" };
-  const results = (res.data as ProviderResultRow[]).map((row) => {
+  const res = await readCompleteRows<Database["public"]["Tables"]["provider_results"]["Row"]>(
+    async () => client.from("provider_results").select("id", { count: "exact", head: true }).eq("project_id", project.projectId).eq("organization_id", project.organizationId),
+    async (after) => {
+      let query = client.from("provider_results").select("*").eq("project_id", project.projectId).eq("organization_id", project.organizationId).order("id").limit(EXPORT_PAGE);
+      if (after !== null) query = query.gt("id", String(after));
+      return await query;
+    },
+    (row) => row.id,
+  );
+  if (!res.ok) return res;
+  const results = res.rows.map((row) => {
     const v = openProviderResult(row, project, keyring);
     return { row, verification: { trust: v.trust, verified: v.verified, reason: v.reason } };
   });
-  const imports = await client.from("imports").select("*").eq("project_id", project.projectId).order("created_at");
-  if (imports.error) return { ok: false, error: "READ_FAILED" };
-  return { ok: true, export: { format: "rubik-project-export-v1", exportedAt: at, scope: project.scope, audit: { rows: audit.rows, verification: audit.verification }, results, imports: imports.data } };
+  const imports = await readCompleteRows<Database["public"]["Tables"]["imports"]["Row"]>(
+    async () => client.from("imports").select("id", { count: "exact", head: true }).eq("project_id", project.projectId).eq("organization_id", project.organizationId),
+    async (after) => {
+      let query = client.from("imports").select("*").eq("project_id", project.projectId).eq("organization_id", project.organizationId).order("id").limit(EXPORT_PAGE);
+      if (after !== null) query = query.gt("id", String(after));
+      return await query;
+    },
+    (row) => row.id,
+  );
+  if (!imports.ok) return imports;
+  return { ok: true, export: { format: "rubik-project-export-v1", exportedAt: at, scope: project.scope, audit: { rows: audit.rows, verification: audit.verification }, results, imports: imports.rows } };
 }
 
 /**
