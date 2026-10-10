@@ -18,6 +18,7 @@
     "verify": "npm run check:core-pin && npm run check:secrets && npm run lint && npm run typecheck && npm run test && npm run build",
     "test:e2e": "playwright test",
     "visual:evidence": "node scripts/visual-evidence.mjs",
+    "verify:export": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/verify-export.mjs",
     "db:start": "npx --yes supabase@2.118.0 start -x postgres-meta,imgproxy,vector,logflare,supavisor,studio,realtime,storage-api,edge-runtime",
     "db:stop": "npx --yes supabase@2.118.0 stop",
     "db:reset": "npx --yes supabase@2.118.0 db reset",

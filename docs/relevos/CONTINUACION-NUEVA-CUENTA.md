@@ -84,7 +84,7 @@ Estado de partida: `main@992003b`, CI posterior en verde. Este documento sirve p
 
 | # | Tarea | Detalle | Depende de |
 |---|---|---|---|
-| C1 | Herramienta local para verificar una exportación | Script que Juanma ejecuta en su equipo, por ejemplo `npm run verify:export -- archivo.json`. Llama a `verifyProjectExport` (`src/lib/recovery/verify-export.ts`) con el anillo de su entorno. No envía nada y no imprime claves. Incluye pruebas y documentación en RECUPERACION-PILOTO | — (desbloquea J3) |
+| C1 | Herramienta local para verificar una exportación | **Hecho (10/10/2026): `npm run verify:export`, procedimiento en RECUPERACION-PILOTO.** Script que Juanma ejecuta en su equipo, por ejemplo `npm run verify:export -- archivo.json`. Llama a `verifyProjectExport` (`src/lib/recovery/verify-export.ts`) con el anillo de su entorno. No envía nada y no imprime claves. Incluye pruebas y documentación en RECUPERACION-PILOTO | — (desbloquea J3) |
 | C2 | Rehacer el ADR 0010 sobre `main` | Reutilizar `src/lib/credentials/crypto.ts` y sus pruebas de #40. Migración `private.provider_credentials` con RLS y RPC solo para la titularidad, pgTAP y tipos regenerados. Sin variables ni OAuth real. Después, cerrar #40 como sustituido | J6 = B |
 | C3 | ADR de la identidad del ejecutor periódico | Opciones y recomendación, solo documentación, según [CAPTURAS-PERIODICAS](../CAPTURAS-PERIODICAS.md) §«Qué falta» | — |
 | C4 | Migración de programaciones de captura, en pausa | `private.google_capture_schedules` y el registro de ejecuciones, con RLS, pgTAP y tipos. Nada las ejecuta | C3 aprobado |
