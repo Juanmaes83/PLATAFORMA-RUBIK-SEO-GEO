@@ -118,6 +118,8 @@ Orden previsto:
 
 La lectura manual se guarda como resultado firmado en `provider_results`, con idempotencia y revalidación de la fuente en la misma transacción ([ADR 0022](adr/0022-capturas-google-firmadas.md)). La pantalla `/proyectos/<org>/<proyecto>/google` permite a la titularidad asociar o revocar la propiedad de cada proveedor y, **solo con las lecturas activadas**, capturar un periodo. El historial y el detalle (firma verificada, periodo, propiedad, origen y filas) los ve cualquier miembro. Las capturas entran en la exportación y en el ensayo de restauración. Abrir las páginas no consulta a Google. Sin activación, sin propiedad real de Sarah y sin migración alojada, todo esto sigue siendo código probado en local y en CI.
 
+Reintentos, timeouts y procedimiento seguro para comprobar el reintento en producción sin consultar a Google: [REINTENTO-CAPTURAS](REINTENTO-CAPTURAS.md).
+
 ## 4. Pruebas
 
 `tests/openseo-google.test.ts`, con un MCP simulado en memoria:

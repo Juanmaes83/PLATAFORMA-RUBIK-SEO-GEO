@@ -82,6 +82,7 @@ insert into k select 'r1', pg_temp.store('owner-key-00000001', pg_temp.row('PART
 select ok((select v from k where name='r1') ~ '^[0-9a-f-]{36}$','stored, with the result id');
 select is(pg_temp.begin('owner-key-00000001'),jsonb_build_object('state','STORED','resultId',(select v from k where name='r1')),'a retry returns the same result without a new reservation');
 select throws_ok($$select pg_temp.store('owner-key-00000001', pg_temp.row())$$,'55000',null,'a stored key cannot store twice');
+select is(pg_temp.cap('release','{"key":"owner-key-00000001"}')->>'state','STORED','releasing a stored key changes nothing (a lost answer cannot undo a committed capture)');
 select is((select count(*)::int from public.provider_results where project_id=(select prj from ids)),1,'exactly one result');
 select is((select created_by from public.provider_results where id=(select v::uuid from k where name='r1')),'00000000-0000-4000-8000-0000000000f1'::uuid,'authored by the owner');
 
@@ -106,7 +107,7 @@ select throws_ok($$select pg_temp.begin('owner-key-00000003')$$,'55000',null,'an
 select is((public.project_data_inventory((select prj from ids))->>'googleCaptures')::int,2,'the inventory counts the capture ledger');
 select set_config('role','postgres',true);
 delete from public.provider_results where id=(select v::uuid from k where name='r1');
-select is((select count(*)::int from private.google_captures where result_id is not null),0,'erasing the result removes its capture record');
+select is((select count(*)::int from private.google_captures where project_id=(select prj from ids) and result_id is not null),0,'erasing the result removes its capture record');
 
 select * from finish();
 rollback;
