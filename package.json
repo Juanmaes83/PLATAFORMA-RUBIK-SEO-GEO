@@ -28,7 +28,7 @@
     "@rubik/seo-geo-core": "git+https://github.com/Juanmaes83/RUBIK-SEO-GEO-CORE.git#2aaf12700542e4499cfdd27a491d072abb635ca2",
     "@supabase/ssr": "0.12.7",
     "@supabase/supabase-js": "2.117.2",
-    "next": "16.3.6",
+    "next": "16.3.8",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "server-only": "0.0.1"

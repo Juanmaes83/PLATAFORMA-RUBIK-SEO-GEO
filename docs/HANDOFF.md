@@ -1,5 +1,12 @@
 # Handoff
 
+## 10/10/2026 — seguridad de dependencias (rama `claude/seguridad-dependencias`)
+
+- `npm audit --omit=dev` en `main` marcaba dos avisos altos de producción: `next@16.3.6` (seis avisos: SSRF en la optimización de imágenes, envenenamiento de caché SSG/ISR, fugas de Draft Mode y de rutas de imagen de metadatos, y del endpoint MCP del servidor de desarrollo; rango vulnerable 16.0.0–16.3.7) y `source-map-js@1.2.1` (denegación de servicio).
+- **Corrección mínima:** `next` 16.3.6 → **16.3.8**, parche de la misma versión menor publicado el 30/09/2026, en lugar de 16.4.0 (versión menor de tres días). `source-map-js` 1.2.1 → 1.2.2 con `npm audit fix`. El lockfile solo cambia esos paquetes y los binarios nativos de `next`.
+- **Resultado:** producción **0 vulnerabilidades**. Auditoría completa: de 7 a 5 avisos altos, todos de la misma cadena `braces` ← `micromatch` ← `fast-glob` ← `@next/eslint-plugin-next` (lint, solo desarrollo). Ya existía en `main`, afecta a todas las versiones de `braces` y no tiene corrección publicada; `npm audit fix --force` degradaría `eslint-config-next`. Se deja `eslint-config-next` en 16.3.6 para no ampliar el cambio.
+- **Pruebas:** `npm run verify` local (336 pruebas, lint, tipos, build de producción, pin y secretos). CI completa del PR pendiente al publicar.
+
 ## 10/10/2026 — Entrega E integrada (Claude, en paralelo a Codex) y cierre
 
 - **Integración:** Juanma autorizó integrar cuando Codex terminase. Claude auditó #60–#62 (CI de PR y de main verdes; #62 sin caller y con flag apagado) y fusionó [#62](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/62) en `main@22a83eb2e64c00e39c10b2ea827374c06c2969e7` comprobando el SHA `b8dd7d1`; [CI posterior verde](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/38003705280). El filtro de permisos impidió a Claude traer `main` a la rama de #59; Juanma fusionó [#59](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/59) directamente en `main@ac70b1dfa7fe3e1a6da9419f96ceef63e752fffd` (sin conflictos: comprobado antes). Última CI del PR (`d61c630`): [38001107067](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/38001107067) completa verde; [CI posterior de main](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/38005005297).
@@ -13,7 +20,7 @@
 - **Decisiones de Juanma (09/10):** K1 dos copias del anillo (gestor de contraseñas y bóveda cifrada sin conexión); K2 rotación anual (primera el 09/10/2027) e inmediata ante incidencia; A1–A4 prueba de aislamiento antes del primer cliente con dos cuentas suyas; D1 conservar mientras dure el contrato y exportar y borrar al cierre; D3 baja = retirar acceso sin borrar la cuenta; D4 borrar invitaciones tras el plazo de la asesoría. **Pendientes:** K3, K4, D2, D5 y D6.
 - **Hallazgo:** hoy no se puede borrar en Auth a quien guardó resultados, importaciones, trabajos o reservas (§1.1 de [RETENCION-Y-BORRADO](RETENCION-Y-BORRADO.md)); D3 lo evita sin cambiar el esquema.
 - **No hecho (requiere a Juanma):** aplicar `20261012090000`, `20261012100000` y `20261012110000` en alojado, en ese orden; guardar las copias del anillo; ejecutar la prueba de aislamiento; validación humana (pasos 1–7 de [CLAUDE-PARALELO](relevos/CLAUDE-PARALELO.md)). Nada se escribió en Preview ni producción.
-- **Seguridad:** `npm audit --omit=dev` marca dos avisos altos: `next@16.3.6` (corrección en 16.4.0, fuera del rango fijado) y `source-map-js` (`npm audit fix`). Propuesto como PR de seguridad separado.
+- **Seguridad:** `npm audit --omit=dev` marcaba dos avisos altos (`next@16.3.6` y `source-map-js`); se corrigen en la rama `claude/seguridad-dependencias` con `next@16.3.8` (ver entrada de seguridad).
 
 ## 10/10/2026 — procedencia Google vinculada a conexión y propiedad
 
