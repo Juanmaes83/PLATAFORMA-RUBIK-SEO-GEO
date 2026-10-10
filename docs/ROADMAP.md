@@ -12,7 +12,8 @@ El catálogo de capacidades SEO/GEO que el propietario quiere cubrir, con el est
 - **Acceso y recuperación (#59/#63):** invitaciones por enlace de un solo uso, retirada de acceso, ensayo de restauración e inventario integrados; custodia e aislamiento alojado requieren completar los pasos del propietario.
 - **Seguridad (#64/#65):** parche de dependencias integrado y prueba de borrado de organización sin huérfanos; #66 amplía el inventario a 15 tablas. La auditoría de dependencias local figura en HANDOFF; esta revisión no la volvió a ejecutar.
 - **Alojado pendiente:** asociación real de Sarah, lectura Google real, validación humana y migraciones nuevas. No se aplicó ninguna migración, no se cambió ningún flag ni se llamó a proveedor durante esta revisión.
-- **Próximos cierres:** revisar la captura/persistencia de #66 y su cobertura; preparar paquete de migraciones según el listado real local/remoto; validar interfaz y el flujo real solo tras autorización concreta. Ampliación de informes y comparativas continúa como trabajo de desarrollo independiente.
+- **Migraciones preparadas, no aplicadas:** [MIGRACIONES-PENDIENTES-20261010](MIGRACIONES-PENDIENTES-20261010.md) fija las nueve versiones de partida documentadas, las siete pendientes, el dry-run esperado, las condiciones de parada, la comprobación posterior y el rollback. La aplicación exige volver a comprobar el historial remoto y una copia de seguridad; esta revisión no accedió al alojado.
+- **Próximos cierres:** aplicar y verificar el esquema solo por el propietario; después validar interfaz y aislamiento sin proveedor, y realizar el flujo real únicamente con autorización concreta. Ampliación de informes y comparativas continúa como trabajo de desarrollo independiente.
 - **Alcance:** web nueva/antigua, Studio, contenido y consentimiento web de Sarah siguen trasladados a otro frente, no completados. Sarah permanece como piloto de Rubik.
 
 ## Historial — entregas #59–#62 (10/10/2026)
