@@ -1,5 +1,11 @@
 # Handoff
 
+## Capturas periódicas: diseño y simulación — 10/10/2026 (rama `claude/capturas-periodicas`)
+
+- [CAPTURAS-PERIODICAS](CAPTURAS-PERIODICAS.md) y `src/lib/openseo/google/schedule.ts`: planificador puro. Usa ventanas semanales o mensuales cerradas y con margen de retraso, una clave idempotente por ventana, espera exponencial (15 min a 24 h, 5 intentos), bloqueo ante fallos que necesitan una persona, cancelación dentro del mismo tick, tope mensual y recuperación de ventanas perdidas.
+- Vitest: 10 pruebas simuladas. Una de ellas comprueba que ningún archivo de `src` lo importa y que no hay cron. **No está activado.**
+- Para activarlo, Juanma tiene que decidir: la identidad del ejecutor sin sesión (ADR propio), la migración de programaciones, el tope de cuota y dónde corre el reloj.
+
 ## Comparar capturas Google — 10/10/2026 (rama `claude/comparar-capturas`)
 
 - Nueva página `/google/comparar`: compara dos capturas guardadas de la misma propiedad sin consultar a Google, tras verificar las dos firmas. Bloquea fuente, propiedad o dimensiones GSC distintas; avisa de periodos de distinta duración, solapados o iguales, paginación distinta, capturas `PARTIAL` o `EMPTY`. Lo ausente en un lado es «no observado», nunca cero. Detalle en [GSC-GA4-OPENSEO §3 ter](GSC-GA4-OPENSEO.md).
