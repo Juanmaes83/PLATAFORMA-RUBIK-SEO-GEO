@@ -10,7 +10,7 @@ export const CAPTURE_ERRORS: Record<string, string> = {
   CONFIGURATION: "OpenSEO no está configurado en el servidor. No se ha consultado nada.",
   PROVIDER_STATUS: "Google no devolvió una medición utilizable (sin permiso, límite de uso o error). No se ha guardado nada.",
   UNAVAILABLE: "El servicio no está disponible ahora mismo. No se ha guardado nada.",
-  STORE_FAILED: "No se pudo guardar el resultado firmado. No se ha guardado nada.",
+  STORE_FAILED: "No se pudo confirmar el guardado. Vuelve atrás y reenvía el mismo formulario: si llegó a guardarse, se mostrará esa captura sin volver a consultar a Google.",
 };
 export const CAPTURE_NOTICES: Record<string, string> = {
   guardada: "Captura guardada y firmada.",

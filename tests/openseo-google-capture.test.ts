@@ -24,7 +24,7 @@ const reply = { structuredContent: { ok: true, siteUrl: "https://sarah.es/", sta
   dimensions: ["page"], rowCount: 1, rows: [{ keys: ["https://sarah.es/"], clicks: 1, impressions: 10, ctr: 0.1, position: 3 }],
   hasMore: false, nextStartRow: 1 } };
 
-function setup({ storeError, revokeBetween }: { storeError?: string; revokeBetween?: boolean } = {}) {
+function setup({ storeError, revokeBetween, lostStoreResponse }: { storeError?: string; revokeBetween?: boolean; lostStoreResponse?: boolean } = {}) {
   const captures = new Map<string, { state: string; resultId?: string }>();
   const stored: Record<string, unknown>[] = [];
   let active = true;
@@ -48,6 +48,8 @@ function setup({ storeError, revokeBetween }: { storeError?: string; revokeBetwe
     stored.push(row);
     const resultId = "66666666-6666-4666-8666-66666666666" + stored.length;
     captures.set(String(p.key), { state: "STORED", resultId });
+    // The transaction committed, but the answer never reaches the server (network cut, timeout).
+    if (lostStoreResponse) throw new Error("socket hang up");
     return { data: { state: "STORED", resultId }, error: null };
   });
   const callTool = vi.fn(async () => reply);
@@ -109,5 +111,31 @@ describe("manual Google capture (simulated provider and RPCs)", () => {
     expect(await captureGoogleReport(s.client, project, query, key, actor, keyring, { env, mcpFactory: s.mcpFactory, audit: s.audit }))
       .toEqual({ ok: false, error: "IN_PROGRESS" });
     expect(s.callTool).not.toHaveBeenCalled();
+  });
+
+  it("a provider timeout stores nothing and releases the key; retrying the same key reads again and stores once", async () => {
+    const s = setup();
+    s.callTool.mockRejectedValueOnce(Object.assign(new Error("The operation was aborted"), { name: "AbortError" }));
+    const first = await captureGoogleReport(s.client, project, query, key, actor, keyring, { env, mcpFactory: s.mcpFactory, audit: s.audit });
+    expect(first).toMatchObject({ ok: false });
+    expect(s.captures.get(key)?.state).toBe("RELEASED");
+    expect(s.stored).toHaveLength(0);
+    // Nothing was stored, so the same key may read again: one more provider call, one result.
+    const retry = await captureGoogleReport(s.client, project, query, key, actor, keyring, { env, mcpFactory: s.mcpFactory, audit: s.audit });
+    expect(retry).toMatchObject({ ok: true, replayed: false });
+    expect(s.callTool).toHaveBeenCalledTimes(2);
+    expect(s.stored).toHaveLength(1);
+  });
+
+  it("if the answer of a committed store is lost, retrying the same key returns the stored result without reading again", async () => {
+    const s = setup({ lostStoreResponse: true });
+    expect(await captureGoogleReport(s.client, project, query, key, actor, keyring, { env, mcpFactory: s.mcpFactory, audit: s.audit }))
+      .toEqual({ ok: false, error: "STORE_FAILED" });
+    // The release that follows cannot undo a committed capture: the key stays STORED.
+    expect(s.captures.get(key)?.state).toBe("STORED");
+    const retry = await captureGoogleReport(s.client, project, query, key, actor, keyring, { env, mcpFactory: s.mcpFactory, audit: s.audit });
+    expect(retry).toEqual({ ok: true, resultId: s.captures.get(key)?.resultId, replayed: true, audited: false });
+    expect(s.callTool).toHaveBeenCalledTimes(1);
+    expect(s.stored).toHaveLength(1);
   });
 });

@@ -1,5 +1,11 @@
 # Handoff
 
+## Reintento de capturas — 10/10/2026 (rama `claude/reintento-capturas`)
+
+- Pruebas nuevas: timeout de Google (no guarda, libera la clave y el mismo formulario puede reintentar) y respuesta perdida tras un guardado completado (el reintento devuelve lo guardado sin consultar). pgTAP: liberar una clave guardada no la cambia. Una comprobación de borrado queda acotada al proyecto de la prueba.
+- **Corrección de interfaz:** ante `STORE_FAILED` la página decía «No se ha guardado nada», lo que puede ser falso si se perdió la respuesta. Ahora indica reenviar el mismo formulario.
+- **Procedimiento** [REINTENTO-CAPTURAS](REINTENTO-CAPTURAS.md): prueba A en la base de producción, sin consultar a Google ni escribir (`begin` con la clave guardada dentro de una transacción con `rollback`), y prueba B opcional desde la interfaz. **No ejecutado**; lo hace Juanma.
+
 ## Recuperación completa del estado Google — 10/10/2026 (rama `claude/recuperacion-google`)
 
 - #70 (procedimiento del modo `project`, solo documentación, CI verde) integrado en `main@e71b85a`.
