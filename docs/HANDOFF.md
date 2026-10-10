@@ -1,5 +1,19 @@
 # Handoff
 
+## Verificación SQL alojada y próximos cierres — 10/10/2026
+
+Consulta directa de solo lectura a Rubik `yvdgmklgwlshizzgefpv`, posterior a las capturas visuales de Juanma. Aunque el listado del conector omite este proyecto, execute_sql permitió consultar su base; no se deduce ausencia de acceso del listado.
+
+- GSC `45f2c4c7-fdbd-4700-a940-1cbb8916cfce` y GA4 `e9140843-e880-41c4-afd1-0426dd80bd66`: exactamente una captura STORED por proveedor, resultados OK.
+- Ambos resultados pertenecen al proyecto Sarah `b8d00961-1141-4741-908a-54d2e3bf343a` y su organización. Proveedor, connectionId y propertyBindingId de la procedencia coinciden con el ledger.
+- Cero grupos duplicados por (project_id, idempotency_key); cero result_id compartidos por varias capturas; cero capturas STORED sin resultado. No se ejecutó un reintento real: ausencia actual de duplicados no demuestra por sí sola idempotencia ante reenvío.
+- Una conexión OpenSEO ACTIVE de Sarah; cero jobs STARTING/SYNCING. Historial de migraciones: 16 versiones.
+- La firma criptográfica fue verificada en la aplicación según capturas de Juanma; SQL comprueba relaciones, no sustituye HMAC. Tampoco prueba acceso negativo con una segunda cuenta.
+- Rastreo permanece en legacy; lectura Google usa conexión por proyecto, pero no valida el run/follow de auditorías en project.
+
+Siguiente unidad: comprobar reintento sin consulta adicional con la misma clave (en entorno aislado o procedimiento explícitamente seguro), exportación/verificación de los dos informes existentes y completar aislamiento alojado. Luego activación controlada de project, custodia/credenciales y Preview aislada según decisiones documentadas. Pueden avanzar sin proveedor: comparativas Google, pruebas de recuperación, diseño de conectores y preparación de observación. Ads/Business Profile/redes, Bing, ranking/backlinks y IA no se consideran operativos.
+
+
 ## Checkpoint alojado — 10/10/2026
 
 Juanma aportó la salida de su CLI: proyecto enlazado `yvdgmklgwlshizzgefpv`, siete migraciones aplicadas sin errores y **16 versiones Local/Remote sincronizadas**, hasta `20261012120000`. Evidencia recibida en «Texto pegado(5).txt». No es una consulta directa realizada por este agente.
