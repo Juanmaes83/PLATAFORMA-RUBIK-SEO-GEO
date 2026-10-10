@@ -1,5 +1,12 @@
 # Handoff
 
+## Decisiones ADR 0010 y Preview aislada — 10/10/2026 (rama `claude/decisiones-adr0010-preview`)
+
+- [DECISIONES-ADR0010-Y-PREVIEW](DECISIONES-ADR0010-Y-PREVIEW.md), solo documentación y con fuentes oficiales consultadas hoy.
+- **ADR 0010:** se recomienda la opción B (AES-256-GCM en el servidor) con un anillo separado del HMAC, solo en Production y como *Sensitive*, rotación anual, recuperación por reconexión y paso a KMS cuando haya varios clientes de pago. Vault queda descartado por arquitectura: quien lee la vista descifra.
+- **Preview:** se recomienda la opción A, un segundo proyecto Supabase en Free si hay plaza (0 €; pausa a los 7 días sin actividad), con URL comodín de Vercel en Auth. Branching exige Pro y su coste por horas queda fuera del límite de gasto.
+- **Pendiente de Juanma:** aprobar o elegir en ambas, comprobar la plaza Free en «Rubik Sota» y la clasificación de los scopes en Cloud Console.
+
 ## Capturas periódicas: diseño y simulación — 10/10/2026 (rama `claude/capturas-periodicas`)
 
 - [CAPTURAS-PERIODICAS](CAPTURAS-PERIODICAS.md) y `src/lib/openseo/google/schedule.ts`: planificador puro. Usa ventanas semanales o mensuales cerradas y con margen de retraso, una clave idempotente por ventana, espera exponencial (15 min a 24 h, 5 intentos), bloqueo ante fallos que necesitan una persona, cancelación dentro del mismo tick, tope mensual y recuperación de ventanas perdidas.
