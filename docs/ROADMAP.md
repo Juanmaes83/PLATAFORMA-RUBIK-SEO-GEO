@@ -1,5 +1,16 @@
 # Roadmap de la plataforma
 
+## Checkpoint alojado — 10/10/2026
+
+Juanma aportó la salida de su CLI: proyecto enlazado `yvdgmklgwlshizzgefpv`, siete migraciones aplicadas sin errores y **16 versiones Local/Remote sincronizadas**, hasta `20261012120000`. Evidencia recibida en «Texto pegado(5).txt». No es una consulta directa realizada por este agente.
+
+Los advisors muestran ocho avisos INFO de RLS sin políticas en tablas privadas y un WARN de protección de contraseñas filtradas desactivada. Los INFO coinciden con el diseño RPC-only; no prueban por sí solos los privilegios efectivos ni el aislamiento alojado. El WARN permanece pendiente.
+
+La [CI posterior de main@57e2d97](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/38036496878) terminó completa en verde. Las capturas del propietario muestran la página Google sin propiedades asociadas, lecturas desactivadas e historial vacío. La pantalla de auditoría muestra conexión de proyecto todavía pendiente, cero trabajos activos y las dos entradas históricas OK. OpenSEO muestra datos GSC/GA4, pero eso no verifica su lectura desde Rubik.
+
+Siguiente: crear la conexión de Sarah con consentimiento, comprobar su persistencia, identificar y asociar las propiedades reales, y validar la lectura acotada tras revisar autorización y límites. No cambiar el modo `project` ni declarar la conexión verificada a partir de un formulario rellenado.
+
+
 Fuente de estado de este repositorio. El plan global y sus criterios están en [EXECUTION-PLAN](https://github.com/Juanmaes83/RUBIK-SEO-GEO-CORE/blob/main/docs/core-9/EXECUTION-PLAN.md) del Core.
 
 El catálogo de capacidades SEO/GEO que el propietario quiere cubrir, con el estado actual, piezas parciales del Core y dependencias, está en [SEO-CAPABILITIES-BACKLOG.md](SEO-CAPABILITIES-BACKLOG.md).
