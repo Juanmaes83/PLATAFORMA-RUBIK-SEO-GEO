@@ -1,5 +1,35 @@
 # Handoff
 
+## Cierre de la tanda del 10/10/2026 — B, C y bloques 2, 3 y 4
+
+| Punto | PR | Fusión en `main` |
+|---|---|---|
+| 1 · Procedimiento del modo `project` | #70 | `e71b85a` |
+| B · Recuperación completa del estado Google (migración `20261012130000`) | #71 | `6368cf3` |
+| C · Reintento seguro de capturas | #72 | `edcfa15` |
+| Bloque 3 · Comparar dos capturas Google | #73 | `6eeeb34` |
+| Bloque 4 · Capturas periódicas: diseño y simulación, sin activar | #74 | `742ef55` |
+| Bloque 2 · Recomendación ADR 0010 y Preview aislada (documentación) | #75 | este PR |
+
+- La CI de cada PR y la de `main` tras cada fusión pasaron en verde con el SHA exacto. `npm run verify` en local: 368 tests.
+- **No se ha tocado nada alojado:** ni migraciones, ni variables, ni llamadas a Google u OpenSEO, ni servicios creados.
+- **Pendiente de Juanma, por orden:**
+  1. Aplicar `20261012130000` en alojado. Hasta entonces, la exportación de producción marca `operations.google` como no disponible.
+  2. Ejecutar la prueba A de [REINTENTO-CAPTURAS](REINTENTO-CAPTURAS.md): solo lectura, con `rollback`.
+  3. Verificar la exportación real con el anillo de claves.
+  4. Crear una segunda cuenta de prueba para la matriz de aislamiento.
+  5. Tomar las decisiones A y B del modo `project`.
+  6. Decidir el ADR 0010 y la Preview ([DECISIONES-ADR0010-Y-PREVIEW](DECISIONES-ADR0010-Y-PREVIEW.md)).
+  7. Autorizar una segunda captura de la misma propiedad para la primera comparación real.
+- **Siguiente desarrollo posible sin proveedor:** ADR de la identidad del ejecutor periódico y migración de programaciones en pausa. Ambos están sujetos a la decisión 1 de [CAPTURAS-PERIODICAS](CAPTURAS-PERIODICAS.md).
+
+## Decisiones ADR 0010 y Preview aislada — 10/10/2026 (rama `claude/decisiones-adr0010-preview`)
+
+- [DECISIONES-ADR0010-Y-PREVIEW](DECISIONES-ADR0010-Y-PREVIEW.md), solo documentación y con fuentes oficiales consultadas hoy.
+- **ADR 0010:** se recomienda la opción B (AES-256-GCM en el servidor) con un anillo separado del HMAC, solo en Production y como *Sensitive*, rotación anual, recuperación por reconexión y paso a KMS cuando haya varios clientes de pago. Vault queda descartado por arquitectura: quien lee la vista descifra.
+- **Preview:** se recomienda la opción A, un segundo proyecto Supabase en Free si hay plaza (0 €; pausa a los 7 días sin actividad), con URL comodín de Vercel en Auth. Branching exige Pro y su coste por horas queda fuera del límite de gasto.
+- **Pendiente de Juanma:** aprobar o elegir en ambas, comprobar la plaza Free en «Rubik Sota» y la clasificación de los scopes en Cloud Console.
+
 ## Capturas periódicas: diseño y simulación — 10/10/2026 (rama `claude/capturas-periodicas`)
 
 - [CAPTURAS-PERIODICAS](CAPTURAS-PERIODICAS.md) y `src/lib/openseo/google/schedule.ts`: planificador puro. Usa ventanas semanales o mensuales cerradas y con margen de retraso, una clave idempotente por ventana, espera exponencial (15 min a 24 h, 5 intentos), bloqueo ante fallos que necesitan una persona, cancelación dentro del mismo tick, tope mensual y recuperación de ventanas perdidas.
