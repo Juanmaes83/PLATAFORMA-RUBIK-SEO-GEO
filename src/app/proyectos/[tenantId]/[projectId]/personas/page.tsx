@@ -32,7 +32,7 @@ export default async function PeoplePage({ params, searchParams }: {
   return (
     <>
       <p className="muted small">{project.name}</p>
-      <ProjectNav base={base} current={null} />
+      <ProjectNav base={base} current="personas" />
       <PageHead title="Personas con acceso" />
       <Notice tone="info" text={pick(PEOPLE_NOTICES, aviso)} />
       <Notice tone="error" text={pick(PEOPLE_PAGE_ERRORS, error)} />

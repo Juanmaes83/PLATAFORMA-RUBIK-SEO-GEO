@@ -85,6 +85,10 @@ test.describe("pages at every width (read-only)", () => {
     { name: "30-personas-analista", user: "analyst", path: PEOPLE, text: "Solo la titularidad de la organización gestiona personas" },
     { name: "31-datos-titular", user: "owner", path: DATA, text: "Eventos de auditoría firmada" },
     { name: "32-datos-analista", user: "analyst", path: DATA, text: "Solo la titularidad de la organización ve el inventario" },
+    // Google captures: CI runs with Google reads off and without an OpenSEO connection, so the page
+    // shows its honest states; the capture itself is covered by the local-stack integration test.
+    { name: "33-google-titular", user: "owner", path: `/proyectos/${TENANT}/${PROJECT}/google`, text: "Lecturas de Google desactivadas" },
+    { name: "34-google-analista", user: "analyst", path: `/proyectos/${TENANT}/${PROJECT}/google`, text: "Solo la titularidad del proyecto captura datos de Google" },
   ];
   for (const p of pages) {
     test(p.name, async ({ page }, info) => {

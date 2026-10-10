@@ -29,6 +29,7 @@ export interface ProjectInventory {
   openseoConnections: number;
   webmasterProperties: number;
   googleProperties: number;
+  googleCaptures: number;
   budgets: number;
   spendEntries: number;
   generatedAt: string;
@@ -90,7 +91,7 @@ export async function projectInventory(client: Client, projectId: string): Promi
     const d = data as Record<string, unknown> | null;
     const inv = d?.invitations as Record<string, unknown> | undefined;
     const valid = !!d && isDated(d.auditEvents) && isDated(d.providerResults) && isDated(d.imports)
-      && ["projectMembers", "organizationMembers", "openseoJobs", "openseoConnections", "webmasterProperties", "googleProperties", "budgets", "spendEntries"].every((k) => isCount(d[k]))
+      && ["projectMembers", "organizationMembers", "openseoJobs", "openseoConnections", "webmasterProperties", "googleProperties", "googleCaptures", "budgets", "spendEntries"].every((k) => isCount(d[k]))
       && !!inv && isCount(inv.open) && isCount(inv.closed) && isTime(d.generatedAt);
     return valid ? { ok: true, inventory: d as unknown as ProjectInventory } : { ok: false, error: "PEOPLE_INVALID_RESPONSE" };
   } catch {

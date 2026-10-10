@@ -16,7 +16,7 @@ const person = { userId, email: "persona@ejemplo.test", role: "viewer", organiza
 const dated = { count: 2, first: "2026-10-01T10:00:00Z", last: "2026-10-09T10:00:00Z" };
 const inventory = {
   auditEvents: dated, providerResults: dated, imports: { count: 0, first: null, last: null }, projectMembers: 3, organizationMembers: 4,
-  invitations: { open: 1, closed: 2 }, openseoJobs: 0, openseoConnections: 1, webmasterProperties: 0, googleProperties: 1, budgets: 1, spendEntries: 5, generatedAt: "2026-10-09T12:00:00Z",
+  invitations: { open: 1, closed: 2 }, openseoJobs: 0, openseoConnections: 1, webmasterProperties: 0, googleProperties: 1, googleCaptures: 0, budgets: 1, spendEntries: 5, generatedAt: "2026-10-09T12:00:00Z",
 };
 
 describe("project people client", () => {
