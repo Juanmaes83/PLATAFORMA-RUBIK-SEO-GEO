@@ -1,5 +1,19 @@
 # Estado operativo comprobado — 10/10/2026
 
+## Verificación SQL alojada y próximos cierres — 10/10/2026
+
+Consulta directa de solo lectura a Rubik `yvdgmklgwlshizzgefpv`, posterior a las capturas visuales de Juanma. Aunque el listado del conector omite este proyecto, execute_sql permitió consultar su base; no se deduce ausencia de acceso del listado.
+
+- GSC `45f2c4c7-fdbd-4700-a940-1cbb8916cfce` y GA4 `e9140843-e880-41c4-afd1-0426dd80bd66`: exactamente una captura STORED por proveedor, resultados OK.
+- Ambos resultados pertenecen al proyecto Sarah `b8d00961-1141-4741-908a-54d2e3bf343a` y su organización. Proveedor, connectionId y propertyBindingId de la procedencia coinciden con el ledger.
+- Cero grupos duplicados por (project_id, idempotency_key); cero result_id compartidos por varias capturas; cero capturas STORED sin resultado. No se ejecutó un reintento real: ausencia actual de duplicados no demuestra por sí sola idempotencia ante reenvío.
+- Una conexión OpenSEO ACTIVE de Sarah; cero jobs STARTING/SYNCING. Historial de migraciones: 16 versiones.
+- La firma criptográfica fue verificada en la aplicación según capturas de Juanma; SQL comprueba relaciones, no sustituye HMAC. Tampoco prueba acceso negativo con una segunda cuenta.
+- Rastreo permanece en legacy; lectura Google usa conexión por proyecto, pero no valida el run/follow de auditorías en project.
+
+Siguiente unidad: comprobar reintento sin consulta adicional con la misma clave (en entorno aislado o procedimiento explícitamente seguro), exportación/verificación de los dos informes existentes y completar aislamiento alojado. Luego activación controlada de project, custodia/credenciales y Preview aislada según decisiones documentadas. Pueden avanzar sin proveedor: comparativas Google, pruebas de recuperación, diseño de conectores y preparación de observación. Ads/Business Profile/redes, Bing, ranking/backlinks y IA no se consideran operativos.
+
+
 **Corte más reciente (capturas Google, rama `claude/google-captura`):** guardado firmado e idempotente de lecturas GSC/GA4 implementado y probado en local; migración `20261012120000` pendiente de aplicación alojada autorizada, después de `20261010160000`. Lecturas Google apagadas en producción; ninguna consulta real.
 
 **Corte anterior (Entrega E):** #62 integrado en `main@22a83eb` ([CI posterior verde](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/38003705280)) y #59 en `main@ac70b1d` ([CI posterior de main](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/38005005297)). Pendiente de aplicación alojada autorizada, en este orden: `20261012090000` (invitaciones), `20261012100000` (personas e inventario) y `20261012110000` (inventario de propiedades Google); antes, las páginas de invitaciones, personas y datos muestran «no disponible». Anillo de firma: custodia en dos copias (K1) a cargo de Juanma, próxima rotación el 09/10/2027 (K2). Prueba de aislamiento alojada con dos cuentas: autorizada, no ejecutada. Ninguna escritura de prueba en Preview ni producción. `npm audit --omit=dev`: dos avisos altos (`next`, `source-map-js`); corrección con `next@16.3.8` y `source-map-js@1.2.2` en la rama `claude/seguridad-dependencias` (producción queda en 0). Quedan 5 avisos altos solo de desarrollo (`braces` en el lint de Next), sin corrección publicada.
