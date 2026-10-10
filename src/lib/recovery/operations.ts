@@ -34,6 +34,8 @@ export const NOT_INCLUDED = Object.freeze([
   "signing-keys: the HMAC keyring lives outside the database and must be kept separately by the owner",
   "revoked-openseo-connections: only the active connection is readable through the owner RPC",
   "openseo-jobs-without-stored-results: jobs that never stored a result have no audit id to look them up",
+  "google-property-bindings: GSC/GA4 property associations are not in export v2 and require explicit reauthorization after restore",
+  "google-captures-ledger: stored result signatures survive but capture idempotency keys and ledger rows are not restored",
   "credentials: no provider credential is stored by the platform or exported",
 ]);
 
