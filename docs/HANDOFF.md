@@ -1,5 +1,30 @@
 # Handoff
 
+## Verificación SQL alojada y próximos cierres — 10/10/2026
+
+Consulta directa de solo lectura a Rubik `yvdgmklgwlshizzgefpv`, posterior a las capturas visuales de Juanma. Aunque el listado del conector omite este proyecto, execute_sql permitió consultar su base; no se deduce ausencia de acceso del listado.
+
+- GSC `45f2c4c7-fdbd-4700-a940-1cbb8916cfce` y GA4 `e9140843-e880-41c4-afd1-0426dd80bd66`: exactamente una captura STORED por proveedor, resultados OK.
+- Ambos resultados pertenecen al proyecto Sarah `b8d00961-1141-4741-908a-54d2e3bf343a` y su organización. Proveedor, connectionId y propertyBindingId de la procedencia coinciden con el ledger.
+- Cero grupos duplicados por (project_id, idempotency_key); cero result_id compartidos por varias capturas; cero capturas STORED sin resultado. No se ejecutó un reintento real: ausencia actual de duplicados no demuestra por sí sola idempotencia ante reenvío.
+- Una conexión OpenSEO ACTIVE de Sarah; cero jobs STARTING/SYNCING. Historial de migraciones: 16 versiones.
+- La firma criptográfica fue verificada en la aplicación según capturas de Juanma; SQL comprueba relaciones, no sustituye HMAC. Tampoco prueba acceso negativo con una segunda cuenta.
+- Rastreo permanece en legacy; lectura Google usa conexión por proyecto, pero no valida el run/follow de auditorías en project.
+
+Siguiente unidad: comprobar reintento sin consulta adicional con la misma clave (en entorno aislado o procedimiento explícitamente seguro), exportación/verificación de los dos informes existentes y completar aislamiento alojado. Luego activación controlada de project, custodia/credenciales y Preview aislada según decisiones documentadas. Pueden avanzar sin proveedor: comparativas Google, pruebas de recuperación, diseño de conectores y preparación de observación. Ads/Business Profile/redes, Bing, ranking/backlinks y IA no se consideran operativos.
+
+
+## Checkpoint alojado — 10/10/2026
+
+Juanma aportó la salida de su CLI: proyecto enlazado `yvdgmklgwlshizzgefpv`, siete migraciones aplicadas sin errores y **16 versiones Local/Remote sincronizadas**, hasta `20261012120000`. Evidencia recibida en «Texto pegado(5).txt». No es una consulta directa realizada por este agente.
+
+Los advisors muestran ocho avisos INFO de RLS sin políticas en tablas privadas y un WARN de protección de contraseñas filtradas desactivada. Los INFO coinciden con el diseño RPC-only; no prueban por sí solos los privilegios efectivos ni el aislamiento alojado. El WARN permanece pendiente.
+
+La [CI posterior de main@57e2d97](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/38036496878) terminó completa en verde. Evidencia posterior del propietario (10/10/2026, 11:30–11:36 CEST): conexión OpenSEO de Sarah ACTIVE, host autorizado `www.sarahkaterina.com`; propiedades GSC `https://sarahkaterina.es/` y GA4 `properties/519462393` asociadas. Guardó `OPENSEO_GOOGLE_READS_ENABLED=true` solo en Production y redesplegó `main@57e2d97`; la captura Vercel muestra Ready/Latest y la aplicación «Lecturas de Google activadas». Ambas capturas reales figuran OK en el historial y sus detalles muestran «Firma verificada» y «Completa», periodo 2026-09-10–2026-10-07. GA4 devuelve páginas de www.sarahkaterina.com; GSC dos páginas de sarahkaterina.es con 4 y 16 impresiones y cero clics. Son propiedades distintas: no atribuir el informe GSC al dominio .com. Evidencia visual aportada por Juanma; no comprobación SQL de este agente.
+
+Siguiente: comprobar por SQL de solo lectura la vinculación de estas capturas al proyecto y la ausencia de duplicados; completar aislamiento alojado entre clientes y recuperación. No repetir llamadas para documentar. El rastreo permanece en `legacy`: esta prueba Google no valida ni activa el encaminamiento de auditorías en modo `project`.
+
+
 ## 10/10/2026 — revisión documental tras #66 (rama docs/checkpoint-google-captures-20261010)
 
 - Base comprobada: `main@aea14abadedd04539ddd0e08b697f72411237378`, merge de #66; [CI posterior completa verde](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/38009409329). Última CI del PR #66 también verde en `63037cb83857798fd967197b9f7f997f3ab7d512` ([38008780641](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/38008780641)).
