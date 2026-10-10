@@ -1,5 +1,15 @@
 # Handoff
 
+## C1 · Herramienta local para verificar la exportación — 10/10/2026 (rama `claude/sleepy-rubin-1fjebx`)
+
+- **Base:** `main@87b3947` (tras fusionar #76, el relevo, con la CI en verde en su SHA `aa60346`).
+- **Qué añade:** `npm run verify:export -- <exportacion.json> [--keyring <anillo.env>] [--json]` (`scripts/verify-export.mjs`). Ejecuta `verifyProjectExport` en el equipo de Juanma, sin Next.js, base de datos ni red. Los módulos TypeScript de la aplicación se cargan con la eliminación de tipos de Node y unos ganchos de resolución (`scripts/lib/app-ts-hooks.mjs`: alias `@/`, `server-only` vacío, JSON como módulo). No añade dependencias.
+- **Garantías:** no imprime claves ni valores (solo el número de claves y el identificador activo), rechaza ficheros versionados en Git y avisa si están dentro del repositorio. `operations.google` se muestra como recuento informativo, fuera del veredicto. Salidas: `0` verificada, `1` no verificada, `2` error de entrada.
+- **Pruebas:** `tests/verify-export-cli.test.ts` (6, proceso Node aparte, claves aleatorias, ficheros temporales fuera del repo). `npm run verify` en local: 40 ficheros, **374 tests**, lint, typecheck y build en verde.
+- **Documentación:** procedimiento paso a paso de J3 en [RECUPERACION-PILOTO](RECUPERACION-PILOTO.md) §«Herramienta local».
+- **Nada alojado tocado.** No se ha usado ningún secreto ni llamado a ningún proveedor.
+- **Siguiente:** Juanma ejecuta J1 (migración) y después J3 con esta herramienta. Claude sigue con C3 (ADR de la identidad del ejecutor periódico).
+
 ## Relevo a cuenta nueva — 10/10/2026 (rama `claude/relevo-cuenta-nueva`)
 
 - **Punto de partida:** `main@992003b`, CI en verde. El prompt de continuación y las tareas por responsable (J1–J13 de Juanma, C1–C7 de Claude) están en [relevos/CONTINUACION-NUEVA-CUENTA](relevos/CONTINUACION-NUEVA-CUENTA.md).

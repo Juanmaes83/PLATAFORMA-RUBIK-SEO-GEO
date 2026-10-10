@@ -39,8 +39,41 @@ Cada parte de `operations` lleva su propio `ok` o código de error. Si falla una
 
 Pruebas: `tests/recovery.test.ts`, con claves aleatorias por ejecución y sin base de datos, proveedor ni red.
 
+### Herramienta local: `npm run verify:export` (C1, 10/10/2026)
+
+Para que el propietario verifique en su equipo una exportación descargada de Producción. Usa la misma función `verifyProjectExport`, sin Next.js ni base de datos (`scripts/verify-export.mjs`).
+
+**Qué hace y qué no:**
+- Lee dos ficheros locales: la exportación y, opcionalmente, un fichero del anillo.
+- No envía nada por red, no escribe nada y no repara ni re-firma el fichero.
+- No imprime claves ni valores de clave: del anillo solo muestra cuántas claves tiene y el identificador de la activa, que no es secreto (ADR 0004).
+- Se niega a usar un fichero versionado en Git y avisa si la exportación o el anillo están dentro del repositorio.
+- El estado Google (`operations.google`) se muestra como recuento informativo: no va firmado y no cuenta para el veredicto. Si aparece «sin operations.google» o «no disponible», la migración `20261012130000` no estaba aplicada al exportar.
+
+**Procedimiento para J3 (lo ejecuta Juanma):**
+1. Requisitos: Node 22.12 o posterior y una copia del repositorio con `npm ci`. No hace falta `.env` de la aplicación.
+2. Crea un fichero del anillo **fuera del repositorio**, por ejemplo `~/rubik-privado/anillo.env`, con permisos solo para ti (`chmod 600`). Contiene las dos variables de Producción, copiadas de tu custodia ([CUSTODIA-CLAVES](CUSTODIA-CLAVES.md)), no de Vercel en pantalla compartida:
+   ```
+   PROVENANCE_SIGNING_KEYS=<id>:<base64>[,<id>:<base64>…]
+   PROVENANCE_ACTIVE_KEY_ID=<id>
+   ```
+3. En Producción, con tu sesión de owner, descarga `/proyectos/{tenant}/{proyecto}/exportar` de Sarah y guárdalo también fuera del repositorio, por ejemplo `~/rubik-privado/sarah-export.json`. La descarga registra un evento `project.export` y no consulta proveedores.
+4. Ejecuta desde la carpeta del repositorio:
+   ```
+   npm run verify:export -- ~/rubik-privado/sarah-export.json --keyring ~/rubik-privado/anillo.env
+   ```
+   Sin `--keyring`, toma las dos variables del entorno de la terminal. `--json` da el informe en JSON.
+5. Resultado esperado: `RESULTADO: VERIFICADA`, auditoría válida con N eventos, todos los resultados firmados verificados (incluidas las capturas GSC `45f2c4c7-…` y GA4 `e9140843-…`), «La verificación escrita coincide con la recalculada» y, si J1 está hecho, un recuento de conexiones, asociaciones y capturas Google distinto de cero.
+6. Para la evidencia (C6), comparte **solo** las líneas de recuento y el veredicto, o el JSON sin el fichero. Nunca subas a Git ni pegues en el chat la exportación ni el anillo.
+
+**Códigos de salida:** `0` verificada; `1` no verificada (auditoría rota, firma que no cuadra o verificación escrita distinta de la recalculada); `2` error de uso o de entrada (fichero ilegible, anillo mal formado, fichero que no es una exportación, fichero versionado).
+
+**Si sale `NO VERIFICADA`:** no repares el fichero. Con «Auditoría: ROTA … (SIGNATURE)» en la posición 0 y todos los resultados fallidos, lo habitual es un anillo distinto del de Producción o sin la clave antigua tras una rotación. Si solo falla una parte, el fichero se ha alterado o hay un problema real: guarda el fichero y avisa antes de seguir.
+
+Pruebas: `tests/verify-export-cli.test.ts` ejecuta el script en un proceso Node aparte con claves aleatorias y ficheros temporales fuera del repositorio. Cubre exportación auténtica, anillo desde el entorno, manipulación, anillo ajeno, salida JSON, errores de entrada sin eco de valores y rechazo de un fichero versionado.
+
 ## Pendiente (no implementado)
 
 - **Restauración:** el ensayo local de `RECUPERACION-ENSAYO.md` ya recupera auditoría, resultados firmados e importaciones conservando UUID y firmas. Desde `20261012130000` también restaura el estado Google. Sigue sin estar autorizado ni probado en alojado.
-- **Prueba humana:** que Juanma descargue la exportación de Sarah en producción y se verifique con el keyring custodiado. Descargar no escribe en la base de datos salvo el evento `project.export` en la auditoría.
+- **Prueba humana (J3):** que Juanma descargue la exportación de Sarah en producción y la verifique con el keyring custodiado mediante `npm run verify:export` (procedimiento arriba). Descargar no escribe en la base de datos salvo el evento `project.export` en la auditoría.
 - **Política de retención y copias periódicas:** decisión del propietario.
