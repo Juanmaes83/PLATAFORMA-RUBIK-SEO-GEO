@@ -6,18 +6,18 @@ Juanma aportó la salida de su CLI: proyecto enlazado `yvdgmklgwlshizzgefpv`, si
 
 Los advisors muestran ocho avisos INFO de RLS sin políticas en tablas privadas y un WARN de protección de contraseñas filtradas desactivada. Los INFO coinciden con el diseño RPC-only; no prueban por sí solos los privilegios efectivos ni el aislamiento alojado. El WARN permanece pendiente.
 
-La [CI posterior de main@57e2d97](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/38036496878) terminó completa en verde. Las capturas del propietario muestran la página Google sin propiedades asociadas, lecturas desactivadas e historial vacío. La pantalla de auditoría muestra conexión de proyecto todavía pendiente, cero trabajos activos y las dos entradas históricas OK. OpenSEO muestra datos GSC/GA4, pero eso no verifica su lectura desde Rubik.
+La [CI posterior de main@57e2d97](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/38036496878) terminó completa en verde. Evidencia posterior del propietario (10/10/2026, 11:30–11:36 CEST): conexión OpenSEO de Sarah ACTIVE, host autorizado `www.sarahkaterina.com`; propiedades GSC `https://sarahkaterina.es/` y GA4 `properties/519462393` asociadas. Guardó `OPENSEO_GOOGLE_READS_ENABLED=true` solo en Production y redesplegó `main@57e2d97`; la captura Vercel muestra Ready/Latest y la aplicación «Lecturas de Google activadas». Ambas capturas reales figuran OK en el historial y sus detalles muestran «Firma verificada» y «Completa», periodo 2026-09-10–2026-10-07. GA4 devuelve páginas de www.sarahkaterina.com; GSC dos páginas de sarahkaterina.es con 4 y 16 impresiones y cero clics. Son propiedades distintas: no atribuir el informe GSC al dominio .com. Evidencia visual aportada por Juanma; no comprobación SQL de este agente.
 
-Siguiente: crear la conexión de Sarah con consentimiento, comprobar su persistencia, identificar y asociar las propiedades reales, y validar la lectura acotada tras revisar autorización y límites. No cambiar el modo `project` ni declarar la conexión verificada a partir de un formulario rellenado.
+Siguiente: comprobar por SQL de solo lectura la vinculación de estas capturas al proyecto y la ausencia de duplicados; completar aislamiento alojado entre clientes y recuperación. No repetir llamadas para documentar. El rastreo permanece en `legacy`: esta prueba Google no valida ni activa el encaminamiento de auditorías en modo `project`.
 
 
 Fuente de estado de este repositorio. El plan global y sus criterios están en [EXECUTION-PLAN](https://github.com/Juanmaes83/RUBIK-SEO-GEO-CORE/blob/main/docs/core-9/EXECUTION-PLAN.md) del Core.
 
 El catálogo de capacidades SEO/GEO que el propietario quiere cubrir, con el estado actual, piezas parciales del Core y dependencias, está en [SEO-CAPABILITIES-BACKLOG.md](SEO-CAPABILITIES-BACKLOG.md).
 
-## Checkpoint vigente — 10/10/2026, revisión de main@aea14ab
+## Checkpoint histórico — 10/10/2026, revisión de main@aea14ab
 
-**Prevalece sobre los estados anteriores de este documento.** #57–#66 están integrados; solo permanecen abiertos #40 y los PR documentales históricos #9/#11 en la comprobación de GitHub. La [CI de main@aea14abadedd04539ddd0e08b697f72411237378](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/38009409329) terminó completa en verde. No se comprobó aquí un despliegue Vercel ni acceso alojado.
+**Corte histórico; el checkpoint alojado superior incorpora la evidencia posterior.** #57–#66 están integrados; solo permanecen abiertos #40 y los PR documentales históricos #9/#11 en la comprobación de GitHub. La [CI de main@aea14abadedd04539ddd0e08b697f72411237378](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/38009409329) terminó completa en verde. No se comprobó aquí un despliegue Vercel ni acceso alojado.
 
 - **Google (#66): código integrado** para asociación, captura manual GSC/GA4, resultado firmado e idempotente, historial y detalle en `/proyectos/<org>/<proyecto>/google`. La evidencia del flujo es local/CI con proveedor simulado. Las frases anteriores «sin caller», «no guarda capturas» o «sin UI» describen los cortes #60–#62, no este estado.
 - **Acceso y recuperación (#59/#63):** invitaciones por enlace de un solo uso, retirada de acceso, ensayo de restauración e inventario integrados; custodia e aislamiento alojado requieren completar los pasos del propietario.
