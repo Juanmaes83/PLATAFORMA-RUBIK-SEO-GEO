@@ -1,6 +1,12 @@
 # Roadmap de la plataforma
 
-## Verificación SQL alojada y próximos cierres — 10/10/2026
+## Estado vigente y siguientes entregables — 10/10/2026
+
+Las 16 migraciones constan aplicadas en Rubik `yvdgmklgwlshizzgefpv`. Sarah tiene una conexión OpenSEO `ACTIVE`; las capturas reales GSC y GA4 del 10/10 están `STORED/OK`, con procedencia vinculada al proyecto. Juanma verificó sus detalles y firmas en la interfaz. La comprobación SQL, separada de la evidencia visual, está en [OPERATIONS-STATUS](OPERATIONS-STATUS.md); ninguna prueba un reintento real ni aislamiento alojado entre dos cuentas. El rastreo continúa en `legacy`, sin prueba de run/follow en `project`.
+
+Siguientes entregables: exportar y verificar los informes existentes; ensayar su restauración, incluido el estado operativo Google; probar reintento con la misma clave sin nueva consulta; completar aislamiento alojado y preparar activación reversible de `project` para aprobación específica. Las comparativas de capturas guardadas pueden avanzar sin proveedor. Credenciales por cliente (ADR 0010) y Preview aislada siguen pendientes de decisión. Web, Studio, contenido y lanzamiento de Sarah son otro frente, no una fase completada de Rubik.
+
+### Evidencia de partida (detalle operativo en OPERATIONS-STATUS)
 
 Consulta directa de solo lectura a Rubik `yvdgmklgwlshizzgefpv`, posterior a las capturas visuales de Juanma. Aunque el listado del conector omite este proyecto, execute_sql permitió consultar su base; no se deduce ausencia de acceso del listado.
 
@@ -67,9 +73,9 @@ Juanma confirma que Claude está detenido y autoriza a Codex a asumir el código
 
 No hay nuevas migraciones alojadas, conexión Sarah, cambio de modo, secretos ni llamadas reales. Validación humana pendiente. El historial de abajo se conserva como evidencia y no sustituye este relevo.
 
-## Checkpoint operativo — 09/10/2026 (Europe/Madrid)
+## Checkpoint histórico — 09/10/2026 (Europe/Madrid)
 
-**Estado vigente (09/10/2026). El historial de checkpoints se conserva más abajo; prevalecen este bloque y la agrupación operativa.**
+**Corte histórico:** las cifras y pendientes de este bloque corresponden al 09/10. El estado vigente del 10/10 está al inicio de este documento y en OPERATIONS-STATUS; en particular, no volver a crear la conexión de Sarah ni aplicar las migraciones ya registradas.
 
 #49–#54 integradas (`main@9e8f818`, producción `READY` en `dpl_EbGrPjMmzkgAndoLp6f9erY55uGX`): vigencia de informes, exportación v2 y verificación offline, lista previa al modo `project`, capacidades de OpenSEO, presupuesto y registro de consumo (migración `20261010090000` **sin aplicar** en alojado) y recuperación de contraseña (falta la plantilla alojada «Reset password»). Comparación de dos capturas firmadas de incidencias integrada en #55. Producción sigue en `legacy`, sin conexión de Sarah. Decisiones pendientes de Juanma y responsables del relevo en [HANDOFF](HANDOFF.md).
 
@@ -89,6 +95,8 @@ Supabase Rubik `yvdgmklgwlshizzgefpv`: el propietario aplicó con su CLI las cua
 ## Agrupación operativa en seis fases
 
 Esta tabla organiza el trabajo; no sustituye los identificadores CORE-9.x, los contratos del Core ni los ADR. Una CI verde prueba el código, no concede permisos de proveedor, presupuesto, aprobación visual ni autorización de lanzamiento. **Codex** implementa y prueba; **Juanma** decide costes/credenciales y valida los flujos visibles. HANDOFF conserva la secuencia y OPERATIONS-STATUS la evidencia operativa.
+
+Las columnas «Estado y evidencia» de las filas de acceso y Google conservan cortes anteriores a las capturas del 10/10: prevalece el estado vigente inicial y la evidencia operativa. Las migraciones de invitaciones, personas, inventario y capturas Google constan entre las 16 registradas; las lecturas GSC/GA4 de Sarah ya tienen evidencia real. La recuperación y el reintento real siguen pendientes.
 
 | Fase / unidad | Entregable | Dependencias | Pruebas | Criterio de cierre | Responsable | Estado y evidencia |
 |---|---|---|---|---|---|---|

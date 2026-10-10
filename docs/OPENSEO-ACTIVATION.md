@@ -1,6 +1,6 @@
 # Activar el guardado firmado de OpenSEO
 
-Estado 09/10/2026: las nueve migraciones están aplicadas en `yvdgmklgwlshizzgefpv`. Producción sigue en modo `legacy`. El guardado de un informe de Sarah **ya está verificado** por prueba visual del propietario y SQL de solo lectura (sección A y HANDOFF); la conexión de Sarah y el modo `project` siguen sin verificar (sección B). Ninguna CI ni despliegue `READY` certifica estos últimos pasos.
+**Estado vigente 10/10/2026:** constan 16 migraciones aplicadas en `yvdgmklgwlshizzgefpv`. Producción sigue en `legacy`. El guardado de la auditoría de Sarah y las capturas GSC/GA4 tienen evidencia visual y SQL separadas en [OPERATIONS-STATUS](OPERATIONS-STATUS.md). Hay una conexión OpenSEO `ACTIVE` de Sarah y cero jobs `STARTING/SYNCING`; el host autorizado es solo `www.sarahkaterina.com`. No crear otra conexión ni ampliar hosts automáticamente. La selección de destino y run/follow en `project` **no** están verificados ni autorizados para activación. Los pasos y conteos fechados 09/10 de abajo son históricos y no deben ejecutarse otra vez.
 
 ## Acceso y destino
 
