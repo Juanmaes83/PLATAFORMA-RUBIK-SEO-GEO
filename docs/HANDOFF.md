@@ -1,5 +1,18 @@
 # Handoff
 
+## 10/10/2026 — revisión documental tras #66 (rama docs/checkpoint-google-captures-20261010)
+
+- Base comprobada: `main@aea14abadedd04539ddd0e08b697f72411237378`, merge de #66; [CI posterior completa verde](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/38009409329). Última CI del PR #66 también verde en `63037cb83857798fd967197b9f7f997f3ab7d512` ([38008780641](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/actions/runs/38008780641)).
+- README y ROADMAP conservaban el corte #61/#62 («sin caller/persistencia/UI»). Se corrigen los estados vigentes para reflejar #66; se conserva el historial original identificado como histórico.
+- Solo documentación en rama independiente. No se modifica código, configuración, flags, datos, migraciones ni ramas de otros agentes. La comprobación de agentes de esta sesión solo mostró al revisor; no permite afirmar que no haya agentes externos trabajando.
+- Verificación de esta unidad: lectura de README, ROADMAP, HANDOFF, instrucciones de repositorio, plan/especificación Core, PR abiertos/cerrados y CI remota. No se reprodujeron `npm run verify`, pgTAP, integración ni e2e en este entorno para esta corrección documental. La CI del nuevo PR se comprueba separadamente.
+- No se verifica producción Vercel, aplicación alojada de migraciones, asociación real Sarah ni lectura Google. Esos estados siguen pendientes; rastreo `legacy` y lecturas Google apagadas según el relevo.
+- Hallazgo de recuperación tras #66: la exportación incluye las capturas Google como `provider_results` firmados y el ensayo las restaura y verifica, pero no exporta/restaura `openseo_google_properties` ni `google_captures`. El informe histórico se conserva; la asociación ACTIVE y la idempotencia operacional no. Documentado en RECUPERACION-PILOTO y RECUPERACION-ENSAYO.
+- Paquete alojado preparado, **no ejecutado**: [MIGRACIONES-PENDIENTES-20261010](MIGRACIONES-PENDIENTES-20261010.md) enumera las siete migraciones pendientes sobre las nueve versiones documentadas, el dry-run esperado y las condiciones de parada. Se añadió el rollback que faltaba para `20261010160000`; no se afirma historial remoto actual sin repetir `migration list --linked`.
+- **PR #40 revisado:** su CI histórica está verde en `f9d4f40`, pero parte de `main@8d56e18` y GitHub lo marca actualmente como no fusionable contra `main@aea14ab`. El ADR y el módulo AES-256-GCM no existen en `main`, por lo que son trabajo a rescatar en una rama limpia después de la decisión de custodia; no deben fusionarse ni declararse integrados en su estado actual.
+- Próxima unidad: el propietario compara el historial y dry-run con el paquete, con copia de seguridad, antes de decidir una aplicación. Después se valida interfaz/aislamiento sin proveedor; lectura real y conexiones requieren autorización específica.
+
+
 ## 10/10/2026 — fase 3: capturas Google guardadas (rama `claude/google-captura`)
 
 - Integrados antes: #64 (seguridad, `main@601d555`) y #65 (borrado sin huérfanos, `main@4e78608`), los dos con la CI de PR completa y verde.

@@ -24,6 +24,7 @@ Cada parte de `operations` lleva su propio `ok` o código de error. Si falla una
 - **Claves de firma (HMAC):** viven fuera de la base de datos. Sin ellas, el fichero se puede leer pero no verificar. El propietario debe custodiar una copia del keyring fuera de Vercel; la rotación conserva las claves antiguas para verificar el histórico (ADR 0004).
 - **Conexiones OpenSEO revocadas** y **jobs sin resultado guardado:** no se pueden leer con las RPC del owner.
 - **Credenciales de proveedores:** la plataforma no las guarda (ADR 0010 pendiente) y nunca las exporta.
+- **Estado operativo Google:** los informes GSC/GA4 firmados sí están en `results`, pero la exportación v2 no incluye `openseo_google_properties` ni `google_captures`. Restaurar el resultado conserva su firma y sus identificadores de origen; no recrea la asociación activa ni la reserva/idempotencia de la captura. Antes de nuevas lecturas hay que volver a asociar explícitamente la propiedad.
 
 ## Verificar una copia sin base de datos
 
@@ -38,6 +39,6 @@ Pruebas: `tests/recovery.test.ts`, con claves aleatorias por ejecución y sin ba
 
 ## Pendiente (no implementado)
 
-- **Restauración** a una base nueva conservando los UUID originales. Exige una decisión sobre el entorno aislado (PREVIEWS-E-INTEGRACIONES) y un procedimiento probado en local antes de cualquier uso real.
+- **Restauración:** el ensayo local de `RECUPERACION-ENSAYO.md` ya recupera auditoría, resultados firmados e importaciones conservando UUID y firmas. Sigue sin estar autorizado ni probado en alojado y no restaura el estado operativo Google descrito arriba.
 - **Prueba humana:** que Juanma descargue la exportación de Sarah en producción y se verifique con el keyring custodiado. Descargar no escribe en la base de datos salvo el evento `project.export` en la auditoría.
 - **Política de retención y copias periódicas:** decisión del propietario.
