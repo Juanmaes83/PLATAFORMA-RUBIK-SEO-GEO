@@ -44,13 +44,15 @@ export const PREVIEW_LOCKED_NOTICE =
 
 /**
  * Vercel Previews share the production Supabase project until an isolated one exists
- * (docs/DECISIONES-ADR0010-Y-PREVIEW.md §2). There, no session is ever created: without a user
- * JWT, RLS gives the publishable key nothing to read or write. Setting
- * PREVIEW_SUPABASE_ISOLATED=true (only together with Preview-scoped Supabase variables of a
- * separate project) lifts the lock. Production and local development are not affected.
+ * (docs/DECISIONES-ADR0010-Y-PREVIEW.md §2). No session is created on Preview even
+ * when it still has production Supabase variables. A boolean environment switch is not proof
+ * of an isolated database: never allow PREVIEW_SUPABASE_ISOLATED to bypass the lock.
+ * Restoring Preview authentication requires a separately reviewed change, after Vercel is
+ * configured with its own Supabase project and isolation has been verified.
+ * Production and local development are unaffected.
  */
 export function previewLocked(env: Env): boolean {
-  return (env.VERCEL_ENV ?? "").trim() === "preview" && (env.PREVIEW_SUPABASE_ISOLATED ?? "").trim() !== "true";
+  return (env.VERCEL_ENV ?? "").trim() === "preview";
 }
 
 /** The public Supabase settings, or null when they are missing, unusable or locked in a Preview. */
