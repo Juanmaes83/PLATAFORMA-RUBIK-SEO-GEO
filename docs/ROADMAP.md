@@ -1,13 +1,23 @@
 # Roadmap de la plataforma
 
-## Night shift 15/10/2026 — Grupo 3 local, piloto y seguridad (sin cambios en producción)
+## Checkpoint verificado — 15/10/2026 (posterior a PR #87)
 
-Base `main@506ea91`. Detalle y cifras en [NIGHTSHIFT-RESULTS](NIGHTSHIFT-RESULTS.md). Todas Draft, sin CI (facturación de GitHub Actions):
-- **#85** Grupo 3: matriz completa de identidades × 13 RPC, no revelación de existencia, PostgREST crudo, invariantes de catálogo. Integración 71/71, pgTAP 532/532, verify 374/374. Estado: **implementación local validada, aislamiento alojado pendiente**.
-- **#86** Piloto: reintento de captura concurrente (1 llamada, 1 resultado), modo OpenSEO `project` en base real, ensayo de `20261012130000` con rollback. Integración 60/60.
-- **#87** Exportación: manifiesto firmado que demuestra la completitud (antes un fichero recortado verificaba). verify 380/380, integración 57/57, e2e de exportación 3/3.
-- **#88** Previews de Vercel sin sesión mientras compartan la base de producción (`preview-locked`). verify 375/375; comprobado en la Preview real.
-- Pendientes del propietario: fase B alojada, `20261012130000` en alojado, ADR 0010, Preview aislada, contraseñas filtradas (requiere Pro), cerrar #81 como superada.
+**PR #87 fusionada en main** mediante squash commit `ccdf104a2ecf566ff1818e76e8f3490841a18273` (head validado `a1e526be5746a65c2c1e9ecb8e6deba6278b7cd0`). Exportaciones con manifiesto firmado y restauración fail-closed; no se aceptan exportaciones legacy/UNPROVEN para restauración normal. En el entorno local del propietario: `npm run verify` OK (381 unitarias, lint, TypeScript, secretos y build), `test:integration` 57/57 y `test:db` 518/518. Total 956 pruebas; **esta evidencia es local, no CI de GitHub ni ensayo alojado**. Sin escrituras al Supabase alojado `yvdgmklgwlshizzgefpv`.
+
+**Próximas PRs abiertas en borrador (sin fusionar ni validar contra este main):**
+
+| PR | Alcance | Siguiente gate / decisión |
+|---|---|---|
+| [#85](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/85) | Matriz Grupo 3 de aislamiento multiidentidad, SQL y RPC | Rebase/actualización con main; ejecutar matriz local y revisar negativos; evidencia alojada por separado, solo lectura sin autorización específica. |
+| [#86](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/86) | Piloto Sarah: concurrencia/idempotencia, modo project y recuperación local | Actualizar base; integración/SQL/verify; no activar modo project ni alterar Sarah alojada sin aprobación explícita. |
+| [#88](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/88) | Bloqueo de autenticación en Vercel Preview | Revisar compatibilidad con main, revisar bypasss y e2e; comprobar Preview con acceso controlado, sin exposición de datos alojados. |
+| [#89](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/89) | Informe/documentación del trabajo nocturno | Reconciliar hechos con #87 fusionada y nuevas pruebas; evitar estados duplicados u obsoletos. |
+| [#90](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/90) | Diseño de mitigación para inserciones de auditoría y altas de miembros sin consentimiento | Solo diseño: decidir arquitectura antes de cualquier migración o cambio de permisos; revisión de seguridad específica. |
+
+**Auditoría Preview #88 (15/10, evidencia parcial):** Vercel mostró Deployment `READY` para `6a519290`, `/api/salud` respondió `auth: preview-locked`, `persistence: none`, y `/acceso` y `/panel` mostraron aviso de bloqueo. La configuración actual comparte las variables públicas de Supabase entre Preview y Production. Se eliminó del código la vía de escape `PREVIEW_SUPABASE_ISOLATED=true`: una bandera no demuestra que exista una base aislada. **Pendiente:** tests locales completos y negativos de sesión/cookies, revisión de permisos y fusión expresa de #88. READY y HTTP anónimo no equivalen a prueba de aislamiento con JWT.
+
+**Orden propuesto:** #88 (riesgo Preview) → #85 (aislamiento) → #86 (piloto) → #90 (seguridad de arquitectura) → #89 (consolidación documental), condicionado por conflictos y hallazgos. No equivale a aprobación de merge de esas PR. Otros gates pendientes del roadmap histórico (aislamiento alojado con cuentas diferenciadas, configuración de seguridad y despliegue comercial) siguen pendientes hasta evidencia específica.
+
 
 ## Aclaración Grupo 1 — permisos por columna (14/10/2026)
 
