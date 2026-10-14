@@ -14,6 +14,8 @@
 | [#89](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/89) | Informe/documentación del trabajo nocturno | Reconciliar hechos con #87 fusionada y nuevas pruebas; evitar estados duplicados u obsoletos. |
 | [#90](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/90) | Diseño de mitigación para inserciones de auditoría y altas de miembros sin consentimiento | Solo diseño: decidir arquitectura antes de cualquier migración o cambio de permisos; revisión de seguridad específica. |
 
+**Auditoría Preview #88 (15/10, evidencia parcial):** Vercel mostró Deployment `READY` para `6a519290`, `/api/salud` respondió `auth: preview-locked`, `persistence: none`, y `/acceso` y `/panel` mostraron aviso de bloqueo. La configuración actual comparte las variables públicas de Supabase entre Preview y Production. Se eliminó del código la vía de escape `PREVIEW_SUPABASE_ISOLATED=true`: una bandera no demuestra que exista una base aislada. **Pendiente:** tests locales completos y negativos de sesión/cookies, revisión de permisos y fusión expresa de #88. READY y HTTP anónimo no equivalen a prueba de aislamiento con JWT.
+
 **Orden propuesto:** #88 (riesgo Preview) → #85 (aislamiento) → #86 (piloto) → #90 (seguridad de arquitectura) → #89 (consolidación documental), condicionado por conflictos y hallazgos. No equivale a aprobación de merge de esas PR. Otros gates pendientes del roadmap histórico (aislamiento alojado con cuentas diferenciadas, configuración de seguridad y despliegue comercial) siguen pendientes hasta evidencia específica.
 
 
