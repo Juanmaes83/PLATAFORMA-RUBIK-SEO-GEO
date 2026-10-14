@@ -221,6 +221,45 @@ describe("tenant isolation through the Data API", () => {
     }
   });
 
+  it("a project analyst cannot access connector management or another tenant's connection", async () => {
+    const owner = await a.rpc("openseo_connection", { p_project_id: ids.a1, p_command: "get" });
+    expect(owner.error).toBeNull();
+    const analyst = await c.rpc("openseo_connection", { p_project_id: ids.a1, p_command: "get" });
+    expect(analyst.error?.code).toBe("42501");
+    const foreign = await b.rpc("openseo_connection", { p_project_id: ids.a1, p_command: "get" });
+    expect(foreign.error?.code).toBe("42501");
+    const outsider = await d.rpc("openseo_connection", { p_project_id: ids.a1, p_command: "get" });
+    expect(outsider.error?.code).toBe("42501");
+  });
+
+  it("budget control rejects non-owners, outsiders and cross-tenant callers", async () => {
+    const args = { p_project_id: ids.a1, p_provider: "openseo", p_command: "get", p_payload: {} };
+    const owner = await a.rpc("provider_budget", args);
+    expect(owner.error).toBeNull();
+    for (const actor of [c, b, d]) {
+      const result = await actor.rpc("provider_budget", args);
+      expect(result.error?.code).toBe("42501");
+    }
+    const tampered = await a.rpc("provider_budget", { ...args, p_project_id: ids.b1 });
+    expect(tampered.error?.code).toBe("42501");
+  });
+
+  it("imports are readable only within the project, and viewers cannot delete or create rows", async () => {
+    for (const actor of [b, d]) {
+      const own = await actor.from("imports").select("id").eq("project_id", ids.a1);
+      expect(own.data).toEqual([]);
+    }
+    const invalidUpload = await c.from("imports").insert({
+      project_id: ids.b1, organization_id: ids.orgB, format: "rubik-import-v1",
+      source_kind: "audit", source_label: "No autorizado", captured_at: new Date().toISOString(),
+      status: "empty", finding_count: 0, error_count: 0, findings: [], errors: [],
+      file_sha256: "1".repeat(64), file_bytes: 2,
+    });
+    expect(invalidUpload.error).not.toBeNull();
+    const crossDelete = await c.from("imports").delete().eq("project_id", ids.b1).select("id");
+    expect(crossDelete.data ?? []).toEqual([]);
+  });
+
   it("the private helper schema is not exposed through the Data API", async () => {
     const { error } = await a.schema("private" as never).rpc("is_org_member" as never, { org: ids.orgA } as never);
     expect(error).not.toBeNull();
