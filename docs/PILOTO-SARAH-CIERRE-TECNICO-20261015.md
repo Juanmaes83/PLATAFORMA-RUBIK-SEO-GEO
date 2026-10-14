@@ -1,5 +1,7 @@
 # Piloto Sarah — cierre técnico en local (15/10/2026)
 
+> **Actualización posterior (15/10/2026):** la carencia de completitud señalada en §4.2 **ya está corregida en main** mediante PR #87, merge `ccdf104a`: manifiesto HMAC firmado sobre todas las columnas de resultados, auditoría, importaciones y operaciones; `planRestore` rechaza archivos `UNPROVEN` o `INCOMPLETE` con `TAMPERED`. Validación en el head de #87: 381 pruebas unitarias, 57 de integración, 518 SQL, build correcto. Las cifras 374/60/518 de abajo se refieren a la base anterior de **esta rama**, no a main actualizado. **La PR #86 sigue pendiente de revalidación y fusión**; ninguna migración ni flag se ha aplicado en alojado.
+
 **Estado:** pruebas locales ampliadas; nada aplicado en alojado. Rama `test/sarah-capture-idempotency-20261015`, base `main@506ea91`. Sin datos reales de Sarah, sin claves HMAC reales, sin proveedores (MCP simulado), sin cambios en Vercel ni en flags.
 
 ## 4.1 Migración `20261012130000_google_recovery_state`
