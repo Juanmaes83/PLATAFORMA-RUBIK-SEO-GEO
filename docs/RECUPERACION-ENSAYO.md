@@ -6,24 +6,24 @@ Completa [RECUPERACION-PILOTO](RECUPERACION-PILOTO.md), que cubre la exportació
 
 ## Cómo funciona
 
-`src/lib/restore/plan.ts` (`planRestore`) recibe la exportación (v1 o v2), el anillo de claves del propietario y el UUID de quien opera la restauración. Hace lo siguiente:
+`src/lib/restore/plan.ts` (`planRestore`) recibe una exportación v2 con manifiesto firmado y completitud `COMPLETE`, el anillo de claves del propietario y el UUID de quien opera la restauración. Los ficheros antiguos sin manifiesto pueden inspeccionarse offline, pero **no** restaurarse mediante este procedimiento. Hace lo siguiente:
 
 1. **Verifica de nuevo el archivo sin conexión** con `verifyProjectExport`: cadena de auditoría y firma de cada resultado.
 2. **Falla cerrado** en estos casos:
 
    | Código | Cuándo |
    |---|---|
-   | `TAMPERED` | La verificación registrada en el archivo no coincide con la recalculada |
+   | `TAMPERED` | Falta el manifiesto firmado, no coincide con el contenido real (`UNPROVEN`/`INCOMPLETE`), o la verificación registrada en el archivo no coincide con la recalculada |
    | `AUDIT_CHAIN_INVALID` | La cadena de auditoría está rota |
    | `UNVERIFIED_RESULTS` | Algún resultado no verifica |
    | `MIXED_PROJECTS` | El archivo mezcla proyectos |
    | `INVALID_ROWS` | Hay filas fuera del ámbito del proyecto |
    | `INVALID_OPERATOR` | El UUID del operador no es válido |
 
-   Con `skipUnverified` se restauran solo los resultados válidos. Los no verificados se informan y no se restauran.
+   `skipUnverified` no evita la obligación de presentar un manifiesto **válido y completo**. Alterar o quitar un resultado, sus columnas o su firma invalida el manifiesto y devuelve `TAMPERED`, incluso con esa opción. Una exclusión de resultados previamente identificados como no verificables solo puede considerarse dentro de un archivo cuya completitud ya esté probada.
 3. **Genera una única transacción SQL**, que el operador revisa y ejecuta con `psql` contra la base que controla. El módulo nunca se conecta a nada.
 
-**Estado:** integrado en `main` (#59; estado Google en #71). Probado en local y en CI (ver «Pruebas»). No se ha ejecutado nunca contra Preview ni producción.
+**Estado:** integrado en `main` (#59; estado Google en #71; manifiesto firmado y fail-closed en #87, fusionada el 15/10/2026). En #87 se verificaron localmente 381 pruebas unitarias, 57 de integración y 518 SQL, además de build, lint y TypeScript. No se ha ejecutado nunca contra Preview ni producción.
 
 ### Garantías del SQL (revisado el 09/10/2026)
 
@@ -43,7 +43,7 @@ La primera versión añadía al operador como titular aunque la organización ya
   - en una organización o un proyecto **existentes** no se añade, quita ni cambia ninguna membresía o rol, aunque el operador no sea miembro;
   - si **falta la organización**, se crea con el slug como nombre y el trigger de tenancy hace titular al operador. Es la única membresía de organización que puede añadir;
   - si **falta el proyecto** en una organización existente, se crea en ella. El operador pasa a ser su titular **solo si ya es titular de esa organización**, como en la aplicación. Si no lo es, el proyecto queda sin miembros hasta que la titularidad dé acceso.
-- **Qué se compara:** todas las columnas guardadas salvo `created_by`, que se sustituye por el operador si su autor no existe en el destino (no está firmada), y el `created_at` de los eventos de auditoría, que el trigger de la cadena fija al insertar (no está firmado; `at` sí y se compara).
+- **Qué se compara:** al verificar el archivo, el manifiesto cubre **todas las columnas de las filas de resultados**, además de importaciones y estado operativo. Durante la **aplicación SQL al destino** existen ajustes controlados: `created_by` puede sustituirse por el operador cuando el autor no existe en destino y el `created_at` de auditoría lo fija el trigger. Esos ajustes del destino no autorizan a alterar el fichero de origen firmado.
 - **Cadena de auditoría:** los eventos que faltan se insertan uno a uno en orden de `seq`, y el trigger comprueba cada enlace con el anterior.
 - **Literales:** los datos van en literales con delimitador aleatorio que no aparece en el contenido, así que ningún dato puede cerrar el literal antes de tiempo.
 
@@ -55,9 +55,9 @@ La primera versión añadía al operador como titular aunque la organización ya
 
 **Recupera:** el proyecto y su organización (ids y slugs), la cadena de auditoría firmada, los resultados firmados, las importaciones manuales y, desde la migración `20261012130000`, el **estado Google** de `operations.google`: conexiones de OpenSEO (también las revocadas), asociaciones de propiedad (también las revocadas) y capturas guardadas con su clave de idempotencia.
 
-### Estado Google: cuándo se restaura (10/10/2026)
+### Estado Google: cuándo se restaura (actualizado 15/10/2026)
 
-El bloque `operations.google` no está firmado, así que solo se restaura si **cuadra con lo firmado** (`src/lib/restore/google.ts`). Cada captura debe apuntar a un resultado restaurado cuyo `sourceContext` firmado nombre la misma conexión, la misma asociación y el mismo proyecto de OpenSEO, y cuya consulta firmada (`siteUrl` o `propertyId`) sea la propiedad de la asociación. Si algo no cuadra, el plan se rechaza con `GOOGLE_STATE_MISMATCH` antes de generar SQL. En la base de datos se aplica la misma regla que al resto: una fila existente e idéntica se deja como está; si es distinta, si ya hay otra conexión o propiedad activa, o si el proyecto de OpenSEO está conectado a otro proyecto, se cancela toda la transacción. Las personas (`granted_by`, `revoked_by`, `created_by`) que no existan en el destino pasan a ser el operador. Una exportación antigua sin el bloque, o que no pudo leerlo, restaura lo demás sin estado Google (`counts.google = null`).
+Las filas operativas de `operations.google` no llevan firmas HMAC individuales, pero el **manifiesto firmado cubre criptográficamente el resumen de todo `operations`**. Además, solo se restauran si **cuadran con los resultados firmados** (`src/lib/restore/google.ts`). Cada captura debe apuntar a un resultado restaurado cuyo `sourceContext` firmado nombre la misma conexión, la misma asociación y el mismo proyecto de OpenSEO, y cuya consulta firmada (`siteUrl` o `propertyId`) sea la propiedad de la asociación. Si algo no cuadra, el plan se rechaza con `GOOGLE_STATE_MISMATCH` antes de generar SQL. En la base de datos se aplica la misma regla que al resto: una fila existente e idéntica se deja como está; si es distinta, si ya hay otra conexión o propiedad activa, o si el proyecto de OpenSEO está conectado a otro proyecto, se cancela toda la transacción. Las personas (`granted_by`, `revoked_by`, `created_by`) que no existan en el destino pasan a ser el operador. Una exportación actual con manifiesto válido que declare legítimamente ese bloque ausente o fallido restaura lo demás sin estado Google (`counts.google = null`); una exportación antigua sin manifiesto no pasa la restauración normal.
 
 Tras restaurar, la propiedad vuelve a estar activa y **un reintento con la misma clave devuelve la captura guardada sin consultar a Google**. Probado en PostgreSQL 17 local (dos ejecuciones idénticas, reintento `STORED` con el mismo resultado y conflicto rechazado) y en la integración de CI `tests/integration/restore-google.integration.test.ts`.
 
