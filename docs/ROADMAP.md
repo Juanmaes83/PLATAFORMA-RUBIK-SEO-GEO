@@ -1,5 +1,14 @@
 # Roadmap de la plataforma
 
+## Night shift 15/10/2026 — Grupo 3 local, piloto y seguridad (sin cambios en producción)
+
+Base `main@506ea91`. Detalle y cifras en [NIGHTSHIFT-RESULTS](NIGHTSHIFT-RESULTS.md). Todas Draft, sin CI (facturación de GitHub Actions):
+- **#85** Grupo 3: matriz completa de identidades × 13 RPC, no revelación de existencia, PostgREST crudo, invariantes de catálogo. Integración 71/71, pgTAP 532/532, verify 374/374. Estado: **implementación local validada, aislamiento alojado pendiente**.
+- **#86** Piloto: reintento de captura concurrente (1 llamada, 1 resultado), modo OpenSEO `project` en base real, ensayo de `20261012130000` con rollback. Integración 60/60.
+- **#87** Exportación: manifiesto firmado que demuestra la completitud (antes un fichero recortado verificaba). verify 380/380, integración 57/57, e2e de exportación 3/3.
+- **#88** Previews de Vercel sin sesión mientras compartan la base de producción (`preview-locked`). verify 375/375; comprobado en la Preview real.
+- Pendientes del propietario: fase B alojada, `20261012130000` en alojado, ADR 0010, Preview aislada, contraseñas filtradas (requiere Pro), cerrar #81 como superada.
+
 ## Aclaración Grupo 1 — permisos por columna (14/10/2026)
 
 Revisadas las definiciones SQL de Core 9.1 y permisos reales alojados: el aparente desfase de `has_table_privilege` se explica por `GRANT INSERT/UPDATE (columnas)`, confirmados por `information_schema.column_privileges`. Las inserciones directas de las pruebas locales son compatibles con los privilegios previstos y las políticas RLS. No abrir migración ni implementar RPC nuevas por este motivo. Pendientes los gates locales/CI y prueba negativa entre cuentas.

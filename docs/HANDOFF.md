@@ -1,5 +1,11 @@
 # Handoff
 
+## Relevo — 15/10/2026, night shift (sin cambios en producción)
+
+- `main@506ea91` sin cambios. Trabajo en worktrees; el checkout `test-local-pr82` y su stash no se tocaron. El clon local solo trae `feat/core-9-0-bootstrap` con `git fetch`: usar refspec explícito.
+- PR Draft nuevas: #85 (Grupo 3 local), #86 (piloto Sarah), #87 (manifiesto de exportación, producto), #88 (bloqueo de sesión en Preview, producto). Cifras exactas, Vercel y riesgos en [NIGHTSHIFT-RESULTS](NIGHTSHIFT-RESULTS.md).
+- Siguiente paso: revisión del propietario de #85 y #87; fase B alojada del Grupo 3; aplicar `20261012130000`.
+
 ## Aclaración de privilegios alojados — 14/10/2026 (lecturas confirmadas)
 
 - El resultado previo de `has_table_privilege('authenticated', ..., 'INSERT'/'UPDATE') = false` **no evidencia una discrepancia**: el esquema concede esas operaciones **por columna**, no a la tabla entera.
