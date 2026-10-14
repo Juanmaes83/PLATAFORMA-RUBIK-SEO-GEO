@@ -1,5 +1,16 @@
 # Roadmap de la plataforma
 
+## Revisión de continuidad — 14/10/2026 (base main@37934f1; documentación en PR)
+
+- **C1/#77 ya está fusionado en main**, no está pendiente ni limitado a una rama. El comando `npm run verify:export` forma parte del código integrado. La ejecución con exportación real y anillo del propietario (J3) **no consta verificada**.
+- **Código frente a alojado:** #69–#77 integrados; #78 (ADR 0023) permanece abierto y E1–E3 sin decisión. Las pruebas descritas en PRs son evidencia local/CI histórica; no sustituyen comprobaciones alojadas.
+- **Migraciones:** la última evidencia registrada mostraba 16 alojadas y `20261012130000` pendiente. No se ha obtenido una nueva lectura alojada que permita afirmar que continúa pendiente ni que se aplicó.
+- **Piloto:** existen sendas capturas STORED/OK de GSC de `sarahkaterina.es` y GA4 de `sarahkaterina.com`, propiedades distintas. No hay segunda captura comparable de una misma propiedad, ni prueba alojada de reintento, exportación restaurable o auditoría real en `project`.
+- **Multicliente:** aislamiento local/CI previamente documentado, pero falta acreditar matriz negativa alojada de dos cuentas, Preview aislada, custodia de credenciales, configuración Auth y plan comercial. No escribir desde Preview con una BBDD posiblemente compartida.
+- **PR antiguos:** #40 exige decisión de custodia y recreación actualizada; #9/#11 son candidatos a sustitución documental. No se cierran ni se borran sus ramas. No confundir ramas fusionadas conservadas con backlog.
+- **Siguiente unidad sin dependencias alojadas:** validar de nuevo pruebas locales y CI, corregir documentación y preparar matriz reproducible de aislamiento. Después, con permisos adecuados, verificar migraciones/huérfanos, exportación y reintento mediante los procedimientos existentes.
+
+
 ## Estado vigente — 10/10/2026, cierre de la tarde (`main@992003b`)
 
 **Integrado hoy, con la CI de cada PR y la de `main` en verde:**
