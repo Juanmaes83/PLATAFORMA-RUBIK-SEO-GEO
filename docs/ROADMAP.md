@@ -1,5 +1,10 @@
 # Roadmap de la plataforma
 
+## Grupo 1 — Autenticación y pertenencia (14/10/2026, PR en revisión)
+
+Ampliada la matriz de integración local con cuatro identidades para verificar pertenencia real a la organización, roles y membresía de proyecto, incluyendo usuario con `user_metadata` falsificado. Se conserva la cobertura previa de correo confirmado, login/logout, anonimato y RLS. **Pendiente** ejecución de stack local, pgTAP, integración, `npm run verify` y CI. No extrapolar a alojado.
+
+
 ## Estado vigente — 10/10/2026, cierre de la tarde (`main@992003b`)
 
 **Integrado hoy, con la CI de cada PR y la de `main` en verde:**
