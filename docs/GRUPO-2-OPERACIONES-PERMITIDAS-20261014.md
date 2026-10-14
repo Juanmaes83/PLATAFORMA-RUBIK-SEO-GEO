@@ -54,3 +54,7 @@ Se han añadido **tres nuevas pruebas** a `tests/integration/tenancy.integration
 - La visibilidad de A2 debe depender del vínculo `project_members`, no solamente de `organization_members`.
 - Las comprobaciones `42501` de RPC son una expectativa basada en los contratos actuales y requieren ejecución empírica. Un fallo de tests no autoriza a ampliar el privilegio.
 - GitHub Actions tiene un bloqueo operativo conocido de facturación. Vercel READY no sustituye integración.
+
+## Resultado local de segunda tanda — 14/10/2026
+
+El propietario actualizó la rama `test-local-pr82` mediante `git pull --ff-only` hasta `8074425` y ejecutó `npm run test:integration` contra Supabase local. Resultado: **10/10 archivos PASS, 57/57 pruebas PASS**, incluidas **17/17** de `tests/integration/tenancy.integration.test.ts` (los tres casos nuevos). Duración **28,62 s**. No se ejecutó aún `npm run verify` contra este HEAD; el resultado anterior de 374 pruebas unitarias corresponde al commit previo. GitHub Actions sigue sin proporcionar CI por facturación. No se han realizado llamadas de pago ni cambios en Supabase alojado.
