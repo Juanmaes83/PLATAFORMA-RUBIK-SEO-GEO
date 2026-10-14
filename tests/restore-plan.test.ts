@@ -106,9 +106,9 @@ describe("restore plan", () => {
     expect(planRestore({ ...structuredClone(doc), imports: {} }, keyring, { operatorId })).toEqual({ ok: false, error: "INVALID_ROWS" });
     expect(planRestore({ ...structuredClone(doc), imports: [imp(randomUUID(), "x")] }, keyring, { operatorId })).toEqual({ ok: false, error: "TAMPERED" });
     // The same file twice, or the same id twice, would collide in the destination: refused here.
-    expect(planRestore({ ...structuredClone(doc), imports: [imp(randomUUID(), sha), imp(randomUUID(), sha)] }, keyring, { operatorId })).toEqual({ ok: false, error: "INVALID_ROWS" });
+    expect(planRestore({ ...structuredClone(doc), imports: [imp(randomUUID(), sha), imp(randomUUID(), sha)] }, keyring, { operatorId })).toEqual({ ok: false, error: "TAMPERED" });
     const dupId = randomUUID();
-    expect(planRestore({ ...structuredClone(doc), imports: [imp(dupId, sha), imp(dupId, "b".repeat(64))] }, keyring, { operatorId })).toEqual({ ok: false, error: "INVALID_ROWS" });
+    expect(planRestore({ ...structuredClone(doc), imports: [imp(dupId, sha), imp(dupId, "b".repeat(64))] }, keyring, { operatorId })).toEqual({ ok: false, error: "TAMPERED" });
     expect(planRestore({ ...structuredClone(doc), imports: [imp(randomUUID(), sha)] }, keyring, { operatorId })).toEqual({ ok: false, error: "TAMPERED" });
   });
 
