@@ -56,6 +56,10 @@ La guía actual de Supabase Vault ya no muestra la etiqueta *alpha* en el texto,
 - **Comprobar antes:** que hay plaza gratuita en la organización «Rubik Sota». La consulta del 09/10 devolvió plan `free`, pero no enumeró todos sus proyectos. Si no la hay, A cuesta unos 10 $/mes más la base Pro de 25 $/mes. En ese caso, comparar con quedarse en C hasta el primer cliente de pago.
 - **Desbloquea:** la matriz de aislamiento con dos cuentas alojadas ([AISLAMIENTO-ALOJADO-GUION](AISLAMIENTO-ALOJADO-GUION.md)) sin tocar producción, y probar escrituras desde una Preview.
 
+### Salvaguarda en código mientras no exista la Preview aislada (15/10/2026)
+
+Rama `feat/preview-session-lock-20261015`. Con `VERCEL_ENV=preview`, la aplicación **no crea cliente de Supabase**: sin inicio de sesión, sin refresco de sesión en el proxy y sin cliente con JWT, de modo que RLS no deja leer ni escribir nada con la clave publicable. `/api/salud` informa `auth: "preview-locked"` y las páginas de acceso muestran el motivo. Producción (`VERCEL_ENV=production`) y local no cambian. Cuando exista el proyecto de Preview de la opción A, se levanta el bloqueo añadiendo `PREVIEW_SUPABASE_ISOLATED=true` **solo** en el entorno Preview y **junto** a las variables `NEXT_PUBLIC_SUPABASE_*` de ese proyecto. Contrapartida: hasta entonces no se pueden revisar en una Preview las páginas que exigen sesión; se revisan en local (`npm run dev` + stack local) o en producción con cuentas propias.
+
 ### Recordatorio de alojamiento
 
 Vercel Hobby es solo para uso personal no comercial; el uso comercial exige Pro o Enterprise ([HOSTING](HOSTING.md)). Es independiente de esta decisión, pero condiciona la comercialización.

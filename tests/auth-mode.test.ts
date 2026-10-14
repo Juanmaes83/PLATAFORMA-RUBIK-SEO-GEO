@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   MOCK_FORBIDDEN_IN_PRODUCTION,
+  PREVIEW_LOCKED_NOTICE,
   PUBLIC_KEY_IS_SECRET,
   assertProductionAuthConfig,
   isSecretKey,
@@ -29,6 +30,20 @@ describe("auth configuration (CORE-9.1: Supabase Auth only)", () => {
   it("uses Supabase Auth when the URL and publishable key are set", () => {
     expect(resolveAuthMode(LOCAL)).toMatchObject({ mode: "supabase", canSignIn: true });
     expect(supabasePublicConfig({ ...LOCAL, NEXT_PUBLIC_SUPABASE_URL: "https://abc.supabase.co" })).not.toBeNull();
+  });
+
+  it("a Vercel Preview gets no Supabase client or sign-in unless it is declared isolated", () => {
+    const hosted = { ...LOCAL, NEXT_PUBLIC_SUPABASE_URL: "https://abc.supabase.co" };
+    expect(supabasePublicConfig({ ...hosted, VERCEL_ENV: "preview" })).toBeNull();
+    expect(resolveAuthMode({ ...hosted, VERCEL_ENV: "preview" })).toEqual({ mode: "preview-locked", canSignIn: false, notice: PREVIEW_LOCKED_NOTICE });
+    for (const value of ["", "1", "TRUE", "yes"]) {
+      expect(supabasePublicConfig({ ...hosted, VERCEL_ENV: "preview", PREVIEW_SUPABASE_ISOLATED: value }), value).toBeNull();
+    }
+    expect(supabasePublicConfig({ ...hosted, VERCEL_ENV: "preview", PREVIEW_SUPABASE_ISOLATED: "true" })).not.toBeNull();
+    // Production, development and local runs are unchanged, whatever the isolation flag says.
+    for (const VERCEL_ENV of [undefined, "production", "development"]) {
+      expect(resolveAuthMode({ ...hosted, VERCEL_ENV })).toMatchObject({ mode: "supabase", canSignIn: true });
+    }
   });
 
   it("ignores unusable URLs (plain http outside this machine, garbage)", () => {
