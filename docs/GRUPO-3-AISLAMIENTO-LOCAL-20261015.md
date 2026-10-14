@@ -1,5 +1,7 @@
 # Grupo 3 — matriz de aislamiento multicliente validada en local (15/10/2026)
 
+> **Checkpoint posterior (15/10/2026):** la evidencia 374/71/532 de este documento corresponde a `main@506ea91`; desde entonces #87 (producto, `ccdf104a`), #91 (roadmap, `314a8a1`) y #89 (handoff histórico) se han fusionado. #85 sigue Draft y debe revalidarse sobre main actual. Los riesgos de contaminación de auditoría y alta sin consentimiento **no están mitigados** por la matriz: se mantienen abiertos en la [PR #90](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/90) (diseño). No equiparar «matriz local PASS» con aislamiento alojado verificado.
+
 **Estado:** IMPLEMENTACIÓN LOCAL VALIDADA · AISLAMIENTO ALOJADO PENDIENTE.
 Base: `main@506ea91` (PR #82). Rama: `test/group3-isolation-matrix-20261015`. Sin cambios de esquema, RLS, RPC ni configuración; solo pruebas y documentación. Nada se ejecutó contra Supabase alojado, Vercel de producción ni proveedores.
 
