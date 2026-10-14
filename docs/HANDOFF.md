@@ -1,5 +1,13 @@
 # Handoff
 
+## Aclaración de privilegios alojados — 14/10/2026 (lecturas confirmadas)
+
+- El resultado previo de `has_table_privilege('authenticated', ..., 'INSERT'/'UPDATE') = false` **no evidencia una discrepancia**: el esquema concede esas operaciones **por columna**, no a la tabla entera.
+- Consulta de solo lectura a `information_schema.column_privileges` en el proyecto alojado `yvdgmklgwlshizzgefpv`: `organizations` INSERT(name,slug)/UPDATE(name); `projects` INSERT(organization_id,slug,name,domain,vertical)/UPDATE(name,domain,vertical); `organization_members` y `project_members` INSERT de columnas definidas/UPDATE(role). Coincide con `20260928120000_core_9_1_tenancy.sql`.
+- Las funciones privadas `is_org_member`, `is_org_owner`, `is_project_member` y `has_project_role` usan exclusivamente `auth.uid()`, tienen `search_path=''` y EXECUTE denegado a anon. Las cuatro tablas tienen RLS activo; las políticas por rol se leyeron, sin cambios.
+- **No se necesitó corrección de permisos, RPC ni migración.** La evidencia anterior es estructural: no sustituye las pruebas locales con cuatro identidades ni una prueba alojada de rechazo con otra cuenta.
+
+
 ## Grupo 1 · Auth y pertenencia a la organización — 14/10/2026 (PR en revisión)
 
 - Rama independiente `test/auth-org-membership-group1-20261014` desde `main@37934f1`. Sin cambios de esquema, credenciales, Supabase alojado o Preview.
