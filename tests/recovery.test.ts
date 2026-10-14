@@ -203,6 +203,17 @@ describe("signed export manifest: completeness, not only authenticity", () => {
     expect(check(await sealedFixture(), ring(`k-a:${keyA},k-b:${keyB}`, "k-b")).completeness).toEqual({ status: "COMPLETE" });
   });
 
+  it("restore fails closed when a signed manifest is stripped or the export predates manifests", async () => {
+    const operatorId = actor.id;
+    const stripped = await sealedFixture();
+    delete stripped.manifest;
+    expect(check(stripped).completeness).toEqual({ status: "UNPROVEN" });
+    expect(planRestore(stripped, owner, { operatorId })).toEqual({ ok: false, error: "TAMPERED" });
+    const old = await exportFixture();
+    expect(check(old).completeness).toEqual({ status: "UNPROVEN" });
+    expect(planRestore(old, owner, { operatorId })).toEqual({ ok: false, error: "TAMPERED" });
+  });
+
   it("the restore plan refuses a sealed export with rows removed, before any SQL exists", async () => {
     const operatorId = actor.id;
     expect(planRestore(await sealedFixture(), owner, { operatorId })).toMatchObject({ ok: true });
