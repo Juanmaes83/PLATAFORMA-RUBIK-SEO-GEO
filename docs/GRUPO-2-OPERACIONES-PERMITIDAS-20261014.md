@@ -35,6 +35,19 @@ Todas las inserciones son ficticias y se limpian con el teardown de la suite; **
 - Revisar posteriormente RPCs de importaciones/exportaciones, conectores y presupuestos contra su matriz Core sin introducir nuevas facultades.
 - Aislamiento alojado real con dos cuentas sigue pendiente y requiere el procedimiento autorizado de `docs/AISLAMIENTO-ALOJADO-GUION.md`; no se ejecuta sobre producción en esta PR.
 
+## Segunda tanda aprobada — superficies de importación, exportación, conectores y consumo
+
+Auditoría de código: `src/lib/imports/actions.ts` comprueba `draft` para importar y `delete-data` para borrar mediante `projectAccess`; `src/lib/imports/repository.ts` utiliza cliente de sesión y RLS; `src/app/proyectos/[tenantId]/[projectId]/exportar/route.ts` exige `export-data` en el servidor y devuelve 404 si falta. `src/lib/openseo/actions.ts` exige `manage-connectors` antes de llamadas a proveedor y la RPC `openseo_connection` aplica autorización adicional; `provider_budget` comprueba rol owner en SQL; herramientas de pago siguen bloqueadas sin aprobación.
+
+Cobertura de integración existente: `tests/integration/imports.integration.test.ts` prueba analista que importa, viewer solo lectura, aislamiento entre empresas, exportación y borrado exclusivo owner. `tests/integration/openseo-connections.integration.test.ts` prueba acceso cruzado, colisión de conexión y consistencia de proyectos. La ruta de exportación y las acciones del servidor no deben considerarse probadas end-to-end solo por inspección estática.
+
+Se han añadido **tres nuevas pruebas** a `tests/integration/tenancy.integration.test.ts`:
+- Acceso `openseo_connection/get` para titular permitido; denegación a analista, dueño externo y usuario sin pertenencia.
+- Acceso `provider_budget/get` para titular permitido; denegación a analista, dueño externo, usuario sin pertenencia y un owner intentando consultar el presupuesto de un proyecto de otra organización.
+- Aislamiento `imports`: consultas ajenas vacías, intento de insertar en proyecto externo rechazado y borrado cruzado sin filas.
+
+**Estado de estas tres pruebas: no ejecutadas aún.** El último resultado 54/54 PASS y 374/374 PASS corresponde al commit anterior; no atribuir esos resultados al HEAD nuevo. Las comprobaciones contra presupuestos son simulaciones de DB local: no activan servicios de pago ni conectores reales. Sin modificación de esquema/RLS/producto.
+
 ## Riesgos
 
 - El propietario de organización puede administrar membresías de sus proyectos por diseño; no confundirlo con permisos de un analista.
