@@ -57,7 +57,7 @@ function describe(body: Body, project: Pick<ProjectRef, "projectId" | "organizat
     exportedAt: String(body.exportedAt),
     audit: { count: audit.length, lastSeq: head ? Number(head.seq) : null, headHash: head ? String(head.hash) : null },
     // Results are already signed one by one: their id, data hash and signature pin each row.
-    results: { count: results.length, digest: digest([...results].sort(byId).map((r) => [r.id, r.data_hash, r.signature])) },
+    results: { count: results.length, digest: digest([...results].sort(byId)) },
     // Imports are not signed: the digest covers every stored column.
     imports: { count: imports.length, digest: digest([...imports].sort(byId)) },
     operations: { digest: body.operations === undefined ? null : digest(body.operations) },
