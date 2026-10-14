@@ -1,5 +1,15 @@
 # Estado operativo comprobado — 10/10/2026
 
+## Cierre verificado — Grupo 1, 14/10/2026
+
+- **Fusionado** [PR #80](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/80) mediante squash, `main@bea764671c65e84bd6efcc749e7a66d40a21f1fe`; origen probado `bccfb70ea66bb6b4ee3c85aebe8f59eb54c42c1f`. Vercel Production `READY` sobre `bea76467`.
+- **Validación ejecutada por el propietario en Windows, Docker y Supabase local**: `npm run test:db` 18 archivos/518 pruebas PASS; `npm run test:integration` 10 archivos/50 PASS (incluye `tenancy.integration.test.ts`, cuatro identidades ficticias y negativa de cruce); `npm run verify` 40 archivos/374 PASS más pin Core, secretos, ESLint, TypeScript y build Next.js 16.3.8. **Total 942 pruebas**. Confirmó árbol limpio y SHA exacto antes de fusionar.
+- **Límite de la evidencia:** GitHub Actions no ejecutó sus tres jobs por bloqueo de facturación; no afirmar CI verde. No se ha realizado prueba negativa alojada con segunda cuenta ni auditoría funcional posterior al despliegue. Sin escritura de prueba sobre Supabase alojado.
+- **Seguridad de dependencias, pendiente de clasificación actual:** `npm ci` notificó 5 vulnerabilidades HIGH sin desglose. El historial anterior las situaba en el árbol de desarrollo (`braces`/lint); pedir `npm audit --json` y `npm audit --omit=dev` actuales antes de asignar paquetes o autorizar cambios; **no** usar `npm audit fix --force`.
+- **Siguiente grupo según el roadmap:** Grupo 2, **operaciones permitidas dentro del cliente**. Preparar matriz servidor/RLS de titular, analista, aprobador y usuario externo; operaciones de lectura, edición e invitaciones, con negativas de escalada y pruebas en local. Antes de programar, delimitar alcance y criterios contra contratos vigentes; no introducir permisos nuevos ni activar proveedores.
+- **Equipo de Juanma:** copia local en `test-local-pr80`; actualizar `main` con `git switch main` y `git pull --ff-only origin main` una vez confirmada la limpieza de trabajo. Este paso local no puede ejecutarse desde el conector GitHub.
+
+
 ## Resolución de hallazgo de permisos — 14/10/2026
 
 Confirmado por SQL alojado de solo lectura que `authenticated` tiene permisos `INSERT`/`UPDATE` **por columna**, conforme a `supabase/migrations/20260928120000_core_9_1_tenancy.sql`. Que `has_table_privilege` devuelva `false` para INSERT/UPDATE completos es esperado; no representa falta de permiso efectivo sobre las columnas autorizadas. Las funciones privadas de pertenencia y las políticas RLS fueron inspeccionadas sin detectar un bypass en esas definiciones. Sin cambios alojados. Las pruebas negativas por sesiones separadas y CI continúan pendientes.
