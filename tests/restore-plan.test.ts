@@ -81,7 +81,7 @@ describe("restore plan", () => {
     const brokenNoClaim = structuredClone(doc) as Record<string, unknown> & typeof doc;
     delete (brokenNoClaim.audit as { verification?: unknown }).verification;
     brokenNoClaim.audit.rows[1].action = "otra";
-    expect(planRestore(brokenNoClaim, keyring, { operatorId })).toEqual({ ok: false, error: "TAMPERED" });
+    expect(planRestore(brokenNoClaim, keyring, { operatorId })).toEqual({ ok: false, error: "AUDIT_CHAIN_INVALID" });
     const changed = structuredClone(doc);
     (changed.results[0].row as { data: unknown }).data = [];
     delete (changed.results[0] as { verification?: unknown }).verification;
@@ -104,7 +104,7 @@ describe("restore plan", () => {
     const imp = (id: string, sha: string) => ({ id, project_id: doc.results[0].row.project_id, organization_id: doc.results[0].row.organization_id, file_sha256: sha });
     const sha = "a".repeat(64);
     expect(planRestore({ ...structuredClone(doc), imports: {} }, keyring, { operatorId })).toEqual({ ok: false, error: "INVALID_ROWS" });
-    expect(planRestore({ ...structuredClone(doc), imports: [imp(randomUUID(), "x")] }, keyring, { operatorId })).toEqual({ ok: false, error: "INVALID_ROWS" });
+    expect(planRestore({ ...structuredClone(doc), imports: [imp(randomUUID(), "x")] }, keyring, { operatorId })).toEqual({ ok: false, error: "TAMPERED" });
     // The same file twice, or the same id twice, would collide in the destination: refused here.
     expect(planRestore({ ...structuredClone(doc), imports: [imp(randomUUID(), sha), imp(randomUUID(), sha)] }, keyring, { operatorId })).toEqual({ ok: false, error: "INVALID_ROWS" });
     const dupId = randomUUID();
