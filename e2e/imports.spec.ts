@@ -110,6 +110,11 @@ test.describe("manual import flow", () => {
     expect(JSON.stringify(exported)).not.toMatch(/PROVENANCE_SIGNING_KEYS|OPENSEO_API_KEY/);
     expect(exported.imports.length).toBeGreaterThan(0);
     expect(exported.audit.verification.valid).toBe(true);
+    // Signed manifest over the finished body: counts and chain head match the file itself.
+    expect(exported.manifest).toMatchObject({ version: "rubik-export-manifest-v1", exportedAt: exported.exportedAt, scope: exported.scope,
+      audit: { count: exported.audit.rows.length, headHash: exported.audit.rows.at(-1).hash },
+      results: { count: exported.results.length }, imports: { count: exported.imports.length }, keyId: "k-e2e" });
+    expect(exported.manifest.signature).toMatch(/^[0-9a-f]{64}$/);
     expect(exported.audit.rows.map((r: { action: string }) => r.action)).toContain("import.file");
 
     await page.goto(`${P}/importaciones`);

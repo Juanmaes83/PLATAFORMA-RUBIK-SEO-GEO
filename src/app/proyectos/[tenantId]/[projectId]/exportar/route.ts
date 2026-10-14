@@ -3,6 +3,7 @@ import { currentUser } from "@/lib/auth/session";
 import type { Role } from "@/lib/core";
 import { loadProjectRef } from "@/lib/imports/repository";
 import { serverKeyring } from "@/lib/provenance/keyring";
+import { signExportManifest } from "@/lib/provenance/manifest";
 import { appendAudit, exportProject } from "@/lib/provenance/repository";
 import { readOperationalState } from "@/lib/recovery/operations";
 import { createClient } from "@/lib/supabase/server";
@@ -29,7 +30,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ten
   const result = await exportProject(supabase, ref, keyring, at);
   if (!result.ok) return new Response("Export failed", { status: 500 });
   const operations = await readOperationalState(supabase, ref, result.export.results.map((r) => r.row));
-  const body = { ...result.export, format: "rubik-project-export-v2", operations };
+  const sealed = { ...result.export, format: "rubik-project-export-v2", operations };
+  // Signed last, over the finished body: proves on the owner's machine that nothing was removed.
+  const body = { ...sealed, manifest: signExportManifest(sealed, ref, keyring) };
   return new Response(JSON.stringify(body, null, 2), {
     headers: {
       "content-type": "application/json; charset=utf-8",

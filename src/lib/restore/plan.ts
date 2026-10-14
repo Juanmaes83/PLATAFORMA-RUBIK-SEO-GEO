@@ -69,6 +69,9 @@ export function planRestore(doc: unknown, keyring: Keyring, opts: { operatorId: 
   if (!UUID.test(opts.operatorId)) return { ok: false, error: "INVALID_OPERATOR" };
   const check = verifyProjectExport(doc, keyring);
   if (!check.ok) return { ok: false, error: check.error };
+  // A removed manifest must not downgrade a modern export to a restorable legacy file.
+  // Legacy files remain inspectable offline but require an explicit separate recovery policy.
+  if (check.completeness.status !== "COMPLETE") return { ok: false, error: "TAMPERED" };
   if (check.mismatches.length > 0) return { ok: false, error: "TAMPERED" };
   if (!check.audit.valid) return { ok: false, error: "AUDIT_CHAIN_INVALID" };
   if (check.results.failed.length > 0 && !opts.skipUnverified) return { ok: false, error: "UNVERIFIED_RESULTS" };

@@ -19,7 +19,7 @@ select ok(not has_function_privilege('anon','public.openseo_active_job(uuid)','e
 select pg_temp.act_as('00000000-0000-4000-8000-0000000000f1');
 select is((select public.openseo_active_job(project_id)->>'state' from ids),'NONE','no active job by default');
 select set_config('role','postgres',true);
-select is((select count(*)::int from private.openseo_project_jobs),0,'reading creates no reservation');
+select is((select count(*)::int from private.openseo_project_jobs where project_id in (select project_id from ids)),0,'reading creates no reservation');
 select pg_temp.act_as('00000000-0000-4000-8000-0000000000f1');
 select lives_ok($$select public.openseo_job(project_id,'acquire') from ids$$,'reserve');
 select is((select public.openseo_active_job(project_id)->>'state' from ids),'STARTING','uncertain reservation visible');
@@ -35,7 +35,7 @@ select throws_ok($$select public.openseo_release_starting_job(project_id,job.id)
  'No uncertain OpenSEO reservation to release','a stale release never discards a bound crawl');
 select is((select public.openseo_active_job(project_id)->>'state' from ids),'SYNCING','bound job still active');
 select set_config('role','postgres',true);
-update private.openseo_project_jobs set state='FAILED';
+update private.openseo_project_jobs set state='FAILED' where project_id in (select project_id from ids);
 select pg_temp.act_as('00000000-0000-4000-8000-0000000000f1');
 create temp table job2 as select (public.openseo_job(project_id,'acquire')->>'jobId')::uuid id from ids;
 select is((select public.openseo_release_starting_job(project_id,job2.id)->>'state' from ids,job2),'FAILED','owner releases an uncertain reservation');

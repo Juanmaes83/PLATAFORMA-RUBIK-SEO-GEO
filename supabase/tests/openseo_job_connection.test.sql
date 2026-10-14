@@ -43,7 +43,7 @@ select throws_ok($$select public.openseo_job(pg_temp.pid('jc-a1'),'acquire',null
 select throws_ok($$select public.openseo_job(pg_temp.pid('jc-a1'),'acquire',null,'{"connectionId":"00000000-0000-4000-8000-000000000999"}')$$,
  '23514',null,'unknown connection refused');
 select set_config('role','postgres',true);
-select is((select count(*)::int from private.openseo_project_jobs),0,'refused acquisitions reserve nothing');
+select is((select count(*)::int from private.openseo_project_jobs where project_id=pg_temp.pid('jc-a1')),0,'refused acquisitions reserve nothing');
 
 select pg_temp.act_as('00000000-0000-4000-8000-0000000000d1');
 select is((public.openseo_job(pg_temp.pid('jc-a1'),'acquire',null,jsonb_build_object('connectionId',pg_temp.cid('a')))->>'connectionId')::uuid,
