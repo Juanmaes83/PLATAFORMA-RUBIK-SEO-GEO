@@ -244,7 +244,7 @@ describe("tenant isolation through the Data API", () => {
     expect(tampered.error?.code).toBe("42501");
   });
 
-  it("imports are readable only within the project, and viewers cannot delete or create rows", async () => {
+  it("imports reject foreign project writes and hide foreign project rows", async () => {
     for (const actor of [b, d]) {
       const own = await actor.from("imports").select("id").eq("project_id", ids.a1);
       expect(own.data).toEqual([]);
