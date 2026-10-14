@@ -1,5 +1,13 @@
 # Handoff
 
+## Relevo actual — 14/10/2026, Grupo 2 fusionado
+
+- `main@506ea91d24baa4feaff11e5f246f78135ee1b3ec` incorpora [PR #82](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/82), Grupo 2 de autorización multicliente: cuatro pruebas iniciales y tres adicionales en `tenancy.integration.test.ts`, sin cambios de esquema ni permisos de producción.
+- Validación aportada por el propietario, Windows + Supabase local: integración **57/57** (tenancy **17/17**); `npm run verify`: **374/374**, core pin, secretos, lint, TS y build PASS. 431 pruebas de la última tanda. 518 pgTAP corresponden a ejecución previa, **no reejecutadas en este commit**. GitHub Actions continúa bloqueado por facturación.
+- `docs/GRUPO-2-OPERACIONES-PERMITIDAS-20261014.md` registra alcance y evidencia. La PR #81 documental antigua puede necesitar reconciliación con el presente estado antes de cualquier merge; no asumir su vigencia.
+- **Grupo 3 siguiente:** diseñar y validar procedimiento de aislamiento alojado sin afectar datos reales: matriz por identidad y rol, pruebas negativas de RLS/RPC, límite de datos ficticios y limpieza, condiciones de parada, rollback y evidencia. No ejecutar escrituras remotas sin autorización concreta. Pilotaje Sarah: migración `20261012130000`, recuperación/exportación y reintento siguen pendientes. Sin activación de modo `project` ni gasto externo.
+
+
 ## Aclaración de privilegios alojados — 14/10/2026 (lecturas confirmadas)
 
 - El resultado previo de `has_table_privilege('authenticated', ..., 'INSERT'/'UPDATE') = false` **no evidencia una discrepancia**: el esquema concede esas operaciones **por columna**, no a la tabla entera.
