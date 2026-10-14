@@ -1,5 +1,7 @@
 # Night shift — resultados (14→15/10/2026)
 
+> **Nota de actualización, 15/10/2026.** Este archivo conserva el registro histórico del turno inicial: sus SHA, tablas, afirmación «no se fusionó nada» y cifras son **válidos solo en ese momento**. Después, la PR #87 se fusionó en `main@ccdf104a` y la documentación #91 en `main@314a8a1`; en #87 se validaron 381 pruebas unitarias, 57 de integración y 518 pgTAP locales (956 en total). La PR #88 eliminó el bypass por `PREVIEW_SUPABASE_ISOLATED=true` y su Preview `6a519290` respondió `preview-locked`. Las PR #85, #86, #88 y #90 siguen abiertas (la última solo diseño). Véanse el [ROADMAP](ROADMAP.md) y el [HANDOFF](HANDOFF.md) actualizados. Ningún ensayo alojado ni producción queda validado por estos cambios.
+
 Turno autónomo sobre `PLATAFORMA-RUBIK-SEO-GEO`. Todo se ejecutó en **local** (Windows, Docker, Supabase CLI 2.118.0) y en Previews de Vercel de solo lectura. **No se tocó producción**: ni Supabase alojado (ninguna migración, consulta ni cambio de configuración), ni variables o flags de Vercel, ni proveedores (OpenSEO, Google, Bing), ni datos de Sarah, ni claves HMAC reales. No se fusionó ninguna PR.
 
 ## A. Estado Git
