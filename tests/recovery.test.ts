@@ -173,6 +173,9 @@ describe("signed export manifest: completeness, not only authenticity", () => {
     const noResult = await sealedFixture();
     noResult.results = [];
     expect(check(noResult).completeness).toEqual({ status: "INCOMPLETE", reasons: ["manifest.results"] });
+    const changedResult = await sealedFixture();
+    changedResult.results[0].row.created_at = "2026-11-10T13:00:00+00:00";
+    expect(check(changedResult).completeness).toEqual({ status: "INCOMPLETE", reasons: ["manifest.results"] });
     const noImport = await sealedFixture();
     noImport.imports.pop();
     expect(check(noImport).completeness).toEqual({ status: "INCOMPLETE", reasons: ["manifest.imports"] });
