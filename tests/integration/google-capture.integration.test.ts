@@ -85,6 +85,50 @@ describe("manual Google capture on the local stack (simulated MCP)", () => {
     expect(m.callTool).not.toHaveBeenCalled();
   });
 
+  it("two sessions retrying the same key at once: one provider call, one stored result", async () => {
+    const second = await signedIn("gcap-owner"); // another HTTP session of the same owner (double click, two tabs)
+    const sameKey = randomUUID();
+    const before = (await owner.from("provider_results").select("id").eq("project_id", project.projectId)).data!.length;
+    let open!: () => void;
+    const gate = new Promise<void>((resolve) => { open = resolve; });
+    const slow = mcp();
+    slow.callTool.mockImplementationOnce(async () => { await gate; return reply; });
+    const first = captureGoogleReport(owner, project, query, sameKey, { role: "owner", id: users[0] }, keyring, { env, mcpFactory: slow.factory });
+    await vi.waitFor(() => expect(slow.callTool).toHaveBeenCalledTimes(1)); // the key is reserved and the provider is being read
+    const racing = mcp();
+    expect(await captureGoogleReport(second, project, query, sameKey, { role: "owner", id: users[0] }, keyring, { env, mcpFactory: racing.factory }))
+      .toEqual({ ok: false, error: "IN_PROGRESS" });
+    expect(racing.callTool).not.toHaveBeenCalled();
+    open();
+    const done = await first;
+    expect(done).toMatchObject({ ok: true, replayed: false });
+    const replay = mcp();
+    expect(await captureGoogleReport(second, project, query, sameKey, { role: "owner", id: users[0] }, keyring, { env, mcpFactory: replay.factory }))
+      .toEqual({ ok: true, resultId: (done as { resultId: string }).resultId, replayed: true, audited: false });
+    expect(replay.callTool).not.toHaveBeenCalled();
+    expect(slow.callTool).toHaveBeenCalledTimes(1);
+    expect((await owner.from("provider_results").select("id").eq("project_id", project.projectId)).data).toHaveLength(before + 1);
+  });
+
+  it("a provider failure releases the key: the retry reads once more and stores exactly one result", async () => {
+    const retryKey = randomUUID();
+    const before = (await owner.from("provider_results").select("id").eq("project_id", project.projectId)).data!.length;
+    const failing = mcp();
+    failing.callTool.mockImplementationOnce(async () => { throw new Error("simulated provider outage"); });
+    const failed = await captureGoogleReport(owner, project, query, retryKey, { role: "owner", id: users[0] }, keyring, { env, mcpFactory: failing.factory });
+    expect(failed.ok).toBe(false);
+    expect((await owner.from("provider_results").select("id").eq("project_id", project.projectId)).data).toHaveLength(before);
+    const retry = mcp();
+    expect(await captureGoogleReport(owner, project, query, retryKey, { role: "owner", id: users[0] }, keyring, { env, mcpFactory: retry.factory }))
+      .toMatchObject({ ok: true, replayed: false });
+    expect(retry.callTool).toHaveBeenCalledTimes(1);
+    const again = mcp();
+    expect(await captureGoogleReport(owner, project, query, retryKey, { role: "owner", id: users[0] }, keyring, { env, mcpFactory: again.factory }))
+      .toMatchObject({ ok: true, replayed: true });
+    expect(again.callTool).not.toHaveBeenCalled();
+    expect((await owner.from("provider_results").select("id").eq("project_id", project.projectId)).data).toHaveLength(before + 1);
+  });
+
   it("after revoking the binding no capture starts; the stored one stays verifiable", async () => {
     expect(await revokeGoogleProperty(owner, project.projectId, "search-console")).toMatchObject({ ok: true });
     const m = mcp();
