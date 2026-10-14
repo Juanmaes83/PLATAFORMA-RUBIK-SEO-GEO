@@ -171,6 +171,95 @@ describe("tenant isolation through the Data API", () => {
     expect((await c.from("projects").select("id").eq("id", ids.b1)).data).toEqual([]);
   });
 
+  it("a member cannot administer organization membership or promote their own role", async () => {
+    const promote = await c.from("organization_members").update({ role: "owner" }).eq("organization_id", ids.orgA).eq("user_id", users[2]).select();
+    expect(promote.data ?? []).toEqual([]);
+    const addOwner = await c.from("organization_members").insert({ organization_id: ids.orgA, user_id: users[3], role: "owner" });
+    expect(addOwner.error).not.toBeNull();
+    const removeOwner = await c.from("organization_members").delete().eq("organization_id", ids.orgA).eq("user_id", users[0]).select();
+    expect(removeOwner.data ?? []).toEqual([]);
+    expect((await a.from("organization_members").select("role").eq("user_id", users[0]).single()).data?.role).toBe("owner");
+    expect((await c.from("organization_members").select("role").eq("user_id", users[2]).single()).data?.role).toBe("member");
+  });
+
+  it("a project analyst cannot grant or revoke access even inside their own organization", async () => {
+    const grant = await c.from("project_members").insert({
+      project_id: ids.a1, organization_id: ids.orgA, user_id: users[3], role: "owner",
+    });
+    expect(grant.error).not.toBeNull();
+    const revoke = await c.from("project_members").delete().eq("project_id", ids.a1).eq("user_id", users[0]).select();
+    expect(revoke.data ?? []).toEqual([]);
+    const promote = await c.from("project_members").update({ role: "owner" }).eq("project_id", ids.a1).eq("user_id", users[2]).select();
+    expect(promote.data ?? []).toEqual([]);
+    expect((await a.from("project_members").select("role").eq("project_id", ids.a1).eq("user_id", users[0]).single()).data?.role).toBe("owner");
+    expect((await c.from("project_members").select("role").eq("project_id", ids.a1).eq("user_id", users[2]).single()).data?.role).toBe("analyst");
+  });
+
+  it("membership in one project does not grant access to another project of the same organization", async () => {
+    const slug = "proyecto-a2";
+    expect((await a.from("projects").insert({ organization_id: ids.orgA, slug, name: "Proyecto A2" })).error).toBeNull();
+    const a2 = (await a.from("projects").select("id").eq("slug", slug).single()).data!.id;
+    expect((await a.from("project_members").select("role").eq("project_id", a2).eq("user_id", users[0]).single()).data?.role).toBe("owner");
+    expect((await c.from("projects").select("id").eq("id", a2)).data).toEqual([]);
+    expect((await c.from("project_members").select("project_id").eq("project_id", a2)).data).toEqual([]);
+    expect((await c.from("projects").update({ name: "Escalada" }).eq("id", a2).select()).data ?? []).toEqual([]);
+    expect((await b.from("projects").select("id").eq("id", a2)).data).toEqual([]);
+    expect((await a.from("projects").select("name").eq("id", a2).single()).data?.name).toBe("Proyecto A2");
+  });
+
+  it("management RPCs deny an analyst and an external owner even with a real project UUID", async () => {
+    for (const [command, args] of [
+      ["project_invitations", { p_project_id: ids.a1, p_command: "list", p_payload: {} }],
+      ["project_people", { p_project_id: ids.a1, p_command: "list", p_payload: {} }],
+    ] as const) {
+      const own = await a.rpc(command, args as never);
+      expect(own.error, command).toBeNull();
+      const analyst = await c.rpc(command, args as never);
+      expect(analyst.error?.code, command).toBe("42501");
+      const otherTenant = await b.rpc(command, args as never);
+      expect(otherTenant.error, command).not.toBeNull();
+    }
+  });
+
+  it("a project analyst cannot access connector management or another tenant's connection", async () => {
+    const owner = await a.rpc("openseo_connection", { p_project_id: ids.a1, p_command: "get" });
+    expect(owner.error).toBeNull();
+    const analyst = await c.rpc("openseo_connection", { p_project_id: ids.a1, p_command: "get" });
+    expect(analyst.error?.code).toBe("42501");
+    const foreign = await b.rpc("openseo_connection", { p_project_id: ids.a1, p_command: "get" });
+    expect(foreign.error?.code).toBe("42501");
+    const outsider = await d.rpc("openseo_connection", { p_project_id: ids.a1, p_command: "get" });
+    expect(outsider.error?.code).toBe("42501");
+  });
+
+  it("budget control rejects non-owners, outsiders and cross-tenant callers", async () => {
+    const args = { p_project_id: ids.a1, p_provider: "openseo", p_command: "get", p_payload: {} };
+    const owner = await a.rpc("provider_budget", args);
+    expect(owner.error).toBeNull();
+    for (const actor of [c, b, d]) {
+      const result = await actor.rpc("provider_budget", args);
+      expect(result.error?.code).toBe("42501");
+    }
+    const tampered = await a.rpc("provider_budget", { ...args, p_project_id: ids.b1 });
+    expect(tampered.error?.code).toBe("42501");
+  });
+
+  it("imports reject foreign project writes and hide foreign project rows", async () => {
+    for (const actor of [b, d]) {
+      const own = await actor.from("imports").select("id").eq("project_id", ids.a1);
+      expect(own.data).toEqual([]);
+    }
+    const invalidUpload = await c.from("imports").insert({
+      project_id: ids.b1, organization_id: ids.orgB, format: "rubik-import-v1",
+      source_kind: "audit", source_label: "No autorizado", captured_at: new Date().toISOString(),
+      status: "empty", finding_count: 0, error_count: 0, findings: [], errors: [],
+      file_sha256: "1".repeat(64), file_bytes: 2,
+    });
+    expect(invalidUpload.error).not.toBeNull();
+    const crossDelete = await c.from("imports").delete().eq("project_id", ids.b1).select("id");
+    expect(crossDelete.data ?? []).toEqual([]);
+  });
+
   it("the private helper schema is not exposed through the Data API", async () => {
     const { error } = await a.schema("private" as never).rpc("is_org_member" as never, { org: ids.orgA } as never);
     expect(error).not.toBeNull();

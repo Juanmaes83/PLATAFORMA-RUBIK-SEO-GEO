@@ -1,0 +1,64 @@
+# Grupo 2 — operaciones permitidas dentro de un cliente
+
+**Estado:** integración local 54/54 superada según salida aportada por el propietario; CI y `npm run verify` del PR pendientes. Base `main@bea764671c65e84bd6efcc749e7a66d40a21f1fe`. No se ejecutó código contra la base alojada, no se modificaron políticas, proveedores, variables ni despliegues.
+
+## Evidencia posterior — integración local superada (14/10/2026)
+
+El propietario ejecutó `npm run test:integration` en Windows, rama local `test-local-pr82`, con Supabase local activo (`127.0.0.1:54321`). Resultado aportado: **10 archivos PASS, 54 pruebas PASS**, incluida `tests/integration/tenancy.integration.test.ts` (**14/14 PASS**, cuatro nuevos casos). Duración 30,97 s. No es ejecución de GitHub Actions, ni verifica el Supabase alojado. **Queda pendiente** `npm run verify` de este SHA y una revisión global adicional de funciones de importación, exportación, conectores y consumo antes de declarar el alcance completo cerrado.
+
+## Evidencia de `npm run verify` (propietario, 14/10/2026)
+
+Windows, rama `test-local-pr82` (código de pruebas sin la documentación posterior): `check:core-pin` PASS (`2aaf127`), `check:secrets` PASS (354 archivos), ESLint PASS, `tsc --noEmit` PASS, Vitest **40/40 archivos y 374/374 pruebas PASS**, Next.js 16.3.8 build PASS. Sumadas a integración: **428/428 pruebas** en la presente tanda. No se ejecutó `npm run test:db` de nuevo; las 518 SQL se acreditaron en el grupo 1. Las actualizaciones posteriores de este documento no afectan al comportamiento del código probado. GitHub Actions sigue bloqueado; no atribuirle PASS.
+
+## Auditoría de alcance
+
+- Core `src/lib/access.ts`: la interfaz construye el actor con la pertenencia real y delega en `platform.authorize`; no interpreta parámetros de URL ni cookies como roles. La autorización UI por sí sola no sustituye controles del servidor y RLS.
+- SQL `20260928120000_core_9_1_tenancy.sql`: RLS con SELECT de proyecto para sus miembros; edición de datos descriptivos para propietarios de proyecto; organización administrada por titular; miembros de proyecto administrados por titular de organización. Funciones privadas fijan el actor con `auth.uid()`.
+- `src/lib/invitation-actions.ts`, `src/lib/invitations.ts`: la pertenencia previa sirve para localizar proyecto; RPC `project_invitations` decide quién puede listar, invitar y revocar (propietario de organización). La aceptación verifica dirección confirmada.
+- `src/lib/people-actions.ts`, `src/lib/project-people.ts`: `project_people` aplica autorización de retirada en SQL. La retirada no borra cuentas y genera auditoría posterior.
+- **Límite:** una llamada que recibe un UUID o un slug manipulable debe quedar protegida en cada operación RPC/RLS, no solo por la navegación.
+
+## Pruebas incorporadas
+
+En `tests/integration/tenancy.integration.test.ts` se añadieron cuatro casos usando las cuatro identidades ficticias existentes:
+1. El analista no puede promover su pertenencia organizativa, invitar como propietario mediante DML ni expulsar al propietario.
+2. No puede crear o revocar `project_members` ni elevar su propio rol a `owner`.
+3. El titular crea el segundo proyecto A2; el analista con acceso a A1 no puede verlo, modificarlo ni leer su membresía; el titular de otra empresa tampoco.
+4. Las RPC reales `project_invitations` y `project_people` permiten `list` al titular autorizado, rechazan al analista (código esperado `42501`) y al titular de otra organización.
+
+Todas las inserciones son ficticias y se limpian con el teardown de la suite; **únicamente ejecutar contra Supabase local**. No se han alterado permisos de producto por no haberse demostrado una vulnerabilidad.
+
+## Validación que falta
+
+- `npm run test:integration` con Supabase local y migraciones aplicadas; comprobar explícitamente los cuatro nuevos casos y ajustar solo según errores reales. **No aprobado hasta PASS.**
+- `npm run verify` (lint, tipos, unitarias, build), y cuando el bloqueo de facturación se resuelva CI, e2e.
+- Revisar posteriormente RPCs de importaciones/exportaciones, conectores y presupuestos contra su matriz Core sin introducir nuevas facultades.
+- Aislamiento alojado real con dos cuentas sigue pendiente y requiere el procedimiento autorizado de `docs/AISLAMIENTO-ALOJADO-GUION.md`; no se ejecuta sobre producción en esta PR.
+
+## Segunda tanda aprobada — superficies de importación, exportación, conectores y consumo
+
+Auditoría de código: `src/lib/imports/actions.ts` comprueba `draft` para importar y `delete-data` para borrar mediante `projectAccess`; `src/lib/imports/repository.ts` utiliza cliente de sesión y RLS; `src/app/proyectos/[tenantId]/[projectId]/exportar/route.ts` exige `export-data` en el servidor y devuelve 404 si falta. `src/lib/openseo/actions.ts` exige `manage-connectors` antes de llamadas a proveedor y la RPC `openseo_connection` aplica autorización adicional; `provider_budget` comprueba rol owner en SQL; herramientas de pago siguen bloqueadas sin aprobación.
+
+Cobertura de integración existente: `tests/integration/imports.integration.test.ts` prueba analista que importa, viewer solo lectura, aislamiento entre empresas, exportación y borrado exclusivo owner. `tests/integration/openseo-connections.integration.test.ts` prueba acceso cruzado, colisión de conexión y consistencia de proyectos. La ruta de exportación y las acciones del servidor no deben considerarse probadas end-to-end solo por inspección estática.
+
+Se han añadido **tres nuevas pruebas** a `tests/integration/tenancy.integration.test.ts`:
+- Acceso `openseo_connection/get` para titular permitido; denegación a analista, dueño externo y usuario sin pertenencia.
+- Acceso `provider_budget/get` para titular permitido; denegación a analista, dueño externo, usuario sin pertenencia y un owner intentando consultar el presupuesto de un proyecto de otra organización.
+- Aislamiento `imports`: consultas ajenas vacías, intento de insertar en proyecto externo rechazado y borrado cruzado sin filas.
+
+**Estado de estas tres pruebas: no ejecutadas aún.** El último resultado 54/54 PASS y 374/374 PASS corresponde al commit anterior; no atribuir esos resultados al HEAD nuevo. Las comprobaciones contra presupuestos son simulaciones de DB local: no activan servicios de pago ni conectores reales. Sin modificación de esquema/RLS/producto.
+
+## Riesgos
+
+- El propietario de organización puede administrar membresías de sus proyectos por diseño; no confundirlo con permisos de un analista.
+- La visibilidad de A2 debe depender del vínculo `project_members`, no solamente de `organization_members`.
+- Las comprobaciones `42501` de RPC son una expectativa basada en los contratos actuales y requieren ejecución empírica. Un fallo de tests no autoriza a ampliar el privilegio.
+- GitHub Actions tiene un bloqueo operativo conocido de facturación. Vercel READY no sustituye integración.
+
+## Resultado local de segunda tanda — 14/10/2026
+
+El propietario actualizó la rama `test-local-pr82` mediante `git pull --ff-only` hasta `8074425` y ejecutó `npm run test:integration` contra Supabase local. Resultado: **10/10 archivos PASS, 57/57 pruebas PASS**, incluidas **17/17** de `tests/integration/tenancy.integration.test.ts` (los tres casos nuevos). Duración **28,62 s**. No se ejecutó aún `npm run verify` contra este HEAD; el resultado anterior de 374 pruebas unitarias corresponde al commit previo. GitHub Actions sigue sin proporcionar CI por facturación. No se han realizado llamadas de pago ni cambios en Supabase alojado.
+
+## Verificación completa de segunda tanda — salida local facilitada por el propietario
+
+Tras actualizar la rama local hasta `8074425`, el propietario ejecutó `npm run test:integration` (**57/57**, 10/10 archivos) y `npm run verify`: Core pin PASS (`2aaf12700542e4499cfdd27a491d072abb635ca2`), escaneo de secretos PASS (354 archivos), ESLint PASS, TypeScript `tsc --noEmit` PASS, Vitest **374/374** (40/40 archivos), build Next.js 16.3.8 PASS. **431/431 pruebas de esta tanda**. Este registro y el registro anterior de resultados son cambios exclusivamente documentales posteriores al código probado. 518 pruebas SQL acreditadas anteriormente, no reejecutadas aquí. GitHub Actions bloqueado por facturación; no afirmar CI verde.
