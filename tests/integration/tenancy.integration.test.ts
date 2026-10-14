@@ -141,6 +141,36 @@ describe("tenant isolation through the Data API", () => {
     expect((await a.from("projects").update({ name: "Proyecto A1" }).eq("id", ids.a1).select()).data).toHaveLength(1);
   });
 
+  it("an owner and an explicitly invited member see only their actual organizational memberships", async () => {
+    const ownerA = await a.from("organization_members").select("organization_id, user_id, role");
+    const ownerB = await b.from("organization_members").select("organization_id, user_id, role");
+    const memberC = await c.from("organization_members").select("organization_id, user_id, role");
+    const outsiderD = await d.from("organization_members").select("organization_id, user_id, role");
+
+    for (const response of [ownerA, ownerB, memberC, outsiderD]) {
+      expect(response.error).toBeNull();
+    }
+    expect(ownerA.data).toEqual(expect.arrayContaining([
+      expect.objectContaining({ organization_id: ids.orgA, user_id: users[0], role: "owner" }),
+      expect.objectContaining({ organization_id: ids.orgA, user_id: users[2], role: "member" }),
+    ]));
+    expect(ownerA.data?.every(row => row.organization_id === ids.orgA)).toBe(true);
+    expect(ownerB.data).toEqual([
+      expect.objectContaining({ organization_id: ids.orgB, user_id: users[1], role: "owner" }),
+    ]);
+    expect(memberC.data).toEqual([
+      expect.objectContaining({ organization_id: ids.orgA, user_id: users[2], role: "member" }),
+    ]);
+    expect(outsiderD.data).toEqual([]);
+
+    const projectC = await c.from("project_members").select("project_id, organization_id, user_id, role");
+    expect(projectC.error).toBeNull();
+    expect(projectC.data).toEqual([
+      expect.objectContaining({ project_id: ids.a1, organization_id: ids.orgA, user_id: users[2], role: "analyst" }),
+    ]);
+    expect((await c.from("projects").select("id").eq("id", ids.b1)).data).toEqual([]);
+  });
+
   it("the private helper schema is not exposed through the Data API", async () => {
     const { error } = await a.schema("private" as never).rpc("is_org_member" as never, { org: ids.orgA } as never);
     expect(error).not.toBeNull();
