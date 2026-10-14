@@ -1,5 +1,14 @@
 # Handoff
 
+## Continuidad — 14/10/2026 (rama docs/checkpoint-2026-10-14-pilot)
+
+- Punto de partida comprobado mediante GitHub: `main@37934f15860e4c5dbb26c74040845cdf6f6fc8e3`, cuyo commit fusiona **#77/C1**. El encabezado histórico inmediatamente inferior se redactó antes de su fusión y **no representa trabajo pendiente actual**.
+- PR abiertos observados: #78 (ADR 0023, **sin aprobación E1–E3**), #40 (custodia sin decisión) y #9/#11 (documentación antigua). No se ha modificado ninguno.
+- Evidencia alojada **anterior** (10/10): 16 migraciones, dos capturas STORED/OK, SQL sin duplicados ni huérfanos; `project` de auditorías permanece sin validar. La versión `20261012130000` debe comprobarse otra vez; su estado actual es **desconocido**.
+- No se ha conectado con Supabase alojado, no se han usado anillo, exportaciones privadas ni servicios de pago, y no se ha efectuado ninguna validación alojada nueva.
+- Para continuar: comprobar despliegue y separación Preview/Production; ejecutar matriz local de dos cuentas y pruebas negativas; con acceso legítimo comprobar versión de migraciones e integridad, después J3/J2. No activar `project`, C4 ni #40 sin las decisiones específicas.
+
+
 ## C1 · Herramienta local para verificar la exportación — 10/10/2026 (rama `claude/sleepy-rubin-1fjebx`)
 
 - **Base:** `main@87b3947` (tras fusionar #76, el relevo, con la CI en verde en su SHA `aa60346`).
