@@ -1,5 +1,15 @@
 # Roadmap de la plataforma
 
+## Cierre verificado — Grupo 1, 14/10/2026
+
+- **Fusionado** [PR #80](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/80) mediante squash, `main@bea764671c65e84bd6efcc749e7a66d40a21f1fe`; origen probado `bccfb70ea66bb6b4ee3c85aebe8f59eb54c42c1f`. Vercel Production `READY` sobre `bea76467`.
+- **Validación ejecutada por el propietario en Windows, Docker y Supabase local**: `npm run test:db` 18 archivos/518 pruebas PASS; `npm run test:integration` 10 archivos/50 PASS (incluye `tenancy.integration.test.ts`, cuatro identidades ficticias y negativa de cruce); `npm run verify` 40 archivos/374 PASS más pin Core, secretos, ESLint, TypeScript y build Next.js 16.3.8. **Total 942 pruebas**. Confirmó árbol limpio y SHA exacto antes de fusionar.
+- **Límite de la evidencia:** GitHub Actions no ejecutó sus tres jobs por bloqueo de facturación; no afirmar CI verde. No se ha realizado prueba negativa alojada con segunda cuenta ni auditoría funcional posterior al despliegue. Sin escritura de prueba sobre Supabase alojado.
+- **Seguridad de dependencias, pendiente de clasificación actual:** `npm ci` notificó 5 vulnerabilidades HIGH sin desglose. El historial anterior las situaba en el árbol de desarrollo (`braces`/lint); pedir `npm audit --json` y `npm audit --omit=dev` actuales antes de asignar paquetes o autorizar cambios; **no** usar `npm audit fix --force`.
+- **Siguiente grupo según el roadmap:** Grupo 2, **operaciones permitidas dentro del cliente**. Preparar matriz servidor/RLS de titular, analista, aprobador y usuario externo; operaciones de lectura, edición e invitaciones, con negativas de escalada y pruebas en local. Antes de programar, delimitar alcance y criterios contra contratos vigentes; no introducir permisos nuevos ni activar proveedores.
+- **Equipo de Juanma:** copia local en `test-local-pr80`; actualizar `main` con `git switch main` y `git pull --ff-only origin main` una vez confirmada la limpieza de trabajo. Este paso local no puede ejecutarse desde el conector GitHub.
+
+
 ## Aclaración Grupo 1 — permisos por columna (14/10/2026)
 
 Revisadas las definiciones SQL de Core 9.1 y permisos reales alojados: el aparente desfase de `has_table_privilege` se explica por `GRANT INSERT/UPDATE (columnas)`, confirmados por `information_schema.column_privileges`. Las inserciones directas de las pruebas locales son compatibles con los privilegios previstos y las políticas RLS. No abrir migración ni implementar RPC nuevas por este motivo. Pendientes los gates locales/CI y prueba negativa entre cuentas.
