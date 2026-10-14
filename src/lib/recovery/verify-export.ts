@@ -1,6 +1,7 @@
 import "server-only";
 import { verifyAuditTrail, type AuditRow, type AuditVerification, type ProjectRef } from "@/lib/provenance/audit";
 import type { Keyring } from "@/lib/provenance/keyring";
+import { checkExportManifest, type Completeness } from "@/lib/provenance/manifest";
 import { openProviderResult, type ProviderResultRow } from "@/lib/provenance/results";
 
 // Pilot recovery: re-verifies an exported project file offline, with the owner's keyring and
@@ -19,8 +20,10 @@ export type ExportCheck =
       project: { projectId: string; organizationId: string };
       audit: AuditVerification;
       results: { total: number; verified: number; failed: { index: number; reason: string | null }[] };
-      /** Recorded verification that disagrees with the recomputed one. */
+      /** Recorded verification (or signed manifest) that disagrees with the recomputed one. */
       mismatches: string[];
+      /** Whether the signed manifest proves nothing was removed or edited (UNPROVEN: older file without one). */
+      completeness: Completeness;
     };
 
 export function verifyProjectExport(doc: unknown, keyring: Keyring): ExportCheck {
@@ -50,6 +53,9 @@ export function verifyProjectExport(doc: unknown, keyring: Keyring): ExportCheck
     if (!v.verified) failed.push({ index, reason: v.reason });
     if (r.verification && r.verification.verified !== v.verified) mismatches.push(`results[${index}].verification`);
   });
+  // A manifest that does not match its own body means rows were removed, added or edited.
+  const completeness = checkExportManifest(d, project, keyring);
+  if (completeness.status === "INCOMPLETE") mismatches.push(...completeness.reasons);
   return { ok: true, format: d.format, project: { projectId, organizationId }, audit,
-    results: { total: results.length, verified: results.length - failed.length, failed }, mismatches };
+    results: { total: results.length, verified: results.length - failed.length, failed }, mismatches, completeness };
 }

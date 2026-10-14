@@ -7,6 +7,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { providers } from "@/lib/core";
 import { loadKeyring, type Keyring } from "@/lib/provenance/keyring";
 import { buildAuditRow, verifyAuditTrail, type AuditRow, type ProjectRef } from "@/lib/provenance/audit";
+import { signExportManifest } from "@/lib/provenance/manifest";
 import { openProviderResult, sealProviderResult } from "@/lib/provenance/results";
 
 // Local owner tool (scripts/verify-export.mjs): run as the owner would, in a child Node process,
@@ -117,6 +118,29 @@ describe("verify:export (local tool for the owner)", () => {
     expect(bad.out).not.toContain("corta");
     expect(run([])).toMatchObject({ code: 2 });
   }, 30_000);
+
+  it("reports completeness and, with --require-complete, refuses a file without signed manifest", async () => {
+    const unsealed = file("sin-manifiesto.json", JSON.stringify(await exportFixture()));
+    const lenient = run([unsealed, "--keyring", ownerRing]);
+    expect(lenient.code).toBe(0);
+    expect(lenient.out).toContain("Completitud: NO DEMOSTRADA");
+    const strict = run([unsealed, "--keyring", ownerRing, "--require-complete"]);
+    expect(strict.code).toBe(1);
+    expect(strict.out).toContain("RESULTADO: NO VERIFICADA");
+
+    const body = await exportFixture();
+    const sealedDoc = { ...body, manifest: signExportManifest(body, project, owner) };
+    const sealed = run([file("con-manifiesto.json", JSON.stringify(sealedDoc)), "--keyring", ownerRing, "--require-complete", "--json"]);
+    expect(sealed.code).toBe(0);
+    expect(JSON.parse(sealed.out)).toMatchObject({ verified: true, completeness: { status: "COMPLETE" }, mismatches: [] });
+
+    sealedDoc.audit.rows.pop();
+    sealedDoc.audit.verification = verifyAuditTrail(sealedDoc.audit.rows, project, owner);
+    const cut = run([file("recortada.json", JSON.stringify(sealedDoc)), "--keyring", ownerRing]);
+    expect(cut.code).toBe(1);
+    expect(cut.out).toContain("Completitud: ROTA (manifest.audit)");
+    expect(cut.out).not.toContain(keyA);
+  }, 60_000);
 
   it("refuses a file tracked by Git", () => {
     const r = run(["package.json", "--keyring", ownerRing]);
