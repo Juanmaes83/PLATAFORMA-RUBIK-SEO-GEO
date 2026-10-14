@@ -1,5 +1,22 @@
 # Roadmap de la plataforma
 
+## Checkpoint verificado — 15/10/2026 (posterior a PR #87)
+
+**PR #87 fusionada en main** mediante squash commit `ccdf104a2ecf566ff1818e76e8f3490841a18273` (head validado `a1e526be5746a65c2c1e9ecb8e6deba6278b7cd0`). Exportaciones con manifiesto firmado y restauración fail-closed; no se aceptan exportaciones legacy/UNPROVEN para restauración normal. En el entorno local del propietario: `npm run verify` OK (381 unitarias, lint, TypeScript, secretos y build), `test:integration` 57/57 y `test:db` 518/518. Total 956 pruebas; **esta evidencia es local, no CI de GitHub ni ensayo alojado**. Sin escrituras al Supabase alojado `yvdgmklgwlshizzgefpv`.
+
+**Próximas PRs abiertas en borrador (sin fusionar ni validar contra este main):**
+
+| PR | Alcance | Siguiente gate / decisión |
+|---|---|---|
+| [#85](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/85) | Matriz Grupo 3 de aislamiento multiidentidad, SQL y RPC | Rebase/actualización con main; ejecutar matriz local y revisar negativos; evidencia alojada por separado, solo lectura sin autorización específica. |
+| [#86](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/86) | Piloto Sarah: concurrencia/idempotencia, modo project y recuperación local | Actualizar base; integración/SQL/verify; no activar modo project ni alterar Sarah alojada sin aprobación explícita. |
+| [#88](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/88) | Bloqueo de autenticación en Vercel Preview | Revisar compatibilidad con main, revisar bypasss y e2e; comprobar Preview con acceso controlado, sin exposición de datos alojados. |
+| [#89](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/89) | Informe/documentación del trabajo nocturno | Reconciliar hechos con #87 fusionada y nuevas pruebas; evitar estados duplicados u obsoletos. |
+| [#90](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/90) | Diseño de mitigación para inserciones de auditoría y altas de miembros sin consentimiento | Solo diseño: decidir arquitectura antes de cualquier migración o cambio de permisos; revisión de seguridad específica. |
+
+**Orden propuesto:** #88 (riesgo Preview) → #85 (aislamiento) → #86 (piloto) → #90 (seguridad de arquitectura) → #89 (consolidación documental), condicionado por conflictos y hallazgos. No equivale a aprobación de merge de esas PR. Otros gates pendientes del roadmap histórico (aislamiento alojado con cuentas diferenciadas, configuración de seguridad y despliegue comercial) siguen pendientes hasta evidencia específica.
+
+
 ## Aclaración Grupo 1 — permisos por columna (14/10/2026)
 
 Revisadas las definiciones SQL de Core 9.1 y permisos reales alojados: el aparente desfase de `has_table_privilege` se explica por `GRANT INSERT/UPDATE (columnas)`, confirmados por `information_schema.column_privileges`. Las inserciones directas de las pruebas locales son compatibles con los privilegios previstos y las políticas RLS. No abrir migración ni implementar RPC nuevas por este motivo. Pendientes los gates locales/CI y prueba negativa entre cuentas.
