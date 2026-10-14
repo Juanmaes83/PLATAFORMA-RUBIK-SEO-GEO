@@ -1,5 +1,15 @@
 # Estado operativo comprobado — 10/10/2026
 
+## Resolución de hallazgo de permisos — 14/10/2026
+
+Confirmado por SQL alojado de solo lectura que `authenticated` tiene permisos `INSERT`/`UPDATE` **por columna**, conforme a `supabase/migrations/20260928120000_core_9_1_tenancy.sql`. Que `has_table_privilege` devuelva `false` para INSERT/UPDATE completos es esperado; no representa falta de permiso efectivo sobre las columnas autorizadas. Las funciones privadas de pertenencia y las políticas RLS fueron inspeccionadas sin detectar un bypass en esas definiciones. Sin cambios alojados. Las pruebas negativas por sesiones separadas y CI continúan pendientes.
+
+
+## Grupo 1 de aislamiento — 14/10/2026 (rama de tests)
+
+Se agregó un caso de integración de pertenencia organizativa y de proyecto con dos titulares, un miembro y un usuario sin membresía. No se ejecutó contra alojado; no se tocaron proveedores, variables ni migraciones. **Pruebas por ejecutar** en stack local/CI; aceptación condicionada a resultados reales. El estado remoto de `20261012130000` sigue por comprobar.
+
+
 **C1 (10/10/2026):** herramienta local `npm run verify:export` disponible en la rama `claude/sleepy-rubin-1fjebx` (PR pendiente de fusión) para que Juanma verifique la exportación de Sarah con el anillo (J3), según [RECUPERACION-PILOTO](RECUPERACION-PILOTO.md). Sin cambios alojados. `main@87b3947` incluye ya el relevo (#76).
 
 **Corte vigente (10/10/2026, tarde):** `main@992003b`, con la CI posterior en verde. Integrados #70 a #75: modo `project` preparado, recuperación del estado Google (migración `20261012130000`), reintento seguro, comparación de capturas, capturas periódicas solo en diseño y recomendación para el ADR 0010 y la Preview.

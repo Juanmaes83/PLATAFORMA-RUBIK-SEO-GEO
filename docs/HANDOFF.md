@@ -1,5 +1,22 @@
 # Handoff
 
+## Aclaración de privilegios alojados — 14/10/2026 (lecturas confirmadas)
+
+- El resultado previo de `has_table_privilege('authenticated', ..., 'INSERT'/'UPDATE') = false` **no evidencia una discrepancia**: el esquema concede esas operaciones **por columna**, no a la tabla entera.
+- Consulta de solo lectura a `information_schema.column_privileges` en el proyecto alojado `yvdgmklgwlshizzgefpv`: `organizations` INSERT(name,slug)/UPDATE(name); `projects` INSERT(organization_id,slug,name,domain,vertical)/UPDATE(name,domain,vertical); `organization_members` y `project_members` INSERT de columnas definidas/UPDATE(role). Coincide con `20260928120000_core_9_1_tenancy.sql`.
+- Las funciones privadas `is_org_member`, `is_org_owner`, `is_project_member` y `has_project_role` usan exclusivamente `auth.uid()`, tienen `search_path=''` y EXECUTE denegado a anon. Las cuatro tablas tienen RLS activo; las políticas por rol se leyeron, sin cambios.
+- **No se necesitó corrección de permisos, RPC ni migración.** La evidencia anterior es estructural: no sustituye las pruebas locales con cuatro identidades ni una prueba alojada de rechazo con otra cuenta.
+
+
+## Grupo 1 · Auth y pertenencia a la organización — 14/10/2026 (PR en revisión)
+
+- Rama independiente `test/auth-org-membership-group1-20261014` desde `main@37934f1`. Sin cambios de esquema, credenciales, Supabase alojado o Preview.
+- Ampliación de `tests/integration/tenancy.integration.test.ts`: cuatro identidades locales (titular A, titular B, miembro C y usuario D sin pertenencia con metadatos falsificados). Comprueba pertenencia visible según RLS, roles de titular/miembro, relación explícita de proyecto para C y ausencia de acceso a proyecto B.
+- Evidencia previa del mismo fichero: confirmación del correo, rechazo de credenciales erróneas, cierre de sesión, anonimato, ausencia de pertenencia y cruces entre organizaciones. Estos casos se mantienen.
+- **Verificación pendiente:** ejecutar `npm run db:start`, `npm run test:db`, `npm run test:integration`, `npm run verify` y CI del SHA final. Este entorno GitHub no ejecuta tests locales; una CI no observada no se considera verde. No se declara aislamiento alojado.
+- Siguiente: revisar resultados y corregir cualquier fallo del PR antes de proponer merge; después grupo 2 (operaciones permitidas dentro del cliente).
+
+
 ## C1 · Herramienta local para verificar la exportación — 10/10/2026 (rama `claude/sleepy-rubin-1fjebx`)
 
 - **Base:** `main@87b3947` (tras fusionar #76, el relevo, con la CI en verde en su SHA `aa60346`).

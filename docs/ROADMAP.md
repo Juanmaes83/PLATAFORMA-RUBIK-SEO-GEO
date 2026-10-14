@@ -1,5 +1,15 @@
 # Roadmap de la plataforma
 
+## Aclaración Grupo 1 — permisos por columna (14/10/2026)
+
+Revisadas las definiciones SQL de Core 9.1 y permisos reales alojados: el aparente desfase de `has_table_privilege` se explica por `GRANT INSERT/UPDATE (columnas)`, confirmados por `information_schema.column_privileges`. Las inserciones directas de las pruebas locales son compatibles con los privilegios previstos y las políticas RLS. No abrir migración ni implementar RPC nuevas por este motivo. Pendientes los gates locales/CI y prueba negativa entre cuentas.
+
+
+## Grupo 1 — Autenticación y pertenencia (14/10/2026, PR en revisión)
+
+Ampliada la matriz de integración local con cuatro identidades para verificar pertenencia real a la organización, roles y membresía de proyecto, incluyendo usuario con `user_metadata` falsificado. Se conserva la cobertura previa de correo confirmado, login/logout, anonimato y RLS. **Pendiente** ejecución de stack local, pgTAP, integración, `npm run verify` y CI. No extrapolar a alojado.
+
+
 ## Estado vigente — 10/10/2026, cierre de la tarde (`main@992003b`)
 
 **Integrado hoy, con la CI de cada PR y la de `main` en verde:**
