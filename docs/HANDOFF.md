@@ -1,5 +1,19 @@
 # Handoff
 
+## Checkpoint posterior al turno — 15/10/2026 (fuentes verificadas)
+
+La sección «Relevo — night shift» inferior es histórica y refleja el estado **antes** de las fusiones. Situación posterior: PR #87 fusionada en `main` (`ccdf104a`); PR #91 de documentación fusionada (`314a8a1`). En la PR #87 se validaron en Windows sobre su HEAD: 381 pruebas unitarias, 57 integración local, 518 pgTAP locales; build, lint y TypeScript correctos. `wt-export` quedó limpio. No se ha probado una restauración en Supabase alojado.
+
+La PR #88 sigue Draft; su rama incorporó un bloqueo **incondicional** con `VERCEL_ENV=preview` (el flag `PREVIEW_SUPABASE_ISOLATED=true` **ya no desbloquea**). Último despliegue Preview `READY` en `6a519290`, con `/api/salud` → `preview-locked` y `persistence: none`, páginas `/acceso`, `/panel`, `/registro`, `/recuperar` bloqueadas, y una exportación de proyecto ficticio 404. Falta verificación local sobre ese HEAD y negativa con sesión/cookies existente; no se fusionó.
+
+PRs #85, #86, #89 y #90 permanecen en revisión. #85/#86 fueron verificadas en su base inicial pero requieren actualizar y revalidar contra `main` posterior a #87. #90 es exclusivamente diseño de mitigación S1/S2, sin cambios de permisos. Roadmap canónico: [ROADMAP](ROADMAP.md). **No hay autorización implícita para escribir en Supabase alojado ni para activar el modo OpenSEO project.**
+
+## Relevo — 15/10/2026, night shift (sin cambios en producción)
+
+- `main@506ea91` sin cambios. Trabajo en worktrees; el checkout `test-local-pr82` y su stash no se tocaron. El clon local solo trae `feat/core-9-0-bootstrap` con `git fetch`: usar refspec explícito.
+- PR Draft nuevas: #85 (Grupo 3 local), #86 (piloto Sarah), #87 (manifiesto de exportación, producto), #88 (bloqueo de sesión en Preview, producto). Cifras exactas, Vercel y riesgos en [NIGHTSHIFT-RESULTS](NIGHTSHIFT-RESULTS.md).
+- Siguiente paso: revisión del propietario de #85 y #87; fase B alojada del Grupo 3; aplicar `20261012130000`.
+
 ## Aclaración de privilegios alojados — 14/10/2026 (lecturas confirmadas)
 
 - El resultado previo de `has_table_privilege('authenticated', ..., 'INSERT'/'UPDATE') = false` **no evidencia una discrepancia**: el esquema concede esas operaciones **por columna**, no a la tabla entera.
