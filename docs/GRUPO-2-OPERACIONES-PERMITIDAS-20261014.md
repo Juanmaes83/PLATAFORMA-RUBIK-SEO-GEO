@@ -6,6 +6,10 @@
 
 El propietario ejecutó `npm run test:integration` en Windows, rama local `test-local-pr82`, con Supabase local activo (`127.0.0.1:54321`). Resultado aportado: **10 archivos PASS, 54 pruebas PASS**, incluida `tests/integration/tenancy.integration.test.ts` (**14/14 PASS**, cuatro nuevos casos). Duración 30,97 s. No es ejecución de GitHub Actions, ni verifica el Supabase alojado. **Queda pendiente** `npm run verify` de este SHA y una revisión global adicional de funciones de importación, exportación, conectores y consumo antes de declarar el alcance completo cerrado.
 
+## Evidencia de `npm run verify` (propietario, 14/10/2026)
+
+Windows, rama `test-local-pr82` (código de pruebas sin la documentación posterior): `check:core-pin` PASS (`2aaf127`), `check:secrets` PASS (354 archivos), ESLint PASS, `tsc --noEmit` PASS, Vitest **40/40 archivos y 374/374 pruebas PASS**, Next.js 16.3.8 build PASS. Sumadas a integración: **428/428 pruebas** en la presente tanda. No se ejecutó `npm run test:db` de nuevo; las 518 SQL se acreditaron en el grupo 1. Las actualizaciones posteriores de este documento no afectan al comportamiento del código probado. GitHub Actions sigue bloqueado; no atribuirle PASS.
+
 ## Auditoría de alcance
 
 - Core `src/lib/access.ts`: la interfaz construye el actor con la pertenencia real y delega en `platform.authorize`; no interpreta parámetros de URL ni cookies como roles. La autorización UI por sí sola no sustituye controles del servidor y RLS.
