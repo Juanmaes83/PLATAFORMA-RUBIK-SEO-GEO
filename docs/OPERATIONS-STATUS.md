@@ -1,5 +1,14 @@
 # Estado operativo comprobado — 10/10/2026
 
+## Checkpoint de continuidad — 14/10/2026 (base main@37934f1)
+
+**GitHub:** #77/C1 está integrado y `npm run verify:export` disponible en `main`. #78 sigue siendo propuesta sin E1–E3; #40, #9 y #11 permanecen abiertos. Los registros anteriores que llaman a C1 «rama pendiente» son históricos.
+
+**Producción:** última evidencia alojada registrada el 10/10: 16 migraciones y capturas reales STORED/OK de GSC (.es) y GA4 (.com). No hay comprobación nueva del historial de migraciones: `20261012130000` = **estado remoto sin confirmar**. Tampoco se ha ejecutado desde esta revisión un reintento de producción, verificación offline con el anillo, restauración alojada, prueba negativa multicliente o activación de `project`. Mantener Preview sin escrituras hasta demostrar su aislamiento.
+
+**Gates para reanudar:** (1) historial remoto y relaciones con consultas de lectura autorizadas; (2) exportación completa más `verify:export` con material privado exclusivamente en el equipo titular; (3) prueba A de `REINTENTO-CAPTURAS` con transacción revertida; (4) aislamiento entre dos cuentas; (5) decisiones separadas de modo project, custodia, Preview, E1–E3 y presupuesto. Las comparaciones Google existentes no hacen comparable una captura .es GSC con .com GA4.
+
+
 **C1 (10/10/2026):** herramienta local `npm run verify:export` disponible en la rama `claude/sleepy-rubin-1fjebx` (PR pendiente de fusión) para que Juanma verifique la exportación de Sarah con el anillo (J3), según [RECUPERACION-PILOTO](RECUPERACION-PILOTO.md). Sin cambios alojados. `main@87b3947` incluye ya el relevo (#76).
 
 **Corte vigente (10/10/2026, tarde):** `main@992003b`, con la CI posterior en verde. Integrados #70 a #75: modo `project` preparado, recuperación del estado Google (migración `20261012130000`), reintento seguro, comparación de capturas, capturas periódicas solo en diseño y recomendación para el ADR 0010 y la Preview.
