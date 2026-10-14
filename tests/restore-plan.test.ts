@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { providers } from "@/lib/core";
 import { buildAuditRow, type AuditRow, type ProjectRef } from "@/lib/provenance/audit";
 import { loadKeyring, type Keyring } from "@/lib/provenance/keyring";
+import { signExportManifest } from "@/lib/provenance/manifest";
 import { sealProviderResult } from "@/lib/provenance/results";
 import { planRestore } from "@/lib/restore/plan";
 
@@ -39,7 +40,8 @@ export async function drillExport(keyring: Keyring, ids = { project: randomUUID(
     if (!sealed.ok) throw new Error(sealed.error);
     results.push({ row: { ...sealed.row, id: randomUUID(), created_by: ids.actor, created_at: "2026-10-09T10:05:00.000Z" }, verification: { trust: "VERIFIED", verified: true, reason: null } });
   }
-  return { project, doc: { format: "rubik-project-export-v2", exportedAt: "2026-10-09T11:00:00.000Z", scope: project.scope, audit: { rows: audit, verification: { valid: true } }, results, imports: [], operations: {} } };
+  const body = { format: "rubik-project-export-v2", exportedAt: "2026-10-09T11:00:00.000Z", scope: project.scope, audit: { rows: audit, verification: { valid: true } }, results, imports: [], operations: {} };
+  return { project, doc: { ...body, manifest: signExportManifest(body, project, keyring) } };
 }
 
 describe("restore plan", () => {
@@ -79,13 +81,13 @@ describe("restore plan", () => {
     const brokenNoClaim = structuredClone(doc) as Record<string, unknown> & typeof doc;
     delete (brokenNoClaim.audit as { verification?: unknown }).verification;
     brokenNoClaim.audit.rows[1].action = "otra";
-    expect(planRestore(brokenNoClaim, keyring, { operatorId })).toEqual({ ok: false, error: "AUDIT_CHAIN_INVALID" });
+    expect(planRestore(brokenNoClaim, keyring, { operatorId })).toEqual({ ok: false, error: "TAMPERED" });
     const changed = structuredClone(doc);
     (changed.results[0].row as { data: unknown }).data = [];
     delete (changed.results[0] as { verification?: unknown }).verification;
-    expect(planRestore(changed, keyring, { operatorId })).toEqual({ ok: false, error: "UNVERIFIED_RESULTS" });
-    const skipped = planRestore(changed, keyring, { operatorId, skipUnverified: true });
-    expect(skipped).toMatchObject({ ok: true, plan: { counts: { results: 1, skippedUnverified: 1 } }, skipped: [{ index: 0 }] });
+    expect(planRestore(changed, keyring, { operatorId })).toEqual({ ok: false, error: "TAMPERED" });
+    // Skipping a bad signature cannot bypass the signed manifest.
+    expect(planRestore(changed, keyring, { operatorId, skipUnverified: true })).toEqual({ ok: false, error: "TAMPERED" });
     expect(planRestore(doc, keyring, { operatorId: "nope" })).toEqual({ ok: false, error: "INVALID_OPERATOR" });
     expect(planRestore({ format: "otra" }, keyring, { operatorId })).toEqual({ ok: false, error: "NOT_AN_EXPORT" });
   });
@@ -98,7 +100,7 @@ describe("restore plan", () => {
     (mixed.results[0].row as { project_id: string }).project_id = randomUUID();
     expect(planRestore(mixed, keyring, { operatorId })).toEqual({ ok: false, error: "MIXED_PROJECTS" });
     const foreignImport = { ...structuredClone(doc), imports: [{ id: randomUUID(), project_id: randomUUID(), organization_id: randomUUID() }] };
-    expect(planRestore(foreignImport, keyring, { operatorId })).toEqual({ ok: false, error: "INVALID_ROWS" });
+    expect(planRestore(foreignImport, keyring, { operatorId })).toEqual({ ok: false, error: "TAMPERED" });
     const imp = (id: string, sha: string) => ({ id, project_id: doc.results[0].row.project_id, organization_id: doc.results[0].row.organization_id, file_sha256: sha });
     const sha = "a".repeat(64);
     expect(planRestore({ ...structuredClone(doc), imports: {} }, keyring, { operatorId })).toEqual({ ok: false, error: "INVALID_ROWS" });
@@ -107,7 +109,7 @@ describe("restore plan", () => {
     expect(planRestore({ ...structuredClone(doc), imports: [imp(randomUUID(), sha), imp(randomUUID(), sha)] }, keyring, { operatorId })).toEqual({ ok: false, error: "INVALID_ROWS" });
     const dupId = randomUUID();
     expect(planRestore({ ...structuredClone(doc), imports: [imp(dupId, sha), imp(dupId, "b".repeat(64))] }, keyring, { operatorId })).toEqual({ ok: false, error: "INVALID_ROWS" });
-    expect(planRestore({ ...structuredClone(doc), imports: [imp(randomUUID(), sha)] }, keyring, { operatorId })).toMatchObject({ ok: true, plan: { counts: { imports: 1 } } });
+    expect(planRestore({ ...structuredClone(doc), imports: [imp(randomUUID(), sha)] }, keyring, { operatorId })).toEqual({ ok: false, error: "TAMPERED" });
   });
 
   it("payloads cannot break out of their quoting", async () => {
@@ -149,7 +151,8 @@ describe("restore plan · Google state", () => {
         property_binding_id: over.captureBinding ?? bind, state: "STORED", result_id: resultId, created_by: ids.actor,
         created_at: "2026-10-09T10:06:00.000Z", reserved_at: "2026-10-09T10:05:00.000Z", closed_at: "2026-10-09T10:06:00.000Z" }],
     };
-    return { keyring, doc: { ...doc, operations: { google: { ok: true, value: google } } }, resultId, project };
+    const body = { ...doc, operations: { google: { ok: true, value: google } } };
+    return { keyring, doc: { ...body, manifest: signExportManifest(body, project, keyring) }, resultId, project };
   }
 
   it("restores connections, bindings and stored captures that agree with the signed results", async () => {
@@ -180,19 +183,20 @@ describe("restore plan · Google state", () => {
     const { keyring, doc } = await googleExport();
     const missing = structuredClone(doc);
     missing.operations.google.value.captures[0].result_id = randomUUID();
-    expect(planRestore(missing, keyring, { operatorId: randomUUID() })).toEqual({ ok: false, error: "GOOGLE_STATE_MISMATCH" });
+    expect(planRestore(missing, keyring, { operatorId: randomUUID() })).toEqual({ ok: false, error: "TAMPERED" });
     const foreign = structuredClone(doc);
     foreign.operations.google.value.bindings[0].project_id = randomUUID();
-    expect(planRestore(foreign, keyring, { operatorId: randomUUID() })).toEqual({ ok: false, error: "GOOGLE_STATE_MISMATCH" });
+    expect(planRestore(foreign, keyring, { operatorId: randomUUID() })).toEqual({ ok: false, error: "TAMPERED" });
     const malformed = structuredClone(doc) as unknown as { operations: { google: { ok: boolean; value: unknown } } };
     malformed.operations.google.value = { connections: "nope" };
-    expect(planRestore(malformed, keyring, { operatorId: randomUUID() })).toEqual({ ok: false, error: "GOOGLE_STATE_MISMATCH" });
+    expect(planRestore(malformed, keyring, { operatorId: randomUUID() })).toEqual({ ok: false, error: "TAMPERED" });
   });
 
   it("restores no Google state from an older export or one that could not read it", async () => {
     const { keyring, doc } = await googleExport();
     for (const operations of [{}, { google: { ok: false, error: "FORBIDDEN" } }]) {
-      const r = planRestore({ ...doc, operations }, keyring, { operatorId: randomUUID() });
+      const body = { ...doc, operations };
+      const r = planRestore({ ...body, manifest: signExportManifest(body, (await drillExport(keyring, ids)).project, keyring) }, keyring, { operatorId: randomUUID() });
       expect(r).toMatchObject({ ok: true, plan: { counts: { google: null } } });
       if (r.ok) expect(r.plan.sql).not.toContain("private.google_captures");
     }
@@ -205,6 +209,6 @@ describe("restore plan · Google state", () => {
     (changed.results[last].row as { data: unknown }).data = ["alterado"];
     delete (changed.results[last] as { verification?: unknown }).verification;
     expect(planRestore(changed, keyring, { operatorId: randomUUID(), skipUnverified: true }))
-      .toMatchObject({ ok: true, plan: { counts: { skippedUnverified: 1, google: { captures: 0, skippedCaptures: 1 } } } });
+      .toEqual({ ok: false, error: "TAMPERED" });
   });
 });
