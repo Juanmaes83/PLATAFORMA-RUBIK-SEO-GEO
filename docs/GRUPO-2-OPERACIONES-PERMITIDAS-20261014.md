@@ -58,3 +58,7 @@ Se han añadido **tres nuevas pruebas** a `tests/integration/tenancy.integration
 ## Resultado local de segunda tanda — 14/10/2026
 
 El propietario actualizó la rama `test-local-pr82` mediante `git pull --ff-only` hasta `8074425` y ejecutó `npm run test:integration` contra Supabase local. Resultado: **10/10 archivos PASS, 57/57 pruebas PASS**, incluidas **17/17** de `tests/integration/tenancy.integration.test.ts` (los tres casos nuevos). Duración **28,62 s**. No se ejecutó aún `npm run verify` contra este HEAD; el resultado anterior de 374 pruebas unitarias corresponde al commit previo. GitHub Actions sigue sin proporcionar CI por facturación. No se han realizado llamadas de pago ni cambios en Supabase alojado.
+
+## Verificación completa de segunda tanda — salida local facilitada por el propietario
+
+Tras actualizar la rama local hasta `8074425`, el propietario ejecutó `npm run test:integration` (**57/57**, 10/10 archivos) y `npm run verify`: Core pin PASS (`2aaf12700542e4499cfdd27a491d072abb635ca2`), escaneo de secretos PASS (354 archivos), ESLint PASS, TypeScript `tsc --noEmit` PASS, Vitest **374/374** (40/40 archivos), build Next.js 16.3.8 PASS. **431/431 pruebas de esta tanda**. Este registro y el registro anterior de resultados son cambios exclusivamente documentales posteriores al código probado. 518 pruebas SQL acreditadas anteriormente, no reejecutadas aquí. GitHub Actions bloqueado por facturación; no afirmar CI verde.
