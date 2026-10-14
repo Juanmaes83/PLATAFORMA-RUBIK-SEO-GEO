@@ -1,6 +1,6 @@
 # Seguridad: corrección de auditoría y consentimiento de membresías — decisión técnica
 
-**Estado: propuesta para revisión, no desplegada.** Rama independiente de `main@506ea91`. Se han confirmado las dos debilidades por inspección del SQL; **no hay mitigación de producto implementada ni pruebas locales repetidas en esta rama**.
+**Estado: propuesta para revisión, no desplegada.** Rama independiente creada desde `main@506ea91`; ahora #87 está fusionada como `ccdf104a` y la documentación de checkpoint #91 como `314a8a1`. Esta propuesta sigue siendo solo diseño. Se han confirmado las dos debilidades por inspección del SQL; **no hay mitigación de producto implementada ni pruebas locales repetidas en esta rama**.
 
 ## S1 — Contaminación permanente de `audit_events`
 
@@ -30,3 +30,19 @@
 - Mantener ambos casos en estado **ABIERTOS / REQUIEREN IMPLEMENTACIÓN**, no mezclar con el Grupo 3 alojado.
 
 **Próximo paso ejecutable sin decisiones:** refactorizar tests de fixture de membresía para usar flujo de invitación y preparar una migración reversible S2 en una rama de código; para S1 hay que decidir el mecanismo de escritura de confianza antes de cambiar privilegios.
+
+## Plan de implementación S2 (inspección del código, 15/10/2026)
+
+**Cambio mínimo propuesto (solo como diseño; NO ejecutado):** en una migración nueva, retirar las dos políticas RLS de INSERT directo (`owners add org members` y `org owners add project members`) **y revocar los permisos de INSERT por columna** concedidos a `authenticated` en ambas tablas. Revocar solo el permiso de tabla no basta si siguen activos los `GRANT INSERT(columna)`. No quitar SELECT/UPDATE/DELETE sin una auditoría separada.
+
+**Flujos que deben permanecer válidos:** los triggers `private.add_creator_as_org_owner` y `private.add_creator_as_project_owner`, así como la aceptación `private.accept_project_invitation`, son `SECURITY DEFINER` y escriben desde contexto privilegiado tras comprobar la identidad/consentimiento donde corresponde. Confirmar en local quién es efectivamente el **owner** de esas funciones tras las migraciones y que su bypass RLS se limita a los casos previstos. No sustituir por una RPC que acepte `user_id` arbitrario.
+
+**Pruebas que hay que adaptar antes de aprobar la migración:**
+- `supabase/tests/rls_tenancy.test.sql` incluye dos asserts **positivos** de INSERT directo del owner y un negativo que hoy espera `23503`; tras revocar el privilegio esos casos deben verificar denegación `42501` (y crear miembros válidos mediante aceptación de invitación o fixtures creados como superusuario **solo en local**).
+- `tests/integration/{tenancy,imports,provenance,google-capture}.integration.test.ts` usan INSERT directo de owner para preparar miembros ficticios. Migrar los setups a `project_invitations(create)` del propietario y `accept_project_invitation` desde la cuenta confirmada del destinatario; mantener los tests negativos de acceso y rol. La PR #85 añade `isolation-matrix.integration.test.ts` y también requiere comprobar su setup.
+- `supabase/tests/project_invitations.test.sql` ya incluye la ruta de invitación; ampliar con owner intento de inserción directo rechazado y confirmación de que `accept_project_invitation` sigue concediendo solo el rol aceptado.
+- Probar `organization_members` y `project_members` **por separado**, privilegios por columna con `has_column_privilege`, y ausencia de altas sin consentimiento tanto en Data API como SQL del rol autenticado.
+
+**Criterio de salida S2:** `npm run verify`, `npm run test:integration`, `npm run test:db` y e2e verdes sobre **main actualizado**, más evidencia de las denegaciones; PR separada y en borrador hasta validación. El despliegue de la migración alojada necesita autorización específica, plan de rollback y copia de seguridad.
+
+**S1 continúa bloqueado por arquitectura** aun si S2 pasa: un control de roles o una firma HMAC recibida desde el navegador no acredita que la firma sea auténtica; se requiere un escritor confiable y el retiro simultáneo del INSERT de usuarios normales.
