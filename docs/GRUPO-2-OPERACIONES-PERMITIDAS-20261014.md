@@ -1,6 +1,10 @@
 # Grupo 2 — operaciones permitidas dentro de un cliente
 
-**Estado:** PR para revisión; pruebas añadidas, **NO ejecutadas en Supabase local ni CI** en esta sesión. Base `main@bea764671c65e84bd6efcc749e7a66d40a21f1fe`. No se ejecutó código contra la base alojada, no se modificaron políticas, proveedores, variables ni despliegues.
+**Estado:** integración local 54/54 superada según salida aportada por el propietario; CI y `npm run verify` del PR pendientes. Base `main@bea764671c65e84bd6efcc749e7a66d40a21f1fe`. No se ejecutó código contra la base alojada, no se modificaron políticas, proveedores, variables ni despliegues.
+
+## Evidencia posterior — integración local superada (14/10/2026)
+
+El propietario ejecutó `npm run test:integration` en Windows, rama local `test-local-pr82`, con Supabase local activo (`127.0.0.1:54321`). Resultado aportado: **10 archivos PASS, 54 pruebas PASS**, incluida `tests/integration/tenancy.integration.test.ts` (**14/14 PASS**, cuatro nuevos casos). Duración 30,97 s. No es ejecución de GitHub Actions, ni verifica el Supabase alojado. **Queda pendiente** `npm run verify` de este SHA y una revisión global adicional de funciones de importación, exportación, conectores y consumo antes de declarar el alcance completo cerrado.
 
 ## Auditoría de alcance
 
