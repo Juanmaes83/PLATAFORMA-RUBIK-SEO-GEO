@@ -1,5 +1,19 @@
 # Roadmap de la plataforma
 
+### Auditoría npm precisa — 14/10/2026
+
+Evidencia aportada por el propietario desde `main@bea7646`:
+- `npm audit --omit=dev`: **0 vulnerabilidades**.
+- `npm audit`: 5 HIGH reportadas como cadena transitiva única: `eslint-config-next@16.3.6` → `@next/eslint-plugin-next@16.3.6` → `fast-glob@3.3.1` → `micromatch@4.0.8` → `braces@3.0.3`.
+- Identificador: `GHSA-vfj7-8cjw-p6xm` / `CVE-2026-93687`. El [advisory oficial](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) señala todas las versiones <=3.0.3 y **sin patched versions** a 14/10/2026.
+- `npm audit fix --force` sugiere `eslint-config-next@14.2.35`, retroceso incompatible, **rechazado**.
+- Riesgo residual: disponibilidad del proceso de tooling que procese globs controlados por terceros; no atribuir exposición remota en la aplicación desplegada sin evidencia. Mantener audit visible, comprobar versiones corregidas periódicamente y verificar en un entorno aislado antes de modificar lockfile. No hay excepción aprobada para ignorar el aviso; este documento es registro y propuesta.
+
+### Grupo 2 — alcance para implementación revisable
+
+Validar las **operaciones permitidas dentro de un mismo cliente** con los roles y contratos actuales: titular de organización/proyecto, miembro analista, roles limitados de aprobación/lectura y tercero sin pertenencia. Cubrir permisos efectivos por RPC, RLS y acciones servidor para listar/ver, invitar/revocar, modificar roles, importar/exportar, gestionar conectores y consultar consumo, únicamente donde la funcionalidad exista y los contratos lo requieran. Incluir negativas para escalada de privilegios, edición cruzada y acceso por UUID manipulado. Distinguir acciones no implementadas de acciones denegadas. Crear rama de tests a partir del main posterior a #80; sin cambios de permisos ni proveedores antes de verificar el estado real. Este bloque es planificación: **no se declara implementado ni probado**.
+
+
 ## Cierre verificado — Grupo 1, 14/10/2026
 
 - **Fusionado** [PR #80](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/80) mediante squash, `main@bea764671c65e84bd6efcc749e7a66d40a21f1fe`; origen probado `bccfb70ea66bb6b4ee3c85aebe8f59eb54c42c1f`. Vercel Production `READY` sobre `bea76467`.
