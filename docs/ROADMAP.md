@@ -1,5 +1,15 @@
 # Roadmap de la plataforma
 
+## Estado actualizado — 14/10/2026, Grupo 2 cerrado en código (`main@506ea91`)
+
+- **Grupo 1, autenticación y pertenencia:** integrado mediante PR #80 (`main@bea76467`); 518 pgTAP previamente ejecutadas y 50 pruebas de integración acreditadas en la tanda anterior. Validación alojada negativa entre cuentas reales aún pendiente.
+- **Grupo 2, operaciones y roles por proyecto:** [PR #82](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/82) fusionado por squash en `main@506ea91d24baa4feaff11e5f246f78135ee1b3ec`. Cobertura de integración: 57/57 PASS (17/17 de tenancy); `npm run verify`: 374/374 tests unitarios/UI, Core pin, secretos, lint, TypeScript y build PASS. Todo sobre **Supabase local**. GitHub Actions no ejecutó CI por bloqueo de facturación. No se alteró RLS ni esquema alojado; los cambios fueron pruebas y documentación.
+- **Grupo 3 propuesto — verificación alojada y preparación del piloto multicliente:** primera tarea es recopilar evidencia de acceso/denegación entre dos cuentas y proyectos reales con un procedimiento reversible y datos ficticios autorizados. Preparar en PR sin desplegar ni escribir en Supabase alojado. Después revisar la migración pendiente `20261012130000_google_recovery_state`, exportación/verificación offline y reintento Google sin consulta adicional según los hitos del piloto. Ningún despliegue de migración, lectura pagada, cambio de flags o pruebas de escritura alojada sin autorización específica.
+- **Otros bloqueos:** aviso de contraseñas filtradas desactivado en Supabase; GitHub Actions facturación; ADR 0010 custodia de credenciales por cliente, Preview aislada y decisión para el modo OpenSEO `project`. No presentar estos hitos como resueltos.
+
+**Orden de ejecución de Grupo 3:** (1) inventario documental de entorno/roles y procedimiento seguro; (2) matriz de pruebas negativas e invariantes para cuentas A/B/analista/viewer; (3) preparar scripts y pruebas locales sin secretos y con rollback; (4) decidir el entorno alojado apto para prueba, con aprobación previa a cualquier escritura; (5) evidencia, documentación, revisión visual y PR separada. Mantener `legacy` y proveedores de pago bloqueados.
+
+
 ## Aclaración Grupo 1 — permisos por columna (14/10/2026)
 
 Revisadas las definiciones SQL de Core 9.1 y permisos reales alojados: el aparente desfase de `has_table_privilege` se explica por `GRANT INSERT/UPDATE (columnas)`, confirmados por `information_schema.column_privileges`. Las inserciones directas de las pruebas locales son compatibles con los privilegios previstos y las políticas RLS. No abrir migración ni implementar RPC nuevas por este motivo. Pendientes los gates locales/CI y prueba negativa entre cuentas.
