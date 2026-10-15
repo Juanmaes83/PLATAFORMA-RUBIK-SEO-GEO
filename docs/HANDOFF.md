@@ -1,12 +1,22 @@
 # Handoff
 
-## Relevo actual — 14/10/2026, Grupo 2 fusionado
+## Registro histórico — Grupo 2 cerrado, 14/10/2026 (PR #83 reconciliada)
 
-- `main@506ea91d24baa4feaff11e5f246f78135ee1b3ec` incorpora [PR #82](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/82), Grupo 2 de autorización multicliente: cuatro pruebas iniciales y tres adicionales en `tenancy.integration.test.ts`, sin cambios de esquema ni permisos de producción.
-- Validación aportada por el propietario, Windows + Supabase local: integración **57/57** (tenancy **17/17**); `npm run verify`: **374/374**, core pin, secretos, lint, TS y build PASS. 431 pruebas de la última tanda. 518 pgTAP corresponden a ejecución previa, **no reejecutadas en este commit**. GitHub Actions continúa bloqueado por facturación.
-- `docs/GRUPO-2-OPERACIONES-PERMITIDAS-20261014.md` registra alcance y evidencia. La PR #81 documental antigua puede necesitar reconciliación con el presente estado antes de cualquier merge; no asumir su vigencia.
-- **Grupo 3 siguiente:** diseñar y validar procedimiento de aislamiento alojado sin afectar datos reales: matriz por identidad y rol, pruebas negativas de RLS/RPC, límite de datos ficticios y limpieza, condiciones de parada, rollback y evidencia. No ejecutar escrituras remotas sin autorización concreta. Pilotaje Sarah: migración `20261012130000`, recuperación/exportación y reintento siguen pendientes. Sin activación de modo `project` ni gasto externo.
+[#82](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/82) se integró en `main@506ea91`. Evidencia local de entonces: **57/57 integración**, **374/374 unitarias/UI**, lint, tipos y build PASS; **518 SQL** eran de una ejecución anterior. CI no ejecutada por facturación; sin prueba alojada de dos cuentas. Es un hito **histórico**, anterior a #87, #89 y #91 y al checkpoint vigente.
 
+## Checkpoint posterior al turno — 15/10/2026 (fuentes verificadas)
+
+La sección «Relevo — night shift» inferior es histórica y refleja el estado **antes** de las fusiones. Situación posterior: PR #87 fusionada en `main` (`ccdf104a`); PR #91 de documentación fusionada (`314a8a1`). En la PR #87 se validaron en Windows sobre su HEAD: 381 pruebas unitarias, 57 integración local, 518 pgTAP locales; build, lint y TypeScript correctos. `wt-export` quedó limpio. No se ha probado una restauración en Supabase alojado.
+
+La PR #88 sigue Draft; su rama incorporó un bloqueo **incondicional** con `VERCEL_ENV=preview` (el flag `PREVIEW_SUPABASE_ISOLATED=true` **ya no desbloquea**). Último despliegue Preview `READY` en `6a519290`, con `/api/salud` → `preview-locked` y `persistence: none`, páginas `/acceso`, `/panel`, `/registro`, `/recuperar` bloqueadas, y una exportación de proyecto ficticio 404. Falta verificación local sobre ese HEAD y negativa con sesión/cookies existente; no se fusionó.
+
+PRs #85, #86, #89 y #90 permanecen en revisión. #85/#86 fueron verificadas en su base inicial pero requieren actualizar y revalidar contra `main` posterior a #87. #90 es exclusivamente diseño de mitigación S1/S2, sin cambios de permisos. Roadmap canónico: [ROADMAP](ROADMAP.md). **No hay autorización implícita para escribir en Supabase alojado ni para activar el modo OpenSEO project.**
+
+## Relevo — 15/10/2026, night shift (sin cambios en producción)
+
+- `main@506ea91` sin cambios. Trabajo en worktrees; el checkout `test-local-pr82` y su stash no se tocaron. El clon local solo trae `feat/core-9-0-bootstrap` con `git fetch`: usar refspec explícito.
+- PR Draft nuevas: #85 (Grupo 3 local), #86 (piloto Sarah), #87 (manifiesto de exportación, producto), #88 (bloqueo de sesión en Preview, producto). Cifras exactas, Vercel y riesgos en [NIGHTSHIFT-RESULTS](NIGHTSHIFT-RESULTS.md).
+- Siguiente paso: revisión del propietario de #85 y #87; fase B alojada del Grupo 3; aplicar `20261012130000`.
 
 ## Aclaración de privilegios alojados — 14/10/2026 (lecturas confirmadas)
 
