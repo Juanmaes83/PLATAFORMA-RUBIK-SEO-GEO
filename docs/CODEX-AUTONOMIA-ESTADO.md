@@ -1,5 +1,13 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
+## Corte posterior a integración S1 · 15/10/2026
+
+- **GitHub main**: `31e3461c2bc8694081e5f07b25f9276f6dd145b7`; [PR #104](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/104) **MERGED**; N1-04 [#109](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/109) **MERGED**; #110 (Claude S1) y #111 (main→rama S1) **MERGED**. #105–107 sustituidas/cerradas. NO reabrir ni repetir fusiones.
+- Evidencia S1 publicada en [#104, comentario 6200891990](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/104#issuecomment-6200891990), correspondiente a `6f52270069b391c10bbac24576e3361754848f26`: verify 479/479; integración 101/101; pgTAP 641/641; E2E 145 PASS/44 SKIP/0 FAIL; seguridad dirigida 76/76, ensayos de rollback e idempotencia. **Verificado localmente por Claude** y auditado mediante GitHub, no constituye CI alojada ni despliegue.
+- **Gates abiertos:** GitHub Actions bloqueada por facturación (jobs 0 pasos); S2 y S1 no migradas/validadas en Supabase alojado; falta identidad real del escritor y ensayo de pooler/Vercel, U02, U03, R1/R3/R4/R7. Preview debe seguir bloqueada hasta aprobación + entorno aislado. Nunca tocar FLOOR PLAN.
+- **Próxima sesión Codex/Claude:** recuperar `origin/main`, leer ROADMAP/CONTROL y preparar trabajo dependiente de U02/U03 en rama nueva; tareas independientes de producto SEO/GEO pueden avanzar en paralelo sin desplegar ni gastar. Conservar el histórico inferior para trazabilidad.
+
+
 ## Checkpoint S1 · 15/10/2026, 18:40 UTC
 
 - **Estado GitHub comprobado antes de este commit:** `main@520e4119bafe8a9ce4b2293faad2e54b8e6d81d8`, PR #104 OPEN/Draft, HEAD local/remoto `2d6cf5ae8375e11c394cf664f379290093796e30`. Rama `codex/s1-trusted-audit-writer-20261015` en `test-results/s1-writer`; consultar el HEAD tras el push de este checkpoint.
