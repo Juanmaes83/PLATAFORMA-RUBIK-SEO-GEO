@@ -1,5 +1,8 @@
 # N1-03 / S1 — plan para decisión, sin implementación
 
+> **U01 APROBADA PARA DESARROLLO LOCAL — 15/10/2026:** escritor SQL dedicado con privilegio mínimo, firma en servidor y transacciones por proyecto; outbox duradero para revocaciones; `provider_results` como subbloque. Ver [DECISION-U01-APROBACION-20261015.md](DECISION-U01-APROBACION-20261015.md). Las referencias inferiores a «requiere decisión U01» son anteriores a la aprobación. **Ninguna migración alojada ni secreto real autorizado.**
+
+
 Base inspeccionada: `main@3eba9d014a339dabdabff28f42e27209695b0bf9`; S2 en rama independiente.
 S1 continúa ABIERTO. Este documento no elige identidad escritora, crea roles, configura
 credenciales ni autoriza cambios alojados. Implementar después de integrar S2 y resolver U01.
