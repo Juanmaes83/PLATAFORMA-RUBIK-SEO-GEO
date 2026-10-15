@@ -18,7 +18,7 @@ La comprobación se niega a ejecutarse si el SQL del rollback cambia; exige nuev
 
 ## Evidencia y límites
 
-- **Ejecutado por el supervisor fuera del stack de Codex:** `node --check scripts/test-s1-provider-rpc-rollback.mjs` PASS y `node scripts/test-s1-provider-rpc-rollback.mjs --check` PASS usando una copia verificada del archivo rollback. Esto es **solo validación sintáctica/estática**.
+- **Revisión realizada:** código y rollback inspeccionados en GitHub; el script exige la forma exacta del SQL y un destino local restringido. La ejecución de `node --check` y del modo `--check` **no cuenta todavía con evidencia verificable de ejecución en esta sesión**: debe hacerse en el worktree de revisión. No atribuir resultado PASS sin el log del comando.
 - **No ejecutado:** comprobación contra PostgreSQL real. Este entorno no tiene conexión al stack S1 local del propietario, Docker, ni acceso al worktree Windows. Debe ejecutar la prueba el siguiente agente en su stack aislado; no reportarla como aprobada antes.
 - `S1_LOCAL_POSTGRES_ADMIN_URL` debe establecerse fuera del repositorio y sin volcar secretos en logs/chat. Nunca reutilizar URL alojadas.
 
