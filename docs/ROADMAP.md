@@ -1,5 +1,7 @@
 # Roadmap de la plataforma
 
+> **ACTUALIZACIÓN DE CONTROL — 15/10/2026, post #86:** #85 y #86 fusionadas como cobertura local; no se declara finalizado el aislamiento alojado ni el piloto Sarah. Playwright pendiente por limpieza de usuarios fuera de fixture; próxima PR: acotar `e2e/global-setup.ts` y demostrar que no elimina cuentas ajenas en Supabase LOCAL. Fuente vigente: [CONTROL-PROYECTO.md](CONTROL-PROYECTO.md). Los checkpoints inferiores son históricos.
+
 > **ESTADO CANÓNICO ACTUAL — 15/10/2026 (post #85):** consultar [CONTROL-PROYECTO.md](CONTROL-PROYECTO.md). #88 y #85 ya están fusionadas; #86 sigue Draft y Codex trabaja en ella. Los checkpoints y tablas inferiores representan cortes históricos y no sustituyen el estado actual. S1/S2 y aislamiento alojado permanecen pendientes.
 
 ## Revalidación final de PR #86 — 15/10/2026
