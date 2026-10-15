@@ -143,6 +143,9 @@ select throws_ok($$update public.provider_results set status = 'OK'$$, '42501', 
 
 select pg_temp.act_as('00000000-0000-4000-8000-0000000000a1');
 select results_eq($$with d as (delete from public.provider_results returning 1) select count(*)::int from d$$, array[1], 'the project owner can erase results on request');
+select pg_temp.act_as_admin();
+select is((select count(*)::int from private.audit_outbox where action = 'provider-results.erase' and project_id = (select a1 from ids)),
+  1, 'owner erasure and audit receipt commit in the same transaction');
 
 -- Cascade: removing the project (administrator) removes its audit trail.
 select pg_temp.act_as_admin();

@@ -7,6 +7,7 @@ import type { Keyring } from "./keyring";
 import { verifyAuditTrail, type AuditInput, type AuditRow, type AuditVerification, type ProjectRef } from "./audit";
 import { openProviderResult, type ProviderResultRow } from "./results";
 import { appendTrustedAudit, storeTrustedProviderResult } from "./writer";
+import { processAuditOutbox } from "./outbox";
 
 // Persistence through the signed-in user's Supabase client (publishable key): Postgres RLS
 // decides what each call may read or write; the database links and protects the chain
@@ -164,11 +165,11 @@ export async function exportProject(client: Client, project: ProjectRef, keyring
  * Erases the project's stored results and records it. RLS lets only the project owner delete
  * (a non-owner erases 0 rows); callers check `delete-data` with the Core's authorize() first.
  */
-export async function eraseProviderResults(client: Client, project: ProjectRef, actor: AuditInput["actor"], keyring: Keyring): Promise<{ ok: true; erased: number } | Failure> {
-  const { data, error } = await client.from("provider_results").delete().eq("project_id", project.projectId).select("id");
+export async function eraseProviderResults(client: Client, project: ProjectRef, _actor: AuditInput["actor"], keyring: Keyring): Promise<{ ok: true; erased: number } | Failure> {
+  const { data, error, count } = await client.from("provider_results").delete({ count: "exact" }).eq("project_id", project.projectId).select("id");
   if (error) return { ok: false, error: "WRITE_FAILED" };
-  const erased = data.length;
-  const logged = await appendAudit(client, project, { actor, action: "provider-results.erase", outcome: "allowed", details: { erased } }, keyring);
-  if (!logged.ok) return logged;
-  return { ok: true, erased };
+  const erased = count ?? data.length;
+  let failed = false;
+  for (const row of data) if (!(await processAuditOutbox(row.id, keyring)).ok) failed = true;
+  return failed || erased !== data.length ? { ok: false, error: "AUDIT_PENDING" } : { ok: true, erased };
 }

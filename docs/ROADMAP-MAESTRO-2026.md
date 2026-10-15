@@ -1,5 +1,7 @@
 # ROADMAP MAESTRO · Rubik SEO/GEO
 
+**CHECKPOINT N1-03/S1 · 15/10/2026, 16:20 UTC:** borrado de `provider_results` con efecto+recibo atómicos y firma reintentable en la misma PR Draft #104; integración dirigida 16/16 y pgTAP de procedencia 41/41 PASS, batería completa del nuevo cambio pendiente. Falta traza durable con proveedores externos, retención y gates alojados; no declarar S1/H2 cerrado. Ver [S1-IMPLEMENTACION-LOCAL-20261015.md](S1-IMPLEMENTACION-LOCAL-20261015.md).
+
 **CHECKPOINT N1-03/S1 · 15/10/2026, 16:04 UTC:** `provider_results` deja de aceptar INSERT JWT en la migración local S1; escritura dedicada de resultados Core firmados con autorización SQL e idempotencia en PR Draft #104. `verify:s1-local` completo PASS: verify 405/405, integración 88/88, pgTAP 603/603 y Playwright 145 PASS/44 SKIP/0 FAIL. Falta vínculo duradero con efectos externos y cerrar otros gates; no declarar S1 ni H2 completo, no aplicar alojado ni fusionar. Ver [S1-IMPLEMENTACION-LOCAL-20261015.md](S1-IMPLEMENTACION-LOCAL-20261015.md).
 
 **CHECKPOINT N1-03/S1 · 15/10/2026, 15:49 UTC:** importaciones con efecto+recibo atómicos y reintento de firma en PR Draft #104. `verify:s1-local` completo PASS: verify 405/405, integración 87/87, pgTAP 598/598 y Playwright 145 PASS/44 SKIP/0 FAIL. `provider_results`, otros efectos y gates alojados impiden cerrar S1. Ver [S1-IMPLEMENTACION-LOCAL-20261015.md](S1-IMPLEMENTACION-LOCAL-20261015.md).

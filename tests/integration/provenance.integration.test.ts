@@ -181,6 +181,37 @@ describe("CORE-9.2 signed provider results through the Data API", () => {
     expect([ex.export.audit.rows.length, ex.export.audit.verification, ex.export.results.length]).toEqual([0, { valid: true, length: 0 }, 0]);
   });
 
+  it("keeps an erasure receipt when signing fails, then completes it once", async () => {
+    expect((await appendAudit(b, pb, { actor: { role: "owner", id: users[1] }, action: "erase.seed" }, keyring)).ok).toBe(true);
+    const stored = await storeProviderResult(b, pb, await liveResult(), keyring);
+    if (!stored.ok) throw new Error(stored.error);
+    const wrong = loadKeyring({ PROVENANCE_SIGNING_KEYS: `wrong:${randomBytes(32).toString("base64")}`, PROVENANCE_ACTIVE_KEY_ID: "wrong" });
+    if (!wrong.ok) throw new Error(wrong.error);
+    expect(await eraseProviderResults(b, pb, { role: "owner", id: users[1] }, wrong.keyring)).toEqual({ ok: false, error: "AUDIT_PENDING" });
+    const remaining = await listProviderResults(b, pb);
+    expect(remaining.ok && remaining.rows).toEqual([]);
+    const signed = await processAuditOutbox(stored.id, keyring);
+    expect(signed.ok).toBe(true);
+    expect(await processAuditOutbox(stored.id, keyring)).toEqual(signed);
+    const trail = await readAuditTrail(b, pb, keyring);
+    if (!trail.ok) throw new Error(trail.error);
+    expect(trail.verification.valid).toBe(true);
+    expect(trail.rows.filter((row) => row.action === "provider-results.erase" && row.target === stored.id)).toHaveLength(1);
+  });
+
+  it("queues a receipt even when an owner deletes a result directly through the Data API", async () => {
+    const stored = await storeProviderResult(b, pb, await liveResult(), keyring);
+    if (!stored.ok) throw new Error(stored.error);
+    const direct = await b.from("provider_results").delete().eq("id", stored.id).select("id");
+    expect(direct.error).toBeNull();
+    expect(direct.data).toEqual([{ id: stored.id }]);
+    expect((await processAuditOutbox(stored.id, keyring)).ok).toBe(true);
+    const trail = await readAuditTrail(b, pb, keyring);
+    if (!trail.ok) throw new Error(trail.error);
+    expect(trail.verification.valid).toBe(true);
+    expect(trail.rows.filter((row) => row.action === "provider-results.erase" && row.target === stored.id)).toHaveLength(1);
+  });
+
   it("stores a Core result once per operation id and refuses reuse in another project", async () => {
     const operationId = randomUUID();
     const result = await liveResult();

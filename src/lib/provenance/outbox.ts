@@ -6,7 +6,7 @@ import type { Keyring } from "./keyring";
 import { writerPool } from "./writer";
 
 type Receipt = { id: string; project_id: string; organization_id: string; actor_id: string;
-  actor_role: Role; target_id: string | null; target_text: string | null; action: "member.withdraw" | "import.file" | "import.erase";
+  actor_role: Role; target_id: string | null; target_text: string | null; action: "member.withdraw" | "import.file" | "import.erase" | "provider-results.erase";
   details: Record<string, unknown>; state: "pending" | "completed"; event_seq: number | null };
 
 /** Signs only a receipt created by a database effect trigger; no caller supplies event fields. */

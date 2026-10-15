@@ -1,5 +1,13 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
+## Checkpoint S1 · 15/10/2026, 16:20 UTC
+
+- **Rama/worktree:** `codex/s1-trusted-audit-writer-20261015` / `test-results/s1-writer`, PR Draft #104. HEAD remoto publicado antes del cambio actual: `13c0e3691b9bdc213bc2f4a5568744b1e29f9984`; consultar HEAD nuevo tras commit. `main` remoto `520e4119` en último control.
+- **Cambio local nuevo:** migración `20261015183000_s1_provider_erase_outbox.sql` y rollback de contención. El DELETE de `provider_results`, incluso directo por Data API, crea recibo SQL en la misma transacción. La firma es reintentable; el método de producto informa `AUDIT_PENDING` ante fallo o respuesta incompleta. No hay cambio alojado.
+- **Pruebas dirigidas:** integración de procedencia 16/16 PASS (incluye fallo de clave y DELETE directo); restauración en ejecución anterior 10/10 PASS; pgTAP del archivo de procedencia 41/41 PASS. Batería completa del nuevo cambio pendiente. El corte anterior publicado `13c0e36` pasó `verify:s1-local`: 405/88/603 y E2E 145 PASS/44 SKIP; ajuste menor de comparación idempotente pasó integración dirigida 14/14 y typecheck. No atribuir el E2E anterior al código nuevo.
+- **Rollback:** DELETE/INSERT JWT de `provider_results` pasa a `f|f`; reaplicación local solo de DELETE devuelve `t|f`. **Riesgos y siguiente acción:** ejecutar batería completa, documentar resultados, commit/push y actualizar PR. Después auditar la traza duradera entre ledger Google/OpenSEO y auditoría firmada, política de retención de recibos en eliminación de proyecto y negativos del writer real. Actions sigue bloqueada antes del primer paso por facturación; no es un fallo de test ejecutado. No migrar alojado ni fusionar. Ledger E2E ambiguo antiguo preservado.
+- **Retomar manualmente:** `cd C:/Users/temp123/Documents/ChatGPT/PLATAFORMA-RUBIK-SEO-GEO/s2-consent/test-results/s1-writer`; `git status -sb`; `git rev-parse HEAD`; `gh pr view 104 --json headRefOid,state,isDraft`; leer este archivo y `docs/S1-IMPLEMENTACION-LOCAL-20261015.md`. Stack S1 local 56321/56322, no resetear.
+
 ## Checkpoint S1 · 15/10/2026, 16:04 UTC
 
 - **Base:** PR Draft #104, rama `codex/s1-trusted-audit-writer-20261015`, worktree `test-results/s1-writer`, remoto publicado `976f354a44105d289785d9b7552b163806da49be` antes del siguiente commit. `main` remoto comprobado `520e4119bafe8a9ce4b2293faad2e54b8e6d81d8`.
