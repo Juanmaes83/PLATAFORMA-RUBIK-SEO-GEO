@@ -29,6 +29,20 @@ const reply = { structuredContent: { ok: true, siteUrl: site, startDate: "2026-0
   rows: [{ keys: [`https://gcap-${RUN}.example/`], clicks: 4, impressions: 40, ctr: 0.1, position: 2.5 }], hasMore: false, nextStartRow: 1 } };
 const mcp = () => { const callTool = vi.fn(async () => reply); return { callTool, factory: vi.fn(() => ({ callTool, close: vi.fn(async () => {}) })) }; };
 
+type StoredCapture = { idempotency_key: string; state: string; result_id: string };
+async function captureLedger() {
+  const [inventory, recovery] = await Promise.all([
+    owner.rpc("project_data_inventory", { p_project_id: project.projectId }),
+    owner.rpc("google_recovery_state", { p_project_id: project.projectId }),
+  ]);
+  expect(inventory.error).toBeNull();
+  expect(recovery.error).toBeNull();
+  return {
+    count: (inventory.data as { googleCaptures: number }).googleCaptures,
+    stored: (recovery.data as { captures: StoredCapture[] }).captures,
+  };
+}
+
 beforeAll(async () => {
   users.push(await createConfirmedUser("gcap-owner"), await createConfirmedUser("gcap-analyst"));
   [owner, analyst] = await Promise.all(["gcap-owner", "gcap-analyst"].map(signedIn));
@@ -83,6 +97,71 @@ describe("manual Google capture on the local stack (simulated MCP)", () => {
     expect(await captureGoogleReport(analyst, project, query, randomUUID(), { role: "analyst", id: users[1] }, keyring, { env, mcpFactory: m.factory }))
       .toEqual({ ok: false, error: "FORBIDDEN" });
     expect(m.callTool).not.toHaveBeenCalled();
+  });
+
+  it("two sessions retrying the same key at once: one provider call, one stored result", async () => {
+    const second = await signedIn("gcap-owner"); // another HTTP session of the same owner (double click, two tabs)
+    const sameKey = randomUUID();
+    const before = (await owner.from("provider_results").select("id").eq("project_id", project.projectId)).data!.length;
+    const ledgerBefore = await captureLedger();
+    let open!: () => void;
+    const gate = new Promise<void>((resolve) => { open = resolve; });
+    const slow = mcp();
+    slow.callTool.mockImplementationOnce(async () => { await gate; return reply; });
+    const first = captureGoogleReport(owner, project, query, sameKey, { role: "owner", id: users[0] }, keyring, { env, mcpFactory: slow.factory });
+    try {
+      await vi.waitFor(() => expect(slow.callTool).toHaveBeenCalledTimes(1)); // reservation exists; provider is waiting
+      const racing = mcp();
+      expect(await captureGoogleReport(second, project, query, sameKey, { role: "owner", id: users[0] }, keyring, { env, mcpFactory: racing.factory }))
+        .toEqual({ ok: false, error: "IN_PROGRESS" });
+      expect(racing.factory).not.toHaveBeenCalled();
+      expect(racing.callTool).not.toHaveBeenCalled();
+    } finally {
+      // Always finish the pending request before fixture cleanup, even when an assertion fails.
+      open();
+      await first;
+    }
+    const done = await first;
+    expect(done).toMatchObject({ ok: true, replayed: false });
+    const replay = mcp();
+    expect(await captureGoogleReport(second, project, query, sameKey, { role: "owner", id: users[0] }, keyring, { env, mcpFactory: replay.factory }))
+      .toEqual({ ok: true, resultId: (done as { resultId: string }).resultId, replayed: true, audited: false });
+    expect(replay.callTool).not.toHaveBeenCalled();
+    expect(slow.callTool).toHaveBeenCalledTimes(1);
+    const ledgerAfter = await captureLedger();
+    expect(ledgerAfter.count).toBe(ledgerBefore.count + 1);
+    expect(ledgerAfter.stored.filter((row) => row.idempotency_key === sameKey))
+      .toEqual([expect.objectContaining({ state: "STORED", result_id: (done as { resultId: string }).resultId })]);
+    expect((await owner.from("provider_results").select("id").eq("project_id", project.projectId)).data).toHaveLength(before + 1);
+  });
+
+  it("a provider failure releases the key: the retry reads once more and stores exactly one result", async () => {
+    const retryKey = randomUUID();
+    const before = (await owner.from("provider_results").select("id").eq("project_id", project.projectId)).data!.length;
+    const ledgerBefore = await captureLedger();
+    const failing = mcp();
+    failing.callTool.mockImplementationOnce(async () => { throw new Error("simulated provider outage"); });
+    const failed = await captureGoogleReport(owner, project, query, retryKey, { role: "owner", id: users[0] }, keyring, { env, mcpFactory: failing.factory });
+    expect(failed).toEqual({ ok: false, error: "PROVIDER_STATUS", status: "ERROR" });
+    expect(failing.callTool).toHaveBeenCalledTimes(1);
+    const ledgerFailed = await captureLedger();
+    expect(ledgerFailed.count).toBe(ledgerBefore.count + 1);
+    expect(ledgerFailed.stored.filter((row) => row.idempotency_key === retryKey)).toEqual([]);
+    expect((await owner.from("provider_results").select("id").eq("project_id", project.projectId)).data).toHaveLength(before);
+    const retry = mcp();
+    const recovered = await captureGoogleReport(owner, project, query, retryKey, { role: "owner", id: users[0] }, keyring, { env, mcpFactory: retry.factory });
+    expect(recovered).toMatchObject({ ok: true, replayed: false });
+    if (!recovered.ok) throw new Error("retry must store a result");
+    expect(retry.callTool).toHaveBeenCalledTimes(1);
+    const again = mcp();
+    expect(await captureGoogleReport(owner, project, query, retryKey, { role: "owner", id: users[0] }, keyring, { env, mcpFactory: again.factory }))
+      .toEqual({ ok: true, resultId: recovered.resultId, replayed: true, audited: false });
+    const ledgerAfter = await captureLedger();
+    expect(ledgerAfter.count).toBe(ledgerBefore.count + 1);
+    expect(ledgerAfter.stored.filter((row) => row.idempotency_key === retryKey))
+      .toEqual([expect.objectContaining({ state: "STORED", result_id: recovered.resultId })]);
+    expect(again.callTool).not.toHaveBeenCalled();
+    expect((await owner.from("provider_results").select("id").eq("project_id", project.projectId)).data).toHaveLength(before + 1);
   });
 
   it("after revoking the binding no capture starts; the stored one stays verifiable", async () => {

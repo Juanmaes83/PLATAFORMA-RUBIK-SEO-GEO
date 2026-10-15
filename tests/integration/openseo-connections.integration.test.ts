@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, expect, it } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { connectProject, getProjectConnection, revokeProjectConnection } from "@/lib/openseo/connections";
+import { resolveOpenSeoTarget } from "@/lib/openseo/target";
 import { RUN, createConfirmedUser, deleteOrganizations, deleteUsers, signedIn } from "./support";
 
 const slugs = [`conn-a-${RUN}`, `conn-b-${RUN}`];
@@ -83,4 +84,38 @@ it("the same owner cannot move an audit or a connection between two projects (ph
   expect((await a.rpc("openseo_job", { p_project_id: second, p_command: "get", p_payload: { auditId: `aud-${RUN}` } })).error?.code).toBe("22023");
   expect((await a.rpc("openseo_job", { p_project_id: second, p_command: "get", p_job_id: jobId })).error?.code).toBe("22023");
   expect((await a.rpc("openseo_job", { p_project_id: projects.a, p_command: "fail", p_job_id: jobId })).error).toBeNull();
+}, 60_000);
+
+it("project mode resolves only the caller's own ACTIVE connection and never the global OpenSEO ids", async () => {
+  const a = await signedIn("conn-a");
+  const b = await signedIn("conn-b");
+  const current = await getProjectConnection(a, projects.a);
+  if (current.ok && current.connection?.state === "ACTIVE") expect(await revokeProjectConnection(a, projects.a)).toMatchObject({ ok: true });
+  const own = await connectProject(a, projects.a, { openseoProjectId: `mode-a-${RUN}`, allowedHosts: [`a-${RUN}.example`], consent: true });
+  if (!own.ok || !own.connection) throw new Error("fixture connection");
+  // Global values that must never reach a project-mode request (fictitious; no request is made).
+  const env = { OPENSEO_PROJECT_CONNECTIONS_MODE: "project", OPENSEO_PROJECT_JOBS_ENABLED: "true",
+    OPENSEO_PROJECT_ID: "global-legacy-project", OPENSEO_AUDIT_ALLOWED_HOSTS: "global.example" };
+
+  const resolved = await resolveOpenSeoTarget(a, projects.a, env);
+  expect(resolved).toMatchObject({ mode: "project", connection: { connectionId: own.connection.connectionId } });
+  if (!("env" in resolved)) throw new Error("expected a resolved environment");
+  expect(resolved.env.OPENSEO_PROJECT_ID).toBe(`mode-a-${RUN}`);
+  expect(resolved.env.OPENSEO_AUDIT_ALLOWED_HOSTS).toBe(`a-${RUN}.example`);
+  expect(JSON.stringify(resolved.env)).not.toContain("global");
+
+  // Another client, a real foreign UUID: refused before any OpenSEO request.
+  expect(await resolveOpenSeoTarget(b, projects.a, env)).toMatchObject({ mode: "project", error: { code: "CONNECTION_FORBIDDEN" } });
+  // Client B, on its own project, gets its own OpenSEO ids (connected in the phase 4 test), never A's.
+  const other = await resolveOpenSeoTarget(b, projects.b, env);
+  expect(other).toMatchObject({ mode: "project", env: { OPENSEO_PROJECT_ID: `jobs-b-${RUN}`, OPENSEO_AUDIT_ALLOWED_HOSTS: `b-${RUN}.example` } });
+  // Without the job ledger, project mode fails closed even for the owner.
+  expect(await resolveOpenSeoTarget(a, projects.a, { ...env, OPENSEO_PROJECT_JOBS_ENABLED: "false" }))
+    .toMatchObject({ error: { code: "CONNECTIONS_REQUIRE_JOBS" } });
+  // Legacy remains the default and ignores connections entirely.
+  expect(await resolveOpenSeoTarget(a, projects.a, { ...env, OPENSEO_PROJECT_CONNECTIONS_MODE: undefined }))
+    .toMatchObject({ mode: "legacy", connection: null });
+
+  expect(await revokeProjectConnection(a, projects.a)).toMatchObject({ ok: true, connection: { state: "REVOKED" } });
+  expect(await resolveOpenSeoTarget(a, projects.a, env)).toMatchObject({ mode: "project", error: { code: "PROJECT_NOT_CONNECTED" } });
 }, 60_000);
