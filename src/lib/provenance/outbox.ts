@@ -6,9 +6,10 @@ import type { Keyring } from "./keyring";
 import { writerPool } from "./writer";
 
 type Receipt = { id: string; project_id: string; organization_id: string; actor_id: string;
-  actor_role: Role; target_id: string; state: "pending" | "completed"; event_seq: number | null };
+  actor_role: Role; target_id: string | null; target_text: string | null; action: "member.withdraw" | "import.file" | "import.erase";
+  details: Record<string, unknown>; state: "pending" | "completed"; event_seq: number | null };
 
-/** Signs only a receipt created by the membership DELETE trigger; no caller supplies event fields. */
+/** Signs only a receipt created by a database effect trigger; no caller supplies event fields. */
 export async function processAuditOutbox(id: string, keyring: Keyring): Promise<{ ok: true; seq: number } | { ok: false; error: string }> {
   if (!/^[0-9a-f-]{36}$/i.test(id)) return { ok: false, error: "INVALID_RECEIPT" };
   const pool = writerPool();
@@ -37,8 +38,8 @@ export async function processAuditOutbox(id: string, keyring: Keyring): Promise<
     const chain = await db.query<AuditRow>("select * from public.audit_events where project_id = $1::uuid order by seq", [receipt.project_id]);
     if (!verifyAuditTrail(chain.rows, project, keyring).valid) { failure = "CHAIN_INVALID"; throw new Error(failure); }
     const built = buildAuditRow(chain.rows.at(-1) ?? null, { at: new Date().toISOString(),
-      actor: { role: receipt.actor_role, id: receipt.actor_id }, action: "member.withdraw", target: receipt.target_id,
-      outcome: "allowed", details: { receiptId: receipt.id } }, project, keyring);
+      actor: { role: receipt.actor_role, id: receipt.actor_id }, action: receipt.action, target: receipt.target_text ?? receipt.target_id ?? undefined,
+      outcome: "allowed", details: { ...receipt.details, receiptId: receipt.id } }, project, keyring);
     if (!built.ok) { failure = built.error; throw new Error(failure); }
     const row = built.row;
     await db.query(`insert into public.audit_events

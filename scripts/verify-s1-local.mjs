@@ -34,7 +34,15 @@ const evidence = { head, apiOrigin: "http://127.0.0.1:56321", dbPort: 56322, sta
 let failed = false;
 for (const [name, args] of commands) {
   process.stdout.write(`\nRunning ${name} ${args.join(" ")}\n`);
-  const run = spawnSync(name, args, { cwd: root, env: process.env, stdio: "inherit", shell: process.platform === "win32" });
+  const childEnv = { ...process.env };
+  // Static unit tests exercise all three stack selectors; the S1 selection is only
+  // passed to suites that actually connect to the isolated database.
+  if (args[1] === "verify") {
+    delete childEnv.SUPABASE_CLI;
+    delete childEnv.RUBIK_TEST_S1_STACK;
+    delete childEnv.RUBIK_AUDIT_DATABASE_URL;
+  }
+  const run = spawnSync(name, args, { cwd: root, env: childEnv, stdio: "inherit", shell: process.platform === "win32" });
   const passed = !run.error && run.status === 0;
   evidence.suites.push({ command: `${name} ${args.join(" ")}`, passed, exitCode: run.status });
   if (!passed) { failed = true; break; }

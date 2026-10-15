@@ -1,7 +1,4 @@
-// Generated from the LOCAL schema (supabase/migrations) with:
-//   npx supabase@2.118.0 gen types typescript --local --schema public > src/lib/supabase/database.types.ts
-// Do not edit by hand; regenerate after changing a migration.
-
+﻿
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
 
 export type Database = {
@@ -149,6 +146,9 @@ isOneToOne: false
           Functions: {
             "accept_project_invitation":
 { Args: { "p_token": string }; Returns: Json
+                           },
+"delete_import_with_receipt":
+{ Args: { "p_import": string,"p_project": string }; Returns: Json
                            },
 "google_capture":
 { Args: { "p_command": string,"p_payload"?: Json,"p_project_id": string }; Returns: Json

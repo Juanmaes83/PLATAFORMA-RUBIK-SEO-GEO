@@ -24,7 +24,7 @@ export function writerPool(): Pool | null {
   const local = parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost";
   if (!local && parsed.protocol !== "postgresql:") return null;
   poolUrl = url;
-  sharedPool = new Pool({ connectionString: url, max: 1, connectionTimeoutMillis: 3000,
+  sharedPool = new Pool({ connectionString: url, max: 4, connectionTimeoutMillis: 3000,
     idleTimeoutMillis: 10000, ssl: local ? false : { rejectUnauthorized: true } });
   sharedPool.on("error", () => { /* idle client failure: next checkout reconnects */ });
   return sharedPool;

@@ -213,6 +213,11 @@ describe("Group 3 · project roles on the Data API tables", () => {
   });
 
   it("only the owner erases the draft", async () => {
+    for (const actor of ["am", "vw", "a2v", "ownerB", "out"] as const) {
+      const denied = await clients[actor].rpc("delete_import_with_receipt", { p_project: ids.a1, p_import: draftId });
+      expect(denied.error).toBeNull();
+      expect(denied.data).toEqual({ erased: 0 });
+    }
     expect((await clients.ownerA.from("imports").delete().eq("id", draftId).select("id")).data).toEqual([{ id: draftId }]);
   });
 });

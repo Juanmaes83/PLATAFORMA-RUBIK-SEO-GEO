@@ -1,5 +1,13 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
+## Checkpoint S1 · 15/10/2026, 15:49 UTC
+
+- **Rama/worktree:** `codex/s1-trusted-audit-writer-20261015` en `test-results/s1-writer`; PR Draft #104, base `main@520e4119`. Consultar `git rev-parse HEAD` y `gh pr view 104` tras este commit para SHA exacto. S2 y FLOOR PLAN intactos.
+- **Nuevo subbloque:** migraciones locales `20261015170000`, `171000`, `172000` para recibos transaccionales de alta/borrado de importaciones; el UUID de importación es el ID del recibo de alta. Handler de outbox ampliado, RPC de borrado RLS, rollback de contención, tipos regenerados y negativos de aislamiento. No hay escrituras alojadas.
+- **Pruebas de este corte:** `npm run verify:s1-local` PASS completo: verify 405/405, integración 87/87, pgTAP 598/598 y Playwright **145 PASS / 44 SKIP / 0 FAIL** (3,7 min; teardown 11 usuarios/2 organizaciones propios, sin restos). Runner corregido para limpiar entorno de unitarias; los intentos fallidos previos motivaron correcciones y no se ocultaron. Integración dirigida 31/31 y procedencia 13/13 también PASS. Artefacto JSON ignorado en `test-results/s1-local-verification.json`.
+- **Bloqueos/riesgos:** `provider_results` mantiene INSERT JWT con HMAC arbitrario; borrado de resultados, efectos Google/OpenSEO y entrega de exportación aún necesitan contrato atómico/durable. Outbox carece de scheduler/alerta alojada y de política de retención para eliminación de proyecto. GitHub Actions bloqueada por facturación con jobs no iniciados; usar runner local manual. Preview/Vercel y pooler alojado no validados. Ledger ambiguo E2E antiguo preservado.
+- **Siguiente acción:** cerrar negativos restantes de outbox/escritor y el subbloque `provider_results`; revisar diff, actualizar PR #104 y publicar commits. Mantener Draft y no fusionar. Para retomar: entrar en `test-results/s1-writer`, `git status -sb`, `git rev-parse HEAD`, `gh pr view 104 --json headRefOid,state,isDraft`, leer este checkpoint y `docs/S1-IMPLEMENTACION-LOCAL-20261015.md`. El stack local está en 56321/56322; no resetear por el ledger ambiguo.
+
 ## Checkpoint S1 · 15/10/2026, 15:23 UTC
 
 - **Bloque:** N1-03/S1, desarrollo local **parcial** autorizado por U01. Worktree `C:/Users/temp123/Documents/ChatGPT/PLATAFORMA-RUBIK-SEO-GEO/s2-consent/test-results/s1-writer`, rama `codex/s1-trusted-audit-writer-20261015`, base `main@520e4119bafe8a9ce4b2293faad2e54b8e6d81d8`. Primer commit local y publicado: `0a4127b074e79f428ffae53182a427f1b6cc8114`; consultar `git rev-parse HEAD` para commits posteriores. `s2-consent` y FLOOR PLAN intactos.
