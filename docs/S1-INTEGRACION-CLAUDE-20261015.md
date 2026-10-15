@@ -79,11 +79,10 @@ Orden: `20261015145025` → `170000` → `171000` → `172000` → `180000` → 
 | Línea base HEAD #104 + selector | `67d8462` | unitarias 407/411 (4 fallos heredados), integración 91/91, pgTAP 597/605 (8 fallos heredados) |
 | Batería S1 completa (`verify-s1-local`) en el stack de Claude | `29f5902` | **verify 417/417** (lint, tipos, build), **integración 101/101**, **pgTAP 641/641**, **Playwright 145 PASS / 44 SKIP / 0 FAIL**; evidencia con `dirty: []`; 0 residuos |
 | `ci.yml` de esta rama con el runner de N1-04 (#109), stack por defecto efímero | `f47a54c` | Todos los pasos ejecutados PASS: verify 417/417 y smokes; pgTAP 641/641; Studio FAIL→PASS esperado; **tipos coinciden**; integración 101/101 con el escritor del nuevo paso; build conectado; Playwright 145/44/0. Veredicto `UNBOUND` solo porque la copia temporal del runner (sin commit) ensuciaba el árbol; pata Node 24 y Chromium oficial no ejecutados |
-| Final | ver checkpoint | Batería completa sobre la HEAD final con árbol limpio |
+| **Final** | `3d70e69` | `verify-s1-local` con `dirty: []`: **verify 417/417**, **integración 101/101**, **pgTAP 641/641** (23 archivos), **Playwright 145 PASS / 44 SKIP / 0 FAIL** (7,3 min); 0 organizaciones, usuarios o recibos pendientes residuales. La HEAD de la rama solo añade, sobre `3d70e69`, este registro documental |
 
 Los 44 SKIP son las omisiones por viewport de E2E (no cuentan como PASS). Desviaciones del entorno: Chromium 141 mapeado (Playwright 1.63 espera rev. 1243), imágenes Supabase desde Docker Hub.
 
 ## 9. Estado
 
-Pendiente de la batería final sobre la HEAD final (checkpoint). Con ella en verde y los riesgos de §6 documentados, el estado propuesto es **S1 LISTO PARA AUDITORÍA DE FUSIÓN** (local). **No** es S1 alojado ni comercial: ninguna migración se ha aplicado fuera del stack local y #104 no se fusiona sin auditoría supervisada.
-
+**S1 LISTO PARA AUDITORÍA DE FUSIÓN** (local): todas las suites pasan sobre el último SHA de código, con escritor, outbox, RPC, recibos de proveedor, negativos de permisos/claves y rollbacks de contención ensayados. Quedan **decisiones abiertas** (§6: R1 exportación con pendientes, R3 retención, R4 alertas, R7 denegaciones) y gates alojados (R6, migraciones). **No** es S1 alojado ni comercial; #104 y esta PR no se fusionan sin auditoría supervisada.

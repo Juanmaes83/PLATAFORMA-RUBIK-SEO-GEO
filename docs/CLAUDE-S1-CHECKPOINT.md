@@ -7,10 +7,10 @@ Propio de Claude. No reescribe `docs/HANDOFF-S1-20261015.md` ni `docs/CODEX-AUTO
 | Rama | `claude/s1-integration-review-20261015` |
 | Base | HEAD de #104 `41512756ac1ce80934692d1722fd41bd95993933` (rama de Codex sin cambios durante el relevo) |
 | HEAD | ver `git ls-remote origin refs/heads/claude/s1-integration-review-20261015` (el último commit es este checkpoint) |
-| PR | PR_PLACEHOLDER |
+| PR | [#110](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/110) Draft hacia `codex/s1-trusted-audit-writer-20261015` |
 | Worktree | `/home/user/rubik-s1-claude` en contenedor efímero de Claude (se pierde al cerrar; todo está en GitHub) |
 | Stack | `rubik-claude-s1-20261015`, 127.0.0.1:57321/57322, desechable; arrancar con `node scripts/claude-s1-stack.mjs start` |
-| Estado | RESULT_PLACEHOLDER |
+| Estado | **S1 LISTO PARA AUDITORÍA DE FUSIÓN (local)**. Batería final sobre `3d70e69`: verify 417/417, integración 101/101, pgTAP 641/641, Playwright 145/44/0, sin residuos. No alojado, no comercial |
 
 ## Hecho
 
