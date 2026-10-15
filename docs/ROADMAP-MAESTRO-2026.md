@@ -1,5 +1,8 @@
 # ROADMAP MAESTRO · Rubik SEO/GEO
 
+**DECISIÓN VIGENTE — 15/10/2026:** U01 aprobada **para desarrollar y probar localmente** N1-03/S1 con escritor SQL dedicado de mínimo privilegio, firma en servidor, transacciones por proyecto, outbox para revocaciones y `provider_results` como subbloque. Ver [DECISION-U01-APROBACION-20261015.md](DECISION-U01-APROBACION-20261015.md). Próxima ejecución: S1; si falla el transporte/pooling seguro, alternativa a decidir. **U02, migraciones alojadas, claves reales y Production NO aprobadas**. Textos inferiores «U01 pendiente» son históricos.
+
+
 **CORTE DE PLANIFICACIÓN 15/10/2026 post #100/#101:** S2 fusionado como código (PR #100, `aca06a08`), pero no desplegado en Supabase alojado. S1 tiene ADR propuesta aprobable en PR #101 (`09e8ab7`), **sin decisión U01 todavía**; N1-04 tiene plan de CI/Preview sin permiso U02. Los checkpoints inferiores quedan como histórico; evidencias actualizadas en [CONTROL-PROYECTO](CONTROL-PROYECTO.md).
 
 

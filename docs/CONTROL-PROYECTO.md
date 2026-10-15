@@ -1,5 +1,8 @@
 # Control canónico del proyecto Rubik SEO/GEO
 
+> **ACTUALIZACIÓN DE DECISIÓN · 15/10/2026:** el propietario **aprueba U01 exclusivamente para implementación y pruebas locales** de N1-03/S1; escritor SQL dedicado sin BYPASSRLS, firma de servidor, transacciones por proyecto, outbox de revocaciones y `provider_results` como subbloque explícito. El diseño requiere comprobar viabilidad de conexión/pooling en local; alternativa aislada requerirá nueva decisión. **No autoriza secrets, base alojada ni Production.** Fuente: [DECISION-U01-APROBACION-20261015.md](DECISION-U01-APROBACION-20261015.md). N1-04/U02 y migración S2 alojada permanecen pendientes. Los checkpoints inferiores son históricos.
+
+
 > **CORTE DE INTEGRACIÓN — 15/10/2026, posterior a #100/#101:** [PR #100](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/100) **FUSIONADA** en `main@aca06a08bf28f74069795e32a7a852a1948ed79d`: S2 integrado como código, con pruebas locales históricas de Codex (verify 403/403, integración 84/84, pgTAP 581/581, rollback 10/10 y Playwright 145 PASS/44 SKIP). **La migración de membresías NO se ha aplicado ni validado en Supabase alojado**; no dar por cerrado H1/H2. [PR #101](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/101) **FUSIONADA** como propuestas de ADR U01 y N1-04 en `main@09e8ab7238588e1b7f285b7e82b7735d118277fb`, sin aprobar U01/U02. Siguiente bloque: N1-03/S1 condicionado a U01; N1-04 investigación independiente. La continuidad se registra en [CODEX-AUTONOMIA-ESTADO.md](CODEX-AUTONOMIA-ESTADO.md). Los cortes inferiores son históricos.
 
 

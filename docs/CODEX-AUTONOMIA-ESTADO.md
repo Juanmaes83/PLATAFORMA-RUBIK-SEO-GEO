@@ -1,5 +1,13 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
+## Decisión U01 autorizada · 15/10/2026
+
+- El propietario **aprueba desarrollo y pruebas LOCALES** de N1-03/S1 siguiendo [DECISION-U01-APROBACION-20261015.md](DECISION-U01-APROBACION-20261015.md). Writer SQL dedicado sin BYPASSRLS ni service_role ordinario; firma exclusivamente servidor, transacción por proyecto y outbox de revocación; `provider_results` se trata como subbloque. Viabilidad de conexión/pooling se prueba primero; si falla se solicita elección de alternativa.
+- Base de la decisión: `main@fc6d578eeab6964ab5d0609e163414dcbecb8341` tras #100, #101 y #102 fusionadas. **No se ha comenzado aquí implementación S1** ni se han ejecutado suites en este checkpoint documental.
+- S2 migración alojada, credenciales reales, Vercel Production, U02, costes y ensayos alojados **no autorizados por esta decisión**. Codex debe crear nuevo worktree S1 desde el último `origin/main` tras esta integración; mantener FLOOR PLAN y otros worktrees intactos. Una PR Draft de producto, pruebas locales aisladas y checkpoint publicados; no fusionar automáticamente.
+- La siguiente sesión debe reconciliar esta decisión con GitHub y `ROADMAP-MAESTRO-2026.md`; los cortes inferiores que digan «U01 pendiente» son históricos.
+
+
 ## Corte de supervisor posterior a S2 · 15/10/2026
 
 - **Último main verificado:** \`09e8ab7238588e1b7f285b7e82b7735d118277fb\`. La PR [#100](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/100) S2 está **MERGED** por el propietario en \`aca06a08bf28f74069795e32a7a852a1948ed79d\`. Se fusionó el **código**, pero **no se aplicó ni comprobó la migración alojada** \`20261015115750_membership_consent\`; no declarar H1/H2 cerrados.
