@@ -75,8 +75,36 @@ select throws_ok($$select public.openseo_job(pg_temp.pid('iso-p2'),'complete',pg
 select set_config('role','postgres',true);
 select is((select count(*)::int from public.provider_results),0,'nothing stored by refused completions');
 select pg_temp.act_as('00000000-0000-4000-8000-0000000000e1');
-select lives_ok($$select public.openseo_job(pg_temp.pid('iso-p2'),'complete',pg_temp.kid('j2'),jsonb_build_object(
+-- S1 (20261015190000): even correctly scoped rows are refused from a JWT session.
+select throws_ok($$select public.openseo_job(pg_temp.pid('iso-p2'),'complete',pg_temp.kid('j2'),jsonb_build_object(
  'auditIssues',pg_temp.row_for('iso-p2','auditIssues','aud-p2'),'auditPages',pg_temp.row_for('iso-p2','auditPages','aud-p2')))$$,
+ '42501',null,'S1: owner JWT cannot store signed rows through the RPC');
+-- The server path: dedicated writer with the verified owner's claims (writer.ts).
+select set_config('role','postgres',true);
+grant select on ids, k to rubik_audit_writer;
+-- Membership exists only inside this test transaction (rolled back at the end): the
+-- statements below run with the writer's real privileges, not as an administrator.
+grant rubik_audit_writer to postgres;
+-- Runs one statement as the dedicated writer with the verified user's claims (writer.ts):
+-- the role switch is local to the call, so pgTAP itself keeps running as postgres.
+create function pg_temp.as_writer(uid uuid, stmt text) returns jsonb language plpgsql as $f$
+declare result jsonb;
+begin
+  perform set_config('request.jwt.claims', json_build_object('sub', uid, 'role', 'authenticated')::text, true);
+  set local role rubik_audit_writer;
+  execute stmt into result;
+  reset role;
+  return result;
+end;
+$f$;
+select throws_ok($$select pg_temp.as_writer('00000000-0000-4000-8000-0000000000e1', $q$select private.openseo_job(pg_temp.pid('iso-p2'),'complete',pg_temp.kid('j2'),jsonb_build_object(
+ 'auditIssues',pg_temp.row_for('iso-p1','auditIssues','aud-p2'),'auditPages',pg_temp.row_for('iso-p1','auditPages','aud-p2')))$q$)$$,
+ '23514','OpenSEO result identity mismatch','writer path: rows scoped to p1 refused by p2');
+select throws_ok($$select pg_temp.as_writer('00000000-0000-4000-8000-0000000000e1', $q$select private.openseo_job(pg_temp.pid('iso-p2'),'complete',pg_temp.kid('j2'),jsonb_build_object(
+ 'auditIssues',pg_temp.row_for('iso-p2','auditIssues','aud-p1'),'auditPages',pg_temp.row_for('iso-p2','auditPages','aud-p1')))$q$)$$,
+ '23514','OpenSEO result identity mismatch','writer path: rows carrying the audit of p1 refused by p2');
+select lives_ok($$select pg_temp.as_writer('00000000-0000-4000-8000-0000000000e1', $q$select private.openseo_job(pg_temp.pid('iso-p2'),'complete',pg_temp.kid('j2'),jsonb_build_object(
+ 'auditIssues',pg_temp.row_for('iso-p2','auditIssues','aud-p2'),'auditPages',pg_temp.row_for('iso-p2','auditPages','aud-p2')))$q$)$$,
  'control: the same rows scoped to p2 and its audit are accepted');
 select set_config('role','postgres',true);
 select is((select count(*)::int from public.provider_results where project_id=pg_temp.pid('iso-p2')),2,'control stored exactly two rows in p2');

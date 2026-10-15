@@ -91,6 +91,15 @@ jobs:
         run: npm ci --no-fund --no-audit
       - name: Start the local Supabase stack (migrations applied, no seed data)
         run: $SUPABASE_CLI start -x $SUPABASE_EXCLUDE
+      - name: Trusted audit writer login (S1; random fictitious password, throw-away local stack only)
+        run: |
+          # The migrations create rubik_audit_writer NOLOGIN. Integration and e2e need the
+          # server-side writer, so this runner-only stack gets a random password that never
+          # leaves the job; hosted credentials are never used here.
+          PASS="$(openssl rand -hex 18)"
+          echo "::add-mask::$PASS"
+          echo "alter role rubik_audit_writer login password '$PASS';" | docker exec -i supabase_db_plataforma-rubik-seo-geo psql -U postgres -v ON_ERROR_STOP=1 -q
+          echo "RUBIK_AUDIT_DATABASE_URL=postgresql://rubik_audit_writer:$PASS@127.0.0.1:54322/postgres" >> "$GITHUB_ENV"
       - name: RLS, tenant isolation and automatic-RLS privileges (pgTAP)
         run: $SUPABASE_CLI test db
       - name: Hosted-like automatic-RLS state (Studio template) is fixed by the migration
