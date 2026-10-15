@@ -38,7 +38,7 @@ create temp table ids as select
   (select id from public.projects where slug = 'cmp-b1') b1,
   (select id from public.organizations where slug = 'cmp-a') org_a, (select id from public.organizations where slug = 'cmp-b') org_b;
 create temp table k(name text primary key, id uuid);
-grant select on ids to authenticated;
+grant select on ids to authenticated, service_role;
 grant all on k to authenticated;
 
 -- ── Surface ────────────────────────────────────────────────────────────────────────────────
@@ -172,6 +172,20 @@ select is((select count(*)::int from private.audit_outbox where project_id = (se
   'receipts wait for the trusted signer');
 -- The pending receipts protect the project against a cascading deletion (#106).
 select throws_ok($$delete from public.projects where id = (select a1 from ids)$$, '55000', null, 'pending receipts block the project deletion');
+
+-- Operator deletion (service role, no auth.uid()) cascades through competitors and their
+-- observations without raising and without leaving receipts behind, once receipts are signed.
+select pg_temp.act_as('00000000-0000-4000-8000-0000000c0a01');
+insert into public.competitors(project_id, organization_id, domain) select a1, org_a, 'cascada.es' from ids;
+insert into public.competitor_observations(project_id, organization_id, competitor_id, metric, availability, value, method, source_name, observed_on)
+  select a1, org_a, c.id, 'backlinks', 'available', 7, 'observed', 'Ahrefs', current_date from ids, public.competitors c where c.domain = 'cascada.es';
+select pg_temp.admin();
+delete from private.audit_outbox where project_id = (select a1 from ids) and state = 'pending';
+select set_config('role', 'service_role', true);
+select lives_ok($$delete from public.projects where id = (select a1 from ids)$$, 'the operator path deletes a project with competitors');
+select pg_temp.admin();
+select is((select count(*)::int from private.audit_outbox where project_id = (select a1 from ids)), 0, 'the cascade queued no orphan receipt');
+select is((select count(*)::int from public.competitors where project_id = (select a1 from ids)), 0, 'competitors went with the project');
 
 select * from finish();
 rollback;
