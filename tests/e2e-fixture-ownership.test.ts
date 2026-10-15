@@ -29,6 +29,18 @@ describe("E2E ownership preflight (no database or deletion)", () => {
       expect(() => assertFixtureEndpoint(url, true)).toThrow("require 127.0.0.1:55321");
     }
   });
+  it("follows the single environment-selected stack for E2E fixtures", () => {
+    const saved = { ...process.env };
+    try {
+      process.env.RUBIK_TEST_CLAUDE_S1_STACK = "1";
+      expect(() => assertFixtureEndpoint("http://127.0.0.1:57321", false)).not.toThrow();
+      expect(() => assertFixtureEndpoint("http://127.0.0.1:56321", false)).toThrow("require 127.0.0.1:57321");
+      process.env.RUBIK_TEST_S1_STACK = "1";
+      expect(() => assertFixtureEndpoint("http://127.0.0.1:57321", false)).toThrow("select only one");
+    } finally {
+      process.env = saved;
+    }
+  });
   it("preserves foreign suffix users, legacy slugs and preexisting projects", () => {
     const { ledger, snapshot } = fixture();
     const before = structuredClone(snapshot);

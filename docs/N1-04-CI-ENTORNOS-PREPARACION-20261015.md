@@ -1,5 +1,9 @@
 # N1-04 · diagnóstico de CI y separación de entornos
 
+> **Actualización 15/10/2026, 16:04 UTC:** `npm run verify:s1-local` se ejecutó completo dos veces: sobre `976f354` (405/87/598 y Playwright 145 PASS/44 SKIP) y sobre el cambio local posterior de `provider_results` (405/88/603 y Playwright 145 PASS/44 SKIP), con limpieza de fixtures propios en ambas. El runner limpia el selector S1 para las unitarias y conserva el stack aislado para integración/SQL/E2E. Actions permanece bloqueada antes de arrancar jobs; esta evidencia es local, no CI verde alojada.
+
+> **Actualización 15/10/2026, 15:36 UTC:** en PR Draft [#104](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/104), run Actions `38760330927`, los tres jobs vuelven a mostrar `steps: []` y la anotación confirma bloqueo de facturación antes de iniciar. No se usa como resultado de pruebas. Alternativa operativa local: `npm run verify:s1-local` valida API 56321 y DB 56322 del stack S1 antes de encadenar verify, integración, pgTAP y Playwright; `--check` pasó y las cuatro suites se ejecutaron por separado (405/405, 86/86, 594/594, 145 PASS/44 SKIP). El wrapper completo todavía no se ejecutó. Es una verificación manual reproducible, no un sustituto de CI alojada ni un mecanismo programado. Se conservó un ledger antiguo ambiguo del primer run E2E; la segunda ejecución limpió solo sus fixtures propios. U02 y entornos alojados siguen pendientes.
+
 **Estado:** investigación y plan, sin cambios alojados. Corte 15/10/2026. `main@3eba9d014a339dabdabff28f42e27209695b0bf9` es una referencia de base; confirmar SHA remoto antes de ejecutar. La PR #100 sigue abierta en Draft al preparar este documento.
 
 ## CI: evidencia y ruta sin activar gasto

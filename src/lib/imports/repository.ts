@@ -6,6 +6,7 @@ import type { Database, Json } from "@/lib/supabase/database.types";
 import type { Keyring } from "@/lib/provenance/keyring";
 import type { AuditInput, ProjectRef } from "@/lib/provenance/audit";
 import { appendAudit } from "@/lib/provenance/repository";
+import { processAuditOutbox } from "@/lib/provenance/outbox";
 import { parseImport, type FileError, type Finding, type ImportStatus, type RowError } from "./contract";
 
 // CORE-9.3 persistence (ADR 0005). Every call runs as the signed-in user (publishable key), so
@@ -113,7 +114,7 @@ export async function importFile(client: Client, project: ProjectRef, bytes: Uin
     await audit("denied", { reason: error.code === "42501" ? "NOT_ALLOWED" : "WRITE_FAILED" });
     return { ok: false, error: error.code === "42501" ? "NOT_ALLOWED" : "WRITE_FAILED" };
   }
-  const logged = await audit("allowed", { importId: data.id, status: p.status, findings: p.findings.length, errors: p.errors.length });
+  const logged = await processAuditOutbox(data.id, keyring);
   if (!logged.ok) return { ok: false, error: "AUDIT_FAILED" };
   return { ok: true, id: data.id, status: p.status, findings: p.findings.length, errors: p.errors.length };
 }
@@ -141,10 +142,12 @@ export async function findingsForUrl(client: Client, project: ProjectRef, url: s
 }
 
 /** Erases one import (owner only, enforced by RLS) and records it in the audit trail. */
-export async function eraseImport(client: Client, project: ProjectRef, id: string, actor: AuditInput["actor"], keyring: Keyring): Promise<{ ok: true; erased: number } | { ok: false; error: string }> {
-  const { data, error } = await client.from("imports").delete().eq("project_id", project.projectId).eq("id", id).select("id");
+export async function eraseImport(client: Client, project: ProjectRef, id: string, _actor: AuditInput["actor"], keyring: Keyring): Promise<{ ok: true; erased: number } | { ok: false; error: string }> {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return { ok: false, error: "NOT_FOUND_OR_NOT_ALLOWED" };
+  const { data, error } = await client.rpc("delete_import_with_receipt", { p_project: project.projectId, p_import: id });
   if (error) return { ok: false, error: "WRITE_FAILED" };
-  if (data.length === 0) return { ok: false, error: "NOT_FOUND_OR_NOT_ALLOWED" };
-  const logged = await appendAudit(client, project, { actor, action: "import.erase", target: id, outcome: "allowed", details: { erased: data.length } }, keyring);
-  return logged.ok ? { ok: true, erased: data.length } : { ok: false, error: "AUDIT_FAILED" };
+  const result = data as { erased: number; auditReceiptId?: string };
+  if (!result.erased) return { ok: false, error: "NOT_FOUND_OR_NOT_ALLOWED" };
+  const logged = result.auditReceiptId && await processAuditOutbox(result.auditReceiptId, keyring);
+  return logged && logged.ok ? { ok: true, erased: result.erased } : { ok: false, error: "AUDIT_FAILED" };
 }

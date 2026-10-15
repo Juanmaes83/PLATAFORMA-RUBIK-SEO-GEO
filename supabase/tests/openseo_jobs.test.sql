@@ -45,14 +45,40 @@ create function pg_temp.result_row(op text,other_project boolean default false) 
  'scope',jsonb_build_object('tenantId',organization_id,'projectId',project_id),
  'provenance',jsonb_build_object('evidence',jsonb_build_object('auditId','audit-a')))) from ids;
 $$;
+-- S1 (20261015190000): a JWT session can no longer store signed rows, even through this RPC.
 select throws_ok($$select public.openseo_job(project_id,'complete',job.id,
- jsonb_build_object('auditIssues',pg_temp.result_row('auditIssues'),'auditPages',pg_temp.result_row('auditPages',true))) from ids,job$$,
+ jsonb_build_object('auditIssues',pg_temp.result_row('auditIssues'),'auditPages',pg_temp.result_row('auditPages'))) from ids,job$$,
+ '42501',null,'S1: JWT cannot complete a job with signed rows');
+select set_config('role','postgres',true);
+select is((select count(*)::int from public.provider_results),0,'refused JWT completion wrote nothing');
+-- The server completes through the dedicated writer, with the verified user's claims (writer.ts).
+grant select on ids, job to rubik_audit_writer;
+-- Membership exists only inside this test transaction (rolled back at the end): the
+-- statements below run with the writer's real privileges, not as an administrator.
+grant rubik_audit_writer to postgres;
+-- Runs one statement as the dedicated writer with the verified user's claims (writer.ts):
+-- the role switch is local to the call, so pgTAP itself keeps running as postgres.
+create function pg_temp.as_writer(uid uuid, stmt text) returns jsonb language plpgsql as $f$
+declare result jsonb;
+begin
+  perform set_config('request.jwt.claims', json_build_object('sub', uid, 'role', 'authenticated')::text, true);
+  set local role rubik_audit_writer;
+  execute stmt into result;
+  reset role;
+  return result;
+end;
+$f$;
+select throws_ok($$select pg_temp.as_writer('00000000-0000-4000-8000-0000000000a9', $q$select private.openseo_job(project_id,'complete',job.id,
+ jsonb_build_object('auditIssues',pg_temp.result_row('auditIssues'),'auditPages',pg_temp.result_row('auditPages',true))) from ids,job$q$)$$,
  '23514',null,'second row scope mismatch rolls back first insert');
+select set_config('role','postgres',true);
 select is((select count(*)::int from public.provider_results),0,'pair rolls back atomically');
-select lives_ok($$select public.openseo_job(project_id,'complete',job.id,
- jsonb_build_object('auditIssues',pg_temp.result_row('auditIssues'),'auditPages',pg_temp.result_row('auditPages'))) from ids,job$$,'store pair atomically');
-select lives_ok($$select public.openseo_job(project_id,'complete',job.id,'{}') from ids,job$$,'completion retry does not insert');
+select lives_ok($$select pg_temp.as_writer('00000000-0000-4000-8000-0000000000a9', $q$select private.openseo_job(project_id,'complete',job.id,
+ jsonb_build_object('auditIssues',pg_temp.result_row('auditIssues'),'auditPages',pg_temp.result_row('auditPages'))) from ids,job$q$)$$,'store pair atomically');
+select lives_ok($$select pg_temp.as_writer('00000000-0000-4000-8000-0000000000a9', $q$select private.openseo_job(project_id,'complete',job.id,'{}') from ids,job$q$)$$,'completion retry does not insert');
+select set_config('role','postgres',true);
 select is((select count(*)::int from public.provider_results),2,'exactly two rows after retry');
+select pg_temp.act_as('00000000-0000-4000-8000-0000000000a9');
 select is((select public.openseo_job(project_id,'get',job.id)->>'state' from ids,job),'COMPLETED','job complete after both rows');
 select throws_ok($$select public.openseo_job(project_id,'fail',job.id) from ids,job$$,'23514',null,'completed state cannot regress');
 select is((select public.openseo_job(project_id,'acquire')->>'acquired' from ids),'true','completed job releases active slot');

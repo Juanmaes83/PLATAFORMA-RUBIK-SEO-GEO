@@ -16,6 +16,7 @@
     "check:core-pin": "node scripts/check-core-pin.mjs",
     "check:secrets": "node scripts/check-no-secrets.mjs",
     "verify": "npm run check:core-pin && npm run check:secrets && npm run lint && npm run typecheck && npm run test && npm run build",
+    "verify:s1-local": "node scripts/verify-s1-local.mjs",
     "test:e2e": "playwright test",
     "visual:evidence": "node scripts/visual-evidence.mjs",
     "verify:export": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/verify-export.mjs",
@@ -30,6 +31,7 @@
     "@supabase/ssr": "0.12.7",
     "@supabase/supabase-js": "2.117.2",
     "next": "16.3.8",
+    "pg": "8.23.1",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "server-only": "0.0.1"
@@ -38,6 +40,7 @@
     "@axe-core/playwright": "4.13.0",
     "@playwright/test": "1.63.0",
     "@types/node": "^22",
+    "@types/pg": "8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",

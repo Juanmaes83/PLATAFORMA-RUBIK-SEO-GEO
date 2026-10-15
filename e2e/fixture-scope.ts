@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
+import { STACKS, selectedStack } from "../scripts/test-stacks.mjs";
 
 export function assertFixtureEndpoint(apiUrl: string, isolated = process.env.RUBIK_TEST_ISOLATED_STACK === "1") {
-  const port = isolated ? 55321 : 54321;
+  // An explicit `isolated` argument selects the S2 stack; otherwise the environment selects one.
+  const port = isolated ? STACKS.s2.apiPort : selectedStack({ ...process.env, RUBIK_TEST_ISOLATED_STACK: "" }).apiPort;
   if (new URL(apiUrl).origin !== `http://127.0.0.1:${port}`) throw new Error(`E2E fixtures require 127.0.0.1:${port}`);
 }
 

@@ -73,13 +73,14 @@ export async function listPeople(client: Client, projectId: string): Promise<{ o
 
 /** Withdraws a non-owner from the project (and from the organization if it was their last project there). */
 export async function removePerson(client: Client, projectId: string, userId: string):
-  Promise<{ ok: true; leftOrganization: boolean; revokedInvitations: number } | { ok: false; error: PeopleError }> {
+  Promise<{ ok: true; leftOrganization: boolean; revokedInvitations: number; auditReceiptId: string | null } | { ok: false; error: PeopleError }> {
   if (!UUID.test(userId)) return { ok: false, error: "PEOPLE_INVALID" };
   const r = await people(client, projectId, "remove", { userId });
   if (!r.ok) return r;
   const d = r.data as Record<string, unknown> | null;
   return d && d.removed === true && typeof d.leftOrganization === "boolean" && isCount(d.revokedInvitations)
-    ? { ok: true, leftOrganization: d.leftOrganization, revokedInvitations: d.revokedInvitations as number }
+    ? { ok: true, leftOrganization: d.leftOrganization, revokedInvitations: d.revokedInvitations as number,
+      auditReceiptId: typeof d.auditReceiptId === "string" && UUID.test(d.auditReceiptId) ? d.auditReceiptId : null }
     : { ok: false, error: "PEOPLE_INVALID_RESPONSE" };
 }
 

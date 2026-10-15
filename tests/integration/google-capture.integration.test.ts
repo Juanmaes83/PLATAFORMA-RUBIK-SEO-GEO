@@ -6,7 +6,9 @@ import { consentedMembership } from "../fixtures/consented-membership";
 import { loadProjectRef } from "@/lib/imports/repository";
 import { connectProject } from "@/lib/openseo/connections";
 import { captureGoogleReport, listGoogleCaptures } from "@/lib/openseo/google/capture";
+import { writerPool } from "@/lib/provenance/writer";
 import { connectGoogleProperty, revokeGoogleProperty } from "@/lib/openseo/google/properties";
+import { resolveGoogleSource } from "@/lib/openseo/google/properties";
 import type { ProjectRef } from "@/lib/provenance/audit";
 import { loadKeyring } from "@/lib/provenance/keyring";
 import { exportProject, loadProviderResult, readAuditTrail } from "@/lib/provenance/repository";
@@ -87,9 +89,66 @@ describe("manual Google capture on the local stack (simulated MCP)", () => {
   it("a retry with the same key returns the same result without calling the provider", async () => {
     const m = mcp();
     expect(await captureGoogleReport(owner, project, query, key, { role: "owner", id: users[0] }, keyring, { env, mcpFactory: m.factory }))
-      .toEqual({ ok: true, resultId, replayed: true, audited: false });
+      .toEqual({ ok: true, resultId, replayed: true, audited: true });
     expect(m.callTool).not.toHaveBeenCalled();
     expect((await owner.from("provider_results").select("id").eq("project_id", project.projectId)).data).toHaveLength(1);
+    // S1: the replay completed nothing new; exactly one signed event names the result.
+    const audit = await readAuditTrail(owner, project, keyring);
+    expect(audit.ok && audit.rows.filter((e) => e.action === "google.capture" && e.target === resultId)).toHaveLength(1);
+  });
+
+  it("a signing failure after the commit leaves a durable receipt; the retry signs it once without a provider call", async () => {
+    const lostKey = randomUUID();
+    const m = mcp();
+    // The result and its receipt commit; then the signer is unavailable (crash, timeout, keyring).
+    const crashed = await captureGoogleReport(owner, project, query, lostKey, { role: "owner", id: users[0] }, keyring,
+      { env, mcpFactory: m.factory, receipt: async () => ({ ok: false, error: "WRITER_TIMEOUT" }) });
+    expect(crashed).toMatchObject({ ok: true, replayed: false, audited: false });
+    const lostResult = (crashed as { resultId: string }).resultId;
+    const pool = writerPool();
+    if (!pool) throw new Error("local writer required");
+    const pending = await pool.query("select state, details from private.audit_outbox where project_id = $1 and action = 'google.capture' and target_text = $2",
+      [project.projectId, lostResult]);
+    expect(pending.rows).toEqual([{ state: "pending", details: { provider: "search-console", status: "OK" } }]);
+    let trail = await readAuditTrail(owner, project, keyring);
+    expect(trail.ok && trail.rows.filter((e) => e.target === lostResult)).toHaveLength(0);
+
+    const retry = mcp();
+    expect(await captureGoogleReport(owner, project, query, lostKey, { role: "owner", id: users[0] }, keyring, { env, mcpFactory: retry.factory }))
+      .toEqual({ ok: true, resultId: lostResult, replayed: true, audited: true });
+    expect(retry.callTool).not.toHaveBeenCalled();
+    expect(m.callTool).toHaveBeenCalledTimes(1);
+    trail = await readAuditTrail(owner, project, keyring);
+    if (!trail.ok) throw new Error(trail.error);
+    expect(trail.verification.valid).toBe(true);
+    const events = trail.rows.filter((e) => e.action === "google.capture" && e.target === lostResult);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ actor_role: "owner", actor_id: users[0], details: { provider: "search-console", status: "OK" } });
+    // A third attempt is still a pure replay: no new event, no provider call.
+    expect(await captureGoogleReport(owner, project, query, lostKey, { role: "owner", id: users[0] }, keyring, { env, mcpFactory: retry.factory }))
+      .toMatchObject({ replayed: true, audited: true });
+    trail = await readAuditTrail(owner, project, keyring);
+    expect(trail.ok && trail.rows.filter((e) => e.target === lostResult)).toHaveLength(1);
+  });
+
+  it("rejects a forged HMAC submitted through the owner JWT RPC", async () => {
+    const source = await resolveGoogleSource(owner, project.projectId, "search-console");
+    if (!source.ok) throw new Error("active Google source required");
+    const forgedKey = randomUUID();
+    const before = (await owner.from("provider_results").select("id").eq("project_id", project.projectId)).data!.length;
+    const begun = await owner.rpc("google_capture", { p_project_id: project.projectId, p_command: "begin",
+      p_payload: { key: forgedKey, provider: "search-console", connectionId: source.source.connectionId,
+        propertyBindingId: source.source.propertyBindingId } });
+    expect(begun.error).toBeNull();
+    const original = await owner.from("provider_results").select("*").eq("id", resultId).single();
+    expect(original.error).toBeNull();
+    const forged = { ...original.data!, signature: "f".repeat(64) };
+    const attempted = await owner.rpc("google_capture", { p_project_id: project.projectId,
+      p_command: "store", p_payload: { key: forgedKey, row: forged } });
+    expect(attempted.error?.code).toBe("42501");
+    expect((await owner.from("provider_results").select("id").eq("project_id", project.projectId)).data).toHaveLength(before);
+    expect((await owner.rpc("google_capture", { p_project_id: project.projectId,
+      p_command: "release", p_payload: { key: forgedKey } })).error).toBeNull();
   });
 
   it("an analyst cannot capture, even with a fresh key", async () => {
@@ -125,7 +184,7 @@ describe("manual Google capture on the local stack (simulated MCP)", () => {
     expect(done).toMatchObject({ ok: true, replayed: false });
     const replay = mcp();
     expect(await captureGoogleReport(second, project, query, sameKey, { role: "owner", id: users[0] }, keyring, { env, mcpFactory: replay.factory }))
-      .toEqual({ ok: true, resultId: (done as { resultId: string }).resultId, replayed: true, audited: false });
+      .toEqual({ ok: true, resultId: (done as { resultId: string }).resultId, replayed: true, audited: true });
     expect(replay.callTool).not.toHaveBeenCalled();
     expect(slow.callTool).toHaveBeenCalledTimes(1);
     const ledgerAfter = await captureLedger();
@@ -155,7 +214,7 @@ describe("manual Google capture on the local stack (simulated MCP)", () => {
     expect(retry.callTool).toHaveBeenCalledTimes(1);
     const again = mcp();
     expect(await captureGoogleReport(owner, project, query, retryKey, { role: "owner", id: users[0] }, keyring, { env, mcpFactory: again.factory }))
-      .toEqual({ ok: true, resultId: recovered.resultId, replayed: true, audited: false });
+      .toEqual({ ok: true, resultId: recovered.resultId, replayed: true, audited: true });
     const ledgerAfter = await captureLedger();
     expect(ledgerAfter.count).toBe(ledgerBefore.count + 1);
     expect(ledgerAfter.stored.filter((row) => row.idempotency_key === retryKey))

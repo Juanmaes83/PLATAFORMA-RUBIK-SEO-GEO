@@ -94,7 +94,7 @@ select ok(public.project_data_inventory(pg_temp.pid('ppl-p1')) ?& array['auditEv
 -- Withdraw the viewer (only in p1): an open invitation for their address goes too
 insert into k select 'tok', public.project_invitations(pg_temp.pid('ppl-p1'),'create','{"email":"PPL-Viewer@example.test","role":"analyst"}')->>'token';
 select is((public.project_data_inventory(pg_temp.pid('ppl-p1'))->'invitations'->>'open')::int,1,'one open invitation before');
-select is(pg_temp.rm('ppl-p1','00000000-0000-4000-8000-0000000000d3'),'{"removed": true, "revokedInvitations": 1, "leftOrganization": true}'::jsonb,'viewer withdrawn, organization left, invitation revoked');
+select is(pg_temp.rm('ppl-p1','00000000-0000-4000-8000-0000000000d3') - 'auditReceiptId','{"removed": true, "revokedInvitations": 1, "leftOrganization": true}'::jsonb,'viewer withdrawn, organization left, invitation revoked');
 select is((public.project_data_inventory(pg_temp.pid('ppl-p1'))->'invitations'->>'closed')::int,1,'the invitation is closed');
 select set_config('role','postgres',true);
 select ok(not exists(select 1 from public.project_members where user_id='00000000-0000-4000-8000-0000000000d3'),'no project membership left');
@@ -106,7 +106,10 @@ select is((select count(*)::int from public.projects),0,'the withdrawn person se
 
 -- Withdraw the analyst from p1 only: still in p2 and in the organization
 select pg_temp.act_as('00000000-0000-4000-8000-0000000000d1');
-select is(pg_temp.rm('ppl-p1','00000000-0000-4000-8000-0000000000d4'),'{"removed": true, "revokedInvitations": 0, "leftOrganization": false}'::jsonb,'analyst withdrawn from p1 only');
+select is(pg_temp.rm('ppl-p1','00000000-0000-4000-8000-0000000000d4') - 'auditReceiptId','{"removed": true, "revokedInvitations": 0, "leftOrganization": false}'::jsonb,'analyst withdrawn from p1 only');
+select set_config('role','postgres',true);
+select is((select count(*)::int from private.audit_outbox where state = 'pending' and project_id = pg_temp.pid('ppl-p1')), 2, 'both withdrawals have durable pending receipts');
+select pg_temp.act_as('00000000-0000-4000-8000-0000000000d1');
 select throws_ok($$select pg_temp.rm('ppl-p1','00000000-0000-4000-8000-0000000000d4')$$,'P0002',null,'withdrawing twice finds nobody');
 select pg_temp.act_as('00000000-0000-4000-8000-0000000000d4');
 select is((select array_agg(slug order by slug) from public.projects),array['ppl-p2']::text[],'the analyst keeps p2 only');

@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Database } from "@/lib/supabase/database.types";
 import { consentedMembership } from "../fixtures/consented-membership";
 import { loadKeyring } from "@/lib/provenance/keyring";
+import { drainAuditOutbox, processAuditOutbox } from "@/lib/provenance/outbox";
 import { readAuditTrail, exportProject } from "@/lib/provenance/repository";
 import { eraseImport, findingsForUrl, getImport, importFile, listImports, loadProjectRef } from "@/lib/imports/repository";
 import type { ProjectRef } from "@/lib/provenance/audit";
@@ -110,5 +111,26 @@ describe("CORE-9.3 manual import through the Data API", () => {
     const trail = await readAuditTrail(a, pa, keyring);
     expect(trail.ok && trail.rows.at(-1)).toMatchObject({ action: "import.erase", target: first });
     expect(trail.ok && trail.verification.valid).toBe(true);
+  });
+
+  it("keeps a durable receipt when signing fails after import, and retries without duplicating the import", async () => {
+    const wrong = loadKeyring({ PROVENANCE_SIGNING_KEYS: `wrong:${randomBytes(32).toString("base64")}`, PROVENANCE_ACTIVE_KEY_ID: "wrong" });
+    if (!wrong.ok) throw new Error(wrong.error);
+    const before = await listImports(a, pa);
+    const outcome = await importFile(a, pa, file(pa.scope, [finding("https://ejemplo.test/retry", "retry")], "Reintento S1"),
+      { role: "owner", id: users[0] }, wrong.keyring);
+    expect(outcome).toEqual({ ok: false, error: "AUDIT_FAILED" });
+    const after = await listImports(a, pa);
+    expect(after).toHaveLength(before.length + 1);
+    const created = after.find((row) => row.source_label === "Reintento S1");
+    expect(created?.id).toMatch(/^[0-9a-f-]{36}$/);
+    const signed = await processAuditOutbox(created!.id, keyring);
+    expect(signed.ok).toBe(true);
+    expect(await processAuditOutbox(created!.id, keyring)).toEqual(signed);
+    const trail = await readAuditTrail(a, pa, keyring);
+    if (!trail.ok) throw new Error(trail.error);
+    expect(trail.verification.valid).toBe(true);
+    expect(trail.rows.filter((row) => row.action === "import.file" && (row.details as Record<string, unknown>).importId === created!.id)).toHaveLength(1);
+    expect((await drainAuditOutbox(keyring)).failed).toBe(0);
   });
 });

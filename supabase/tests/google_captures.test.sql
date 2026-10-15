@@ -33,7 +33,7 @@ insert into private.openseo_google_properties(project_id,organization_id,connect
  from fx f join private.openseo_project_connections c on c.project_id=f.prj;
 create temp table ids as select f.prj, f.org, c.id conn, g.id bind from fx f
  join private.openseo_project_connections c on c.project_id=f.prj join private.openseo_google_properties g on g.project_id=f.prj;
-grant select on ids to authenticated;
+grant select on ids to authenticated, rubik_audit_writer;
 
 create function pg_temp.cap(cmd text, payload jsonb) returns jsonb language sql as $$
  select public.google_capture((select prj from ids), cmd, payload) $$;
@@ -76,9 +76,13 @@ select throws_ok($$select pg_temp.begin('owner-key-00000001')$$,'55P03',null,'th
 select throws_ok($$select pg_temp.store('owner-key-00000001', pg_temp.row('OK', gen_random_uuid()))$$,'22023',null,'a signed source naming another connection is refused');
 select throws_ok($$select pg_temp.store('owner-key-00000001', pg_temp.row('ERROR'))$$,'22023',null,'an error result is not stored');
 select throws_ok($$select pg_temp.store('owner-key-00000001', pg_temp.row('OK', null, null, gen_random_uuid()))$$,'22023',null,'a row for another project is refused');
+select throws_ok($$select pg_temp.store('owner-key-00000001', pg_temp.row())$$,'42501',null,'owner JWT cannot submit even a correctly scoped forged HMAC');
 create temp table k(name text primary key, v text);
 grant all on k to authenticated;
-insert into k select 'r1', pg_temp.store('owner-key-00000001', pg_temp.row('PARTIAL'))->>'resultId';
+select set_config('role','postgres',true);
+create temp table trusted_result as select pg_temp.store('owner-key-00000001', pg_temp.row('PARTIAL'))->>'resultId' as id;
+insert into k select 'r1', id from trusted_result;
+select pg_temp.act_as('00000000-0000-4000-8000-0000000000f1');
 select ok((select v from k where name='r1') ~ '^[0-9a-f-]{36}$','stored, with the result id');
 select is(pg_temp.begin('owner-key-00000001'),jsonb_build_object('state','STORED','resultId',(select v from k where name='r1')),'a retry returns the same result without a new reservation');
 select throws_ok($$select pg_temp.store('owner-key-00000001', pg_temp.row())$$,'55000',null,'a stored key cannot store twice');

@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
-import { localSupabaseEnv } from "../../scripts/supabase-test-env.mjs";
+import { execFileSync } from "node:child_process";
+import { localDatabaseContainer, localSupabaseEnv } from "../../scripts/supabase-test-env.mjs";
 
 // Integration support for the LOCAL Supabase stack only (the helper refuses any other host).
 // Users are fictitious, with reserved `.test` addresses and a per-run suffix.
@@ -34,6 +35,20 @@ export async function deleteUsers(ids: string[]) {
 }
 
 export async function deleteOrganizations(slugs: string[]) {
-  // The admin client bypasses RLS; cleanup of this run's fictitious rows only.
-  await admin.from("organizations").delete().in("slug", slugs);
+  if (!slugs.length) return;
+  // S1 (#106): a pending audit receipt blocks deleting its project, as it must for real data.
+  // Some tests leave receipts pending on purpose (simulated signing failures). This run's own
+  // fixture projects are destroyed with everything they hold, so their pending receipts go
+  // first; receipts of any other project are never touched. psql runs inside the selected
+  // LOCAL stack's database container only (scripts/supabase-test-env.mjs).
+  const list = slugs.map((s) => `'${s.replace(/'/g, "''")}'`).join(",");
+  execFileSync("docker", ["exec", "-i", localDatabaseContainer(), "psql", "-U", "postgres", "-v", "ON_ERROR_STOP=1", "-q"], {
+    input: `delete from private.audit_outbox where state = 'pending' and project_id in
+      (select p.id from public.projects p join public.organizations o on o.id = p.organization_id where o.slug in (${list}));`,
+    stdio: ["pipe", "ignore", "pipe"],
+  });
+  // The admin client bypasses RLS; cleanup of this run's fictitious rows only. A failure is
+  // reported instead of silently leaving fixtures behind.
+  const { error } = await admin.from("organizations").delete().in("slug", slugs);
+  if (error) throw new Error(`fixture cleanup failed: ${error.message}`);
 }

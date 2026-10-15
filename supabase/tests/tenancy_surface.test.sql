@@ -42,7 +42,7 @@ select is(
 select is(
   (select array_agg(proname::text order by proname::text) from app_functions
     where nspname = 'public' and has_function_privilege('authenticated', oid, 'EXECUTE')),
-  array['accept_project_invitation', 'google_capture', 'google_recovery_state', 'openseo_active_job',
+  array['accept_project_invitation', 'delete_import_with_receipt', 'google_capture', 'google_recovery_state', 'openseo_active_job',
     'openseo_connection', 'openseo_google_property', 'openseo_job', 'openseo_release_starting_job',
     'project_data_inventory', 'project_invitations', 'project_people', 'provider_budget', 'webmaster_property'],
   'the RPCs exposed to authenticated are exactly the ones covered by the isolation matrix');
@@ -71,7 +71,7 @@ select is(
 -- ── Policies ────────────────────────────────────────────────────────────────────────────
 select is(
   (select coalesce(array_agg(tablename || ': ' || policyname order by tablename || ': ' || policyname), '{}') from pg_policies
-    where schemaname in ('public', 'private') and roles <> array['authenticated']::name[]),
+    where schemaname in ('public', 'private') and roles <> array['authenticated']::name[] and roles <> array['rubik_audit_writer']::name[]),
   '{}'::text[], 'every policy applies to authenticated only (never anon or public)');
 select is(
   (select coalesce(array_agg(tablename || ': ' || policyname order by tablename || ': ' || policyname), '{}') from pg_policies

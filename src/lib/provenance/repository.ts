@@ -1,11 +1,13 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "@/lib/supabase/database.types";
+import type { Database } from "@/lib/supabase/database.types";
 import type { ProvenanceVerification } from "@/lib/core";
 import type { Keyring } from "./keyring";
-import { buildAuditRow, verifyAuditTrail, type AuditInput, type AuditRow, type AuditVerification, type ProjectRef } from "./audit";
-import { openProviderResult, sealProviderResult, type ProviderResultRow } from "./results";
+import { verifyAuditTrail, type AuditInput, type AuditRow, type AuditVerification, type ProjectRef } from "./audit";
+import { openProviderResult, type ProviderResultRow } from "./results";
+import { appendTrustedAudit, storeTrustedProviderResult } from "./writer";
+import { processAuditOutbox } from "./outbox";
 
 // Persistence through the signed-in user's Supabase client (publishable key): Postgres RLS
 // decides what each call may read or write; the database links and protects the chain
@@ -14,7 +16,6 @@ import { openProviderResult, sealProviderResult, type ProviderResultRow } from "
 type Client = SupabaseClient<Database>;
 type Failure = { ok: false; error: string };
 
-const CHAIN_RACE = new Set(["23505", "23514"]);
 const EXPORT_PAGE = 500;
 const EXPORT_MAX_ROWS = 10_000;
 
@@ -57,18 +58,9 @@ export async function appendAudit(
   project: ProjectRef,
   input: AppendInput,
   keyring: Keyring,
-  { attempts = 3, clock = () => new Date() }: { attempts?: number; clock?: () => Date } = {},
+  { clock = () => new Date(), operationId }: { attempts?: number; clock?: () => Date; operationId?: string } = {},
 ): Promise<{ ok: true; row: AuditRow } | Failure> {
-  for (let attempt = 1; attempt <= attempts; attempt++) {
-    const last = await client.from("audit_events").select("*").eq("project_id", project.projectId).order("seq", { ascending: false }).limit(1);
-    if (last.error) return { ok: false, error: "READ_FAILED" };
-    const built = buildAuditRow((last.data[0] as AuditRow | undefined) ?? null, { ...input, at: input.at ?? clock().toISOString() }, project, keyring);
-    if (!built.ok) return built;
-    const inserted = await client.from("audit_events").insert({ ...built.row, details: (built.row.details ?? {}) as NonNullable<Json> }).select("*").single();
-    if (!inserted.error) return { ok: true, row: inserted.data as AuditRow };
-    if (!CHAIN_RACE.has(inserted.error.code)) return { ok: false, error: inserted.error.code === "42501" ? "NOT_ALLOWED" : "WRITE_FAILED" };
-  }
-  return { ok: false, error: "CHAIN_CONTENTION" };
+  return appendTrustedAudit(client, project, input, keyring, { clock, operationId });
 }
 
 export async function readAuditTrail(client: Client, project: ProjectRef, keyring: Keyring): Promise<{ ok: true; rows: AuditRow[]; verification: AuditVerification } | Failure> {
@@ -86,16 +78,10 @@ export async function readAuditTrail(client: Client, project: ProjectRef, keyrin
   return { ok: true, rows, verification: verifyAuditTrail(rows, project, keyring) };
 }
 
-export async function storeProviderResult(client: Client, project: ProjectRef, result: unknown, keyring: Keyring): Promise<{ ok: true; id: string } | Failure> {
-  const sealed = sealProviderResult(result, project, keyring);
-  if (!sealed.ok) return sealed;
-  const { data, error } = await client
-    .from("provider_results")
-    .insert({ ...sealed.row, signed_payload: sealed.row.signed_payload as NonNullable<Json>, data: sealed.row.data as Json })
-    .select("id")
-    .single();
-  if (error) return { ok: false, error: error.code === "42501" ? "NOT_ALLOWED" : "WRITE_FAILED" };
-  return { ok: true, id: data.id };
+export async function storeProviderResult(
+  client: Client, project: ProjectRef, result: unknown, keyring: Keyring, opts: { operationId?: string } = {},
+): Promise<{ ok: true; id: string } | Failure> {
+  return storeTrustedProviderResult(client, project, result, keyring, opts);
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -179,11 +165,11 @@ export async function exportProject(client: Client, project: ProjectRef, keyring
  * Erases the project's stored results and records it. RLS lets only the project owner delete
  * (a non-owner erases 0 rows); callers check `delete-data` with the Core's authorize() first.
  */
-export async function eraseProviderResults(client: Client, project: ProjectRef, actor: AuditInput["actor"], keyring: Keyring): Promise<{ ok: true; erased: number } | Failure> {
-  const { data, error } = await client.from("provider_results").delete().eq("project_id", project.projectId).select("id");
+export async function eraseProviderResults(client: Client, project: ProjectRef, _actor: AuditInput["actor"], keyring: Keyring): Promise<{ ok: true; erased: number } | Failure> {
+  const { data, error, count } = await client.from("provider_results").delete({ count: "exact" }).eq("project_id", project.projectId).select("id");
   if (error) return { ok: false, error: "WRITE_FAILED" };
-  const erased = data.length;
-  const logged = await appendAudit(client, project, { actor, action: "provider-results.erase", outcome: "allowed", details: { erased } }, keyring);
-  if (!logged.ok) return logged;
-  return { ok: true, erased };
+  const erased = count ?? data.length;
+  let failed = false;
+  for (const row of data) if (!(await processAuditOutbox(row.id, keyring)).ok) failed = true;
+  return failed || erased !== data.length ? { ok: false, error: "AUDIT_PENDING" } : { ok: true, erased };
 }

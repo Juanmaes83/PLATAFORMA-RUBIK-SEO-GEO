@@ -20,7 +20,14 @@ $$;
 create function pg_temp.act_as_admin() returns void language sql as $$
   select set_config('role', 'postgres', true), set_config('request.jwt.claims', '', true);
 $$;
+create function pg_temp.act_as_writer(uid uuid) returns void language sql as $$
+  select set_config('role', 'rubik_audit_writer', true),
+         set_config('request.jwt.claims', json_build_object('sub', uid, 'role', 'authenticated')::text, true),
+         set_config('search_path', 'public, extensions, pg_temp', true);
+$$;
 create function pg_temp.h(n int) returns text language sql as $$ select lpad(to_hex(n), 64, '0') $$;
+grant rubik_audit_writer to postgres;
+grant usage on schema extensions to rubik_audit_writer;
 
 select pg_temp.act_as('00000000-0000-4000-8000-0000000000a1');
 insert into public.organizations (slug, name) values ('agencia-a', 'Agencia A');
@@ -36,6 +43,7 @@ create temp table ids on commit drop as
          (select id from public.projects where slug = 'proyecto-a1') a1,
          (select id from public.projects where slug = 'proyecto-b1') b1;
 grant select on ids to authenticated;
+grant select on ids to rubik_audit_writer;
 insert into public.organization_members (organization_id, user_id, role)
   select org_a, u, 'member' from ids, unnest(array['00000000-0000-4000-8000-0000000000c1', '00000000-0000-4000-8000-0000000000d1']::uuid[]) u;
 insert into public.project_members (project_id, organization_id, user_id, role)
@@ -57,7 +65,8 @@ select ok(not has_column_privilege('authenticated', 'public.provider_results', '
 select ok(not has_function_privilege('authenticated', 'private.link_audit_event()', 'execute'), 'nobody calls the trigger functions directly');
 
 -- ── Audit chain ─────────────────────────────────────────────────────────────────────────
-select pg_temp.act_as('00000000-0000-4000-8000-0000000000a1');
+select pg_temp.act_as_admin();
+select pg_temp.act_as_writer('00000000-0000-4000-8000-0000000000a1');
 select lives_ok($$insert into public.audit_events (project_id, organization_id, seq, at, actor_role, action, outcome, prev_hash, hash, key_id, signature)
   select a1, org_a, 1, '2026-10-07T10:00:00Z', 'owner', 'project.open', 'allowed', null, pg_temp.h(1), 'k-test', pg_temp.h(101) from ids$$, 'the owner appends the first event');
 select throws_ok($$insert into public.audit_events (project_id, organization_id, seq, at, actor_role, action, outcome, prev_hash, hash, key_id, signature)
@@ -74,9 +83,12 @@ select throws_ok($$insert into public.audit_events (project_id, organization_id,
 select pg_temp.act_as('00000000-0000-4000-8000-0000000000c1');
 select throws_ok($$insert into public.audit_events (project_id, organization_id, seq, at, actor_role, action, outcome, prev_hash, hash, key_id, signature)
   select a1, org_a, 2, '2026-10-07T10:02:00Z', 'owner', 'x', 'allowed', pg_temp.h(1), pg_temp.h(2), 'k-test', pg_temp.h(102) from ids$$, '42501', null, 'the analyst cannot claim the owner role');
+select pg_temp.act_as_admin();
+select pg_temp.act_as_writer('00000000-0000-4000-8000-0000000000c1');
 select lives_ok($$insert into public.audit_events (project_id, organization_id, seq, at, actor_role, action, outcome, prev_hash, hash, key_id, signature)
   select a1, org_a, 2, '2026-10-07T10:02:00Z', 'analyst', 'result.store', 'allowed', pg_temp.h(1), pg_temp.h(2), 'k-test', pg_temp.h(102) from ids$$, 'the analyst appends as analyst');
-select is((select actor_id from public.audit_events where seq = 2), '00000000-0000-4000-8000-0000000000c1'::uuid, 'actor_id is the signed-in user');
+select is((select actor_id from public.audit_events where project_id = (select a1 from ids) and seq = 2), '00000000-0000-4000-8000-0000000000c1'::uuid, 'actor_id is the signed-in user');
+select pg_temp.act_as('00000000-0000-4000-8000-0000000000c1');
 select throws_ok($$update public.audit_events set outcome = 'denied'$$, '42501', null, 'the analyst cannot update audit rows');
 
 select pg_temp.act_as('00000000-0000-4000-8000-0000000000b1');
@@ -86,7 +98,7 @@ select throws_ok($$insert into public.audit_events (project_id, organization_id,
 select throws_ok($$insert into public.audit_events (project_id, organization_id, seq, at, actor_role, action, outcome, prev_hash, hash, key_id, signature)
   select a1, org_b, 3, '2026-10-07T10:03:00Z', 'owner', 'x', 'allowed', pg_temp.h(2), pg_temp.h(3), 'k-test', pg_temp.h(103) from ids$$, '42501', 'permission denied for table audit_events', 'a non-member gets a generic refusal that reveals nothing about the chain');
 select throws_ok($$insert into public.audit_events (project_id, organization_id, seq, at, actor_role, action, outcome, prev_hash, hash, key_id, signature)
-  select b1, org_a, 1, '2026-10-07T10:03:00Z', 'owner', 'x', 'allowed', null, pg_temp.h(3), 'k-test', pg_temp.h(103) from ids$$, '23503', null, 'a project of agencia-b paired with agencia-a is refused by the composite key');
+  select b1, org_a, 1, '2026-10-07T10:03:00Z', 'owner', 'x', 'allowed', null, pg_temp.h(3), 'k-test', pg_temp.h(103) from ids$$, '42501', null, 'an ordinary client cannot reach the composite key');
 
 -- Administrators cannot rewrite history either; deletion happens only with the project.
 select pg_temp.act_as_admin();
@@ -98,14 +110,20 @@ select throws_ok($$delete from public.audit_events$$, '42501', null, 'a signed-i
 create temp table payload on commit drop as select jsonb_build_object('provider', 'manual', 'operation', 'import', 'status', 'OK',
   'dataHashAlg', 'sha256', 'dataHash', pg_temp.h(55)) p;
 grant select on payload to authenticated;
+grant select on payload to rubik_audit_writer;
 
 select pg_temp.act_as('00000000-0000-4000-8000-0000000000c1');
+select throws_ok($$insert into public.provider_results (project_id, organization_id, provider, operation, status, signed_payload, data, data_hash_alg, data_hash, key_id, signature)
+  select a1, org_a, 'manual', 'import', 'OK', p, '[]', 'sha256', pg_temp.h(55), 'k-test', pg_temp.h(155) from ids, payload$$, '42501', null, 'the analyst cannot store a chosen HMAC');
+select pg_temp.act_as_admin();
+select pg_temp.act_as_writer('00000000-0000-4000-8000-0000000000c1');
 select lives_ok($$insert into public.provider_results (project_id, organization_id, provider, operation, status, signed_payload, data, data_hash_alg, data_hash, key_id, signature)
-  select a1, org_a, 'manual', 'import', 'OK', p, '[]', 'sha256', pg_temp.h(55), 'k-test', pg_temp.h(155) from ids, payload$$, 'the analyst stores a signed result');
+  select a1, org_a, 'manual', 'import', 'OK', p, '[]', 'sha256', pg_temp.h(55), 'k-test', pg_temp.h(155) from ids, payload$$, 'the dedicated writer can store the fixture result');
 select throws_ok($$insert into public.provider_results (project_id, organization_id, provider, operation, status, signed_payload, data, data_hash_alg, data_hash, key_id, signature)
   select a1, org_a, 'manual', 'import', 'OK', p || '{"dataHashAlg":"fnv1a32-mock"}', '[]', 'fnv1a32-mock', pg_temp.h(55), 'k-test', pg_temp.h(155) from ids, payload$$, '23514', null, 'the mock digest is refused');
 select throws_ok($$insert into public.provider_results (project_id, organization_id, provider, operation, status, signed_payload, data, data_hash_alg, data_hash, key_id, signature)
   select a1, org_a, 'manual', 'import', 'VERIFIED', p, '[]', 'sha256', pg_temp.h(55), 'k-test', pg_temp.h(155) from ids, payload$$, '23514', null, 'columns must repeat the signed payload');
+select pg_temp.act_as('00000000-0000-4000-8000-0000000000c1');
 select throws_ok($$update public.provider_results set status = 'OK'$$, '42501', null, 'nobody updates a stored result');
 select is_empty($$delete from public.provider_results returning 1$$, 'the analyst cannot delete results');
 
@@ -125,9 +143,19 @@ select throws_ok($$update public.provider_results set status = 'OK'$$, '42501', 
 
 select pg_temp.act_as('00000000-0000-4000-8000-0000000000a1');
 select results_eq($$with d as (delete from public.provider_results returning 1) select count(*)::int from d$$, array[1], 'the project owner can erase results on request');
-
--- Cascade: removing the project (administrator) removes its audit trail.
 select pg_temp.act_as_admin();
+select is((select count(*)::int from private.audit_outbox where action = 'provider-results.erase' and project_id = (select a1 from ids)),
+  1, 'owner erasure and audit receipt commit in the same transaction');
+
+-- S1 (#106, 20261015201500): the erasure receipt is still pending, so the project cannot
+-- be deleted yet; the cascade would destroy the only record of that erasure.
+select pg_temp.act_as_admin();
+select throws_ok($$delete from public.projects where id = (select a1 from ids)$$, '55000',
+  'Cannot delete project while audit receipts remain unsigned', 'a pending erasure receipt blocks the project deletion');
+-- Once reconciled (the signer completed it), the historical cascade contract applies.
+update private.audit_outbox set state = 'completed', event_seq = 1, completed_at = now()
+  where project_id = (select a1 from ids) and state = 'pending';
+-- Cascade: removing the project (administrator) removes its audit trail.
 delete from public.projects where id = (select a1 from ids);
 select is((select count(*)::int from public.audit_events where project_id = (select a1 from ids)), 0, 'the audit trail goes with its project');
 

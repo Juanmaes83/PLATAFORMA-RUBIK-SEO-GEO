@@ -4,8 +4,9 @@ import type { Database, Json } from "@/lib/supabase/database.types";
 import { googleReadsEnabled, type McpClientOptions, type OpenSeoMcpClient } from "@/lib/openseo/mcp-client";
 import type { AuditInput, ProjectRef } from "@/lib/provenance/audit";
 import type { Keyring } from "@/lib/provenance/keyring";
-import { appendAudit } from "@/lib/provenance/repository";
+import { signProviderReceipt } from "@/lib/provenance/outbox";
 import { sealProviderResult } from "@/lib/provenance/results";
+import { completeTrustedProviderCommand } from "@/lib/provenance/writer";
 import { runManualGoogleReport, validQuery, type ManualGoogleQuery } from "./manual-report";
 import { resolveGoogleSource } from "./properties";
 
@@ -18,6 +19,10 @@ import { resolveGoogleSource } from "./properties";
 //   4. the result is sealed with the server keyring (its signed source names connection and binding);
 //   5. `store` re-validates connection and binding and inserts the result in one transaction.
 // Any failure after step 2 releases the key. Only measured results (OK, PARTIAL, EMPTY) are stored.
+// S1: step 5 also writes the `google.capture` audit receipt in the same transaction
+// (20261015210000); the server then signs that receipt. A lost answer or a signing failure is
+// repaired by retrying the same key (it replays the stored result and signs the pending
+// receipt) or by the operator drain, never by calling the provider again.
 
 type Client = SupabaseClient<Database>;
 export type CaptureError =
@@ -48,7 +53,7 @@ async function capture(client: Client, projectId: string, command: "begin" | "st
 export async function captureGoogleReport(
   client: Client, project: ProjectRef, query: ManualGoogleQuery, key: string, actor: AuditInput["actor"], keyring: Keyring | null,
   deps: { env?: Record<string, string | undefined>; mcpFactory?: (opts: McpClientOptions) => Pick<OpenSeoMcpClient, "callTool" | "close">;
-    clock?: () => Date; audit?: typeof appendAudit } = {},
+    clock?: () => Date; store?: typeof completeTrustedProviderCommand; receipt?: typeof signProviderReceipt } = {},
 ): Promise<CaptureOutcome> {
   const env = deps.env ?? process.env;
   if (!googleReadsEnabled(env)) return { ok: false, error: "DISABLED" };
@@ -63,8 +68,11 @@ export async function captureGoogleReport(
     key, provider: query.provider, connectionId: source.connectionId, propertyBindingId: source.propertyBindingId,
   });
   if (!begun.ok) return { ok: false, error: begun.error === "SOURCE_CHANGED" ? "NOT_CONNECTED" : begun.error };
+  const signReceipt = async (resultId: string) =>
+    (await (deps.receipt ?? signProviderReceipt)(project, "google.capture", resultId, keyring)).ok;
   if (begun.data.state === "STORED" && typeof begun.data.resultId === "string" && UUID.test(begun.data.resultId)) {
-    return { ok: true, resultId: begun.data.resultId, replayed: true, audited: false };
+    // Replay of a committed capture: completes its audit receipt if it is still pending.
+    return { ok: true, resultId: begun.data.resultId, replayed: true, audited: await signReceipt(begun.data.resultId) };
   }
   if (begun.data.state !== "RESERVED") return { ok: false, error: "UNAVAILABLE" };
 
@@ -84,14 +92,12 @@ export async function captureGoogleReport(
 
   const sealed = sealProviderResult(read.result, project, keyring);
   if (!sealed.ok) return release({ ok: false, error: "STORE_FAILED" });
-  const stored = await capture(client, project.projectId, "store", { key, row: sealed.row as unknown as Record<string, unknown> });
+  const stored = await (deps.store ?? completeTrustedProviderCommand)(client, project, { kind: "google", key, row: sealed.row });
   if (!stored.ok || typeof stored.data.resultId !== "string" || !UUID.test(stored.data.resultId)) {
     return release({ ok: false, error: !stored.ok && stored.error === "SOURCE_CHANGED" ? "SOURCE_CHANGED" : "STORE_FAILED" });
   }
   const resultId = stored.data.resultId;
-  const logged = await (deps.audit ?? appendAudit)(client, project, { actor, action: "google.capture", target: resultId, outcome: "allowed",
-    details: { provider: query.provider, status: read.result.status } }, keyring);
-  return { ok: true, resultId, replayed: false, audited: logged.ok };
+  return { ok: true, resultId, replayed: false, audited: await signReceipt(resultId) };
 }
 
 export interface GoogleCaptureSummary { id: string; provider: "search-console" | "google-analytics"; status: string; capturedAt: string | null; createdAt: string }

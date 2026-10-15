@@ -3,6 +3,7 @@
 // It refuses any API URL that is not on this machine, so tests can never target the hosted
 // project. The keys are the local development stack's own keys, not the hosted project's.
 import { execFileSync, execSync } from "node:child_process";
+import { selectedStack } from "./test-stacks.mjs";
 
 export const SUPABASE_CLI = process.env.SUPABASE_CLI ?? "npx --yes supabase@2.118.0";
 
@@ -21,13 +22,13 @@ export function localSupabaseEnv() {
       .map((m) => [m[1], m[2]]),
   );
   const url = new URL(env.API_URL ?? "");
-  const isolated = process.env.RUBIK_TEST_ISOLATED_STACK === "1";
-  const expectedOrigin = `http://127.0.0.1:${isolated ? 55321 : 54321}`;
+  const stack = selectedStack();
+  const expectedOrigin = `http://127.0.0.1:${stack.apiPort}`;
   if (url.origin !== expectedOrigin) {
     throw new Error(`Refused: ${url.origin} is not a local Supabase stack.`);
   }
   const db = new URL(env.DB_URL ?? "");
-  if (db.hostname !== "127.0.0.1" || db.port !== (isolated ? "55322" : "54322")) throw new Error("Refused: local API and database do not match");
+  if (db.hostname !== "127.0.0.1" || db.port !== String(stack.dbPort)) throw new Error("Refused: local API and database do not match");
   if (!env.PUBLISHABLE_KEY || !env.SECRET_KEY) throw new Error("supabase status did not return the local keys.");
   return {
     apiUrl: env.API_URL,
@@ -42,9 +43,9 @@ export function localSupabaseEnv() {
 // never a fixed shared container when the API was selected from another CLI workdir.
 export function localDatabaseContainer() {
   localSupabaseEnv();
-  const isolated = process.env.RUBIK_TEST_ISOLATED_STACK === "1";
-  const name = `supabase_db_${isolated ? "rubik-s2-consent-20261015" : "plataforma-rubik-seo-geo"}`;
+  const stack = selectedStack();
+  const name = `supabase_db_${stack.projectId}`;
   const ports = execFileSync("docker", ["port", name, "5432/tcp"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim().split(/\r?\n/);
-  if (!ports.length || ports.some(p => !p.endsWith(`:${isolated ? 55322 : 54322}`))) throw new Error("Refused: Docker database does not match local API");
+  if (!ports.length || ports.some(p => !p.endsWith(`:${stack.dbPort}`))) throw new Error("Refused: Docker database does not match local API");
   return name;
 }

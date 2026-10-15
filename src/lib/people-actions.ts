@@ -3,11 +3,10 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { currentUser } from "@/lib/auth/session";
-import type { Role } from "@/lib/core";
 import { loadProjectRef } from "@/lib/imports/repository";
 import { removePerson } from "@/lib/project-people";
 import { serverKeyring } from "@/lib/provenance/keyring";
-import { appendAudit } from "@/lib/provenance/repository";
+import { processAuditOutbox } from "@/lib/provenance/outbox";
 import { createClient } from "@/lib/supabase/server";
 import { myProjectMembership } from "@/lib/tenancy";
 
@@ -32,9 +31,6 @@ export async function removePersonAction(formData: FormData): Promise<void> {
   if (!r.ok) redirect(`${base}?error=${r.error.toLowerCase()}`);
   revalidatePath(base);
   const keyring = serverKeyring();
-  const logged = keyring
-    ? await appendAudit(supabase, ref, { actor: { role: membership.role as Role, id: user.id }, action: "member.withdraw", target, outcome: "allowed",
-      details: { leftOrganization: r.leftOrganization, revokedInvitations: r.revokedInvitations } }, keyring)
-    : null;
+  const logged = keyring && r.auditReceiptId ? await processAuditOutbox(r.auditReceiptId, keyring) : null;
   redirect(`${base}?aviso=${logged?.ok ? "retirada" : "retirada-sin-auditoria"}`);
 }

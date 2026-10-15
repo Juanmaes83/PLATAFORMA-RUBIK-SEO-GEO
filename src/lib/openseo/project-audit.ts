@@ -7,6 +7,7 @@ import { followSiteAudit, startSiteAudit, validateAuditStart, type AuditStart, t
 import { acquireAuditJob, bindAuditJob, completeAuditJob, failAuditJob, findActiveAuditJob, findAuditJob, releaseStartingAuditJob } from "./jobs";
 import { prepareCompletedAuditResults } from "./persistence";
 import type { OpenSeoProjectConnection } from "./connections";
+import { signProviderReceipt } from "@/lib/provenance/outbox";
 
 const failStart = (code: string, message: string): AuditStart => ({ ok: false, auditId: null, url: null,
   maxPages: null, startedAt: null, reused: false, error: { code, message, retryable: false } });
@@ -55,7 +56,8 @@ export async function startProjectAudit(client: SupabaseClient<Database>, projec
 }
 
 export type SaveStatus = "not-requested" | "saved" | "pending" | "unavailable";
-export type ProjectAuditFollow = AuditFollowUp & { saveStatus: SaveStatus };
+/** `audited`: the `openseo.audit.store` receipt written with the results was signed (S1). */
+export type ProjectAuditFollow = AuditFollowUp & { saveStatus: SaveStatus; audited?: boolean };
 
 /**
  * Browser submits only a reference and intent; original trusted rows stay on server. With a
@@ -64,7 +66,7 @@ export type ProjectAuditFollow = AuditFollowUp & { saveStatus: SaveStatus };
  */
 export async function followProjectAudit(client: SupabaseClient<Database>, project: ProjectRef,
   auditId: string, projectDomain: string | null, save: boolean, keyring: Keyring | null,
-  deps: BridgeDeps = {}, connection: OpenSeoProjectConnection | null = null): Promise<ProjectAuditFollow> {
+  deps: BridgeDeps & { receipt?: typeof signProviderReceipt } = {}, connection: OpenSeoProjectConnection | null = null): Promise<ProjectAuditFollow> {
   const found = await findAuditJob(client, project, auditId);
   if (!found.ok) return { ...unavailable(found.error === "JOB_NOT_FOUND" ? "AUDIT_NOT_BOUND" : found.error,
     "No se ha encontrado una auditoría vinculada a este proyecto."), saveStatus: "unavailable" };
@@ -73,6 +75,7 @@ export async function followProjectAudit(client: SupabaseClient<Database>, proje
   if (save && !keyring) return { ...unavailable("SIGNING_MISSING", "Faltan las claves de firma del servidor. No se ha consultado ni guardado el resultado."), saveStatus: "unavailable" };
   if (found.job.state === "FAILED") return { ...unavailable("AUDIT_FAILED", "Este trabajo terminó con un fallo confirmado."), saveStatus: "unavailable" };
   let saveStatus: SaveStatus = save ? "pending" : "not-requested";
+  let audited: boolean | undefined;
   const response = await followSiteAudit(auditId, projectDomain, {
     ...deps, boundAuditId: found.job.auditId,
     captureCompletedResults: save && keyring ? async capture => {
@@ -81,11 +84,14 @@ export async function followProjectAudit(client: SupabaseClient<Database>, proje
       const stored = await completeAuditJob(client, project, found.job.jobId, prepared.prepared);
       if (!stored.ok || !stored.job.issuesResultId || !stored.job.pagesResultId) throw new Error("CAPTURE_FAILED");
       saveStatus = "saved";
+      // The receipt committed with the pair is signed now; if signing fails it stays pending
+      // for the operator drain. The provider is never called again to repair the audit.
+      audited = stored.job.auditId ? (await (deps.receipt ?? signProviderReceipt)(project, "openseo.audit.store", stored.job.auditId, keyring)).ok : false;
     } : undefined,
   });
   if (response.progress.state === "FAILED") await failAuditJob(client, project, found.job.jobId);
   if (response.captureError || (save && response.progress.error)) saveStatus = "unavailable";
-  return { ...response, saveStatus };
+  return { ...response, saveStatus, ...(audited === undefined ? {} : { audited }) };
 }
 
 export type Reconciliation = { mode: "bind"; auditId: string } | { mode: "release" };

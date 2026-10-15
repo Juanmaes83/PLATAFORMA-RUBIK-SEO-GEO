@@ -46,10 +46,10 @@ test("sign-up with e-mail confirmation, then sign-out", async ({ page }) => {
   await expect(page).toHaveURL(/\/acceso$/);
 });
 
-async function mailLink(mailpitUrl: string, address: string, subject: string, type: string) {
+async function mailLink(mailpitUrl: string, address: string, type: string) {
   let link: string | undefined;
   await expect.poll(async () => {
-    const list = await (await fetch(`${mailpitUrl}/api/v1/search?query=${encodeURIComponent(`to:${address} subject:"${subject}"`)}`)).json();
+    const list = await (await fetch(`${mailpitUrl}/api/v1/search?query=${encodeURIComponent(`to:${address}`)}`)).json();
     if (!list.messages?.length) return false;
     const message = await (await fetch(`${mailpitUrl}/api/v1/message/${list.messages[0].ID}`)).json();
     link = new RegExp(`href="([^"]+/auth/confirm\\?[^"]*type=${type}[^"]*)"`).exec(message.HTML)?.[1]?.replace(/&amp;/g, "&");
@@ -66,7 +66,7 @@ test("password recovery: same answer for any address, link only leads to /restab
   await page.getByLabel("Correo").fill(address);
   await page.getByLabel("Contraseña").fill(TEST_PASSPHRASE);
   await page.getByRole("button", { name: "Crear cuenta" }).click();
-  await page.goto(await mailLink(mailpitUrl, address, "Confirma tu correo", "email"));
+  await page.goto(await mailLink(mailpitUrl, address, "email"));
   await expect(page).toHaveURL(/\/panel$/);
   await claimBrowserAccount(address);
   await page.getByRole("button", { name: "Salir" }).click();
@@ -91,7 +91,7 @@ test("password recovery: same answer for any address, link only leads to /restab
   await expect(page).toHaveURL(/\/recuperar\?aviso=enviado$/, { timeout: 20_000 });
   await expect(page.locator("main").getByRole("status").filter({ hasText: notice })).toBeVisible();
 
-  const link = await mailLink(mailpitUrl, address, "Restablece tu contraseña", "recovery");
+  const link = await mailLink(mailpitUrl, address, "recovery");
   await page.goto(`${link}&next=${encodeURIComponent("https://evil.example")}`);
   await expect(page).toHaveURL(/\/restablecer$/);
   const fresh = "otra-clave-nueva-2026";

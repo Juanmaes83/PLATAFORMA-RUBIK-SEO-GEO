@@ -23,7 +23,7 @@ describe("project people client", () => {
   it("lists and withdraws through the RPC", async () => {
     const { client, rpc } = fake({ data: [person] }, { data: { removed: true, leftOrganization: true, revokedInvitations: 1 } });
     expect(await listPeople(client, projectId)).toEqual({ ok: true, people: [person] });
-    expect(await removePerson(client, projectId, userId)).toEqual({ ok: true, leftOrganization: true, revokedInvitations: 1 });
+    expect(await removePerson(client, projectId, userId)).toEqual({ ok: true, leftOrganization: true, revokedInvitations: 1, auditReceiptId: null });
     expect(rpc).toHaveBeenLastCalledWith("project_people", { p_project_id: projectId, p_command: "remove", p_payload: { userId } });
   });
 
