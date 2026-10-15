@@ -7,6 +7,7 @@ import type { Database } from "@/lib/supabase/database.types";
 import { buildAuditRow, verifyAuditTrail, type AuditInput, type AuditRow, type ProjectRef } from "./audit";
 import { openProviderResult, sealProviderResult, type ProviderResultRow } from "./results";
 import type { Keyring } from "./keyring";
+import { previewLocked } from "@/lib/auth/mode";
 
 type Client = SupabaseClient<Database>;
 type Failure = { ok: false; error: string };
@@ -17,6 +18,9 @@ type ActorRow = { organization_id: string; actor_role: AuditInput["actor"]["role
 let sharedPool: Pool | null = null;
 let poolUrl: string | null = null;
 export function writerPool(): Pool | null {
+  // A Vercel Preview never opens a database connection, whatever its variables say: the
+  // Preview session lock (src/lib/auth/mode.ts) must also cover this direct Postgres path.
+  if (previewLocked(process.env)) return null;
   const url = process.env.RUBIK_AUDIT_DATABASE_URL;
   if (!url) return null;
   if (sharedPool && poolUrl === url) return sharedPool;
