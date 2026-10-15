@@ -5,8 +5,10 @@ import { buildAuditRow, verifyAuditTrail, type AuditRow, type ProjectRef } from 
 import type { Keyring } from "./keyring";
 import { writerPool } from "./writer";
 
+export type ProviderReceiptAction = "google.capture" | "openseo.audit.store";
+
 type Receipt = { id: string; project_id: string; organization_id: string; actor_id: string;
-  actor_role: Role; target_id: string | null; target_text: string | null; action: "member.withdraw" | "import.file" | "import.erase" | "provider-results.erase";
+  actor_role: Role; target_id: string | null; target_text: string | null; action: "member.withdraw" | "import.file" | "import.erase" | "provider-results.erase" | ProviderReceiptAction;
   details: Record<string, unknown>; state: "pending" | "completed"; event_seq: number | null };
 
 /** Signs only a receipt created by a database effect trigger; no caller supplies event fields. */
@@ -90,3 +92,28 @@ export async function pendingAuditOutbox(): Promise<{ pending: number; oldestAt:
     "select count(*)::text as pending, min(created_at) as oldest_at from private.audit_outbox where state = 'pending'");
   return { pending: Number(result.rows[0].pending), oldestAt: result.rows[0].oldest_at?.toISOString() ?? null };
 }
+
+/**
+ * Signs the receipt that the database wrote in the same transaction as a provider result
+ * (20261015210000): `google.capture` targets the stored result id, `openseo.audit.store` the
+ * OpenSEO audit id. Safe after a lost answer or a crash: the receipt already exists, so the
+ * provider is never called again. A result stored before that migration has no receipt
+ * (RECEIPT_NOT_FOUND) and is reported as not audited.
+ */
+export async function signProviderReceipt(project: ProjectRef, action: ProviderReceiptAction, target: string, keyring: Keyring)
+  : Promise<{ ok: true; seq: number } | { ok: false; error: string }> {
+  if (!/^[0-9a-f-]{36}$/i.test(project.projectId) || !target) return { ok: false, error: "INVALID_RECEIPT" };
+  const pool = writerPool();
+  if (!pool) return { ok: false, error: "WRITER_NOT_CONFIGURED" };
+  let id: string | undefined;
+  try {
+    const found = await pool.query<{ id: string }>(
+      "select id from private.audit_outbox where project_id = $1::uuid and action = $2 and target_text = $3 order by created_at limit 1",
+      [project.projectId, action, target]);
+    id = found.rows[0]?.id;
+  } catch {
+    return { ok: false, error: "WRITE_FAILED" };
+  }
+  return id ? processAuditOutbox(id, keyring) : { ok: false, error: "RECEIPT_NOT_FOUND" };
+}
+

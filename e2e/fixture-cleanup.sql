@@ -76,6 +76,10 @@ begin
       into bad using users_owned,orgs_owned,projects_owned;
     if bad then raise exception 'Foreign E2E dependency; transaction rolled back'; end if;
   end loop;
+  -- S1 (#106): pending audit receipts of THIS run's own projects would block the deletion,
+  -- as they must for real projects. The fixture projects are destroyed with everything they
+  -- hold, so their own receipts go too; receipts of any other project are never touched.
+  delete from private.audit_outbox where project_id = any(projects_owned) and state = 'pending';
   delete from public.organizations where id in (select (r->>'id')::uuid from jsonb_array_elements(receipt->'organizations') r);
   delete from auth.users where id in (select (r->>'id')::uuid from jsonb_array_elements(receipt->'users') r)
     and raw_app_meta_data->>'rubik_e2e_run'=run;

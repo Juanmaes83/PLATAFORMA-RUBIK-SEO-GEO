@@ -4,7 +4,9 @@ import { providers } from "@/lib/core";
 import { prepareCompletedAuditResults } from "@/lib/openseo/persistence";
 import { completeAuditJob } from "@/lib/openseo/jobs";
 import { loadKeyring } from "@/lib/provenance/keyring";
-import { loadProviderResult } from "@/lib/provenance/repository";
+import { loadProviderResult, readAuditTrail } from "@/lib/provenance/repository";
+import { signProviderReceipt } from "@/lib/provenance/outbox";
+import { writerPool } from "@/lib/provenance/writer";
 import { RUN, createConfirmedUser, deleteOrganizations, deleteUsers, signedIn } from "./support";
 
 const slug = `jobs-${RUN}`;
@@ -90,4 +92,21 @@ it("stores actual Core-signed originals atomically and verifies them after a dat
   const rows = await owner.from("provider_results").select("id").eq("project_id", projectId);
   expect(rows.error).toBeNull();
   expect(rows.data).toHaveLength(2);
+
+  // S1 (20261015210000): the completed pair left ONE durable receipt in the same transaction,
+  // even though nothing has signed it yet (the retry did not add a second one).
+  const pool = writerPool();
+  if (!pool) throw new Error("local writer required");
+  const receipts = await pool.query("select id, state, target_text, details from private.audit_outbox where project_id = $1 and action = 'openseo.audit.store'", [projectId]);
+  expect(receipts.rows).toEqual([{ id: jobId, state: "pending", target_text: auditId,
+    details: { jobId, issuesResultId: stored.job.issuesResultId, pagesResultId: stored.job.pagesResultId } }]);
+  const signed = await signProviderReceipt(project, "openseo.audit.store", auditId, loaded.keyring);
+  expect(signed.ok).toBe(true);
+  expect(await signProviderReceipt(project, "openseo.audit.store", auditId, loaded.keyring)).toEqual(signed);
+  const trail = await readAuditTrail(owner, project, loaded.keyring);
+  if (!trail.ok) throw new Error(trail.error);
+  expect(trail.verification.valid).toBe(true);
+  expect(trail.rows.filter((e) => e.action === "openseo.audit.store")).toEqual([expect.objectContaining({
+    target: auditId, actor_role: "owner", details: expect.objectContaining({ jobId, receiptId: jobId }) })]);
+  expect(await signProviderReceipt(project, "openseo.audit.store", "audit-never-stored", loaded.keyring)).toEqual({ ok: false, error: "RECEIPT_NOT_FOUND" });
 }, 60_000);
