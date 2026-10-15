@@ -285,6 +285,9 @@ async function main() {
       if (code === 0) {
         try {
           const additions = parseGithubEnv(readFileSync(jobEnvFile, "utf8"));
+          // GitHub provides a fresh $GITHUB_ENV for each step. Clear ours
+          // immediately so an ephemeral password is not kept on disk.
+          writeFileSync(jobEnvFile, "", { mode: 0o600 });
           Object.assign(jobEnv, additions);
           if (additions.RUBIK_AUDIT_DATABASE_URL) {
             for (const secret of [additions.RUBIK_AUDIT_DATABASE_URL,
