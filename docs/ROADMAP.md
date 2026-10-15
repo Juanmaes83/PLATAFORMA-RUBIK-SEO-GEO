@@ -1,5 +1,16 @@
 # Roadmap de la plataforma
 
+## Estado vigente — 15/10/2026, conciliación del relevo nocturno
+
+- Integrado en main: #80 (Grupo 1), #82 (Grupo 2), #87 (exportación firmada, squash ccdf104a), #91 (documentación, 314a8a1), #89 (informe histórico, 5f6c466), #84 (protocolo de aislamiento alojado, 90209769) y #90 (SOLO documentación de mitigaciones S1/S2, ffee0ace).
+- Cerradas sin fusionar: #81 y #83, documentación/planteamientos anteriores superados y en conflicto con checkpoints posteriores.
+- Abiertas en borrador: #88 (bloqueo de sesiones en Preview, HEAD 6a519290), #85 (Grupo 3 local, HEAD 1e3d0bdd) y #86 (piloto Sarah local, HEAD ef955d11). Vercel READY en estos SHA; faltan pruebas locales sobre los HEAD más recientes y CI no está disponible por facturación.
+- Evidencia de #87 en HEAD fusionado: 381 unitarias + 57 integración + 518 SQL = 956 pruebas locales, más build, lint, TypeScript, secretos y Core pin correctos. No atribuir estas cifras a otras ramas ni a Supabase alojado.
+- Pendientes de cierre: Grupo 3 fase B alojada con dos cuentas de titular y limpieza supervisada; aplicar migración 20261012130000 solo mediante operación aprobada y respaldada; revisión de sesión/cookies para #88; decisiones ADR 0010/Preview aislada; GitHub Actions y aviso de protección de contraseñas filtradas.
+- S1/S2 siguen ABIERTOS: #90 es una propuesta, no una corrección. S1 precisa firma desde escritor confiable y supresión coordinada del INSERT directo; S2 precisa migración de privilegios y adaptación de fixtures y flujo de aceptación.
+
+Los bloques inferiores fechados antes de este checkpoint son históricos. Esta conciliación no escribió en Supabase alojado, no cambió variables Vercel ni activó proveedores.
+
 ## Checkpoint verificado — 15/10/2026 (posterior a PR #87)
 
 **PR #87 fusionada en main** mediante squash commit `ccdf104a2ecf566ff1818e76e8f3490841a18273` (head validado `a1e526be5746a65c2c1e9ecb8e6deba6278b7cd0`). Exportaciones con manifiesto firmado y restauración fail-closed; no se aceptan exportaciones legacy/UNPROVEN para restauración normal. En el entorno local del propietario: `npm run verify` OK (381 unitarias, lint, TypeScript, secretos y build), `test:integration` 57/57 y `test:db` 518/518. Total 956 pruebas; **esta evidencia es local, no CI de GitHub ni ensayo alojado**. Sin escrituras al Supabase alojado `yvdgmklgwlshizzgefpv`.
