@@ -166,6 +166,15 @@ describe("7 · skipped tests never count as passed", () => {
     expect(markers.map((m) => m.kind)).toEqual(["only", ".skip", ".todo", ".fixme", ".skipIf", "viewport-dedupe"]);
     expect(codes(checkTestMarkers(markers))).toEqual(["SKIP_ONLY", "SKIP_MARKER", "SKIP_MARKER", "SKIP_MARKER", "SKIP_MARKER", "SKIP_VIEWPORT_DEDUPE"]);
   });
+  it("ignores markers quoted inside strings (fixtures like this file) but finds them after => or (", () => {
+    const quoted = ["const a = 'it.only(\"x\")';", 'const b = "describe.skip(y)";', "const c = `test.todo(z)`;"].join("\n");
+    expect(scanTestMarkers("q.ts", quoted)).toEqual([]);
+    expect(scanTestMarkers("r.ts", "test.beforeEach(() => test.skip(true, 'r'));\nfoo(it.only('x', f));").map((m) => m.kind)).toEqual([".skip", "only"]);
+  });
+  it("keeps regex literals with quotes and divisions from desynchronising the scan", () => {
+    const src = "const re = /[\"']x/;\nit.only(\"a\");\nconst d = a / b; it.skip(\"c\");\nconst q = \"it.only(\";\n/* it.only( */";
+    expect(scanTestMarkers("s.ts", src)).toEqual([{ file: "s.ts", line: 2, kind: "only" }, { file: "s.ts", line: 3, kind: ".skip" }]);
+  });
   it("reads test summaries and flags runtime skips and missing summaries", () => {
     expect(summarizeLog(" Test Files  43 passed (43)\n      Tests  401 passed | 2 skipped (403)\n")).toEqual({ vitest: { passed: 401, skipped: 2 } });
     expect(summarizeLog("  145 passed (3.2m)\n  44 skipped\n")).toEqual({ playwright: { passed: 145, skipped: 44, failed: 0, flaky: 0 } });

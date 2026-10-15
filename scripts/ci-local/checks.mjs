@@ -243,15 +243,60 @@ export function checkTestMarkers(markers) {
   return out;
 }
 
-/** Finds skip/only/todo/fixme markers in test sources. */
+/**
+ * Blanks string/template literal contents and comments, keeping line structure, so markers
+ * quoted in fixtures or prose never count and real ones always do.
+ */
+export function codeOnly(text) {
+  let out = "";
+  let state = "code";
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    const next = text[i + 1];
+    if (c === "\n") { if (state === "line") state = "code"; out += c; continue; }
+    if (state === "code") {
+      if (c === "/" && next === "/") { state = "line"; out += "  "; i++; continue; }
+      if (c === "/" && next === "*") { state = "block"; out += "  "; i++; continue; }
+      if (c === "'" || c === '"' || c === "`") { state = c; out += c; continue; }
+      if (c === "/" && /(^|[(,=:[!&|?{};+\-*%<>~^]|\breturn|\btypeof)\s*$/.test(out.slice(-40))) { state = "regex"; out += c; continue; }
+      out += c;
+      continue;
+    }
+    if (state === "regex" || state === "class") {
+      if (c === "\\") { out += "  "; i++; continue; }
+      if (state === "regex" && c === "[") { state = "class"; out += " "; continue; }
+      if (state === "class" && c === "]") { state = "regex"; out += " "; continue; }
+      if (state === "regex" && c === "/") { state = "code"; out += c; continue; }
+      out += " ";
+      continue;
+    }
+    if (state === "line") { out += " "; continue; }
+    if (state === "block") {
+      if (c === "*" && next === "/") { state = "code"; out += "  "; i++; } else out += " ";
+      continue;
+    }
+    // Inside a literal: keep escapes inside, close on the matching quote.
+    if (c === "\\") { out += "  "; i++; continue; }
+    if (c === state) { state = "code"; out += c; continue; }
+    out += " ";
+  }
+  return out;
+}
+
+/** Finds skip/only/todo/fixme markers in test sources (code positions only). */
 export function scanTestMarkers(file, text) {
   const markers = [];
-  text.split(/\r?\n/).forEach((line, i) => {
-    if (/^\s*\/\//.test(line)) return;
-    if (/\b(it|test|describe)\.only\s*\(/.test(line)) markers.push({ file, line: i + 1, kind: "only" });
-    else if (/\btest\.skip\s*\(\s*info\.project\.name\s*!==\s*["']escritorio-1280["']/.test(line)) markers.push({ file, line: i + 1, kind: "viewport-dedupe" });
-    else if (/\b(it|test|describe)\.(skip|todo|fixme)\s*\(/.test(line)) markers.push({ file, line: i + 1, kind: line.match(/\.(skip|todo|fixme)/)[0] });
-    else if (/\b(it|test|describe)\.(skipIf|runIf)\s*\(/.test(line)) markers.push({ file, line: i + 1, kind: line.match(/\.(skipIf|runIf)/)[0] });
+  const raw = text.split(/\r?\n/);
+  const at = (name) => new RegExp(`(^|[^\\w.$])(it|test|describe)\\.${name}\\s*\\(`);
+  codeOnly(text).split(/\r?\n/).forEach((line, i) => {
+    const kind = at("only").test(line) ? "only"
+      : at("(skip|todo|fixme)").test(line) ? line.match(/\.(skip|todo|fixme)\b/)[0]
+      : at("(skipIf|runIf)").test(line) ? line.match(/\.(skipIf|runIf)/)[0]
+      : null;
+    if (!kind) return;
+    // Playwright projects: tests that change data run once, on the desktop project.
+    const dedupe = kind === ".skip" && /test\.skip\s*\(\s*info\.project\.name\s*!==\s*["']escritorio-1280["']/.test(raw[i]);
+    markers.push({ file, line: i + 1, kind: dedupe ? "viewport-dedupe" : kind });
   });
   return markers;
 }
