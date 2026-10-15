@@ -1,5 +1,7 @@
 # Roadmap de la plataforma
 
+> **N2-12 (Claude) — 16/10/2026:** primer incremento de contenidos ([doc](N2-12-CONTENIDOS.md)) en rama `claude/n2-12-content-strategy-v1` desde `main@d12b80e`. Local en `637be49`: verify 494/494, integración 110/110, pgTAP 717/717, E2E 149/46/0. Migración `20261016130000` **no aplicada en alojado**; no operativo. Checkpoint: [CLAUDE-N2-12-CHECKPOINT](CLAUDE-N2-12-CHECKPOINT.md).
+
 > **Checkpoint N1-02 / S2 — 15/10/2026:** implementado y probado localmente desde
 > `main@3eba9d0`, [PR #100](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/100)
 > OPEN / Draft, pendiente revisión y fusión supervisada. Verify 403/403,
