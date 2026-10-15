@@ -87,6 +87,12 @@ export const PROJECT_SECTIONS: readonly ProjectSection[] = [
     nextStep: "Proponer una acción ligada a un objetivo y enviarla a revisión humana.",
   },
   {
+    slug: "contenidos", label: "Contenidos", stage: "N2-12", available: true,
+    description: "Oportunidades de contenido con evidencia, clústeres temáticos y briefs editoriales con revisión humana.",
+    requires: [],
+    nextStep: "Registrar una oportunidad con su justificación y su evidencia, agruparla en un clúster y preparar su brief.",
+  },
+  {
     slug: "borradores", label: "Borradores e informes", stage: "CORE-9.6",
     description: "Borradores de contenido e informes del proyecto, siempre con revisión humana.",
     requires: ["Información del cliente aprobada (CORE-9.3)", "Persistencia (CORE-9.2)"],
