@@ -1,5 +1,7 @@
 # Control canónico del proyecto Rubik SEO/GEO
 
+> **Marco de planificación aprobado:** [ROADMAP-MAESTRO-2026.md](ROADMAP-MAESTRO-2026.md), fusionado en la [PR #96](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/96). **Fuente de control:** este documento registra evidencias, SHAs y estados operativos; el Roadmap Maestro ordena niveles, bloques y responsables. N1-01 integrado; N1-02 (S2) es el siguiente bloque de producto.
+
 > **Corte verificado: 15/10/2026, después de fusionar PR #97.** Este documento prevalece para el estado de trabajo sobre los checkpoints históricos de `ROADMAP.md`, `HANDOFF.md` y `OPERATIONS-STATUS.md`. No borra el historial; cualquier cambio posterior requiere otra actualización fechada y evidencia. Repositorio: `Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO`.
 
 ## Estado de integración
