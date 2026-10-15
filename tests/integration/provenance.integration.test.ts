@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Database, Json } from "@/lib/supabase/database.types";
 import { consentedMembership } from "../fixtures/consented-membership";
 import { providers } from "@/lib/core";
@@ -19,7 +19,8 @@ const orgA = `agencia-a-${RUN}`, orgB = `agencia-b-${RUN}`;
 const users: string[] = [];
 let a: Client, b: Client, c: Client;
 let pa: ProjectRef, pa2: ProjectRef, pb: ProjectRef;
-const loaded = loadKeyring({ PROVENANCE_SIGNING_KEYS: `k-int:${randomBytes(32).toString("base64")}`, PROVENANCE_ACTIVE_KEY_ID: "k-int" });
+const localSigningKey = randomBytes(32).toString("base64");
+const loaded = loadKeyring({ PROVENANCE_SIGNING_KEYS: `k-int:${localSigningKey}`, PROVENANCE_ACTIVE_KEY_ID: "k-int" });
 if (!loaded.ok) throw new Error(loaded.error);
 const keyring: Keyring = loaded.keyring;
 const at = (m: number) => new Date(Date.UTC(2026, 9, 7, 10, m)).toISOString();
@@ -191,6 +192,18 @@ describe("S1 durable membership withdrawal", () => {
     const forger = loadKeyring({ PROVENANCE_SIGNING_KEYS: `k-other:${randomBytes(32).toString("base64")}`, PROVENANCE_ACTIVE_KEY_ID: "k-other" });
     if (!forger.ok) throw new Error(forger.error);
     expect(await processAuditOutbox(removed.auditReceiptId!, forger.keyring)).toEqual({ ok: false, error: "CHAIN_INVALID" });
+    vi.stubEnv("RUBIK_AUDIT_DRAIN_TOKEN", "fictitious-local-operator-token-32-characters");
+    vi.stubEnv("PROVENANCE_SIGNING_KEYS", `k-int:${localSigningKey}`);
+    vi.stubEnv("PROVENANCE_ACTIVE_KEY_ID", "k-int");
+    const operator = await import("@/app/api/operaciones/auditoria/pendientes/route");
+    const endpoint = "http://localhost/api/operaciones/auditoria/pendientes";
+    const headers = { authorization: "Bearer fictitious-local-operator-token-32-characters" };
+    const before = await operator.GET(new Request(endpoint, { headers }));
+    expect(before.status).toBe(200);
+    expect((await before.json()).pending).toBeGreaterThanOrEqual(1);
+    const drained = await operator.POST(new Request(endpoint, { method: "POST", headers }));
+    expect(drained.status).toBe(200);
+    expect((await drained.json()).completed).toBeGreaterThanOrEqual(1);
     const signed = await processAuditOutbox(removed.auditReceiptId!, keyring);
     expect(signed.ok).toBe(true);
     expect(await processAuditOutbox(removed.auditReceiptId!, keyring)).toEqual(signed);
@@ -198,6 +211,7 @@ describe("S1 durable membership withdrawal", () => {
     if (!trail.ok) throw new Error(trail.error);
     expect(trail.verification.valid).toBe(true);
     expect(trail.rows.filter((r) => r.action === "member.withdraw" && r.target === users[2])).toHaveLength(1);
+    vi.unstubAllEnvs();
   });
 });
 
