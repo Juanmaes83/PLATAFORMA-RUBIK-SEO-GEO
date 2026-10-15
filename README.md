@@ -1,5 +1,7 @@
 # PLATAFORMA-RUBIK-SEO-GEO
 
+> **Plan aprobado:** [Roadmap Maestro 2026 — niveles N1/N2/N3](docs/ROADMAP-MAESTRO-2026.md), con prioridades, responsables, dependencias y criterios de cierre. **Estado operativo verificable:** [CONTROL-PROYECTO](docs/CONTROL-PROYECTO.md). Las referencias cronológicas más antiguas de este README no sustituyen estos documentos.
+
 Aplicación de la plataforma SEO/GEO de Rubik (CORE-9). Consume [RUBIK-SEO-GEO-CORE](https://github.com/Juanmaes83/RUBIK-SEO-GEO-CORE) como dependencia fijada a un commit; no copia su código. El repositorio de aplicación lo designó el propietario (decisión D-26 del Core).
 
 **Titularidad:** Rubik SEO GEO es propiedad de Juan Manuel Espinosa Galant, DNI 48553293V, y pertenece a Rubik Sota. Quedan prohibidos su uso y comercialización sin permiso y autorización expresa del titular. Todos los derechos sobre los elementos propios quedan reservados; las dependencias conservan sus licencias. Véanse [NOTICE.md](NOTICE.md) y [LICENSE](LICENSE).
