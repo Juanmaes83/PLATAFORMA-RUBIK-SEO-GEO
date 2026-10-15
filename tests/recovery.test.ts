@@ -7,7 +7,9 @@ import { loadKeyring, type Keyring } from "@/lib/provenance/keyring";
 import { buildAuditRow, verifyAuditTrail, type AuditRow, type ProjectRef } from "@/lib/provenance/audit";
 import { openProviderResult, sealProviderResult } from "@/lib/provenance/results";
 import { NOT_INCLUDED, auditIdsFromResults, readOperationalState } from "@/lib/recovery/operations";
+import { signExportManifest } from "@/lib/provenance/manifest";
 import { verifyProjectExport } from "@/lib/recovery/verify-export";
+import { planRestore } from "@/lib/restore/plan";
 
 // Pilot recovery: operational state read through owner RPCs and offline re-verification of an
 // exported file. Keys are random per run; no database, provider or network.
@@ -126,5 +128,101 @@ describe("operational state for recovery", () => {
     // Only read commands: never acquire, bind, complete, fail, connect or revoke.
     for (const [, args] of rpc.mock.calls) expect(["get", undefined]).toContain((args as { p_command?: string }).p_command);
     expect(JSON.stringify(state)).not.toMatch(/secret|token|password|apiKey/i);
+  });
+});
+
+describe("signed export manifest: completeness, not only authenticity", () => {
+  const importRow = (id: string, label: string) => ({
+    id, project_id: project.projectId, organization_id: project.organizationId, format: "rubik-import-v1", source_kind: "manual-review",
+    source_label: label, source_url: null, source_tool: null, captured_at: "2026-10-09T09:00:00+00:00", period_start: null, period_end: null,
+    status: "empty", finding_count: 0, error_count: 0, findings: [], errors: [], file_sha256: id.replaceAll("-", "").padEnd(64, "0").slice(0, 64),
+    file_bytes: 2, created_by: actor.id, created_at: "2026-10-09T09:00:01+00:00",
+  });
+  // What the route sends: the finished body plus a manifest signed over it, after a JSON round trip.
+  async function sealedFixture(keyring = owner) {
+    const body = await exportFixture(keyring);
+    body.imports = [importRow("66666666-6666-4666-8666-666666666666", "Revisión A"), importRow("77777777-7777-4777-8777-777777777777", "Revisión B")];
+    body.operations = { google: { ok: true, value: { connections: [], bindings: [], captures: [] } } };
+    return JSON.parse(JSON.stringify({ ...body, manifest: signExportManifest(body, project, keyring) }));
+  }
+  const check = (doc: unknown, keyring = owner) => {
+    const c = verifyProjectExport(doc, keyring);
+    if (!c.ok) throw new Error(c.error);
+    return c;
+  };
+
+  it("a sealed export is complete; an older file without manifest stays verifiable but UNPROVEN", async () => {
+    expect(check(await sealedFixture())).toMatchObject({ audit: { valid: true }, mismatches: [], completeness: { status: "COMPLETE" } });
+    expect(check(await exportFixture())).toMatchObject({ audit: { valid: true }, mismatches: [], completeness: { status: "UNPROVEN" } });
+    const stripped = await sealedFixture();
+    delete stripped.manifest;
+    expect(check(stripped).completeness).toEqual({ status: "UNPROVEN" });
+  });
+
+  it("dropping the tail of the audit chain still verifies the chain, but not the manifest", async () => {
+    const doc = await sealedFixture();
+    doc.audit.rows.pop();
+    doc.audit.verification = verifyAuditTrail(doc.audit.rows, project, owner); // a careful forger rewrites it too
+    const c = check(doc);
+    expect(c.audit.valid).toBe(true);
+    expect(c.completeness).toEqual({ status: "INCOMPLETE", reasons: ["manifest.audit"] });
+    expect(c.mismatches).toEqual(["manifest.audit"]);
+  });
+
+  it("removing a result, removing or editing an import, or editing operations is detected", async () => {
+    const noResult = await sealedFixture();
+    noResult.results = [];
+    expect(check(noResult).completeness).toEqual({ status: "INCOMPLETE", reasons: ["manifest.results"] });
+    const changedResult = await sealedFixture();
+    changedResult.results[0].row.created_at = "2026-11-10T13:00:00+00:00";
+    expect(check(changedResult).completeness).toEqual({ status: "INCOMPLETE", reasons: ["manifest.results"] });
+    const noImport = await sealedFixture();
+    noImport.imports.pop();
+    expect(check(noImport).completeness).toEqual({ status: "INCOMPLETE", reasons: ["manifest.imports"] });
+    const editedImport = await sealedFixture();
+    editedImport.imports[0].source_label = "Etiqueta cambiada";
+    expect(check(editedImport).completeness).toEqual({ status: "INCOMPLETE", reasons: ["manifest.imports"] });
+    const reordered = await sealedFixture();
+    reordered.imports.reverse();
+    expect(check(reordered).completeness).toEqual({ status: "COMPLETE" });
+    const ops = await sealedFixture();
+    ops.operations.google.value.connections.push({ id: "88888888-8888-4888-8888-888888888888" });
+    expect(check(ops).completeness).toEqual({ status: "INCOMPLETE", reasons: ["manifest.operations"] });
+  });
+
+  it("a manifest recomputed without the key, or edited, is refused; a rotated keyring that kept the key verifies it", async () => {
+    const forged = await sealedFixture();
+    forged.imports.pop();
+    const { manifest: _old, ...rest } = forged;
+    void _old;
+    forged.manifest = JSON.parse(JSON.stringify(signExportManifest(rest, project, ring(`k-b:${keyB}`, "k-b"))));
+    expect(check(forged).completeness).toEqual({ status: "INCOMPLETE", reasons: ["manifest.signature"] });
+    const edited = await sealedFixture();
+    edited.manifest.imports.count = 1;
+    expect(check(edited).completeness).toEqual({ status: "INCOMPLETE", reasons: ["manifest.signature"] });
+    const malformed = await sealedFixture();
+    malformed.manifest = { version: "otra" };
+    expect(check(malformed).completeness).toEqual({ status: "INCOMPLETE", reasons: ["manifest.malformed"] });
+    expect(check(await sealedFixture(), ring(`k-a:${keyA},k-b:${keyB}`, "k-b")).completeness).toEqual({ status: "COMPLETE" });
+  });
+
+  it("restore fails closed when a signed manifest is stripped or the export predates manifests", async () => {
+    const operatorId = actor.id;
+    const stripped = await sealedFixture();
+    delete stripped.manifest;
+    expect(check(stripped).completeness).toEqual({ status: "UNPROVEN" });
+    expect(planRestore(stripped, owner, { operatorId })).toEqual({ ok: false, error: "TAMPERED" });
+    const old = await exportFixture();
+    expect(check(old).completeness).toEqual({ status: "UNPROVEN" });
+    expect(planRestore(old, owner, { operatorId })).toEqual({ ok: false, error: "TAMPERED" });
+  });
+
+  it("the restore plan refuses a sealed export with rows removed, before any SQL exists", async () => {
+    const operatorId = actor.id;
+    expect(planRestore(await sealedFixture(), owner, { operatorId })).toMatchObject({ ok: true });
+    const truncated = await sealedFixture();
+    truncated.audit.rows.pop();
+    truncated.audit.verification = verifyAuditTrail(truncated.audit.rows, project, owner);
+    expect(planRestore(truncated, owner, { operatorId })).toEqual({ ok: false, error: "TAMPERED" });
   });
 });

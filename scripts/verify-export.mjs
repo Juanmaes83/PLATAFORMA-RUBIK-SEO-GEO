@@ -3,11 +3,12 @@
 // reads two local files and prints a verdict. It sends nothing, writes nothing, never prints a
 // key or a key value, and never repairs or re-signs the file.
 //
-//   npm run verify:export -- <export.json> [--keyring <file.env>] [--json]
+//   npm run verify:export -- <export.json> [--keyring <file.env>] [--json] [--require-complete]
 //
 // Keyring: PROVENANCE_SIGNING_KEYS and PROVENANCE_ACTIVE_KEY_ID, read from --keyring (an env file
 // kept outside the repository) or, without it, from the environment. Exit codes: 0 verified,
-// 1 not verified, 2 usage or input error.
+// 1 not verified, 2 usage or input error. --require-complete also treats a file without a signed
+// manifest (completeness UNPROVEN) as not verified: use it for exports made after the manifest.
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { register } from "node:module";
@@ -18,7 +19,7 @@ import { parseEnv } from "node:util";
 register("./lib/app-ts-hooks.mjs", import.meta.url);
 
 const REPO = fileURLToPath(new URL("..", import.meta.url));
-const USAGE = "Uso: npm run verify:export -- <exportacion.json> [--keyring <anillo.env>] [--json]";
+const USAGE = "Uso: npm run verify:export -- <exportacion.json> [--keyring <anillo.env>] [--json] [--require-complete]";
 
 function fail(message) {
   console.error(message);
@@ -26,10 +27,11 @@ function fail(message) {
 }
 
 function parseArgs(argv) {
-  const opts = { file: null, keyring: null, json: false };
+  const opts = { file: null, keyring: null, json: false, requireComplete: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--json") opts.json = true;
+    else if (a === "--require-complete") opts.requireComplete = true;
     else if (a === "--keyring") {
       if (!argv[i + 1] || argv[i + 1].startsWith("--")) fail(`Falta la ruta tras --keyring.\n${USAGE}`);
       opts.keyring = argv[++i];
@@ -99,7 +101,8 @@ if (!check.ok) {
   process.exit(2);
 }
 
-const verified = check.audit.valid && check.results.failed.length === 0 && check.mismatches.length === 0;
+const verified = check.audit.valid && check.results.failed.length === 0 && check.mismatches.length === 0
+  && (!opts.requireComplete || check.completeness.status === "COMPLETE");
 const report = {
   verified,
   format: check.format,
@@ -108,6 +111,7 @@ const report = {
   audit: check.audit,
   results: check.results,
   mismatches: check.mismatches,
+  completeness: check.completeness,
   google: googleSummary(doc),
   warnings,
 };
@@ -124,6 +128,9 @@ if (opts.json) {
     `Resultados firmados: ${check.results.verified}/${check.results.total} verificados`,
     ...check.results.failed.map((f) => `  - results[${f.index}]: ${f.reason ?? "sin motivo"}`),
     check.mismatches.length ? `Verificación escrita que no coincide con la recalculada: ${check.mismatches.join(", ")}` : "La verificación escrita coincide con la recalculada",
+    check.completeness.status === "COMPLETE" ? "Completitud: demostrada por el manifiesto firmado (no falta ni sobra nada)"
+      : check.completeness.status === "UNPROVEN" ? `Completitud: NO DEMOSTRADA (fichero sin manifiesto firmado)${opts.requireComplete ? "" : "; usa --require-complete para exigirla"}`
+      : `Completitud: ROTA (${check.completeness.reasons.join(", ")})`,
     report.google.present
       ? `Estado Google (informativo, sin firma): ${report.google.connections} conexión(es), ${report.google.bindings} asociación(es), ${report.google.captures} captura(s)`
       : `Estado Google: ${report.google.note}`,

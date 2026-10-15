@@ -10,7 +10,7 @@ describe("technical status endpoint", () => {
   it("reports configuration only and no connected service", async () => {
     const body = await (await GET()).json();
     expect(body).toMatchObject({ status: "ok", stage: "CORE-9.3", deployment: "none" });
-    expect(["supabase", "not-configured"]).toContain(body.auth);
+    expect(["supabase", "not-configured", "preview-locked"]).toContain(body.auth);
     expect(body.persistence).toBe(body.auth === "supabase" ? "supabase" : "none");
     expect(body.core.commit).toMatch(/^[0-9a-f]{40}$/);
     expect(body.integrations.every((i: { status: string }) => i.status !== "CONNECTED")).toBe(true);
