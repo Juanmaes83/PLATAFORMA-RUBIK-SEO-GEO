@@ -26,12 +26,12 @@ export function parseGithubEnv(content) {
 // GitHub masks ::add-mask:: values. Our local runner must do the same BEFORE
 // printing, recording a log or creating evidence. Buffer the entire step output
 // because a masked value may be split across stdout chunks.
-export function redactWorkflowOutput(raw) {
-  const masks = [];
+export function redactWorkflowOutput(raw, masks = []) {
   let safe = raw.replace(/^::add-mask::([^\r\n]*)(?:\r?\n|$)/gm, (_match, value) => {
-    if (value.length >= 8) masks.push(value);
+    if (value.length >= 8 && !masks.includes(value)) masks.push(value);
     return "";
   });
   for (const secret of masks) safe = safe.split(secret).join("***");
-  return safe;
+  // Even an unmasked writer URL must never be printed to runner logs.
+  return safe.replace(/postgresql:\/\/rubik_audit_writer:[^\s@]+@127\.0\.0\.1:54322\/postgres/g, "***");
 }
