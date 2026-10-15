@@ -1,11 +1,8 @@
 # Estado operativo comprobado — 10/10/2026
 
-## Checkpoint actual — 14/10/2026, tras PR #82
+## Registro histórico — Grupo 2, 14/10/2026 (PR #83 reconciliada)
 
-GitHub confirmó fusión [#82](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/82) a `main@506ea91d24baa4feaff11e5f246f78135ee1b3ec`. Grupo 2 comprobado exclusivamente con Supabase local y salida de PowerShell del propietario: **57/57** de integración, **374/374** unitarias/UI, core pin, secretos, lint, TS y build PASS. No se ejecutó GitHub Actions por facturación; no hubo nueva validación alojada de rechazo entre sesiones independientes. Las 518 SQL son evidencia previa, no nueva. Sin llamadas de pago, migraciones ni escrituras alojadas.
-
-**Siguiente control:** Grupo 3 de pruebas negativas de aislamiento alojado con dos cuentas, como propuesta documental y pruebas locales revisables. Cualquier escritura de datos de prueba en alojado requiere autorización diferenciada, plan de limpieza y entorno seguro. Pendiente `20261012130000_google_recovery_state` y tareas del piloto Sarah. El modo OpenSEO continúa `legacy`.
-
+[#82](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/82) se fusionó en `main@506ea91`. Resultado local en aquel SHA: 57/57 integración, 374/374 unitarias/UI, verificación general PASS; **518 SQL** correspondían a ejecución anterior. Sin CI por facturación y sin pruebas alojadas negativas con dos cuentas. No hubo migración ni escritura alojada por esta PR; ver estado actualizado en [ROADMAP](ROADMAP.md).
 
 ## Resolución de hallazgo de permisos — 14/10/2026
 
