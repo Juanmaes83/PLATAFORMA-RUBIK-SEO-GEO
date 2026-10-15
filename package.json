@@ -16,6 +16,7 @@
     "check:core-pin": "node scripts/check-core-pin.mjs",
     "check:secrets": "node scripts/check-no-secrets.mjs",
     "verify": "npm run check:core-pin && npm run check:secrets && npm run lint && npm run typecheck && npm run test && npm run build",
+    "verify:s1-local": "node scripts/verify-s1-local.mjs",
     "test:e2e": "playwright test",
     "visual:evidence": "node scripts/visual-evidence.mjs",
     "verify:export": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/verify-export.mjs",
