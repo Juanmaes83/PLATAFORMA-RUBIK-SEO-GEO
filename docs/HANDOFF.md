@@ -1,5 +1,7 @@
 # Handoff
 
+> **RELEVO ACTUAL — 15/10/2026:** ver [CONTROL-PROYECTO.md](CONTROL-PROYECTO.md), fuente de control tras la fusión #88 (`2e6a7a7`) y #85 (`1e9d178`). Codex actualiza #86; no tocar su rama. Las secciones inferiores son histórico de entregas y pueden describir #85/#88 como Draft en fechas anteriores.
+
 ## Relevo comprobado — 15/10/2026, mañana
 
 - Integradas: PR #87 (ccdf104a, 956 pruebas locales), #91 (314a8a1), #89 (5f6c466), #84 (90209769, protocolo documental) y #90 (ffee0ace, diseño S1/S2 sin mitigación implementada).

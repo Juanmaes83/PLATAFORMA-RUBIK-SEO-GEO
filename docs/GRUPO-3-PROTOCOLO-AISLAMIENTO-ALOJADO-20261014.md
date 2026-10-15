@@ -1,5 +1,7 @@
 # Grupo 3 — protocolo de aislamiento alojado, sin ejecución remota
 
+> **SITUACIÓN ACTUAL — 15/10/2026:** el trabajo de matriz local de #85 está **fusionado**, pero este protocolo alojado **no se ha ejecutado**. No probar usuarios reales ni datos de Production sin autorización operativa; consultar [CONTROL-PROYECTO.md](CONTROL-PROYECTO.md).
+
 > **Actualización 15/10/2026:** este protocolo es diseño, no evidencia de aislamiento alojado. La matriz local de #85 se revalidó tras incorporar `main@2e6a7a7`: 71/71 integración y 532/532 pgTAP contra Supabase local. #87, #88, #89 y #91 ya están fusionadas. El bloqueo de sesión en Vercel Preview introducido por #88 impide usar esa Preview para la fase B mientras comparta las claves públicas de Supabase de Production. Realizar la fase B únicamente con cuentas propias y consentimiento operativo concreto del propietario, o en un proyecto Supabase aislado. Ninguna escritura ni ensayo alojado se ejecutó para #85.
 
 **Estado:** diseño para revisión; no se ha ejecutado ningún test que escriba en Supabase alojado. Base: main@506ea91 (PR #82 fusionado). Consultar también `docs/AISLAMIENTO-ALOJADO-GUION.md`, que contiene el consentimiento histórico del propietario para la ejecución manual por él con dos cuentas propias, pero **no autoriza a este agente a escribir**.
