@@ -45,4 +45,25 @@ describe("local test API / SQL destination binding (no database operations)", ()
       expect(() => localDatabaseContainer()).toThrow("Docker database does not match");
     }
   });
+  it("binds Claude's S1 stack (API, DB and container) only when it is the single selector", () => {
+    vi.stubEnv("RUBIK_TEST_CLAUDE_S1_STACK", "1");
+    shell.execSync.mockReturnValue(status(57321, 57322));
+    shell.execFileSync.mockReturnValue("0.0.0.0:57322\n");
+    expect(localSupabaseEnv().apiUrl).toBe("http://127.0.0.1:57321");
+    expect(localDatabaseContainer()).toBe("supabase_db_rubik-claude-s1-20261015");
+    // Codex's S1 stack, the S2 stack or the shared stack are refused under Claude's selector.
+    for (const pair of [[56321, 56322], [55321, 55322], [54321, 54322], [57321, 56322]]) {
+      shell.execSync.mockReturnValue(status(pair[0], pair[1]));
+      expect(() => localSupabaseEnv(), pair.join("/")).toThrow("Refused");
+    }
+  });
+  it("refuses two selectors instead of picking one by precedence", () => {
+    shell.execSync.mockReturnValue(status(57321, 57322));
+    for (const other of ["RUBIK_TEST_S1_STACK", "RUBIK_TEST_ISOLATED_STACK"]) {
+      vi.unstubAllEnvs();
+      vi.stubEnv("RUBIK_TEST_CLAUDE_S1_STACK", "1");
+      vi.stubEnv(other, "1");
+      expect(() => localSupabaseEnv(), other).toThrow("select only one local test stack");
+    }
+  });
 });

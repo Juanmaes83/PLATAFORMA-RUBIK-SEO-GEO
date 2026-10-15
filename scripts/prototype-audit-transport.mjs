@@ -2,11 +2,14 @@
 import { randomBytes } from "node:crypto";
 import assert from "node:assert/strict";
 import pg from "pg";
+import { STACKS, selectedStack } from "./test-stacks.mjs";
 
-const url = process.env.RUBIK_S1_LOCAL_DB_URL ?? "postgresql://postgres:postgres@127.0.0.1:56322/postgres";
+// Codex's S1 stack by default; Claude's only when RUBIK_TEST_CLAUDE_S1_STACK=1 selects it.
+const stack = selectedStack() === STACKS.claudeS1 ? STACKS.claudeS1 : STACKS.s1;
+const url = process.env.RUBIK_S1_LOCAL_DB_URL ?? `postgresql://postgres:postgres@127.0.0.1:${stack.dbPort}/postgres`;
 const parsed = new URL(url);
-if (parsed.hostname !== "127.0.0.1" || parsed.port !== "56322" || parsed.pathname !== "/postgres") {
-  throw new Error("S1 prototype requires the isolated local database on 127.0.0.1:56322");
+if (parsed.hostname !== "127.0.0.1" || parsed.port !== String(stack.dbPort) || parsed.pathname !== "/postgres") {
+  throw new Error(`S1 prototype requires the isolated local database on 127.0.0.1:${stack.dbPort}`);
 }
 const suffix = `${process.pid}_${randomBytes(3).toString("hex")}`;
 const role = `rubik_s1_probe_${suffix}`;
