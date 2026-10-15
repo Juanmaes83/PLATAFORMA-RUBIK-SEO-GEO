@@ -1,5 +1,14 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
+## Checkpoint N1-05/N1-06 local · 15/10/2026
+
+- **Git/reconciliación:** cuenta `Juanmaes83`; `origin/main@d12b80ee4c229ab8c90f1044ecd0108165f8bb2e` (#100/#104/#109/#112 fusionadas). Rama/worktree propios `codex/n1-05-n1-06-local-20261015` / `C:\Users\temp123\Documents\ChatGPT\PLATAFORMA-RUBIK-SEO-GEO\n1-recovery`; consultar HEAD y PR Draft al reanudar. Checkouts y contenedores históricos S1/S2 preservados; FLOOR PLAN intacto.
+- **N1-05:** auditoría/matriz SQL y protocolo operativo en [N1-05-PREPARACION-LOCAL-20261015.md](N1-05-PREPARACION-LOCAL-20261015.md). Añadido rechazo de JWT local auténtico caducado. U02 (Preview aislada, variables/CI) y U03 (ventana y dos identidades ficticias alojadas) pendientes; ninguna fase alojada ejecutada. H2 sigue bloqueado.
+- **N1-06:** guarda R1 fail-closed en exportación para outbox pendiente, vínculo recibo-evento inválido, escritor caído, concurrencia detectable, cadena/resultado inválidos y lecturas operativas fallidas. Ensayo Google recovery local y checklist U04 en [N1-06-RECUPERACION-LOCAL-20261015.md](N1-06-RECUPERACION-LOCAL-20261015.md). Formatos v1/v2 intactos; la política comercial R1 necesita decisión del propietario.
+- **Evidencia propia sobre este diff:** `npm run verify` 486/486 unitarias, lint/tipos/build PASS; `npm run test:integration` 106/106 en 16 archivos PASS; pgTAP 641/641 en 23 archivos PASS; Playwright 145 PASS/44 SKIP/0 FAIL (360/390/1280 px; 11 usuarios y 2 organizaciones propios limpiados sin residuos); rollback transaccional de funciones Google `DROPPED_IN_TX`/`RESTORED`. Base exclusiva `rubik-n1-recovery-20261015`, puertos 58321/58322, datos ficticios y proveedores simulados. No atribuir estas cifras a GitHub Actions.
+- **Pendientes:** U04 para migración/backup/ensayo Sarah alojado; U02/U03 para N1-05; decisiones R1/R3/R4/R7, custodia K3/K4, identidad/pooler real del escritor y CI GitHub bloqueada por facturación. H1 parcial y H2 bloqueado. S1/S2 aún sin acreditar en Supabase alojado; Preview permanece bloqueada.
+- **Handoff:** [HANDOFF-N1-05-N1-06-20261015.md](HANDOFF-N1-05-N1-06-20261015.md). Próximo trabajo autónomo: corte consistente y versionado de exportación con recibos concurrentes, más prueba de archivos v2 antiguos parcialmente leídos, sujeto a revisión de la PR activa. No fusionar sin auditoría del HEAD exacto.
+
 ## Corte posterior a integración S1 · 15/10/2026
 
 - **GitHub main**: `31e3461c2bc8694081e5f07b25f9276f6dd145b7`; [PR #104](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/104) **MERGED**; N1-04 [#109](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/109) **MERGED**; #110 (Claude S1) y #111 (main→rama S1) **MERGED**. #105–107 sustituidas/cerradas. NO reabrir ni repetir fusiones.
