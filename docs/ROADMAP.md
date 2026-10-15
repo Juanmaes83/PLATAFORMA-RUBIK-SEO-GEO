@@ -1,5 +1,13 @@
 # Roadmap de la plataforma
 
+> **Checkpoint N1-02 / S2 — 15/10/2026:** implementado y probado localmente desde
+> `main@3eba9d0`, pendiente PR Draft/revisión y fusión supervisada. Verify 403/403,
+> integración 84/84, pgTAP 581/581, rollback 10/10; E2E 145 PASS/44 SKIP/0 FAIL.
+> Stack propio 55321/55322; compartido preservado. No aplicado alojado. Evidencia:
+> [S2-CONSENTIMIENTO-MEMBRESIAS](S2-CONSENTIMIENTO-MEMBRESIAS-20261015.md).
+> N1-03/S1: [plan U01 preparado](S1-PLAN-ESCRITOR-CONFIABLE-20261015.md).
+> Continuidad: [CODEX-AUTONOMIA-ESTADO](CODEX-AUTONOMIA-ESTADO.md). Cortes inferiores históricos.
+
 > **ÍNDICE DE PLANIFICACIÓN VIGENTE (15/10/2026):** [Roadmap Maestro 2026 — tres niveles, responsables y gates](ROADMAP-MAESTRO-2026.md), aprobado en PR #96. **Estado verificable por SHA:** [CONTROL-PROYECTO](CONTROL-PROYECTO.md). Las fases y checkpoints que siguen se conservan como histórico y no determinan el siguiente bloque por encima del Roadmap Maestro.
 
 > **CHECKPOINT post #97 — 15/10/2026:** la seguridad de fixtures Playwright está fusionada en `main@17001160`, con dos ejecuciones E2E locales reportadas (145 PASS y 44 SKIP cada una), verify 397/397, integración 78/78 y pgTAP 532/532. Próximo bloque de producto: S2 (consentimiento de membresías). Fuente vigente: [CONTROL-PROYECTO.md](CONTROL-PROYECTO.md).

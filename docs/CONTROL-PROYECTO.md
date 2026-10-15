@@ -1,5 +1,15 @@
 # Control canónico del proyecto Rubik SEO/GEO
 
+> **Corte S2 — 15/10/2026:** N1-02 implementado y PROBADO LOCAL en
+> `codex/s2-membership-consent-20261015`, base main remoto `3eba9d014a339dabdabff28f42e27209695b0bf9`.
+> Verify **403/403**, integración **84/84**, pgTAP **581/581**, rollback **10/10**;
+> Playwright **145 PASS / 44 SKIP / 0 FAIL** en stack propio `127.0.0.1:55321` / DB 55322.
+> Preservados por huella los 11 usuarios, 2 organizaciones, 3 proyectos y membresías del stack
+> compartido; cero residuos en el propio. Pendiente PR Draft, revisión y merge supervisado.
+> Migración alojada sin aplicar; S1 y H1/H2 continúan pendientes. Detalle en
+> [S2-CONSENTIMIENTO-MEMBRESIAS](S2-CONSENTIMIENTO-MEMBRESIAS-20261015.md) y continuidad en
+> [CODEX-AUTONOMIA-ESTADO](CODEX-AUTONOMIA-ESTADO.md). Los cortes inferiores son históricos.
+
 > **Marco de planificación aprobado:** [ROADMAP-MAESTRO-2026.md](ROADMAP-MAESTRO-2026.md), fusionado en la [PR #96](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/96). **Fuente de control:** este documento registra evidencias, SHAs y estados operativos; el Roadmap Maestro ordena niveles, bloques y responsables. N1-01 integrado; N1-02 (S2) es el siguiente bloque de producto.
 
 > **Corte verificado: 15/10/2026, después de fusionar PR #97.** Este documento prevalece para el estado de trabajo sobre los checkpoints históricos de `ROADMAP.md`, `HANDOFF.md` y `OPERATIONS-STATUS.md`. No borra el historial; cualquier cambio posterior requiere otra actualización fechada y evidencia. Repositorio: `Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO`.

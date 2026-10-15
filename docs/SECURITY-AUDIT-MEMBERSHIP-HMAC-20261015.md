@@ -1,5 +1,12 @@
 # Seguridad: corrección de auditoría y consentimiento de membresías — decisión técnica
 
+> **Actualización S2 — 15/10/2026:** implementado y probado localmente en la rama
+> `codex/s2-membership-consent-20261015`, desde `main@3eba9d0`; pendiente de revisión e integración.
+> Verify 403/403, integración 84/84, pgTAP 581/581, rollback 10/10, Playwright 145 PASS/44 SKIP/0 FAIL.
+> Migración alojada NO aplicada. Evidencia y límites en [S2-CONSENTIMIENTO-MEMBRESIAS](S2-CONSENTIMIENTO-MEMBRESIAS-20261015.md).
+> S1 sigue abierto; [plan para decisión U01](S1-PLAN-ESCRITOR-CONFIABLE-20261015.md).
+> El diseño inferior y sus estados de «no implementado» describen el corte anterior.
+
 **Estado: propuesta para revisión, no desplegada.** Rama independiente creada desde `main@506ea91`; ahora #87 está fusionada como `ccdf104a` y la documentación de checkpoint #91 como `314a8a1`. Esta propuesta sigue siendo solo diseño. Se han confirmado las dos debilidades por inspección del SQL; **no hay mitigación de producto implementada ni pruebas locales repetidas en esta rama**.
 
 ## S1 — Contaminación permanente de `audit_events`

@@ -4,6 +4,11 @@
 **Base actualizada de referencia:** main c425ed3c6a554c12f7dc2e99f430bd6ea6060d62 (#85, #86, #95, #97 y #98 integradas).
 **Estado:** planificación aprobada; no certifica funcionalidades ni despliegues. El estado operativo verificable por SHA lo mantiene CONTROL-PROYECTO. El registro de evidencias y el estado técnico por SHA permanecen en [CONTROL-PROYECTO](CONTROL-PROYECTO.md). La cronología permanece en [ROADMAP histórico](ROADMAP.md) y [HANDOFF](HANDOFF.md).
 
+**Checkpoint N1-02, 15/10/2026:** S2 PROBADO LOCAL en rama desde `main@3eba9d0`; pendiente
+PR Draft/revisión, fusión y autorización separada de migración alojada. Verify 403/403,
+integración 84/84, pgTAP 581/581, rollback 10/10, E2E 145 PASS/44 SKIP/0 FAIL. Detalle operativo
+en CONTROL-PROYECTO. N1-03/S1 preparado solo como [plan para U01](S1-PLAN-ESCRITOR-CONFIABLE-20261015.md).
+
 ## 1. Norte, entregables y alcance
 
 Construir Rubik SEO/GEO como plataforma segura, multicliente, verificable y operable comercialmente para Rubik Sota, con Sarah como primer piloto controlado; después ampliar medición, conectores, inteligencia competitiva, GEO, IA y automatizaciones; finalmente elegir verticales y modelos de negocio adicionales.
@@ -137,7 +142,7 @@ En cada revisión puntuar de 1 a 5: impacto de cliente/ingresos, reducción de r
 ## 10. Registro de riesgos y decisiones abiertas
 
 - **R1 CRÍTICO S1/S2:** todavía no mitigados en producto según documentación del corte. Bloquean afirmar H2 seguro.
-- **R2 E2E:** global-setup de Playwright borra usuarios ajenos al fixture por sufijo de correo; no ejecutar hasta corrección y prueba negativa.
+- **R2 E2E:** corregido localmente e integrado en #97; propiedad por ejecución y limpieza atómica. Mantener negativas y preservar recibos si una interrupción impide limpiar; nunca volver al barrido por sufijo.
 - **R3 ENTORNOS:** Preview comparte Supabase Production; bloqueada la sesión Preview por #88, pero no es una base aislada. No ensayar con cuentas/efectos reales ahí.
 - **R4 CI:** GitHub Actions no inicia jobs por facturación; evidencia local no reemplaza CI.
 - **R5 ALOJADO:** Grupo 3, migración de recuperación Google, export real y modo project requieren pruebas/decisiones del propietario.
