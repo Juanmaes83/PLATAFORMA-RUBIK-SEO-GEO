@@ -1,5 +1,8 @@
 # ADR propuesta · N1-03 / S1 · escritor confiable de auditoría
 
+> **DECISIÓN U01 APROBADA · 15/10/2026:** el propietario autoriza **desarrollo y pruebas locales** de escritor SQL dedicado sin BYPASSRLS, firma HMAC en servidor, transacciones por proyecto y outbox para retiradas; `provider_results` es subbloque de seguridad explícito. Ver [DECISION-U01-APROBACION-20261015.md](DECISION-U01-APROBACION-20261015.md). La validación de pooling/transporte precede a la implementación definitiva; si no es viable, volver a solicitar decisión. Secretos y migraciones alojadas requieren autorización separada. El título original «propuesta» y las preguntas de operación que siguen son históricos o quedan pendientes para despliegue real.
+
+
 **Estado:** propuesta para U01, sin aprobación ni implementación. **Corte:** 15/10/2026, `main@3eba9d014a339dabdabff28f42e27209695b0bf9`; S2 permanece en PR #100. Esta ADR no crea roles, credenciales ni migraciones y no autoriza cambios alojados.
 
 ## Decisión propuesta
