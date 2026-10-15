@@ -147,8 +147,15 @@ select pg_temp.act_as_admin();
 select is((select count(*)::int from private.audit_outbox where action = 'provider-results.erase' and project_id = (select a1 from ids)),
   1, 'owner erasure and audit receipt commit in the same transaction');
 
--- Cascade: removing the project (administrator) removes its audit trail.
+-- S1 (#106, 20261015201500): the erasure receipt is still pending, so the project cannot
+-- be deleted yet; the cascade would destroy the only record of that erasure.
 select pg_temp.act_as_admin();
+select throws_ok($$delete from public.projects where id = (select a1 from ids)$$, '55000',
+  'Cannot delete project while audit receipts remain unsigned', 'a pending erasure receipt blocks the project deletion');
+-- Once reconciled (the signer completed it), the historical cascade contract applies.
+update private.audit_outbox set state = 'completed', event_seq = 1, completed_at = now()
+  where project_id = (select a1 from ids) and state = 'pending';
+-- Cascade: removing the project (administrator) removes its audit trail.
 delete from public.projects where id = (select a1 from ids);
 select is((select count(*)::int from public.audit_events where project_id = (select a1 from ids)), 0, 'the audit trail goes with its project');
 
