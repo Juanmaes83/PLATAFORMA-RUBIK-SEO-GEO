@@ -7,3 +7,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+
+## Rubik SEO/GEO: instrucciones permanentes para agentes
+
+Antes de trabajar, lee [`CODEX-AUTONOMIA.md`](CODEX-AUTONOMIA.md), [`docs/ROADMAP-MAESTRO-2026.md`](docs/ROADMAP-MAESTRO-2026.md) y [`docs/CONTROL-PROYECTO.md`](docs/CONTROL-PROYECTO.md). Reconcílialos con GitHub y el checkpoint [`docs/CODEX-AUTONOMIA-ESTADO.md`](docs/CODEX-AUTONOMIA-ESTADO.md). Mantén este repositorio y la cuenta de Codex aislados de FLOOR PLAN. Esta sección es específica del proyecto; no modifica el bloque generado por Next.js.
