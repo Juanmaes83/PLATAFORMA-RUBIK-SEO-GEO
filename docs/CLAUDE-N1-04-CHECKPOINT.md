@@ -8,9 +8,11 @@ Documento propio de Claude Code. **No sustituye** a `docs/CODEX-AUTONOMIA-ESTADO
 |---|---|
 | Repositorio | `Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO` |
 | Rama | `claude/n1-04-ci-entornos-20261015` |
-| Base | `main@520e4119bafe8a9ce4b2293faad2e54b8e6d81d8` (sin cambios en `origin/main` al cerrar) |
+| Base | `main@0107ca9c5dd6d8b87cbc16224acc12a9bfe165fd` (#108; rebasada desde `520e411`, diferencia solo documental) |
 | HEAD de la rama | ver `git ls-remote origin refs/heads/claude/n1-04-ci-entornos-20261015` (el último commit es este checkpoint) |
-| PR | PR_PLACEHOLDER |
+| PR | [#109](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/109) Draft hacia `main`. No fusionar sin auditoría del HEAD |
+| Evidencia final | `d23bce5`: Node 22 completo (24 PASS + 1 no ejecutado declarado) y Node 24 `verify` (12/12 PASS). Detalle en el documento N1-04 §3 |
+| Estado N1-04 | **Alcance local entregado y CONGELADO** (cola #108, paquete A). Pendiente de U02 todo lo alojado |
 | Worktree | Clon propio en contenedor efímero de Claude Code en la nube (`/home/user/plataforma-rubik-seo-geo`). Se pierde al cerrar la sesión: **todo está en GitHub** |
 | PR de Codex observada | #104 OPEN Draft, HEAD `41512756ac1ce80934692d1722fd41bd95993933`, base `520e411` |
 
@@ -20,7 +22,7 @@ Documento propio de Claude Code. **No sustituye** a `docs/CODEX-AUTONOMIA-ESTADO
 2. `scripts/ci-local/`: preflight con 10 categorías de diagnóstico y runner que ejecuta los bloques `run:` reales de `ci.yml` con evidencia ligada a SHA.
 3. Pruebas nuevas: `tests/ci-local-workflow.test.ts`, `tests/ci-local-checks.test.ts`, `tests/preview-fail-closed.test.ts`, `tests/preview-data-paths.test.ts`.
 4. Paso nuevo en `ci.yml`: smoke HTTP de Preview con control negativo verificado.
-5. Ejecución completa de la CI local (ver resultados en [N1-04-CLAUDE-CI-LOCAL-Y-ENTORNOS §3](N1-04-CLAUDE-CI-LOCAL-Y-ENTORNOS-20261015.md)).
+5. Ejecuciones completas de la CI local (Node 22 y 24 sobre el SHA final) (ver resultados en [N1-04-CLAUDE-CI-LOCAL-Y-ENTORNOS §3](N1-04-CLAUDE-CI-LOCAL-Y-ENTORNOS-20261015.md)).
 6. Documentos: plan de activación U02, hoja de decisión U02, protocolo N1-05.
 
 ## Errores encontrados y corregidos en la sesión
@@ -39,8 +41,12 @@ Documento propio de Claude Code. **No sustituye** a `docs/CODEX-AUTONOMIA-ESTADO
 
 - GitHub Actions bloqueado por facturación (U02-a). La evidencia local **no** es CI verde.
 - Sin Preview aislada (U02-b…f). Preview sigue bloqueada por código.
-- Desviaciones de la evidencia local: solo Node 22 (falta la pata 24), Chromium 141 en vez del 153 de Playwright 1.63, imágenes Supabase desde Docker Hub.
+- Desviaciones de la evidencia local: matriz cubierta en dos ejecuciones separadas, Chromium 141 en vez del 153 de Playwright 1.63, imágenes Supabase desde Docker Hub.
 - H2: posible compartición de variables Supabase de Production con Preview, pendiente de inventario del propietario.
+
+## Cola adoptada (docs/COLA-CLAUDE-N1-04-DESPUES-S1-20261015.md, #108)
+
+N1-04 queda congelado tras este commit. Siguiente paquete: **B · S1** en la rama nueva `claude/s1-integration-review-20261015` desde la HEAD de #104, con stack Supabase propio (`rubik-claude-s1-20261015`, puertos 573xx), integrando #105 → #106 → #107 tras validarlas y PR Draft hacia `codex/s1-trusted-audit-writer-20261015`. Su checkpoint vivirá en esa rama.
 
 ## Próxima acción exacta
 
