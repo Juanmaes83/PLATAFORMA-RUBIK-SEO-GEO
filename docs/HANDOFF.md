@@ -1,5 +1,14 @@
 # Handoff
 
+## Relevo comprobado — 15/10/2026, mañana
+
+- Integradas: PR #87 (ccdf104a, 956 pruebas locales), #91 (314a8a1), #89 (5f6c466), #84 (90209769, protocolo documental) y #90 (ffee0ace, diseño S1/S2 sin mitigación implementada).
+- Cerradas sin merge: #81 y #83 (obsoletas).
+- Abiertas Draft: #85 (matriz local), #86 (piloto Sarah) y #88 (Preview bloqueada). Las tres tienen despliegue READY con SHA de rama; faltan pruebas finales actualizadas de esas ramas y CI está bloqueada por facturación.
+- #88 eliminó la excepción PREVIEW_SUPABASE_ISOLATED=true; VERCEL_ENV=preview bloquea el cliente de Supabase incondicionalmente. /api/salud muestra preview-locked/persistence:none. Acceso, panel, registro y recuperación se comprobaron mediante HTTP anónimo. Pendiente prueba negativa con cookies existentes y verify local del SHA final; no fusionar antes.
+- Siguiente loop: verificar worktree wt-preview limpio y actualizarlo, ejecutar npm run verify, después wt-g3 (#85) y wt-sarah (#86). No resetear la base ni ejecutar contra Supabase alojado yvdgmklgwlshizzgefpv.
+- Grupo 3 Fase B alojada aún NO ejecutada. Migración 20261012130000 en alojado y activación modo OpenSEO project NO ejecutadas en esta conciliación. No se consultaron datos reales de Sarah.
+
 ## Checkpoint posterior al turno — 15/10/2026 (fuentes verificadas)
 
 La sección «Relevo — night shift» inferior es histórica y refleja el estado **antes** de las fusiones. Situación posterior: PR #87 fusionada en `main` (`ccdf104a`); PR #91 de documentación fusionada (`314a8a1`). En la PR #87 se validaron en Windows sobre su HEAD: 381 pruebas unitarias, 57 integración local, 518 pgTAP locales; build, lint y TypeScript correctos. `wt-export` quedó limpio. No se ha probado una restauración en Supabase alojado.
