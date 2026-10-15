@@ -1,5 +1,7 @@
 # Handoff
 
+> **BLOQUE E2E — 15/10/2026, validado localmente en esta rama, pendiente de revisión:** preparación con namespace por ejecución y limpieza atómica limitada a IDs registrados. Verify **397/397**, integración **78/78**, pgTAP **532/532**. Dos Playwright completos: **145 PASS / 44 SKIP / 0 FAIL** cada uno; preservados los 11 usuarios previos, 2 organizaciones, 3 proyectos y membresías, sin acumulación. Detalle, límites y plan S2 en [E2E-FIXTURES-SEGUROS-20261015](E2E-FIXTURES-SEGUROS-20261015.md). S2 no se implementa en esta rama; solo podrá empezar en otra tras la fusión de E2E. Sin cambios alojados ni de Production. Los checkpoints inferiores son históricos.
+
 > **RELEVO POST #86 — 15/10/2026:** #86 está fusionada en `main@33e3b305`, con verify 385/385, integración 74/74 y pgTAP 532/532 reportados en Supabase LOCAL. No se ejecutó Playwright por eliminación potencial de fixtures ajenos. Próximo bloque: PR E2E acotado; después S2. Ninguna tarea alojada completada por este merge. Ver [CONTROL-PROYECTO.md](CONTROL-PROYECTO.md).
 
 > **RELEVO ACTUAL — 15/10/2026:** ver [CONTROL-PROYECTO.md](CONTROL-PROYECTO.md), fuente de control tras la fusión #88 (`2e6a7a7`) y #85 (`1e9d178`). Codex actualiza #86; no tocar su rama. Las secciones inferiores son histórico de entregas y pueden describir #85/#88 como Draft en fechas anteriores.

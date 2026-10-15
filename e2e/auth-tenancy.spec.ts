@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { localSupabaseEnv } from "../scripts/supabase-test-env.mjs";
-import { OTHER_PROJECT, OTHER_TENANT, TEST_PASSPHRASE, PROJECT, TENANT, USERS, signIn } from "./support";
+import { OTHER_PROJECT, OTHER_TENANT, TEST_PASSPHRASE, PROJECT, TENANT, USERS, signIn, fixtureEmail, reserveBrowserAccount, claimBrowserAccount, recordBrowserProject } from "./support";
+import { fixtureScope } from "./fixture-scope";
 
 // Auth and tenant isolation through the browser, against the local Supabase stack. These
 // flows do not depend on the viewport, so they run once (desktop project).
@@ -10,7 +11,8 @@ const PROTECTED = ["/panel", "/proyectos", "/organizaciones", `/proyectos/${TENA
 
 test("sign-up with e-mail confirmation, then sign-out", async ({ page }) => {
   const { mailpitUrl } = localSupabaseEnv();
-  const address = `registro-${Date.now().toString(36)}@ejemplo.test`;
+  const address = fixtureEmail("registro");
+  await reserveBrowserAccount(address);
   await page.goto("/registro");
   await page.getByLabel("Correo").fill(address);
   await page.getByLabel("Contraseña").fill(TEST_PASSPHRASE);
@@ -35,6 +37,7 @@ test("sign-up with e-mail confirmation, then sign-out", async ({ page }) => {
   }).toBe(true);
   await page.goto(link!);
   await expect(page).toHaveURL(/\/panel$/);
+  await claimBrowserAccount(address);
   await expect(page.getByText("Aún no tienes acceso a ningún proyecto.")).toBeVisible();
 
   await page.getByRole("button", { name: "Salir" }).click();
@@ -57,13 +60,15 @@ async function mailLink(mailpitUrl: string, address: string, subject: string, ty
 
 test("password recovery: same answer for any address, link only leads to /restablecer, all sessions close", async ({ page }) => {
   const { mailpitUrl } = localSupabaseEnv();
-  const address = `recupera-${Date.now().toString(36)}@ejemplo.test`;
+  const address = fixtureEmail("recupera");
+  await reserveBrowserAccount(address);
   await page.goto("/registro");
   await page.getByLabel("Correo").fill(address);
   await page.getByLabel("Contraseña").fill(TEST_PASSPHRASE);
   await page.getByRole("button", { name: "Crear cuenta" }).click();
   await page.goto(await mailLink(mailpitUrl, address, "Confirma tu correo", "email"));
   await expect(page).toHaveURL(/\/panel$/);
+  await claimBrowserAccount(address);
   await page.getByRole("button", { name: "Salir" }).click();
   await expect(page).toHaveURL(/\/$/);
 
@@ -75,7 +80,7 @@ test("password recovery: same answer for any address, link only leads to /restab
   await page.getByRole("link", { name: "¿Has olvidado tu contraseña?" }).click();
   // /acceso also has a "Correo" field: fill only once the recovery page is the one shown.
   await expect(page).toHaveURL(/\/recuperar$/, { timeout: 20_000 });
-  await page.getByLabel("Correo").fill(`nadie-${Date.now().toString(36)}@ejemplo.test`);
+  await page.getByLabel("Correo").fill(fixtureEmail("nadie"));
   // The first submit compiles the action in `next dev`: wait for the redirect, not only 5 s.
   await page.getByRole("button", { name: "Enviar enlace" }).click();
   await expect(page).toHaveURL(/\/recuperar\?aviso=enviado$/, { timeout: 20_000 });
@@ -174,12 +179,13 @@ test("an account without membership sees no project and no organization", async 
 test("an owner creates a project; a manipulated organization field is rejected by RLS", async ({ page }) => {
   await signIn(page, "outsider");
   await page.goto("/organizaciones");
-  const slug = `nuevo-${Date.now().toString(36)}`;
+  const slug = `${fixtureScope().prefix}-nuevo`;
   const form = page.locator("form", { has: page.getByRole("button", { name: "Crear proyecto" }) });
   await form.getByLabel("Nombre").fill("Proyecto creado en e2e");
   await form.getByLabel("Identificador").fill(slug);
   await form.getByRole("button", { name: "Crear proyecto" }).click();
   await expect(page).toHaveURL(new RegExp(`/proyectos/${OTHER_TENANT}/${slug}$`));
+  await recordBrowserProject(slug);
   await expect(page.getByText("tu rol: Titular")).toBeVisible();
 
   // Point the hidden field at another tenant (browser dev tools): the insert must fail.

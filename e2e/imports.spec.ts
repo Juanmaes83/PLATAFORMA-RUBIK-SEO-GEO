@@ -99,7 +99,7 @@ test.describe("manual import flow", () => {
     await signIn(page, "owner");
     const response = await page.request.get(`${P}/exportar`);
     expect(response.status()).toBe(200);
-    expect(response.headers()["content-disposition"]).toMatch(/^attachment; filename="agencia-ejemplo-restaurante-ejemplo-\d{4}-\d{2}-\d{2}\.json"$/);
+    expect(response.headers()["content-disposition"]).toMatch(new RegExp(`^attachment; filename="${TENANT}-${PROJECT}-\\d{4}-\\d{2}-\\d{2}\\.json"$`));
     const exported = await response.json();
     expect(exported.format).toBe("rubik-project-export-v2");
     // v2 operational state: read through owner RPCs, each part with its own outcome, no secrets.
