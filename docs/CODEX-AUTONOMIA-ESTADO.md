@@ -1,5 +1,14 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
+## Recuperación verificada · 15/10/2026
+
+- Cuenta CLI: `gh auth status` confirma `Juanmaes83` activa. Repositorio `Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO`; worktree S2 `C:/Users/temp123/Documents/ChatGPT/PLATAFORMA-RUBIK-SEO-GEO/s2-consent`, limpio, rama `codex/s2-membership-consent-20261015`.
+- `main` remoto tras `git fetch origin main`: `3eba9d014a339dabdabff28f42e27209695b0bf9`. HEAD local/remoto de S2 y PR #100: `1d933be2bbfb9ce9db51f5c004cb7e1457bf4744`. Base de la PR: `main@3eba9d0`; OPEN, Draft, MERGEABLE, sin revisiones, sin fusión.
+- Checks del HEAD: verify Node 22/24 y E2E en FAILURE; run `38734352934`, jobs sin pasos. La anotación de verify confirma que el job no arrancó por bloqueo de facturación. Vercel SUCCESS solo acredita el Preview, no las pruebas ni aislamiento alojado.
+- S2 conserva migración `20261015115750_membership_consent`, rollback y negativos por membresía. Evidencia local previa registrada para la implementación `5dad2c6`: verify 403/403, integración 84/84, pgTAP 581/581, rollback 10/10 y E2E 145 PASS/44 SKIP/0 FAIL en stack aislado. En esta recuperación se inspeccionaron los artefactos y la PR; **no se reejecutaron** esas suites. No se aplicó migración alojada.
+- Pendientes de N1-02: auditoría externa del HEAD `1d933be`, aprobación y fusión supervisadas; inventario de callers administrativos externos, respaldo y autorización específica antes de migración alojada; validación alojada posterior separada. CI bloqueada por facturación. S1/N1-03 sigue en diseño y requiere U01 antes de implementar escritor, secretos o cambios en `audit_events`.
+- Continuidad permanente preparada en `CODEX-AUTONOMIA.md` mediante rama documental `docs/codex-autonomia-recuperacion-20261015`, separada de PR #100. No se encontró mecanismo programado autorizado en el repositorio; retomar manualmente. Próxima acción: auditoría supervisada del SHA exacto de #100; tras fusión, actualizar `main` y resolver U01 para S1. Si hay bloqueo, avanzar solo con investigación documental independiente del Roadmap Maestro.
+
 Checkpoint: 15/10/2026, 12:23 UTC. Repositorio `Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO`.
 
 - Bloque: N1-02 / S2, PR EN REVISIÓN / PROBADO LOCAL. N1-01 integrado mediante #97 (`17001160`).

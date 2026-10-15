@@ -1,0 +1,13 @@
+# Continuidad autónoma de Rubik SEO/GEO
+
+Ámbito exclusivo: `Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO`. Al iniciar cada sesión, comprobar cuenta activa de `gh`, ruta y rama del worktree, `git status`, HEAD local y remoto, último `main` y estado de la PR activa. Leer `AGENTS.md`, `docs/ROADMAP-MAESTRO-2026.md`, `docs/CONTROL-PROYECTO.md` y `docs/CODEX-AUTONOMIA-ESTADO.md` antes de decidir el siguiente bloque. Consultar los diseños y evidencias del bloque. No inferir que una tarea sigue pendiente ni que está terminada solo por un checkpoint anterior.
+
+Trabajar en ciclos de investigación, implementación, prueba, corrección, documentación y commit. Registrar SHA, entorno, comandos, resultados y límites de cada evidencia. Publicar avances recuperables en la rama correspondiente sin secretos. Si una tarea depende de una decisión o autorización, documentar el bloqueo y avanzar en investigación o documentación independiente permitida por el Roadmap Maestro.
+
+Mantener worktrees y ramas separados. No tocar FLOOR PLAN ni sus carpetas, procesos, terminales, sesiones, configuraciones o credenciales; no cambiar `CODEX_HOME`. Preservar datos y fixtures ajenos. Antes de usar Supabase local, comprobar stack, puertos y alcance de limpieza. No ejecutar `db reset` ni limpiezas masivas sobre un stack compartido.
+
+La PR de producto activa requiere auditoría externa del HEAD exacto antes de fusionarse. Mientras siga abierta, solo preparar documentación o arquitectura independiente; no abrir otra PR de producto. La fusión supervisada no autoriza por sí misma una migración alojada. Las escrituras en bases alojadas con datos reales, migraciones, credenciales, variables de Production, activación de proveedores, gasto y decisiones de arquitectura reservadas al propietario requieren autorización específica. No presentar CI bloqueada o un Preview READY como prueba ejecutada.
+
+Orden vigente: N1-02/S2 en PR #100 Draft; tras auditoría y fusión supervisada, N1-03/S1 requiere la decisión U01 sobre escritor confiable, firma y custodia. Seguir después las dependencias del Roadmap Maestro, contrastándolas con el estado actual de GitHub. La prueba alojada de S2 queda aparte de la integración del código.
+
+Al cerrar cada sesión, actualizar `docs/CODEX-AUTONOMIA-ESTADO.md` con SHA local/remoto, bloque, tareas completadas, pruebas ejecutadas y heredadas, riesgos, bloqueos y siguiente acción exacta. Comprobar `git status` y push. Si se agotan los créditos, priorizar un commit y push de checkpoint recuperable. Este repositorio no contiene un mecanismo de reanudación programada autorizado: reanudar manualmente con este archivo y el estado, sin configurar un scheduler por cuenta propia.
