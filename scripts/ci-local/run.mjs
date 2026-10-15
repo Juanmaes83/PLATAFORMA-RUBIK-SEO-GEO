@@ -92,7 +92,7 @@ function currentOwnership(facts) {
 }
 
 /** Runs one script exactly as GitHub's default bash shell does; returns exit code. */
-function runScript(script, env, logPath, groups) {
+function runScript(script, env, logPath, groups, masks) {
   return new Promise((resolve) => {
     const child = spawn("bash", ["--noprofile", "--norc", "-eo", "pipefail", "-c", script], {
       cwd: ROOT, env, detached: true, stdio: ["ignore", "pipe", "pipe"],
@@ -105,7 +105,7 @@ function runScript(script, env, logPath, groups) {
     child.on("close", (code) => {
       // GitHub Actions masks ::add-mask::; buffering is necessary to prevent
       // password leaks across arbitrary stdout/stderr chunk boundaries.
-      const safe = redactWorkflowOutput(captured);
+      const safe = redactWorkflowOutput(captured, masks);
       process.stdout.write(safe);
       const log = createWriteStream(logPath);
       log.end(safe, () => resolve({ code: code ?? 1, output: safe }));
@@ -222,6 +222,7 @@ async function main() {
     }
     const groups = [];
     const jobEnv = { ...env };
+    const jobMasks = [];
     const jobEnvFile = join(dir, "job-env", `${job.id}.txt`);
     mkdirSync(dirname(jobEnvFile), { recursive: true });
     writeFileSync(jobEnvFile, "", { mode: 0o600 });
@@ -269,7 +270,7 @@ async function main() {
       process.stdout.write(`\n▶ ${job.id} · ${step.label}\n`);
       const logPath = join(dir, "logs", `${job.id}-${String(step.index + 1).padStart(2, "0")}.log`);
       const t0 = Date.now();
-      const { code, output } = await runScript(step.script, jobEnv, logPath, groups);
+      const { code, output } = await runScript(step.script, jobEnv, logPath, groups, jobMasks);
       record.durationMs = Date.now() - t0;
       record.exitCode = code;
       record.log = `logs/${job.id}-${String(step.index + 1).padStart(2, "0")}.log`;
@@ -282,7 +283,16 @@ async function main() {
       // strictly for the local writer URL; never accept arbitrary exports.
       // Do not copy URL values into evidence or logs.
       if (code === 0) {
-        try { Object.assign(jobEnv, parseGithubEnv(readFileSync(jobEnvFile, "utf8"))); }
+        try {
+          const additions = parseGithubEnv(readFileSync(jobEnvFile, "utf8"));
+          Object.assign(jobEnv, additions);
+          if (additions.RUBIK_AUDIT_DATABASE_URL) {
+            for (const secret of [additions.RUBIK_AUDIT_DATABASE_URL,
+              new URL(additions.RUBIK_AUDIT_DATABASE_URL).password]) {
+              if (!jobMasks.includes(secret)) jobMasks.push(secret);
+            }
+          }
+        }
         catch {
           record.status = "failed";
           record.reason = "Unsafe or malformed GITHUB_ENV";
@@ -294,6 +304,7 @@ async function main() {
       save();
     }
     cleanupGroups(groups);
+    rmSync(jobEnvFile, { force: true }); // Do not persist the fictitious writer credential in evidence.
     jobRecord.workspaceFiles = collectJobFiles(untrackedBefore, join(dir, "workspace", job.id));
     jobRecord.status = failed ? "failed" : "passed";
     save();
