@@ -1,5 +1,7 @@
 # Control canónico del proyecto Rubik SEO/GEO
 
+> **S1 local en curso · 15/10/2026, 15:18 UTC:** base `main@520e4119`, rama `codex/s1-trusted-audit-writer-20261015`. Gate PostgreSQL aislado pasó; `npm run verify` 403/403, integración 85/85 y pgTAP 582/582. E2E en ejecución al corte. `audit_events` niega INSERT JWT en la migración local; outbox de retirada e idempotencia tienen prueba local. `provider_results`, rollback, drenaje operativo y negativos restantes siguen pendientes. No se ha publicado PR ni aplicado migración alojada. Evidencia y límites: [S1-IMPLEMENTACION-LOCAL-20261015.md](S1-IMPLEMENTACION-LOCAL-20261015.md). Los cortes inferiores son históricos.
+
 > **ACTUALIZACIÓN DE DECISIÓN · 15/10/2026:** el propietario **aprueba U01 exclusivamente para implementación y pruebas locales** de N1-03/S1; escritor SQL dedicado sin BYPASSRLS, firma de servidor, transacciones por proyecto, outbox de revocaciones y `provider_results` como subbloque explícito. El diseño requiere comprobar viabilidad de conexión/pooling en local; alternativa aislada requerirá nueva decisión. **No autoriza secrets, base alojada ni Production.** Fuente: [DECISION-U01-APROBACION-20261015.md](DECISION-U01-APROBACION-20261015.md). N1-04/U02 y migración S2 alojada permanecen pendientes. Los checkpoints inferiores son históricos.
 
 

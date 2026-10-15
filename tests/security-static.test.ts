@@ -76,7 +76,7 @@ describe("migrations: RLS and least privilege", () => {
       expect(migrations, t).toMatch(new RegExp(`create policy "[^"]+" on public\\.${t}`));
     }
     const policies = migrations.match(/create policy[\s\S]*?;/gi) ?? [];
-    for (const p of policies) expect(p).toMatch(/\bto authenticated\b/);
+    for (const p of policies) expect(p).toMatch(/\bto (authenticated|rubik_audit_writer)\b/);
   });
 
   it("every UPDATE policy has both USING and WITH CHECK", () => {

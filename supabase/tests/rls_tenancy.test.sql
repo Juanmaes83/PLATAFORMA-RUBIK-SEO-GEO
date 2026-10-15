@@ -41,7 +41,7 @@ select is(count(*)::int, 0, 'no policy mentions user_metadata')
   from pg_policies where schemaname = 'public'
   and (coalesce(qual, '') || coalesce(with_check, '')) ~* '(user_metadata|raw_user_meta_data)';
 select is(count(*)::int, 0, 'no policy is granted to anon or public')
-  from pg_policies where schemaname = 'public' and not (roles = array['authenticated']::name[]);
+  from pg_policies where schemaname = 'public' and not (roles = array['authenticated']::name[] or roles = array['rubik_audit_writer']::name[]);
 
 -- ── Organization and project creation through RLS ───────────────────────────────────────
 select pg_temp.act_as('00000000-0000-4000-8000-00000000000a');

@@ -20,7 +20,14 @@ $$;
 create function pg_temp.act_as_admin() returns void language sql as $$
   select set_config('role', 'postgres', true), set_config('request.jwt.claims', '', true);
 $$;
+create function pg_temp.act_as_writer(uid uuid) returns void language sql as $$
+  select set_config('role', 'rubik_audit_writer', true),
+         set_config('request.jwt.claims', json_build_object('sub', uid, 'role', 'authenticated')::text, true),
+         set_config('search_path', 'public, extensions, pg_temp', true);
+$$;
 create function pg_temp.h(n int) returns text language sql as $$ select lpad(to_hex(n), 64, '0') $$;
+grant rubik_audit_writer to postgres;
+grant usage on schema extensions to rubik_audit_writer;
 
 select pg_temp.act_as('00000000-0000-4000-8000-0000000000a1');
 insert into public.organizations (slug, name) values ('agencia-a', 'Agencia A');
@@ -36,6 +43,7 @@ create temp table ids on commit drop as
          (select id from public.projects where slug = 'proyecto-a1') a1,
          (select id from public.projects where slug = 'proyecto-b1') b1;
 grant select on ids to authenticated;
+grant select on ids to rubik_audit_writer;
 insert into public.organization_members (organization_id, user_id, role)
   select org_a, u, 'member' from ids, unnest(array['00000000-0000-4000-8000-0000000000c1', '00000000-0000-4000-8000-0000000000d1']::uuid[]) u;
 insert into public.project_members (project_id, organization_id, user_id, role)
@@ -57,7 +65,8 @@ select ok(not has_column_privilege('authenticated', 'public.provider_results', '
 select ok(not has_function_privilege('authenticated', 'private.link_audit_event()', 'execute'), 'nobody calls the trigger functions directly');
 
 -- ── Audit chain ─────────────────────────────────────────────────────────────────────────
-select pg_temp.act_as('00000000-0000-4000-8000-0000000000a1');
+select pg_temp.act_as_admin();
+select pg_temp.act_as_writer('00000000-0000-4000-8000-0000000000a1');
 select lives_ok($$insert into public.audit_events (project_id, organization_id, seq, at, actor_role, action, outcome, prev_hash, hash, key_id, signature)
   select a1, org_a, 1, '2026-10-07T10:00:00Z', 'owner', 'project.open', 'allowed', null, pg_temp.h(1), 'k-test', pg_temp.h(101) from ids$$, 'the owner appends the first event');
 select throws_ok($$insert into public.audit_events (project_id, organization_id, seq, at, actor_role, action, outcome, prev_hash, hash, key_id, signature)
@@ -74,9 +83,12 @@ select throws_ok($$insert into public.audit_events (project_id, organization_id,
 select pg_temp.act_as('00000000-0000-4000-8000-0000000000c1');
 select throws_ok($$insert into public.audit_events (project_id, organization_id, seq, at, actor_role, action, outcome, prev_hash, hash, key_id, signature)
   select a1, org_a, 2, '2026-10-07T10:02:00Z', 'owner', 'x', 'allowed', pg_temp.h(1), pg_temp.h(2), 'k-test', pg_temp.h(102) from ids$$, '42501', null, 'the analyst cannot claim the owner role');
+select pg_temp.act_as_admin();
+select pg_temp.act_as_writer('00000000-0000-4000-8000-0000000000c1');
 select lives_ok($$insert into public.audit_events (project_id, organization_id, seq, at, actor_role, action, outcome, prev_hash, hash, key_id, signature)
   select a1, org_a, 2, '2026-10-07T10:02:00Z', 'analyst', 'result.store', 'allowed', pg_temp.h(1), pg_temp.h(2), 'k-test', pg_temp.h(102) from ids$$, 'the analyst appends as analyst');
 select is((select actor_id from public.audit_events where seq = 2), '00000000-0000-4000-8000-0000000000c1'::uuid, 'actor_id is the signed-in user');
+select pg_temp.act_as('00000000-0000-4000-8000-0000000000c1');
 select throws_ok($$update public.audit_events set outcome = 'denied'$$, '42501', null, 'the analyst cannot update audit rows');
 
 select pg_temp.act_as('00000000-0000-4000-8000-0000000000b1');
@@ -86,7 +98,7 @@ select throws_ok($$insert into public.audit_events (project_id, organization_id,
 select throws_ok($$insert into public.audit_events (project_id, organization_id, seq, at, actor_role, action, outcome, prev_hash, hash, key_id, signature)
   select a1, org_b, 3, '2026-10-07T10:03:00Z', 'owner', 'x', 'allowed', pg_temp.h(2), pg_temp.h(3), 'k-test', pg_temp.h(103) from ids$$, '42501', 'permission denied for table audit_events', 'a non-member gets a generic refusal that reveals nothing about the chain');
 select throws_ok($$insert into public.audit_events (project_id, organization_id, seq, at, actor_role, action, outcome, prev_hash, hash, key_id, signature)
-  select b1, org_a, 1, '2026-10-07T10:03:00Z', 'owner', 'x', 'allowed', null, pg_temp.h(3), 'k-test', pg_temp.h(103) from ids$$, '23503', null, 'a project of agencia-b paired with agencia-a is refused by the composite key');
+  select b1, org_a, 1, '2026-10-07T10:03:00Z', 'owner', 'x', 'allowed', null, pg_temp.h(3), 'k-test', pg_temp.h(103) from ids$$, '42501', null, 'an ordinary client cannot reach the composite key');
 
 -- Administrators cannot rewrite history either; deletion happens only with the project.
 select pg_temp.act_as_admin();

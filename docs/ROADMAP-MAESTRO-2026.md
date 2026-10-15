@@ -1,5 +1,7 @@
 # ROADMAP MAESTRO · Rubik SEO/GEO
 
+**CHECKPOINT N1-03/S1 · 15/10/2026, 15:18 UTC:** implementación local en curso desde `main@520e4119`; gate SQL aislado, verify 403/403, integración 85/85 y pgTAP 582/582 superados. E2E en ejecución al corte. El bloque **no está completo**: faltan `provider_results`, rollback, drenaje operativo de outbox y negativos adicionales. Ver [S1-IMPLEMENTACION-LOCAL-20261015.md](S1-IMPLEMENTACION-LOCAL-20261015.md). No hay migración alojada ni PR publicada en este checkpoint.
+
 **DECISIÓN VIGENTE — 15/10/2026:** U01 aprobada **para desarrollar y probar localmente** N1-03/S1 con escritor SQL dedicado de mínimo privilegio, firma en servidor, transacciones por proyecto, outbox para revocaciones y `provider_results` como subbloque. Ver [DECISION-U01-APROBACION-20261015.md](DECISION-U01-APROBACION-20261015.md). Próxima ejecución: S1; si falla el transporte/pooling seguro, alternativa a decidir. **U02, migraciones alojadas, claves reales y Production NO aprobadas**. Textos inferiores «U01 pendiente» son históricos.
 
 

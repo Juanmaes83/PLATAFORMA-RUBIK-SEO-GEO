@@ -46,6 +46,7 @@ export default defineConfig({
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: supabase.publishableKey,
       PROVENANCE_SIGNING_KEYS: `k-e2e:${signingKey}`,
       PROVENANCE_ACTIVE_KEY_ID: "k-e2e",
+      RUBIK_AUDIT_DATABASE_URL: process.env.RUBIK_AUDIT_DATABASE_URL ?? "",
       // Job ledger on (local stack only) so the uncertain-launch reconciliation is reachable.
       // OpenSEO itself stays unconfigured: no e2e test can contact a provider.
       OPENSEO_PROJECT_JOBS_ENABLED: "true",

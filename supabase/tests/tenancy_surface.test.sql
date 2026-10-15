@@ -71,7 +71,7 @@ select is(
 -- ── Policies ────────────────────────────────────────────────────────────────────────────
 select is(
   (select coalesce(array_agg(tablename || ': ' || policyname order by tablename || ': ' || policyname), '{}') from pg_policies
-    where schemaname in ('public', 'private') and roles <> array['authenticated']::name[]),
+    where schemaname in ('public', 'private') and roles <> array['authenticated']::name[] and roles <> array['rubik_audit_writer']::name[]),
   '{}'::text[], 'every policy applies to authenticated only (never anon or public)');
 select is(
   (select coalesce(array_agg(tablename || ': ' || policyname order by tablename || ': ' || policyname), '{}') from pg_policies
