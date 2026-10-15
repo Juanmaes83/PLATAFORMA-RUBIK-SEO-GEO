@@ -1,5 +1,7 @@
 # Roadmap de la plataforma
 
+> **ESTADO CANÓNICO ACTUAL — 15/10/2026 (post #85):** consultar [CONTROL-PROYECTO.md](CONTROL-PROYECTO.md). #88 y #85 ya están fusionadas; #86 sigue Draft y Codex trabaja en ella. Los checkpoints y tablas inferiores representan cortes históricos y no sustituyen el estado actual. S1/S2 y aislamiento alojado permanecen pendientes.
+
 ## Estado vigente — 15/10/2026, conciliación del relevo nocturno
 
 - Integrado en main: #80 (Grupo 1), #82 (Grupo 2), #87 (exportación firmada, squash ccdf104a), #91 (documentación, 314a8a1), #89 (informe histórico, 5f6c466), #84 (protocolo de aislamiento alojado, 90209769) y #90 (SOLO documentación de mitigaciones S1/S2, ffee0ace).
