@@ -1,13 +1,26 @@
 # Roadmap de la plataforma
 
-## Estado actualizado — 14/10/2026, Grupo 2 cerrado en código (`main@506ea91`)
+### Registro histórico — Grupo 2 cerrado el 14/10/2026
 
-- **Grupo 1, autenticación y pertenencia:** integrado mediante PR #80 (`main@bea76467`); 518 pgTAP previamente ejecutadas y 50 pruebas de integración acreditadas en la tanda anterior. Validación alojada negativa entre cuentas reales aún pendiente.
-- **Grupo 2, operaciones y roles por proyecto:** [PR #82](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/82) fusionado por squash en `main@506ea91d24baa4feaff11e5f246f78135ee1b3ec`. Cobertura de integración: 57/57 PASS (17/17 de tenancy); `npm run verify`: 374/374 tests unitarios/UI, Core pin, secretos, lint, TypeScript y build PASS. Todo sobre **Supabase local**. GitHub Actions no ejecutó CI por bloqueo de facturación. No se alteró RLS ni esquema alojado; los cambios fueron pruebas y documentación.
-- **Grupo 3 propuesto — verificación alojada y preparación del piloto multicliente:** primera tarea es recopilar evidencia de acceso/denegación entre dos cuentas y proyectos reales con un procedimiento reversible y datos ficticios autorizados. Preparar en PR sin desplegar ni escribir en Supabase alojado. Después revisar la migración pendiente `20261012130000_google_recovery_state`, exportación/verificación offline y reintento Google sin consulta adicional según los hitos del piloto. Ningún despliegue de migración, lectura pagada, cambio de flags o pruebas de escritura alojada sin autorización específica.
-- **Otros bloqueos:** aviso de contraseñas filtradas desactivado en Supabase; GitHub Actions facturación; ADR 0010 custodia de credenciales por cliente, Preview aislada y decisión para el modo OpenSEO `project`. No presentar estos hitos como resueltos.
+La [PR #82](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/82) se fusionó en `main@506ea91`. Validación local: 57/57 integración, 374/374 unitarias/UI y build PASS; 518 SQL eran anteriores a ese commit. Sin CI ni aislamiento alojado con dos cuentas. El Grupo 3 continuó posteriormente mediante #84 (protocolo) y #85 (matriz local); la PR #87 fue fusionada después. **Hito histórico; consultar el checkpoint vigente anterior a este bloque.**
 
-**Orden de ejecución de Grupo 3:** (1) inventario documental de entorno/roles y procedimiento seguro; (2) matriz de pruebas negativas e invariantes para cuentas A/B/analista/viewer; (3) preparar scripts y pruebas locales sin secretos y con rollback; (4) decidir el entorno alojado apto para prueba, con aprobación previa a cualquier escritura; (5) evidencia, documentación, revisión visual y PR separada. Mantener `legacy` y proveedores de pago bloqueados.
+## Checkpoint verificado — 15/10/2026 (posterior a PR #87)
+
+**PR #87 fusionada en main** mediante squash commit `ccdf104a2ecf566ff1818e76e8f3490841a18273` (head validado `a1e526be5746a65c2c1e9ecb8e6deba6278b7cd0`). Exportaciones con manifiesto firmado y restauración fail-closed; no se aceptan exportaciones legacy/UNPROVEN para restauración normal. En el entorno local del propietario: `npm run verify` OK (381 unitarias, lint, TypeScript, secretos y build), `test:integration` 57/57 y `test:db` 518/518. Total 956 pruebas; **esta evidencia es local, no CI de GitHub ni ensayo alojado**. Sin escrituras al Supabase alojado `yvdgmklgwlshizzgefpv`.
+
+**Próximas PRs abiertas en borrador (sin fusionar ni validar contra este main):**
+
+| PR | Alcance | Siguiente gate / decisión |
+|---|---|---|
+| [#85](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/85) | Matriz Grupo 3 de aislamiento multiidentidad, SQL y RPC | Rebase/actualización con main; ejecutar matriz local y revisar negativos; evidencia alojada por separado, solo lectura sin autorización específica. |
+| [#86](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/86) | Piloto Sarah: concurrencia/idempotencia, modo project y recuperación local | Actualizar base; integración/SQL/verify; no activar modo project ni alterar Sarah alojada sin aprobación explícita. |
+| [#88](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/88) | Bloqueo de autenticación en Vercel Preview | Revisar compatibilidad con main, revisar bypasss y e2e; comprobar Preview con acceso controlado, sin exposición de datos alojados. |
+| [#89](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/89) | Informe/documentación del trabajo nocturno | Reconciliar hechos con #87 fusionada y nuevas pruebas; evitar estados duplicados u obsoletos. |
+| [#90](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/90) | Diseño de mitigación para inserciones de auditoría y altas de miembros sin consentimiento | Solo diseño: decidir arquitectura antes de cualquier migración o cambio de permisos; revisión de seguridad específica. |
+
+**Auditoría Preview #88 (15/10, evidencia parcial):** Vercel mostró Deployment `READY` para `6a519290`, `/api/salud` respondió `auth: preview-locked`, `persistence: none`, y `/acceso` y `/panel` mostraron aviso de bloqueo. La configuración actual comparte las variables públicas de Supabase entre Preview y Production. Se eliminó del código la vía de escape `PREVIEW_SUPABASE_ISOLATED=true`: una bandera no demuestra que exista una base aislada. **Pendiente:** tests locales completos y negativos de sesión/cookies, revisión de permisos y fusión expresa de #88. READY y HTTP anónimo no equivalen a prueba de aislamiento con JWT.
+
+**Orden propuesto:** #88 (riesgo Preview) → #85 (aislamiento) → #86 (piloto) → #90 (seguridad de arquitectura) → #89 (consolidación documental), condicionado por conflictos y hallazgos. No equivale a aprobación de merge de esas PR. Otros gates pendientes del roadmap histórico (aislamiento alojado con cuentas diferenciadas, configuración de seguridad y despliegue comercial) siguen pendientes hasta evidencia específica.
 
 
 ## Aclaración Grupo 1 — permisos por columna (14/10/2026)
