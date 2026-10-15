@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Suspense } from "react";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { notFound } from "next/navigation";
 import { MethodPill, ObservationForm, VerificationPill, formatDay, formatValue, market } from "@/components/competitors";
 import { Notice } from "@/components/Notice";
@@ -14,7 +16,9 @@ import { writerReady } from "@/lib/competitors/audit";
 import { buildSeries } from "@/lib/competitors/compare";
 import { METHOD_LABEL, METRIC_LABEL, RELATION_LABEL } from "@/lib/competitors/contract";
 import { AUDIT_PENDING, COMPETITOR_ERRORS, COMPETITOR_NOTICES } from "@/lib/competitors/labels";
-import { getCompetitor, listObservations, loadCompetitorProject } from "@/lib/competitors/repository";
+import { getCompetitor, listObservations, loadCompetitorProject, type CompetitorProject, type CompetitorRow } from "@/lib/competitors/repository";
+import type { ProjectAccess } from "@/lib/access";
+import type { Database } from "@/lib/supabase/database.types";
 import { formatDateTime } from "@/lib/format";
 import { serverKeyring } from "@/lib/provenance/keyring";
 import { myProjectMembership } from "@/lib/tenancy";
@@ -32,6 +36,24 @@ export default async function CompetitorPage({ params, searchParams }: {
   // Bound to this project: an id of another project's competitor answers 404, like an unknown one.
   const competitor = await getCompetitor(supabase, ref, competitorId);
   if (!competitor) notFound();
+  // 404 is decided above, before anything streams; only the observation read shows a loading state.
+  return (
+    <Suspense fallback={<p role="status" className="muted">Cargando observaciones…</p>}>
+      <CompetitorView access={access} ref_={ref} competitor={competitor} supabase={supabase} error={error} aviso={aviso} auditoria={auditoria} />
+    </Suspense>
+  );
+}
+
+async function CompetitorView({ access, ref_: ref, competitor, supabase, error, aviso, auditoria }: {
+  access: ProjectAccess;
+  ref_: CompetitorProject;
+  competitor: CompetitorRow;
+  supabase: SupabaseClient<Database>;
+  error?: string;
+  aviso?: string;
+  auditoria?: string;
+}) {
+  const { project } = access;
   const observations = await listObservations(supabase, ref, competitor.id);
   const series = buildSeries(observations);
   const allowed = (action: string) => access.permissions.find((p) => p.action === action)?.decision.allowed === true;

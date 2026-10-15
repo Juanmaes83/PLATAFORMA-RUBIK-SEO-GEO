@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Suspense } from "react";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { notFound } from "next/navigation";
 import { ComparisonVerdict, MethodPill, ObservationForm, Reading, VerificationPill, formatDay, market } from "@/components/competitors";
 import { Notice } from "@/components/Notice";
@@ -10,10 +12,12 @@ import { requireSession } from "@/lib/auth/session";
 import { createCompetitor, recordObservation } from "@/lib/competitors/actions";
 import { writerReady } from "@/lib/competitors/audit";
 import { CAPABILITIES } from "@/lib/competitors/capabilities";
-import { COMPARISON_WINDOW_DAYS, compareMetric } from "@/lib/competitors/compare";
+import { COMPARISON_WINDOW_DAYS, compareMetric, type Observation } from "@/lib/competitors/compare";
 import { METRIC_SHORT, METRICS, RELATION_LABEL } from "@/lib/competitors/contract";
 import { AUDIT_PENDING, COMPETITOR_ERRORS, COMPETITOR_NOTICES } from "@/lib/competitors/labels";
-import { listCompetitors, listObservations, loadCompetitorProject } from "@/lib/competitors/repository";
+import { listCompetitors, listObservations, loadCompetitorProject, type CompetitorProject } from "@/lib/competitors/repository";
+import type { ProjectAccess } from "@/lib/access";
+import type { Database } from "@/lib/supabase/database.types";
 import { serverKeyring } from "@/lib/provenance/keyring";
 import { myProjectMembership } from "@/lib/tenancy";
 
@@ -27,6 +31,27 @@ export default async function CompetitorsPage({ params, searchParams }: {
   const { project } = access;
   const ref = await loadCompetitorProject(supabase, { tenantId: project.tenantId, projectId: project.projectId });
   if (!ref) notFound();
+  // Access and 404 are decided above, before anything streams (a route-level loading.tsx
+  // would turn a 404 into a 200); only the data reads below show a loading state.
+  return (
+    <Suspense fallback={<p role="status" className="muted">Cargando competidores y observaciones…</p>}>
+      <CompetitorsView access={access} ref_={ref} supabase={supabase} error={error} aviso={aviso} auditoria={auditoria} />
+    </Suspense>
+  );
+}
+
+const latest = (list: readonly Observation[]) =>
+  [...list].sort((a, b) => b.observedOn.localeCompare(a.observedOn) || b.createdAt.localeCompare(a.createdAt))[0] ?? null;
+
+async function CompetitorsView({ access, ref_: ref, supabase, error, aviso, auditoria }: {
+  access: ProjectAccess;
+  ref_: CompetitorProject;
+  supabase: SupabaseClient<Database>;
+  error?: string;
+  aviso?: string;
+  auditoria?: string;
+}) {
+  const { project } = access;
   const [competitors, observations] = await Promise.all([listCompetitors(supabase, ref), listObservations(supabase, ref)]);
   const allowed = (action: string) => access.permissions.find((p) => p.action === action)?.decision.allowed === true;
   const canDraft = allowed("draft");
@@ -124,8 +149,10 @@ export default async function CompetitorsPage({ params, searchParams }: {
                       const theirs = (byCompetitor.get(c.id) ?? []).filter((o) => o.metric === metric);
                       const mine = own.filter((o) => o.metric === metric);
                       const result = compareMetric(theirs, mine);
-                      const shownC = "competitor" in result ? result.competitor : null;
-                      const shownP = "project" in result ? result.project : null;
+                      // Each side shows the reading the verdict used or, when there is no
+                      // verdict pair, its own latest reading (a "not available" one included).
+                      const shownC = ("competitor" in result ? result.competitor : null) ?? latest(theirs);
+                      const shownP = ("project" in result ? result.project : null) ?? latest(mine);
                       return (
                         <tr key={c.id}>
                           <th scope="row">{c.name ?? c.domain}</th>
@@ -159,13 +186,14 @@ export default async function CompetitorsPage({ params, searchParams }: {
               <li key={o.id} className="card">
                 <div className="card-head"><h3>{METRIC_SHORT[o.metric]}</h3><MethodPill o={o} /></div>
                 <p><Reading o={o} /></p>
-                <p className="small muted">{market(o)} · <VerificationPill o={o} /></p>
+                <p className="small muted">{market(o)}</p>
+                <p><VerificationPill o={o} /></p>
               </li>
             ))}
           </ul>
         )}
         {canDraft && signing && (
-          <details>
+          <details className="legend">
             <summary>Registrar una medición de tu sitio</summary>
             <ObservationForm action={recordObservation} tenant={project.tenantId} project={project.projectId} competitor="project" today={today} idPrefix="own" />
           </details>
@@ -197,10 +225,11 @@ export default async function CompetitorsPage({ params, searchParams }: {
             </div>
             <div className="field">
               <label htmlFor="c-relation">Tipo de competidor</label>
-              <select id="c-relation" name="relation" defaultValue="direct">
-                <option value="direct">Directo (mismo producto o servicio)</option>
-                <option value="indirect">Indirecto (compite por las mismas búsquedas o clientes)</option>
+              <select id="c-relation" name="relation" defaultValue="direct" aria-describedby="c-relation-help">
+                <option value="direct">Directo</option>
+                <option value="indirect">Indirecto</option>
               </select>
+              <p id="c-relation-help" className="muted small">Directo: mismo producto o servicio. Indirecto: compite por las mismas búsquedas o clientes.</p>
             </div>
             <div className="field">
               <label htmlFor="c-notes">Descripción (opcional)</label>

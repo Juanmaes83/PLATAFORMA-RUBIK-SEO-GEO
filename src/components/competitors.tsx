@@ -89,7 +89,7 @@ export function ObservationForm({ action, tenant, project, competitor, today, id
         <input id={id("value")} name="value" inputMode="decimal" autoComplete="off" aria-describedby={id("value-help")} />
         <p id={id("value-help")} className="muted small">Sin separadores de miles. Déjalo vacío solo si marcas «no disponible».</p>
       </div>
-      <div className="field-check">
+      <div className="field field-check">
         <input id={id("na")} name="availability" type="checkbox" value="not-available" />
         <label htmlFor={id("na")}>La fuente no da este dato (se guarda como «no disponible», nunca como 0)</label>
       </div>
