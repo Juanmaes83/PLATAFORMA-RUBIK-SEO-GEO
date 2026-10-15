@@ -3,6 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
+import { STACKS, selectedStack } from './test-stacks.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const path = resolve(root, 'supabase/rollbacks/20261015190000_s1_provider_rpc_boundary.sql');
@@ -28,8 +29,10 @@ function checkedAdminUrl() {
   insist(raw, 'Set S1_LOCAL_POSTGRES_ADMIN_URL to the isolated LOCAL S1 postgres account.');
   const u = new URL(raw);
   insist(['postgres:', 'postgresql:'].includes(u.protocol), 'PostgreSQL required.');
-  insist(['127.0.0.1', 'localhost'].includes(u.hostname) && u.port === '56322',
-    'Refusing any destination except LOCAL S1 port 56322.');
+  // Codex's S1 stack by default; Claude's own S1 stack only under its exclusive selector.
+  const port = String((selectedStack() === STACKS.claudeS1 ? STACKS.claudeS1 : STACKS.s1).dbPort);
+  insist(['127.0.0.1', 'localhost'].includes(u.hostname) && u.port === port,
+    `Refusing any destination except the selected LOCAL S1 port ${port}.`);
   insist(u.username === 'postgres' && u.pathname === '/postgres' && !u.search && !u.hash,
     'Refusing non-admin database or connection overrides.');
   return raw;
