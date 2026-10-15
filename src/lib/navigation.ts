@@ -99,6 +99,12 @@ export const PROJECT_SECTIONS: readonly ProjectSection[] = [
     nextStep: "Aprobar o rechazar cada acción con un motivo. Sin aprobación no se ejecuta nada.",
   },
   {
+    slug: "geo", label: "GEO e IA", stage: "N2-13", available: true,
+    description: "Observaciones manuales de respuestas de motores generativos, con evidencia, oportunidades explicables y revisión humana.",
+    requires: [],
+    nextStep: "Registrar una observación con la consulta exacta, el motor y la fecha, y revisar las oportunidades que sugiere.",
+  },
+  {
     slug: "conectores", label: "Conectores", stage: "CORE-9.4 y 9.5",
     description: "Conexiones de solo lectura que el cliente autorice para este proyecto.",
     requires: ["Consentimiento del cliente", "Autorización del propietario en la consola del proveedor, nunca con claves en la plataforma"],
