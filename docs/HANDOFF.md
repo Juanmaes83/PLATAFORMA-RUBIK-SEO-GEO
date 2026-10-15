@@ -1,5 +1,7 @@
 # Handoff
 
+> **RELEVO POST #86 — 15/10/2026:** #86 está fusionada en `main@33e3b305`, con verify 385/385, integración 74/74 y pgTAP 532/532 reportados en Supabase LOCAL. No se ejecutó Playwright por eliminación potencial de fixtures ajenos. Próximo bloque: PR E2E acotado; después S2. Ninguna tarea alojada completada por este merge. Ver [CONTROL-PROYECTO.md](CONTROL-PROYECTO.md).
+
 > **RELEVO ACTUAL — 15/10/2026:** ver [CONTROL-PROYECTO.md](CONTROL-PROYECTO.md), fuente de control tras la fusión #88 (`2e6a7a7`) y #85 (`1e9d178`). Codex actualiza #86; no tocar su rama. Las secciones inferiores son histórico de entregas y pueden describir #85/#88 como Draft en fechas anteriores.
 
 ## Revalidación final de PR #86 — 15/10/2026
