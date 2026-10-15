@@ -87,7 +87,7 @@ select pg_temp.act_as_admin();
 select pg_temp.act_as_writer('00000000-0000-4000-8000-0000000000c1');
 select lives_ok($$insert into public.audit_events (project_id, organization_id, seq, at, actor_role, action, outcome, prev_hash, hash, key_id, signature)
   select a1, org_a, 2, '2026-10-07T10:02:00Z', 'analyst', 'result.store', 'allowed', pg_temp.h(1), pg_temp.h(2), 'k-test', pg_temp.h(102) from ids$$, 'the analyst appends as analyst');
-select is((select actor_id from public.audit_events where seq = 2), '00000000-0000-4000-8000-0000000000c1'::uuid, 'actor_id is the signed-in user');
+select is((select actor_id from public.audit_events where project_id = (select a1 from ids) and seq = 2), '00000000-0000-4000-8000-0000000000c1'::uuid, 'actor_id is the signed-in user');
 select pg_temp.act_as('00000000-0000-4000-8000-0000000000c1');
 select throws_ok($$update public.audit_events set outcome = 'denied'$$, '42501', null, 'the analyst cannot update audit rows');
 

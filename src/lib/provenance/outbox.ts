@@ -75,3 +75,12 @@ export async function drainAuditOutbox(keyring: Keyring, limit = 25): Promise<{ 
   }
   return { pending: rows.rowCount ?? 0, completed, failed };
 }
+
+/** Counts only DB-created receipts; no customer payload or signature is returned. */
+export async function pendingAuditOutbox(): Promise<{ pending: number; oldestAt: string | null }> {
+  const pool = writerPool();
+  if (!pool) throw new Error("WRITER_NOT_CONFIGURED");
+  const result = await pool.query<{ pending: string; oldest_at: Date | null }>(
+    "select count(*)::text as pending, min(created_at) as oldest_at from private.audit_outbox where state = 'pending'");
+  return { pending: Number(result.rows[0].pending), oldestAt: result.rows[0].oldest_at?.toISOString() ?? null };
+}
