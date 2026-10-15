@@ -3,7 +3,7 @@ import { join } from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import { localSupabaseEnv } from "../scripts/supabase-test-env.mjs";
-import { PROJECT, TENANT, TEST_PASSPHRASE, signIn, type UserKey } from "./support";
+import { PROJECT, TENANT, TEST_PASSPHRASE, signIn, fixtureEmail, reserveBrowserAccount, claimBrowserAccount, type UserKey } from "./support";
 
 // ADR 0020 against the local stack only. Organization owners create single-use links bound to one
 // address and one non-owner role; the platform sends no email. Self-contained on purpose: it does
@@ -13,7 +13,7 @@ const PAGE = `/proyectos/${TENANT}/${PROJECT}/invitaciones`;
 // Decision D3: organization owners withdraw a non-owner; the account is kept.
 const PEOPLE = `/proyectos/${TENANT}/${PROJECT}/personas`;
 const DATA = `/proyectos/${TENANT}/${PROJECT}/datos`;
-const unique = (prefix: string) => `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}@ejemplo.test`;
+const unique = fixtureEmail;
 
 async function checked(page: Page, name: string, project: string) {
   await page.waitForLoadState("networkidle");
@@ -43,6 +43,7 @@ async function confirmLink(mailpitUrl: string, address: string) {
 
 /** Registers and confirms a brand-new account through the UI, then signs out. */
 async function newConfirmedAccount(page: Page, address: string) {
+  await reserveBrowserAccount(address);
   const { mailpitUrl } = localSupabaseEnv();
   await page.context().clearCookies();
   await page.goto("/registro");
@@ -51,6 +52,7 @@ async function newConfirmedAccount(page: Page, address: string) {
   await page.getByRole("button", { name: "Crear cuenta" }).click();
   await page.goto(await confirmLink(mailpitUrl, address));
   await expect(page).toHaveURL(/\/panel$/);
+  await claimBrowserAccount(address);
   await page.getByRole("button", { name: "Salir" }).click();
   await expect(page).toHaveURL(/\/$/);
 }

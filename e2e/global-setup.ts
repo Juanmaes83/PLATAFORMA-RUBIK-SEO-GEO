@@ -1,49 +1,47 @@
-import { createClient } from "@supabase/supabase-js";
-import { localSupabaseEnv } from "../scripts/supabase-test-env.mjs";
 import { OTHER_PROJECT, OTHER_TENANT, TEST_PASSPHRASE, PROJECT, TENANT, USERS } from "./support";
+import { fixtureScope } from "./fixture-scope";
+import { cleanupFixtures, fixtureClients, initializeLedger, recordFixture } from "./fixtures";
 
-// Prepares fictitious accounts on the LOCAL stack (the helper refuses any other host). The
-// admin client (local secret key) only deletes leftovers of earlier runs and creates confirmed
-// users; organizations, projects and roles are created by the users themselves through RLS.
+// No startup deletion or adoption. Successful creation responses are the receipts.
 export default async function globalSetup() {
-  const env = localSupabaseEnv();
-  const options = { auth: { persistSession: false, autoRefreshToken: false } };
-  const admin = createClient(env.apiUrl, env.secretKey, options);
-
-  await admin.from("organizations").delete().in("slug", [TENANT, OTHER_TENANT]);
-  const { data: existing } = await admin.auth.admin.listUsers({ perPage: 1000 });
-  for (const u of existing?.users ?? []) if (u.email?.endsWith("@ejemplo.test")) await admin.auth.admin.deleteUser(u.id);
-
-  const ids: Record<string, string> = {};
-  for (const [key, email] of Object.entries(USERS)) {
-    const { data, error } = await admin.auth.admin.createUser({ email, password: TEST_PASSPHRASE, email_confirm: true });
-    if (error) throw error;
-    ids[key] = data.user.id;
-  }
-
-  const as = async (email: string) => {
-    const client = createClient(env.apiUrl, env.publishableKey, options);
-    const { error } = await client.auth.signInWithPassword({ email, password: TEST_PASSPHRASE });
-    if (error) throw error;
-    return client;
-  };
+  const { admin, client } = fixtureClients();
+  initializeLedger();
   const must = <T extends { error: unknown }>(result: T) => {
     if (result.error) throw result.error;
     return result;
   };
-
-  const owner = await as(USERS.owner);
-  must(await owner.from("organizations").insert({ slug: TENANT, name: "Agencia de ejemplo" }));
-  const orgId = must(await owner.from("organizations").select("id").eq("slug", TENANT).single()).data!.id;
-  must(await owner.from("projects").insert({ organization_id: orgId, slug: PROJECT, name: "Restaurante de ejemplo", domain: "restaurante.ejemplo.test" }));
-  const projectId = must(await owner.from("projects").select("id").eq("slug", PROJECT).single()).data!.id;
-  for (const [key, role] of [["analyst", "analyst"], ["client", "client-approver"]] as const) {
-    must(await owner.from("organization_members").insert({ organization_id: orgId, user_id: ids[key], role: "member" }));
-    must(await owner.from("project_members").insert({ project_id: projectId, organization_id: orgId, user_id: ids[key], role }));
+  try {
+    const ids: Record<string, string> = {};
+    for (const [key, email] of Object.entries(USERS)) {
+      const { data } = must(await admin.auth.admin.createUser({ email, password: TEST_PASSPHRASE, email_confirm: true,
+        app_metadata: { rubik_e2e_run: fixtureScope().run } }));
+      ids[key] = data.user!.id;
+      recordFixture({ kind: "user", value: { id: data.user!.id, email } });
+    }
+    for (const [key, slug, name, projectSlug, projectName] of [
+      ["owner", TENANT, "Agencia de ejemplo", PROJECT, "Restaurante de ejemplo"],
+      ["outsider", OTHER_TENANT, "Otra agencia", OTHER_PROJECT, "Despacho de ejemplo"],
+    ]) {
+      const actor = client();
+      must(await actor.auth.signInWithPassword({ email: USERS[key as keyof typeof USERS], password: TEST_PASSPHRASE }));
+      // SELECT policies depend on the creator trigger's membership, visible after INSERT.
+      // A successful INSERT into a unique, fresh slug is the creation receipt; read its id
+      // separately instead of weakening RLS to support INSERT ... RETURNING.
+      must(await actor.from("organizations").insert({ slug, name }));
+      const org = must(await actor.from("organizations").select("id,slug,created_by").eq("slug", slug).single()).data!;
+      recordFixture({ kind: "organization", value: org });
+      must(await actor.from("projects").insert({ organization_id: org.id, slug: projectSlug, name: projectName,
+        ...(key === "owner" ? { domain: "restaurante.ejemplo.test" } : {}) }));
+      const project = must(await actor.from("projects").select("id,slug,organization_id").eq("organization_id", org.id).eq("slug", projectSlug).single()).data!;
+      recordFixture({ kind: "project", value: project });
+      if (key === "owner") for (const [member, role] of [["analyst", "analyst"], ["client", "client-approver"]]) {
+        must(await actor.from("organization_members").insert({ organization_id: org.id, user_id: ids[member], role: "member" }));
+        must(await actor.from("project_members").insert({ project_id: project.id, organization_id: org.id, user_id: ids[member], role }));
+      }
+    }
+  } catch (error) {
+    await cleanupFixtures();
+    throw error;
   }
-
-  const outsider = await as(USERS.outsider);
-  must(await outsider.from("organizations").insert({ slug: OTHER_TENANT, name: "Otra agencia" }));
-  const otherOrg = must(await outsider.from("organizations").select("id").eq("slug", OTHER_TENANT).single()).data!.id;
-  must(await outsider.from("projects").insert({ organization_id: otherOrg, slug: OTHER_PROJECT, name: "Despacho de ejemplo" }));
+  return cleanupFixtures;
 }

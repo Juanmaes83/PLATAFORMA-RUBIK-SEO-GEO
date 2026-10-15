@@ -4,6 +4,15 @@
 
 ## Estado de integración
 
+**Bloque E2E, validación local 15/10/2026 (esta rama, pendiente de revisión y fusión):**
+`codex/playwright-owned-fixtures-20261015`, base `main@e1005ff`. Propiedad por ejecución,
+recibos de IDs y limpieza atómica que rechaza referencias ajenas. Verify **397/397**, integración
+**78/78**, pgTAP **532/532**; dos E2E **145 PASS / 44 SKIP / 0 FAIL** cada uno, en
+`127.0.0.1:54321`. Preservados los 11 usuarios previos (incluidos los seis ajenos), 2 organizaciones,
+3 proyectos y sus membresías; cero acumulación en ambas repeticiones. Detalle y límites en
+[E2E-FIXTURES-SEGUROS-20261015](E2E-FIXTURES-SEGUROS-20261015.md). GitHub Actions no sustituye
+esta evidencia y sigue condicionado por facturación. S2 solo planificado; no implementado aquí.
+
 | PR o línea | Estado verificado / decisión |
 |---|---|
 | [#87](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/87) | **Fusionada**: manifiesto firmado y restauración fail-closed. Evidencia local histórica: 381 unitarias, 57 integración, 518 pgTAP; no implica ensayo alojado. |
@@ -29,7 +38,7 @@
 ## Secuencia de integración: lotes cortos, no bifurcaciones largas
 
 - **Lote 0 y lote 1, finalizados como integración local**: #88 → #85 → #86. Los ensayos alojados y S1/S2 permanecen pendientes.
-- **Lote 1b, siguiente, obligatorio para Playwright**: limitar los borrados de `e2e/global-setup.ts` estrictamente a sus cuentas fixture identificadas, preservar otros usuarios `@ejemplo.test`, añadir prueba de limpieza con usuario ajeno y ejecutar E2E de forma segura SOLO en Supabase local. PR separada y fusión tras gates.
+- **Lote 1b, implementado y validado en local; pendiente de revisión**: namespace nuevo por ejecución, recibos de creación, preflight y limpieza transaccional de IDs propios; colisiones y referencias ajenas abortan sin borrar. Dos E2E correctos y fixtures previos preservados. PR independiente Draft, sin fusión automática; límites operativos y evidencia en el documento E2E enlazado arriba.
 - **Lote 2, tras cerrar 1b**: S2 aislado en rama nueva desde main fusionado. Refactorizar los fixtures de tests que usan INSERT directo; migración de políticas/permisos, negativos pgTAP e integración; PR Draft. Cero aplicación alojada sin permiso.
 - **Lote 3, decisión previa**: S1 requiere acuerdo sobre escritor confiable y custodia de firma; luego implementación y pruebas en PR separada, no mezclar S1/S2.
 - **Lote 4, propietario**: fase B alojada, recuperación real, migración/flags con backup y autorización; activar modo `project` solo tras revisión y rollback.

@@ -1,12 +1,16 @@
 import { randomBytes } from "node:crypto";
 import { defineConfig } from "@playwright/test";
 import { localSupabaseEnv } from "./scripts/supabase-test-env.mjs";
+import { assertFixtureEndpoint } from "./e2e/fixture-scope";
 
 // End-to-end, visual and responsive checks (D-27) against `next dev` connected to the LOCAL
 // Supabase stack (npm run db:start). Accounts are fictitious and created by global-setup.
 // Only the publishable key reaches the app; the helper refuses any non-local host.
 const port = Number(process.env.E2E_PORT ?? 3217);
 const supabase = localSupabaseEnv();
+assertFixtureEndpoint(supabase.apiUrl);
+process.env.RUBIK_E2E_RUN_ID ??= randomBytes(16).toString("hex");
+process.env.RUBIK_E2E_PASSPHRASE ??= randomBytes(24).toString("hex");
 // CORE-9.2/9.3: a throwaway HMAC key generated for each run, so audited imports work in e2e.
 // It exists only in this process and the dev server it starts; it signs nothing real.
 const signingKey = randomBytes(32).toString("base64");
@@ -45,6 +49,12 @@ export default defineConfig({
       // Job ledger on (local stack only) so the uncertain-launch reconciliation is reachable.
       // OpenSEO itself stays unconfigured: no e2e test can contact a provider.
       OPENSEO_PROJECT_JOBS_ENABLED: "true",
+      OPENSEO_ENDPOINT: "",
+      OPENSEO_API_KEY: "",
+      OPENSEO_PROJECT_ID: "",
+      OPENSEO_GOOGLE_READS_ENABLED: "false",
+      OPENSEO_GOOGLE_CATALOG_CHECK_ENABLED: "false",
+      OPENSEO_PROJECT_CONNECTIONS_MODE: "legacy",
     },
   },
 });
