@@ -14,10 +14,11 @@
 // Opciones: --keep-stack (no detiene el stack propio al final), --skip-step "<nombre>=<motivo>"
 // (el paso queda NO EJECUTADO y el veredicto nunca será PASS), --allow-dirty (evidencia no ligada
 // a ningún SHA; veredicto UNBOUND), --pass-env NOMBRE (añade una variable a la lista blanca).
-import { spawn } from "node:child_process";
-import { cpSync, createWriteStream, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+// Código de salida: 0 PASS, 3 PARTIAL (pasos o patas de matriz no ejecutados), 1 FAIL/UNBOUND/bloqueo.
+import { execFileSync, spawn } from "node:child_process";
+import { cpSync, createWriteStream, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { checkStepResult, guardStep, runAllChecks, stackOwnership, summarizeLog } from "./checks.mjs";
 import { LEDGER_PATH, ROOT, gatherFacts, listContainers } from "./facts.mjs";
 import { planJob } from "./workflow.mjs";
@@ -110,6 +111,26 @@ function runScript(script, env, logPath, groups) {
   });
 }
 
+/** Untracked, non-ignored files in the worktree (CI steps write logs such as server.log there). */
+function untrackedFiles() {
+  return execFileSync("git", ["ls-files", "--others", "--exclude-standard", "-z"], { cwd: ROOT, encoding: "utf8" }).split("\0").filter(Boolean);
+}
+
+/**
+ * Each GitHub job starts from a clean checkout. Files a job leaves in the worktree are moved
+ * (never deleted) into the evidence folder, so the next job and the next run start clean.
+ */
+function collectJobFiles(before, destination) {
+  const moved = [];
+  for (const file of untrackedFiles().filter((f) => !before.has(f))) {
+    const target = join(destination, file);
+    mkdirSync(dirname(target), { recursive: true });
+    renameSync(join(ROOT, file), target);
+    moved.push(file);
+  }
+  return moved;
+}
+
 /** GitHub kills orphan processes at the end of each job; so do we (only our own process groups). */
 function cleanupGroups(groups) {
   for (const pid of groups.splice(0)) {
@@ -198,6 +219,7 @@ async function main() {
       if (jobRecord.matrixLegsNotRun.length) evidence.deviations.push(`job ${job.id}: patas de Node no ejecutadas: ${jobRecord.matrixLegsNotRun.join(", ")}`);
     }
     const groups = [];
+    const untrackedBefore = new Set(untrackedFiles());
     let failed = false;
     for (const step of steps) {
       const record = { job: job.id, index: step.index + 1, label: step.label, kind: step.kind, status: "passed" };
@@ -254,7 +276,9 @@ async function main() {
       save();
     }
     cleanupGroups(groups);
+    jobRecord.workspaceFiles = collectJobFiles(untrackedBefore, join(dir, "workspace", job.id));
     jobRecord.status = failed ? "failed" : "passed";
+    save();
   }
 
   evidence.finishedAt = new Date().toISOString();
@@ -266,7 +290,8 @@ async function main() {
   save();
   process.stdout.write(`\nVeredicto local: ${evidence.verdict} · evidencia ${join(dir, "evidence.json").replace(ROOT + "/", "")}\n`);
   for (const d of evidence.deviations) process.stdout.write(`  desviación: ${d}\n`);
-  return evidence.verdict === "PASS" || evidence.verdict === "PARTIAL" ? 0 : 1;
+  // 0 only for a complete PASS; 3 = PARTIAL (steps or matrix legs not run); 1 = FAIL/UNBOUND.
+  return { PASS: 0, PARTIAL: 3 }[evidence.verdict] ?? 1;
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

@@ -317,10 +317,12 @@ export function summarizeLog(log) {
   if (!vitest && (pwPassed || pwFailed)) {
     summary.playwright = { passed: Number(pwPassed?.[1] ?? 0), skipped: Number(pwSkipped?.[1] ?? 0), failed: Number(pwFailed?.[1] ?? 0), flaky: Number(pwFlaky?.[1] ?? 0) };
   }
-  const tap = /^Result:\s+(PASS|FAIL)/m.exec(text);
-  if (tap) {
-    const files = /^Files=(\d+),\s+Tests=(\d+)/m.exec(text);
-    summary.pgtap = { result: tap[1], files: Number(files?.[1] ?? 0), tests: Number(files?.[2] ?? 0) };
+  // A step may run pgTAP several times (ci.yml expects the open Studio state to FAIL first):
+  // every run is kept, and the step result is the last one.
+  const taps = [...text.matchAll(/^Files=(\d+),\s+Tests=(\d+)[\s\S]*?^Result:\s+(PASS|FAIL)/gm)];
+  if (taps.length) {
+    const runs = taps.map((m) => ({ result: m[3], files: Number(m[1]), tests: Number(m[2]) }));
+    summary.pgtap = { ...runs.at(-1), ...(runs.length > 1 ? { runs } : {}) };
   }
   const tsErrors = text.match(/error TS\d+:/g);
   if (tsErrors) summary.typescript = { errors: tsErrors.length };

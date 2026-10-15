@@ -179,6 +179,10 @@ describe("7 · skipped tests never count as passed", () => {
     expect(summarizeLog(" Test Files  43 passed (43)\n      Tests  401 passed | 2 skipped (403)\n")).toEqual({ vitest: { passed: 401, skipped: 2 } });
     expect(summarizeLog("  145 passed (3.2m)\n  44 skipped\n")).toEqual({ playwright: { passed: 145, skipped: 44, failed: 0, flaky: 0 } });
     expect(summarizeLog("Files=19, Tests=581,  2 wallclock secs\nResult: PASS\n")).toEqual({ pgtap: { result: "PASS", files: 19, tests: 581 } });
+    // ci.yml's Studio step: an expected FAIL on the open state, then PASS after the migration.
+    expect(summarizeLog("Files=20, Tests=581, 2 wallclock secs\nResult: FAIL\nx\nFiles=20, Tests=581, 2 wallclock secs\nResult: PASS\n")).toEqual({
+      pgtap: { result: "PASS", files: 20, tests: 581, runs: [{ result: "FAIL", files: 20, tests: 581 }, { result: "PASS", files: 20, tests: 581 }] },
+    });
     expect(summarizeLog("src/a.ts(1,1): error TS2322: x\nsrc/b.ts(1,1): error TS2322: y")).toEqual({ typescript: { errors: 2 } });
     expect(summarizeLog("Failed to compile.")).toEqual({ build: { failed: true } });
     expect(codes(checkStepResult({ label: "e2e", status: "passed", expectsSummary: true, summary: { playwright: { passed: 145, skipped: 44, failed: 0, flaky: 1 } } }))).toEqual(["SKIP_RUNTIME", "SKIP_FLAKY"]);
