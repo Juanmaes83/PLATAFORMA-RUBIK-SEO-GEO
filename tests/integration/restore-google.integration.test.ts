@@ -9,6 +9,7 @@ import { captureGoogleReport } from "@/lib/openseo/google/capture";
 import { connectGoogleProperty } from "@/lib/openseo/google/properties";
 import type { ProjectRef } from "@/lib/provenance/audit";
 import { loadKeyring } from "@/lib/provenance/keyring";
+import { signExportManifest } from "@/lib/provenance/manifest";
 import { exportProject, loadProviderResult } from "@/lib/provenance/repository";
 import { readOperationalState } from "@/lib/recovery/operations";
 import { planRestore } from "@/lib/restore/plan";
@@ -68,7 +69,8 @@ describe("Google state recovery on the local stack", () => {
     expect(operations.google).toMatchObject({ ok: true, value: { connections: [{ state: "ACTIVE" }], bindings: [{ external_property_id: site, state: "ACTIVE" }],
       captures: [{ idempotency_key: key, result_id: resultId, state: "STORED" }] } });
     expect(operations.notIncluded.join(" ")).not.toMatch(/google-property-bindings|google-captures-ledger/);
-    doc = JSON.parse(JSON.stringify({ ...exported.export, format: "rubik-project-export-v2", operations }));
+    const body = { ...exported.export, format: "rubik-project-export-v2", operations };
+    doc = JSON.parse(JSON.stringify({ ...body, manifest: signExportManifest(body, project, keyring) }));
   });
 
   it("after a loss, restoring twice brings back the Google state, and a retry with the same key reads nothing", async () => {

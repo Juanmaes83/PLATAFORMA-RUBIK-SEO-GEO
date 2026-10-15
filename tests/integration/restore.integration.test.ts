@@ -6,6 +6,7 @@ import { providers } from "@/lib/core";
 import type { Database } from "@/lib/supabase/database.types";
 import type { ProjectRef } from "@/lib/provenance/audit";
 import { loadKeyring } from "@/lib/provenance/keyring";
+import { signExportManifest } from "@/lib/provenance/manifest";
 import { importFile } from "@/lib/imports/repository";
 import { appendAudit, exportProject, storeProviderResult } from "@/lib/provenance/repository";
 import { verifyProjectExport } from "@/lib/recovery/verify-export";
@@ -84,7 +85,9 @@ beforeAll(async () => {
   expect((await importFile(owner, project, importBytes(project.scope), { role: "owner", id: users[0] }, keyring)).ok).toBe(true);
   const exported = await exportProject(owner, project, keyring, "2026-10-09T11:00:00.000Z");
   if (!exported.ok) throw new Error(exported.error);
-  doc = JSON.parse(JSON.stringify({ ...exported.export, format: "rubik-project-export-v2", operations: {} }));
+  // Sealed as the export route does: the manifest is signed over the finished body, then the JSON round trip.
+  const body = { ...exported.export, format: "rubik-project-export-v2", operations: {} };
+  doc = JSON.parse(JSON.stringify({ ...body, manifest: signExportManifest(body, project, keyring) }));
   original = state();
   expect(original).toMatchObject({ orgMembers: [`${users[0]}:owner`], projectMembers: [`${users[0]}:owner`] });
   expect([original.audit.length, original.results.length, original.imports.length]).toEqual([3, 2, 1]);
@@ -97,7 +100,7 @@ afterAll(async () => {
 
 describe("restore drill on the local stack", () => {
   it("the export verifies offline before anything else", () => {
-    expect(verifyProjectExport(doc, keyring)).toMatchObject({ ok: true, audit: { valid: true, length: 3 }, results: { total: 2, verified: 2, failed: [] }, mismatches: [] });
+    expect(verifyProjectExport(doc, keyring)).toMatchObject({ ok: true, audit: { valid: true, length: 3 }, results: { total: 2, verified: 2, failed: [] }, mismatches: [], completeness: { status: "COMPLETE" } });
   });
 
   it("identical destination: changes nothing, and a non-owner operator gains no access", () => {

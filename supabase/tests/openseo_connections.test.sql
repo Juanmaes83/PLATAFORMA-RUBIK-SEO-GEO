@@ -55,7 +55,7 @@ select lives_ok($$select public.openseo_connection(pg_temp.pid('conn-a1'),'conne
 select throws_ok($$select public.openseo_connection(pg_temp.pid('conn-a1'),'connect',pg_temp.conn('oseo-other','["client-a.example"]'))$$,
  '23514',null,'replacement requires revocation first');
 select set_config('role','postgres',true);
-select is((select count(*)::int from private.openseo_project_connections),1,'one row after retries');
+select is((select count(*)::int from private.openseo_project_connections where project_id=pg_temp.pid('conn-a1')),1,'one row after retries');
 
 insert into auth.users(id,email,aud,role) values
  ('00000000-0000-4000-8000-0000000000c3','conn-analyst@example.test','authenticated','authenticated');
@@ -87,7 +87,7 @@ select throws_ok($$select public.openseo_connection(pg_temp.pid('conn-a1'),'revo
 select is(public.openseo_connection(pg_temp.pid('conn-a1'),'connect',pg_temp.conn('oseo-a2','["client-a.example"]'))->>'openseoProjectId',
  'oseo-a2','reconnect after revocation');
 select set_config('role','postgres',true);
-select is((select count(*)::int from private.openseo_project_connections where state='REVOKED'),1,'revoked row kept as history');
+select is((select count(*)::int from private.openseo_project_connections where project_id=pg_temp.pid('conn-a1') and state='REVOKED'),1,'revoked row kept as history');
 
 select pg_temp.act_as('00000000-0000-4000-8000-0000000000c2');
 select is(public.openseo_connection(pg_temp.pid('conn-b1'),'connect',pg_temp.conn('oseo-a','["client-b.example"]'))->>'state',
