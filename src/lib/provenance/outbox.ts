@@ -66,9 +66,14 @@ export async function processAuditOutbox(id: string, keyring: Keyring): Promise<
 
 /** Safe to retry: completed receipts are ignored and each pending receipt is locked on processing. */
 export async function drainAuditOutbox(keyring: Keyring, limit = 25): Promise<{ pending: number; completed: number; failed: number }> {
+  // An unavailable writer must never be reported to an operator as an empty, successful drain.
   const pool = writerPool();
-  if (!pool || !Number.isInteger(limit) || limit < 1 || limit > 100) return { pending: 0, completed: 0, failed: 0 };
-  const rows = await pool.query<{ id: string }>("select id from private.audit_outbox where state = 'pending' order by created_at, id limit $1", [limit]);
+  if (!pool) throw new Error("WRITER_NOT_CONFIGURED");
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new RangeError("INVALID_DRAIN_LIMIT");
+  // A permanently failing oldest receipt must not starve younger receipts indefinitely.
+  // Failed attempts increment private.audit_outbox.attempts; the next drain gives other
+  // pending receipts a chance. Created-at ordering remains stable within each attempt tier.
+  const rows = await pool.query<{ id: string }>("select id from private.audit_outbox where state = 'pending' order by attempts, created_at, id limit $1", [limit]);
   let completed = 0, failed = 0;
   for (const row of rows.rows) {
     if ((await processAuditOutbox(row.id, keyring)).ok) completed++;
