@@ -33,6 +33,8 @@ const PAGES: { name: string; path: string; user?: UserKey; form?: boolean; statu
   { name: "23-comparar-resultado-inexistente", path: `${P}/auditoria-tecnica/comparar?antes=00000000-0000-4000-8000-000000000001&despues=00000000-0000-4000-8000-000000000002`, user: "analyst", status: 404 },
   { name: "24-consumo-titular", path: `${P}/consumo`, user: "owner" },
   { name: "25-consumo-analista", path: `${P}/consumo`, user: "analyst" },
+  { name: "26-seo-analista", path: `${P}/seo`, user: "analyst", form: true },
+  { name: "27-seo-cliente", path: `${P}/seo`, user: "client", form: true },
 ];
 
 const horizontalOverflow = (page: Page) =>

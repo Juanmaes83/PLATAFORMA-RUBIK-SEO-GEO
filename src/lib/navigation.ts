@@ -57,6 +57,11 @@ export interface ProjectSection {
 /** Project sub-sections; the summary is the project page itself. Built: Importaciones (CORE-9.3), Auditoría técnica (ADR 0006), Search Console y GA4 and Personas (ADR 0020/0021). */
 export const PROJECT_SECTIONS: readonly ProjectSection[] = [
   {
+    slug: "seo", label: "Análisis SEO", stage: "N2-09", available: true,
+    description: "Incidencias técnicas verificadas, revisión On-Page y palabras clave declaradas para este proyecto.",
+    requires: [], nextStep: "Revisar cobertura, páginas y oportunidades con su fuente antes de planificar cambios.",
+  },
+  {
     slug: "importaciones", label: "Importaciones", stage: "CORE-9.3", available: true,
     description: "Hallazgos importados manualmente con su fuente y su fecha (rubik-import-v1).",
     requires: [],

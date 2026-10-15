@@ -1,7 +1,6 @@
-// Generated from the LOCAL schema (supabase/migrations) with:
-//   npx supabase@2.118.0 gen types typescript --local --schema public > src/lib/supabase/database.types.ts
+// Generated from the N2 LOCAL schema (supabase/migrations) with:
+// npx --yes supabase@2.118.0 --workdir test-results/n2-seo-stack gen types typescript --local --schema public
 // Do not edit by hand; regenerate after changing a migration.
-
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
 
 export type Database = {
@@ -135,6 +134,25 @@ isOneToOne: false
                   Relationships: [
                     {
       foreignKeyName: "provider_results_project_id_organization_id_fkey"
+      columns: ["project_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "projects"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
+                },"seo_keywords": {
+                  Row: {
+                    "country_code": string,"created_at": string,"created_by": string,"id": string,"intent": string,"language_code": string,"organization_id": string,"phrase": string,"project_id": string,"target_url": string | null,"topic": string,"updated_at": string
+                  }
+                  Insert: {
+                    "country_code": string,"created_at"?: string,"created_by"?: string,"id"?: string,"intent"?: string,"language_code": string,"organization_id": string,"phrase": string,"project_id": string,"target_url"?: string | null,"topic"?: string,"updated_at"?: string
+                  }
+                  Update: {
+                    "country_code"?: string,"created_at"?: string,"created_by"?: string,"id"?: string,"intent"?: string,"language_code"?: string,"organization_id"?: string,"phrase"?: string,"project_id"?: string,"target_url"?: string | null,"topic"?: string,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "seo_keywords_project_id_organization_id_fkey"
       columns: ["project_id","organization_id"]
 isOneToOne: false
       referencedRelation: "projects"
