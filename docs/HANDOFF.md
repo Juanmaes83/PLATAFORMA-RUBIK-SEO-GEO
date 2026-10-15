@@ -1,5 +1,7 @@
 # Handoff
 
+> **N2-13 (Claude) — 16/10/2026:** primer incremento GEO con evidencia ([doc](N2-13-GEO.md)) en `claude/n2-13-geo-evidence-v1` desde `main@d12b80e`. Local en `65f1d48`: verify 494/494, integración 108/108, pgTAP 689/689, E2E 149/46/0 (tras repetir un fallo intermitente ajeno). Migración `20261016160000` **no aplicada en alojado**; no operativo. Checkpoint: [CLAUDE-N2-13-CHECKPOINT](CLAUDE-N2-13-CHECKPOINT.md).
+
 > **RELEVO S2 — 15/10/2026:** bloque local completo sobre `main@3eba9d0`,
 > [PR #100](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/100) OPEN / Draft, pendiente revisión.
 > Retirados INSERT de tabla/columna y políticas de membresías; fixtures consentidos, sin RPC
