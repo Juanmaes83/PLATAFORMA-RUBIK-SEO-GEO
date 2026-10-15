@@ -168,3 +168,47 @@ export async function storeTrustedProviderResult(
     db?.release();
   }
 }
+
+/** Completes a reserved external capture through the dedicated SQL identity. */
+export async function completeTrustedProviderCommand(
+  userClient: Client, project: ProjectRef,
+  command: { kind: "google"; key: string; row: ProviderResultRow }
+    | { kind: "openseo"; jobId: string; issues: ProviderResultRow; pages: ProviderResultRow },
+): Promise<{ ok: true; data: Record<string, unknown> } | Failure> {
+  const pool = writerPool();
+  if (!pool) return { ok: false, error: "WRITER_NOT_CONFIGURED" };
+  const verified = await userClient.auth.getUser();
+  const userId = verified.data.user?.id;
+  if (verified.error || !userId) return { ok: false, error: "NOT_ALLOWED" };
+  let db;
+  try {
+    db = await pool.connect();
+    await db.query("begin");
+    await db.query("set local statement_timeout = '8s'");
+    await db.query("set local lock_timeout = '3s'");
+    const actors = await db.query<ActorRow>("select * from private.audit_writer_actor($1::uuid, $2::uuid)", [project.projectId, userId]);
+    const actor = actors.rows[0];
+    if (!actor || actor.actor_role !== "owner" || actor.organization_id !== project.organizationId
+      || actor.tenant_slug !== project.scope.tenantId || actor.project_slug !== project.scope.projectId) {
+      await db.query("rollback");
+      return { ok: false, error: "NOT_ALLOWED" };
+    }
+    await db.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ sub: userId, role: "authenticated" })]);
+    const query = command.kind === "google"
+      ? await db.query<{ result: Record<string, unknown> }>(
+        "select private.google_capture_command($1::uuid, 'store', $2::jsonb) as result",
+        [project.projectId, JSON.stringify({ key: command.key, row: command.row })])
+      : await db.query<{ result: Record<string, unknown> }>(
+        "select private.openseo_job($1::uuid, 'complete', $2::uuid, $3::jsonb) as result",
+        [project.projectId, command.jobId, JSON.stringify({ auditIssues: command.issues, auditPages: command.pages })]);
+    await db.query("commit");
+    return { ok: true, data: query.rows[0].result };
+  } catch (error) {
+    if (db) { try { await db.query("rollback"); } catch { /* connection lost */ } }
+    const code = typeof error === "object" && error !== null && "code" in error ? String(error.code) : "";
+    return { ok: false, error: code === "42501" ? "NOT_ALLOWED" : code === "55000" ? "SOURCE_CHANGED"
+      : code === "22023" || code === "23514" ? "INVALID" : code === "55P03" || code === "57014" ? "WRITER_TIMEOUT" : "WRITE_FAILED" };
+  } finally {
+    db?.release();
+  }
+}

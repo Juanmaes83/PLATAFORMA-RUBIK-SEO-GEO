@@ -70,6 +70,11 @@ it("stores actual Core-signed originals atomically and verifies them after a dat
   const prepared = prepareCompletedAuditResults({ auditId, issues, pages }, project, loaded.keyring);
   expect(prepared.ok).toBe(true);
   if (!prepared.ok) throw new Error(prepared.error);
+  const forged = await owner.rpc("openseo_job", { p_project_id: projectId, p_command: "complete", p_job_id: jobId,
+    p_payload: JSON.parse(JSON.stringify({ auditIssues: { ...prepared.prepared.issues, signature: "f".repeat(64) },
+      auditPages: prepared.prepared.pages })) });
+  expect(forged.error?.code).toBe("42501");
+  expect((await owner.from("provider_results").select("id").eq("project_id", projectId)).data).toHaveLength(0);
   const stored = await completeAuditJob(owner, project, jobId, prepared.prepared);
   expect(stored.ok).toBe(true);
   if (!stored.ok) throw new Error(stored.error);

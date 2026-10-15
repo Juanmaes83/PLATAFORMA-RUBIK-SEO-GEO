@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/lib/supabase/database.types";
 import type { ProjectRef } from "@/lib/provenance/audit";
 import type { PreparedAuditResults } from "./persistence";
+import { completeTrustedProviderCommand } from "@/lib/provenance/writer";
 
 export interface ProjectAuditJob {
   jobId: string;
@@ -55,8 +56,12 @@ export const bindAuditJob = (client: SupabaseClient<Database>, project: ProjectR
 export const findAuditJob = (client: SupabaseClient<Database>, project: ProjectRef, auditId: string): Promise<Outcome> =>
   audit.test(auditId) ? command(client, project, "get", undefined, { auditId }) : Promise.resolve({ ok: false, error: "JOB_NOT_FOUND" });
 export const failAuditJob = (client: SupabaseClient<Database>, project: ProjectRef, jobId: string) => command(client, project, "fail", jobId);
-export const completeAuditJob = (client: SupabaseClient<Database>, project: ProjectRef, jobId: string, results: PreparedAuditResults) =>
-  command(client, project, "complete", jobId, JSON.parse(JSON.stringify({ auditIssues: results.issues, auditPages: results.pages })) as Json);
+export async function completeAuditJob(client: SupabaseClient<Database>, project: ProjectRef, jobId: string, results: PreparedAuditResults): Promise<Outcome> {
+  if (!uuid.test(jobId) || !uuid.test(project.projectId) || !uuid.test(project.organizationId)) return { ok: false, error: "JOB_INVALID_RESPONSE" };
+  const completed = await completeTrustedProviderCommand(client, project,
+    { kind: "openseo", jobId, issues: results.issues, pages: results.pages });
+  return completed.ok ? parseJob(completed.data) : { ok: false, error: completed.error === "INVALID" ? "JOB_NOT_FOUND" : "JOB_UNAVAILABLE" };
+}
 
 export const projectJobsEnabled = (env: Record<string, string | undefined> = process.env) => env.OPENSEO_PROJECT_JOBS_ENABLED === "true";
 

@@ -7,6 +7,7 @@ import { loadProjectRef } from "@/lib/imports/repository";
 import { connectProject } from "@/lib/openseo/connections";
 import { captureGoogleReport, listGoogleCaptures } from "@/lib/openseo/google/capture";
 import { connectGoogleProperty, revokeGoogleProperty } from "@/lib/openseo/google/properties";
+import { resolveGoogleSource } from "@/lib/openseo/google/properties";
 import type { ProjectRef } from "@/lib/provenance/audit";
 import { loadKeyring } from "@/lib/provenance/keyring";
 import { exportProject, loadProviderResult, readAuditTrail } from "@/lib/provenance/repository";
@@ -90,6 +91,25 @@ describe("manual Google capture on the local stack (simulated MCP)", () => {
       .toEqual({ ok: true, resultId, replayed: true, audited: false });
     expect(m.callTool).not.toHaveBeenCalled();
     expect((await owner.from("provider_results").select("id").eq("project_id", project.projectId)).data).toHaveLength(1);
+  });
+
+  it("rejects a forged HMAC submitted through the owner JWT RPC", async () => {
+    const source = await resolveGoogleSource(owner, project.projectId, "search-console");
+    if (!source.ok) throw new Error("active Google source required");
+    const forgedKey = randomUUID();
+    const begun = await owner.rpc("google_capture", { p_project_id: project.projectId, p_command: "begin",
+      p_payload: { key: forgedKey, provider: "search-console", connectionId: source.source.connectionId,
+        propertyBindingId: source.source.propertyBindingId } });
+    expect(begun.error).toBeNull();
+    const original = await owner.from("provider_results").select("*").eq("id", resultId).single();
+    expect(original.error).toBeNull();
+    const forged = { ...original.data!, signature: "f".repeat(64) };
+    const attempted = await owner.rpc("google_capture", { p_project_id: project.projectId,
+      p_command: "store", p_payload: { key: forgedKey, row: forged } });
+    expect(attempted.error?.code).toBe("42501");
+    expect((await owner.from("provider_results").select("id").eq("project_id", project.projectId)).data).toHaveLength(1);
+    expect((await owner.rpc("google_capture", { p_project_id: project.projectId,
+      p_command: "release", p_payload: { key: forgedKey } })).error).toBeNull();
   });
 
   it("an analyst cannot capture, even with a fresh key", async () => {

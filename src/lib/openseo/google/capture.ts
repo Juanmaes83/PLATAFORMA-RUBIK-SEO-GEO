@@ -6,6 +6,7 @@ import type { AuditInput, ProjectRef } from "@/lib/provenance/audit";
 import type { Keyring } from "@/lib/provenance/keyring";
 import { appendAudit } from "@/lib/provenance/repository";
 import { sealProviderResult } from "@/lib/provenance/results";
+import { completeTrustedProviderCommand } from "@/lib/provenance/writer";
 import { runManualGoogleReport, validQuery, type ManualGoogleQuery } from "./manual-report";
 import { resolveGoogleSource } from "./properties";
 
@@ -84,7 +85,7 @@ export async function captureGoogleReport(
 
   const sealed = sealProviderResult(read.result, project, keyring);
   if (!sealed.ok) return release({ ok: false, error: "STORE_FAILED" });
-  const stored = await capture(client, project.projectId, "store", { key, row: sealed.row as unknown as Record<string, unknown> });
+  const stored = await completeTrustedProviderCommand(client, project, { kind: "google", key, row: sealed.row });
   if (!stored.ok || typeof stored.data.resultId !== "string" || !UUID.test(stored.data.resultId)) {
     return release({ ok: false, error: !stored.ok && stored.error === "SOURCE_CHANGED" ? "SOURCE_CHANGED" : "STORE_FAILED" });
   }
