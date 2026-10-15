@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 
-export function assertFixtureEndpoint(apiUrl: string) {
-  if (new URL(apiUrl).origin !== "http://127.0.0.1:54321") throw new Error("E2E fixtures require 127.0.0.1:54321");
+export function assertFixtureEndpoint(apiUrl: string, isolated = process.env.RUBIK_TEST_ISOLATED_STACK === "1") {
+  const port = isolated ? 55321 : 54321;
+  if (new URL(apiUrl).origin !== `http://127.0.0.1:${port}`) throw new Error(`E2E fixtures require 127.0.0.1:${port}`);
 }
 
 export function fixtureScope(run = process.env.RUBIK_E2E_RUN_ID) {

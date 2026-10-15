@@ -1,5 +1,14 @@
 # Handoff
 
+> **RELEVO S2 — 15/10/2026:** bloque local completo sobre `main@3eba9d0`,
+> [PR #100](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/100) OPEN / Draft, pendiente revisión.
+> Retirados INSERT de tabla/columna y políticas de membresías; fixtures consentidos, sin RPC
+> alternativa. Verify 403/403, integración 84/84, pgTAP 581/581, rollback 10/10 y E2E
+> 145 PASS/44 SKIP/0 FAIL. Stack aislado 55321/55322, compartido preservado. No migración alojada.
+> Continuidad: [CODEX-AUTONOMIA-ESTADO](CODEX-AUTONOMIA-ESTADO.md). Próximo bloque N1-03/S1
+> solo preparado como [plan U01](S1-PLAN-ESCRITOR-CONFIABLE-20261015.md); no implementación antes
+> de integrar S2 y decidir writer/custodia. Los relevos anteriores son históricos.
+
 > **BLOQUE E2E — 15/10/2026, validado localmente en esta rama, pendiente de revisión:** preparación con namespace por ejecución y limpieza atómica limitada a IDs registrados. Verify **397/397**, integración **78/78**, pgTAP **532/532**. Dos Playwright completos: **145 PASS / 44 SKIP / 0 FAIL** cada uno; preservados los 11 usuarios previos, 2 organizaciones, 3 proyectos y membresías, sin acumulación. Detalle, límites y plan S2 en [E2E-FIXTURES-SEGUROS-20261015](E2E-FIXTURES-SEGUROS-20261015.md). S2 no se implementa en esta rama; solo podrá empezar en otra tras la fusión de E2E. Sin cambios alojados ni de Production. Los checkpoints inferiores son históricos.
 
 > **RELEVO POST #86 — 15/10/2026:** #86 está fusionada en `main@33e3b305`, con verify 385/385, integración 74/74 y pgTAP 532/532 reportados en Supabase LOCAL. No se ejecutó Playwright por eliminación potencial de fixtures ajenos. Próximo bloque: PR E2E acotado; después S2. Ninguna tarea alojada completada por este merge. Ver [CONTROL-PROYECTO.md](CONTROL-PROYECTO.md).

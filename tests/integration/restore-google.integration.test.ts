@@ -14,6 +14,7 @@ import { exportProject, loadProviderResult } from "@/lib/provenance/repository";
 import { readOperationalState } from "@/lib/recovery/operations";
 import { planRestore } from "@/lib/restore/plan";
 import { RUN, createConfirmedUser, deleteOrganizations, deleteUsers, signedIn } from "./support";
+import { localDatabaseContainer } from "../../scripts/supabase-test-env.mjs";
 
 // Full recovery of the Google state against the DISPOSABLE local stack only (migration
 // 20261012130000): capture once through a simulated MCP, export (signed results + operations.google),
@@ -21,7 +22,7 @@ import { RUN, createConfirmedUser, deleteOrganizations, deleteUsers, signedIn } 
 // came back: the property binding is active again and a retry with the SAME idempotency key returns
 // the stored result without calling the provider. No network, no real Google.
 type Client = SupabaseClient<Database>;
-const CONTAINER = "supabase_db_plataforma-rubik-seo-geo";
+const CONTAINER = localDatabaseContainer();
 const org = `rgoog-${RUN}`;
 const users: string[] = [];
 let owner: Client, project: ProjectRef;

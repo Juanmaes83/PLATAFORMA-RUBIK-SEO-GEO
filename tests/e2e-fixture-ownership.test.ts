@@ -17,9 +17,16 @@ function fixture() {
 
 describe("E2E ownership preflight (no database or deletion)", () => {
   it("rejects a hosted or different local endpoint without opening a connection", () => {
-    expect(() => assertFixtureEndpoint("http://127.0.0.1:54321")).not.toThrow();
+    expect(() => assertFixtureEndpoint("http://127.0.0.1:54321", false)).not.toThrow();
     for (const url of ["https://foreign.supabase.co", "http://127.0.0.1:54322", "http://localhost:54321", "https://127.0.0.1:54321"]) {
-      expect(() => assertFixtureEndpoint(url)).toThrow("require 127.0.0.1:54321");
+      expect(() => assertFixtureEndpoint(url, false)).toThrow("require 127.0.0.1:54321");
+    }
+  });
+  it("requires explicit isolated selection and never mixes the shared and isolated endpoints", () => {
+    expect(() => assertFixtureEndpoint("http://127.0.0.1:55321", true)).not.toThrow();
+    expect(() => assertFixtureEndpoint("http://127.0.0.1:55321", false)).toThrow();
+    for (const url of ["http://127.0.0.1:54321", "https://foreign.supabase.co", "http://localhost:55321", "http://127.0.0.1:55322"]) {
+      expect(() => assertFixtureEndpoint(url, true)).toThrow("require 127.0.0.1:55321");
     }
   });
   it("preserves foreign suffix users, legacy slugs and preexisting projects", () => {
