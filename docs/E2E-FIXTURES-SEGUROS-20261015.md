@@ -1,5 +1,7 @@
 # Playwright: propiedad y limpieza de fixtures (15/10/2026)
 
+> **PR #97 FUSIONADA — 15/10/2026**, `main@17001160`. Los resultados descritos abajo son pruebas locales ejecutadas por Codex sobre el HEAD original `c9a0a92`, no CI ni pruebas alojadas. Las referencias inferiores a «pendiente de fusión» son históricas. Próximo bloque S2, en rama independiente.
+
 Base de la PR independiente: `main@e1005ffe432b6d8a43dcf8e977dc976d83c2f195`.
 Solo infraestructura de pruebas y documentación; sin cambios de producto, migraciones,
 políticas RLS, secretos o servicios. S2 no se implementa en esta rama.

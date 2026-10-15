@@ -1,10 +1,10 @@
 # Control canónico del proyecto Rubik SEO/GEO
 
-> **Corte verificado: 15/10/2026, después de fusionar PR #86.** Este documento prevalece para el estado de trabajo sobre los checkpoints históricos de `ROADMAP.md`, `HANDOFF.md` y `OPERATIONS-STATUS.md`. No borra el historial; cualquier cambio posterior requiere otra actualización fechada y evidencia. Repositorio: `Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO`.
+> **Corte verificado: 15/10/2026, después de fusionar PR #97.** Este documento prevalece para el estado de trabajo sobre los checkpoints históricos de `ROADMAP.md`, `HANDOFF.md` y `OPERATIONS-STATUS.md`. No borra el historial; cualquier cambio posterior requiere otra actualización fechada y evidencia. Repositorio: `Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO`.
 
 ## Estado de integración
 
-**Bloque E2E, validación local 15/10/2026 (esta rama, pendiente de revisión y fusión):**
+**Bloque E2E, integrado en main el 15/10/2026 mediante PR #97 (commit `17001160`):**
 `codex/playwright-owned-fixtures-20261015`, base `main@e1005ff`. Propiedad por ejecución,
 recibos de IDs y limpieza atómica que rechaza referencias ajenas. Verify **397/397**, integración
 **78/78**, pgTAP **532/532**; dos E2E **145 PASS / 44 SKIP / 0 FAIL** cada uno, en
@@ -19,11 +19,12 @@ esta evidencia y sigue condicionado por facturación. S2 solo planificado; no im
 | [#88](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/88) | **Fusionada**, `main@2e6a7a7`: bloqueo incondicional de sesiones Supabase en Vercel Preview. 378 pruebas y build local; Preview HTTP `preview-locked` / `persistence:none`, Production HTTP `auth:supabase`. Sin prueba real de JWT alojado. |
 | [#85](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/85) | **Fusionada**, `main@1e9d178`: solo matriz de tests + documentación. Codex reportó sobre HEAD actualizado `7e09456`: `npm run verify` 385/385, `test:integration` 71/71, pgTAP 532/532; Supabase local `127.0.0.1:54321`. NO prueba aislamiento alojado ni corrige S1/S2. |
 | [#86](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/86) | **Fusionada**, `main@33e3b305` (15/10/2026). Tests locales sobre `121728d8`: verify **385/385**, integración **74/74**, pgTAP **532/532**, Supabase `127.0.0.1:54321`; refuerzos de concurrencia/recuperación Google y selección OpenSEO por proyecto. **Playwright no ejecutado**: `e2e/global-setup.ts` puede borrar otros usuarios ficticios del stack local. No es cierre del piloto Sarah alojado ni autoriza migración o flags. Detalle en [PILOTO-SARAH-CIERRE-TECNICO-20261015](PILOTO-SARAH-CIERRE-TECNICO-20261015.md). |
+| [#97](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/97) | **Fusionada**, `main@17001160`: Playwright E2E aislado por ejecución y limpieza SQL local de IDs propios. Codex informó verify 397/397, integración 78/78, pgTAP 532/532 y dos Playwright 145 PASS/44 SKIP. Se preservaron 11 usuarios, 2 organizaciones y 3 proyectos previos. CI GitHub sin jobs por facturación. **No valida Supabase alojado.** |
 | #90 | **Fusionada solo como diseño**. Vulnerabilidades S1/S2 pendientes de mitigación de código/migraciones. |
 | #9 y #79 | **Cerradas sin fusionar** el 15/10/2026 por checkpoints obsoletos, con comentarios de cierre; se conserva su historial. |
 | #11, #40 y #78 | **Abiertas, legado por revisar**, no fusionar directamente: #11 contiene backlog OpenSEO, #40 ADR 0010 + cifrado en rama antigua y #78 ADR 0023 de capturas programadas. Rescatar selectivamente en ramas nuevas desde main solo tras priorización. |
 
-`main` verificado al cierre de #86: `33e3b30541763031f5bbc8d54256195366a8f6d6`. GitHub Actions sigue bloqueado por facturación; un despliegue Vercel READY no constituye CI verde ni prueba de aislamiento.
+`main` verificado al cierre de #97: `17001160b001df6bc0b9ef54067f6b4e8231a867`. GitHub Actions sigue bloqueado por facturación; un despliegue Vercel READY no constituye CI verde ni prueba de aislamiento.
 
 ## Brechas que impiden considerar la primera versión multicliente y el piloto Sarah cerrados
 
@@ -38,8 +39,8 @@ esta evidencia y sigue condicionado por facturación. S2 solo planificado; no im
 ## Secuencia de integración: lotes cortos, no bifurcaciones largas
 
 - **Lote 0 y lote 1, finalizados como integración local**: #88 → #85 → #86. Los ensayos alojados y S1/S2 permanecen pendientes.
-- **Lote 1b, implementado y validado en local; pendiente de revisión**: namespace nuevo por ejecución, recibos de creación, preflight y limpieza transaccional de IDs propios; colisiones y referencias ajenas abortan sin borrar. Dos E2E correctos y fixtures previos preservados. PR independiente Draft, sin fusión automática; límites operativos y evidencia en el documento E2E enlazado arriba.
-- **Lote 2, tras cerrar 1b**: S2 aislado en rama nueva desde main fusionado. Refactorizar los fixtures de tests que usan INSERT directo; migración de políticas/permisos, negativos pgTAP e integración; PR Draft. Cero aplicación alojada sin permiso.
+- **Lote 1b, fusionado en #97**: namespaces por ejecución, recibos y limpieza local transaccional de IDs propios; dos ejecuciones Playwright reportadas correctas, y fixtures previos preservados. Los límites de limpiezas interrumpidas se mantienen documentados.
+- **Lote 2, siguiente bloque de producto**: S2 aislado en rama nueva desde main fusionado. Refactorizar los fixtures de tests que usan INSERT directo; migración de políticas/permisos, negativos pgTAP e integración; PR Draft. Cero aplicación alojada sin permiso.
 - **Lote 3, decisión previa**: S1 requiere acuerdo sobre escritor confiable y custodia de firma; luego implementación y pruebas en PR separada, no mezclar S1/S2.
 - **Lote 4, propietario**: fase B alojada, recuperación real, migración/flags con backup y autorización; activar modo `project` solo tras revisión y rollback.
 - **Lotes posteriores**: ADR0010, planificador, conectores SEO/GEO y mejoras de experiencia, seleccionados por impacto y viabilidad.
