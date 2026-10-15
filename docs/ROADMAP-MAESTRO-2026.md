@@ -1,8 +1,8 @@
 # ROADMAP MAESTRO · Rubik SEO/GEO
 
-**Propuesta estructural para aprobación · 15/10/2026.**
-**Base auditada:** main e1005ffe432b6d8a43dcf8e977dc976d83c2f195 (PR #85, #86 y #95 integradas).
-**No sustituye el estado operativo actual hasta que se apruebe y fusione.** Esta propuesta organiza el alcance, no certifica funcionalidades ni despliegues. El registro de evidencias y el estado técnico por SHA permanecen en [CONTROL-PROYECTO](CONTROL-PROYECTO.md). La cronología permanece en [ROADMAP histórico](ROADMAP.md) y [HANDOFF](HANDOFF.md).
+**Roadmap Maestro aprobado por el propietario · 15/10/2026.**
+**Base actualizada de referencia:** main c425ed3c6a554c12f7dc2e99f430bd6ea6060d62 (#85, #86, #95, #97 y #98 integradas).
+**Estado:** planificación aprobada; no certifica funcionalidades ni despliegues. El estado operativo verificable por SHA lo mantiene CONTROL-PROYECTO. El registro de evidencias y el estado técnico por SHA permanecen en [CONTROL-PROYECTO](CONTROL-PROYECTO.md). La cronología permanece en [ROADMAP histórico](ROADMAP.md) y [HANDOFF](HANDOFF.md).
 
 ## 1. Norte, entregables y alcance
 
@@ -13,7 +13,7 @@ Construir Rubik SEO/GEO como plataforma segura, multicliente, verificable y oper
 - **H2 · Primera versión multicliente utilizable comercialmente:** H1 + correcciones S1/S2, negativas alojadas con dos cuentas, infraestructura de pruebas aislada, procedimientos de operación y condiciones de hosting/seguridad/retención apropiadas. Requiere aceptación humana.
 - **H3 · Plataforma ampliada:** niveles 2 y 3 entregados progresivamente. No es condición para H2. La lista de deseos del catálogo no equivale a un compromiso de implementar absolutamente todas sus variantes.
 
-**Inventario de planificación:** ocho bloques de cierre (N1-01 a N1-08), seis dominios funcionales de expansión (N2-09 a N2-14) y cinco verticales/modelos sujetos a validación de negocio (N3-15 a N3-19): **19 unidades de dirección**, no 19 PRs ni estimación de horas. Cada unidad podrá dividirse en PRs cortas si su complejidad o los riesgos lo aconsejan.
+**Inventario de planificación:** ocho bloques de cierre (N1-01 a N1-08; **uno ya integrado, siete pendientes**), seis dominios funcionales de expansión (N2-09 a N2-14) y cinco verticales/modelos sujetos a validación de negocio (N3-15 a N3-19): **19 unidades de dirección**, no 19 PRs ni estimación de horas. Cada unidad podrá dividirse en PRs cortas si su complejidad o los riesgos lo aconsejan.
 
 ## 2. Regla de responsabilidad y autoridad
 
@@ -30,7 +30,7 @@ Construir Rubik SEO/GEO como plataforma segura, multicliente, verificable y oper
 **Por bloque:** CANDIDATO / PLANIFICADO / EN EJECUCIÓN / PR EN REVISIÓN / INTEGRADO LOCAL / VALIDADO ALOJADO / ACEPTADO / BLOQUEADO.
 **Por capacidad:** DISEÑO / CONTRATO / IMPLEMENTADO / PROBADO LOCAL / PROBADO REAL / OPERATIVO. Un mismo bloque puede incluir componentes en estados distintos; registrar el más restrictivo relevante para su aceptación.
 
-**Estado de referencia del 15/10/2026:** #87 (manifiesto firmado), #88 (protección Preview), #85 (matriz Grupo 3 local), #86 (reintentos de Sarah y selección OpenSEO) están fusionadas; #95 sincroniza el control. 385/385 aplicación, 74/74 integración y 532/532 pgTAP fueron reportados por Codex sobre la rama #86 con Supabase **local**. Playwright seguía bloqueado por limpieza amplia de fixtures; la reparación E2E fue encargada a Codex, **su ejecución aún no está confirmada en GitHub**. CI por facturación bloqueada. S1 y S2 no mitigados; ninguna prueba alojada con dos cuentas acreditada. La migración Google recovery alojada está pendiente y OpenSEO Production continúa en modo legacy según el corte documentado.
+**Estado de referencia del 15/10/2026:** #87 (manifiesto firmado), #88 (protección Preview), #85 (matriz Grupo 3 local), #86 (reintentos de Sarah y selección OpenSEO), #97 (fixtures Playwright seguros) y #98 (checkpoint documental) están **fusionadas**. Codex reportó, en la rama #97 y Supabase **local**, verify 397/397, integración 78/78, pgTAP 532/532 y dos ejecuciones Playwright de 145 PASS / 44 SKIP / 0 FAIL cada una. Los fixtures preexistentes se preservaron. CI sigue bloqueada por facturación; S1 y S2 no están mitigados; la matriz alojada de dos cuentas no está acreditada. La migración Google recovery alojada sigue pendiente y OpenSEO Production continúa en modo legacy según el corte documentado.
 
 ## 4. NIVEL 1 · Seguridad, piloto y primera versión multicliente (P0/P1)
 
@@ -38,7 +38,7 @@ Construir Rubik SEO/GEO como plataforma segura, multicliente, verificable y oper
 
 | ID | Prioridad | Bloque y objetivo concreto | Depende de | Ejecución / revisión / aprobación | Gate mínimo y resultado |
 |---|---|---|---|---|---|
-| **N1-01** | P0 | **E2E seguro:** limitar preparación/limpieza Playwright a fixtures inequívocamente propios; preservar otras cuentas y proyectos; ejecutar E2E | main actual; Supabase solo local | **Codex / ChatGPT / —** | Negativos de no-borrado; E2E seguro o bloqueo documentado; verify + integración + pgTAP; PR corta fusionada |
+| **N1-01** | P0 | **E2E seguro — INTEGRADO EN #97**: fixtures propios por ejecución, pruebas de preservación y doble E2E, sin borrados por sufijo | main actual; Supabase solo local | **Codex / ChatGPT / —** | **Cerrado para alcance local**: #97 `main@17001160`; verify 397/397, integración 78/78, pgTAP 532/532, doble Playwright 145 PASS/44 SKIP. No prueba alojada |
 | **N1-02** | P0 | **S2 · Consentimiento de membresía:** retirar INSERT directo en organización/proyecto, incluida concesión por columna; adaptar fixtures a invitación aceptada | N1-01 para E2E; SQL de S2 | **Codex / ChatGPT / propietario para alojado** | Owner no añade usuario ajeno; aceptación y altas legítimas funcionan; pruebas RLS, invitaciones, integración, E2E y rollback local; migración alojada diferida |
 | **N1-03** | P0 | **S1 · Auditoría confiable:** prohibir HMAC arbitrario y sustituir todos los escritores antes de revocar INSERT; atomicidad, firma en servidor, privilegio mínimo | Decisión del propietario de identidad escritora/secretos; revisión S1; N1-02 integrado | **Codex / ChatGPT / propietario decide arquitectura y credencial** | Writer confiable con authz, firma, secuencia íntegra y concurrencia; rechazo de INSERT directo; pruebas de restauración, revocación y rollback; ninguna clave en navegador |
 | **N1-04** | P0 | **CI y separación de entornos:** restablecer Actions, habilitar Preview con Supabase aislado o declarar bloqueo seguro, probar cookies/sesiones sin producción | N1-01; elección de entorno y coste | **Codex / ChatGPT / propietario configura cuentas y plan** | CI ejecutada o limitación explícita; Preview no puede leer/escribir datos reales; JWT negativos acreditados en entorno aislado |
@@ -51,10 +51,10 @@ Construir Rubik SEO/GEO como plataforma segura, multicliente, verificable y oper
 
 ### Cola inmediata y criterio de traspaso
 
-- **Ahora: N1-01.** Codex recibió encargo autónomo E2E. Esperar HEAD y evidencia; auditar y fusionar antes de iniciar S2 de producto.
-- **A continuación: N1-02.** Crear rama desde main posterior a N1-01. Adaptar las suites que insertan miembros directamente y añadir migración local + pruebas. PR propia y fusión.
-- **En paralelo solo investigación: N1-03.** Comparar mínimo privilegio, autenticación, transporte y claves del escritor confiable; no cambiar permisos ni secretos sin decisión.
-- **Después:** N1-03 → N1-04 → N1-05/06 → N1-07 → N1-08. Ajustar dependencias tras cada hallazgo, con autorización explícita para actividades alojadas.
+- **N1-01 COMPLETADO (cobertura local):** #97 fusionada; pruebas reportadas y estado canónico en CONTROL-PROYECTO. No repetir sin regresión nueva.
+- **AHORA: N1-02 (S2):** Codex crea una rama desde el **último main**, revisa direct INSERT por columna en membresías y adapta tests/fixtures a invitaciones consentidas, prepara una migración reversible y prueba solo en Supabase local. Publica PR Draft; la auditoría y fusión se hacen después. No aplicar migración alojada.
+- **En paralelo, solo investigación de N1-03 (S1):** comparar mínimo privilegio, autenticación, transporte y custodia de la firma; ninguna operación sobre audit_events sin decisión del propietario.
+- **Después:** N1-03 → N1-04 → N1-05/06 → N1-07 → N1-08; adaptar dependencias por evidencia.
 
 ### Acciones concretas reservadas al propietario
 
@@ -147,8 +147,6 @@ En cada revisión puntuar de 1 a 5: impacto de cliente/ingresos, reducción de r
 
 ## 11. Mantenimiento documental y aprobación
 
-**Antes de aprobar:** este documento es propuesta; no modificar ROADMAP.md histórico ni HANDOFF mientras Codex prepara la PR de E2E. Puede vivir en su propia PR Draft documental.
-
-**Tras aprobar y fusionar:** añadir un enlace estable a este roadmap maestro desde README, CONTROL-PROYECTO y cabecera del ROADMAP histórico en **una PR documental corta** preparada desde el main más reciente. Roles: ROADMAP-MAESTRO = alcance/orden/arquitectura de programas; CONTROL-PROYECTO = estado verificable actual/último SHA; ROADMAP histórico/HANDOFF = decisiones y evidencias pasadas; SEO-CAPABILITIES-BACKLOG = catálogo de ideas/no equivalencia a producto. Actualizar la tabla de estados al acabar cada integración, nunca una vez al trimestre.
+**Aprobado el 15/10/2026:** la PR #96 formaliza este plan. Su fusión no modifica el código de S2 ni configura servicios alojados. Añadir un enlace estable a este roadmap maestro desde README, CONTROL-PROYECTO y cabecera del ROADMAP histórico en **una PR documental corta** desde el main resultante. Roles: ROADMAP-MAESTRO = alcance/orden/arquitectura de programas; CONTROL-PROYECTO = estado verificable actual/último SHA; ROADMAP histórico/HANDOFF = decisiones y evidencias pasadas; SEO-CAPABILITIES-BACKLOG = catálogo de ideas/no equivalencia a producto. Actualizar la tabla de estados al acabar cada integración, nunca una vez al trimestre.
 
 **Fuentes consultadas:** [CONTROL-PROYECTO](CONTROL-PROYECTO.md), [ROADMAP](ROADMAP.md), [SEO-CAPABILITIES-BACKLOG](SEO-CAPABILITIES-BACKLOG.md), [Seguridad S1/S2](SECURITY-AUDIT-MEMBERSHIP-HMAC-20261015.md), [Decisiones ADR0010 y Preview](DECISIONES-ADR0010-Y-PREVIEW.md), [Relevo de tareas del propietario](relevos/CONTINUACION-NUEVA-CUENTA.md); arquitectura Core referida desde el roadmap. Los 19 grupos son una **clasificación propuesta**, no un recuento literal del roadmap histórico.
