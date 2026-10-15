@@ -11,7 +11,8 @@
 | [#85](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/85) | **Fusionada**, `main@1e9d178`: solo matriz de tests + documentación. Codex reportó sobre HEAD actualizado `7e09456`: `npm run verify` 385/385, `test:integration` 71/71, pgTAP 532/532; Supabase local `127.0.0.1:54321`. NO prueba aislamiento alojado ni corrige S1/S2. |
 | [#86](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/86) | **Abierta Draft**, piloto Sarah. Codex está actualizando su rama frente a `main`; no modificarla en paralelo. Al publicar nueva revisión, exigir merge del main que contiene #85, verificación local completa, documentación y revisión antes de fusionar. Ninguna migración o flag alojado queda autorizado por ese PR. |
 | #90 | **Fusionada solo como diseño**. Vulnerabilidades S1/S2 pendientes de mitigación de código/migraciones. |
-| #9, #11, #40, #78, #79 | **PR antiguas aún abiertas**, no fusionar en bloque. #9 y #79 son checkpoints caducados: valorar cerrar tras integrar esta conciliación. #11 contiene backlog OpenSEO; #40 ADR 0010 + cifrado en rama antigua; #78 ADR 0023 de capturas programadas: evaluar rescate selectivo sobre main nuevo. |
+| #9 y #79 | **Cerradas sin fusionar** el 15/10/2026 por checkpoints obsoletos, con comentarios de cierre; se conserva su historial. |
+| #11, #40 y #78 | **Abiertas, legado por revisar**, no fusionar directamente: #11 contiene backlog OpenSEO, #40 ADR 0010 + cifrado en rama antigua y #78 ADR 0023 de capturas programadas. Rescatar selectivamente en ramas nuevas desde main solo tras priorización. |
 
 `main` verificado al cierre de #85: `1e9d178894f9858e46505e7f2fa4e7298d58b7bc`. GitHub Actions sigue bloqueado por facturación; un despliegue Vercel READY no constituye CI verde ni prueba de aislamiento.
 
