@@ -1,5 +1,7 @@
 # Grupo 3 — matriz de aislamiento multicliente validada en local (15/10/2026)
 
+> **INTEGRADO EN MAIN — 15/10/2026:** PR #85 fusionada en `main@1e9d178` (squash). La evidencia local de 385/385 aplicación, 71/71 integración y 532/532 pgTAP corresponde a la rama validada por Codex antes de la fusión. Se mantiene **pendiente** la fase B alojada y S1/S2. Las referencias inferiores a PR Draft describen el estado previo a fusionar. Estado canónico: [CONTROL-PROYECTO.md](CONTROL-PROYECTO.md).
+
 > **Revalidación posterior (15/10/2026):** la rama de la PR #85 incorporó por merge `main@2e6a7a7` (incluida #88), sin conflictos. Contra Supabase local `http://127.0.0.1:54321`: `npm run verify` pasó (385/385 pruebas de aplicación, lint, tipos y build); `npm run test:db` pasó (532/532 pgTAP, 19 archivos); `npm run test:integration` pasó (71/71, 11 archivos). La tabla de evidencia inferior conserva la ejecución histórica sobre `main@506ea91`. La PR sigue Draft. Los riesgos de contaminación de auditoría y alta sin consentimiento **no están mitigados** por la matriz: se mantienen abiertos en la [PR #90](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/90) (diseño). El aislamiento alojado sigue pendiente.
 
 **Estado:** IMPLEMENTACIÓN LOCAL VALIDADA · AISLAMIENTO ALOJADO PENDIENTE.
