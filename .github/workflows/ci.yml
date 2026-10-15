@@ -61,6 +61,31 @@ jobs:
             code=$(curl -s -o /dev/null -w '%{http_code}' -H 'Cookie: rubik_demo_session=demo-owner; sb-localhost-auth-token=forged' "http://localhost:3217$path")
             test "$code" = "307" || { echo "$path answered $code"; exit 1; }
           done
+      - name: Preview lock smoke (VERCEL_ENV=preview never signs in, whatever its Supabase settings)
+        run: |
+          # N1-04. Same production build, started as a Vercel Preview with public Supabase
+          # settings and an "isolated" flag: no sign-in, no session cookie, no tenant page.
+          # Job control gives the server its own process group, stopped on every exit path.
+          set -m
+          # The port must be free: the checks must reach the server started here.
+          if curl -s -o /dev/null http://localhost:3222/; then echo "port 3222 already in use"; exit 1; fi
+          # Publishable-shaped key built at run time; .invalid (RFC 2606) never resolves.
+          KEY="sb_""publishable_$(head -c 20 /dev/zero | tr '\0' 'x')"
+          VERCEL_ENV=preview PREVIEW_SUPABASE_ISOLATED=true NEXT_PUBLIC_SUPABASE_URL=https://preview-lock-probe.invalid NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$KEY" npm start -- -p 3222 > preview.log 2>&1 &
+          server=$!
+          trap 'kill -- -$server 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do curl -sf http://localhost:3222/api/salud > preview-salud.json && break; sleep 1; done
+          cat preview-salud.json
+          node -e "const s=require('./preview-salud.json');if(s.auth!=='preview-locked'||s.persistence!=='none')process.exit(1)"
+          cookie='Cookie: sb-preview-lock-probe-auth-token=forged; sb-preview-lock-probe-auth-token-code-verifier=forged'
+          for path in /panel /proyectos /organizaciones /proyectos/agencia/proyecto /revision; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -H "$cookie" "http://localhost:3222$path")
+            test "$code" = "307" || { echo "$path answered $code"; exit 1; }
+          done
+          curl -s -D preview-headers.txt -o preview-acceso.html -H "$cookie" http://localhost:3222/acceso
+          grep -q "Preview de Vercel sin base de datos propia" preview-acceso.html
+          if grep -qi '^set-cookie: sb-' preview-headers.txt; then echo "Preview wrote an auth cookie"; exit 1; fi
+          if grep -q 'name="password"' preview-acceso.html; then echo "Preview rendered the sign-in form"; exit 1; fi
       - name: Forbidden configurations are refused (AUTH_MODE=mock, secret key in NEXT_PUBLIC_*)
         run: |
           set +e
