@@ -2,7 +2,7 @@
 // when NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY are set. The demo
 // login of CORE-9.0 (AUTH_MODE=mock) was removed; the startup barriers that refuse it in
 // production stay, so an old configuration can never reach a production server.
-export type AuthMode = "supabase" | "not-configured";
+export type AuthMode = "supabase" | "not-configured" | "preview-locked";
 
 export interface AuthModeInfo {
   mode: AuthMode;
@@ -39,8 +39,25 @@ export function isSecretKey(key: string): boolean {
   return key.startsWith("sb_secret_") || jwtRole(key) === "service_role";
 }
 
-/** The public Supabase settings, or null when they are missing or unusable. */
+export const PREVIEW_LOCKED_NOTICE =
+  "Preview de Vercel sin base de datos propia: el acceso está desactivado para no leer ni escribir datos reales desde código sin revisar.";
+
+/**
+ * Vercel Previews share the production Supabase project until an isolated one exists
+ * (docs/DECISIONES-ADR0010-Y-PREVIEW.md §2). No session is created on Preview even
+ * when it still has production Supabase variables. A boolean environment switch is not proof
+ * of an isolated database: never allow PREVIEW_SUPABASE_ISOLATED to bypass the lock.
+ * Restoring Preview authentication requires a separately reviewed change, after Vercel is
+ * configured with its own Supabase project and isolation has been verified.
+ * Production and local development are unaffected.
+ */
+export function previewLocked(env: Env): boolean {
+  return (env.VERCEL_ENV ?? "").trim() === "preview";
+}
+
+/** The public Supabase settings, or null when they are missing, unusable or locked in a Preview. */
 export function supabasePublicConfig(env: Env): SupabasePublicConfig | null {
+  if (previewLocked(env)) return null;
   const url = (env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim();
   const publishableKey = (env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "").trim();
   if (!url || !publishableKey || isSecretKey(publishableKey)) return null;
@@ -55,6 +72,7 @@ export function supabasePublicConfig(env: Env): SupabasePublicConfig | null {
 }
 
 export function resolveAuthMode(env: Env): AuthModeInfo {
+  if (previewLocked(env)) return { mode: "preview-locked", canSignIn: false, notice: PREVIEW_LOCKED_NOTICE };
   if (supabasePublicConfig(env)) {
     return { mode: "supabase", canSignIn: true, notice: "Acceso con Supabase Auth (correo y contraseña)." };
   }
