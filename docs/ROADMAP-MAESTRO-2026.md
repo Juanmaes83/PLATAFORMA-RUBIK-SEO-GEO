@@ -1,5 +1,8 @@
 # ROADMAP MAESTRO · Rubik SEO/GEO
 
+**CORTE DE PLANIFICACIÓN 15/10/2026 post #100/#101:** S2 fusionado como código (PR #100, `aca06a08`), pero no desplegado en Supabase alojado. S1 tiene ADR propuesta aprobable en PR #101 (`09e8ab7`), **sin decisión U01 todavía**; N1-04 tiene plan de CI/Preview sin permiso U02. Los checkpoints inferiores quedan como histórico; evidencias actualizadas en [CONTROL-PROYECTO](CONTROL-PROYECTO.md).
+
+
 **Roadmap Maestro aprobado por el propietario · 15/10/2026.**
 **Base actualizada de referencia:** main c425ed3c6a554c12f7dc2e99f430bd6ea6060d62 (#85, #86, #95, #97 y #98 integradas).
 **Estado:** planificación aprobada; no certifica funcionalidades ni despliegues. El estado operativo verificable por SHA lo mantiene CONTROL-PROYECTO. El registro de evidencias y el estado técnico por SHA permanecen en [CONTROL-PROYECTO](CONTROL-PROYECTO.md). La cronología permanece en [ROADMAP histórico](ROADMAP.md) y [HANDOFF](HANDOFF.md).
@@ -19,7 +22,7 @@ Construir Rubik SEO/GEO como plataforma segura, multicliente, verificable y oper
 - **H2 · Primera versión multicliente utilizable comercialmente:** H1 + correcciones S1/S2, negativas alojadas con dos cuentas, infraestructura de pruebas aislada, procedimientos de operación y condiciones de hosting/seguridad/retención apropiadas. Requiere aceptación humana.
 - **H3 · Plataforma ampliada:** niveles 2 y 3 entregados progresivamente. No es condición para H2. La lista de deseos del catálogo no equivale a un compromiso de implementar absolutamente todas sus variantes.
 
-**Inventario de planificación:** ocho bloques de cierre (N1-01 a N1-08; **uno ya integrado, siete pendientes**), seis dominios funcionales de expansión (N2-09 a N2-14) y cinco verticales/modelos sujetos a validación de negocio (N3-15 a N3-19): **19 unidades de dirección**, no 19 PRs ni estimación de horas. Cada unidad podrá dividirse en PRs cortas si su complejidad o los riesgos lo aconsejan.
+**Inventario de planificación:** ocho bloques de cierre (N1-01 a N1-08; **N1-01 y el código de N1-02 integrados**, seis bloques restantes por desarrollar, además de gates alojados pendientes para N1-02), seis dominios funcionales de expansión (N2-09 a N2-14) y cinco verticales/modelos sujetos a validación de negocio (N3-15 a N3-19): **19 unidades de dirección**, no 19 PRs ni estimación de horas. Cada unidad podrá dividirse en PRs cortas si su complejidad o los riesgos lo aconsejan.
 
 ## 2. Regla de responsabilidad y autoridad
 
@@ -58,8 +61,9 @@ Construir Rubik SEO/GEO como plataforma segura, multicliente, verificable y oper
 ### Cola inmediata y criterio de traspaso
 
 - **N1-01 COMPLETADO (cobertura local):** #97 fusionada; pruebas reportadas y estado canónico en CONTROL-PROYECTO. No repetir sin regresión nueva.
-- **AHORA: N1-02 (S2):** Codex crea una rama desde el **último main**, revisa direct INSERT por columna en membresías y adapta tests/fixtures a invitaciones consentidas, prepara una migración reversible y prueba solo en Supabase local. Publica PR Draft; la auditoría y fusión se hacen después. No aplicar migración alojada.
-- **En paralelo, solo investigación de N1-03 (S1):** comparar mínimo privilegio, autenticación, transporte y custodia de la firma; ninguna operación sobre audit_events sin decisión del propietario.
+- **N1-02/S2, código integrado en #100**: migración, tests y rollback fusionados en `main@aca06a08`; **migración alojada, inventario de callers externos y prueba real pendientes**, sujetos a permiso independiente.
+- **AHORA: N1-03/S1 (U01 pendiente)**: [ADR propuesta](ADR-S1-ESCRITOR-CONFIABLE-U01-20261015.md) integrada documentalmente en #101. El propietario decide escritor, claves, semántica de revocación/outbox y alcance; hasta entonces Codex solo investiga alternativas y prototipos locales de bajo riesgo.
+- **En paralelo: N1-04/U02**: [plan de CI y entornos](N1-04-CI-ENTORNOS-PREPARACION-20261015.md) integrado en #101; diagnosticar facturación y Preview aislada sin secretos ni escritura alojada.
 - **Después:** N1-03 → N1-04 → N1-05/06 → N1-07 → N1-08; adaptar dependencias por evidencia.
 
 ### Acciones concretas reservadas al propietario
