@@ -1,6 +1,6 @@
 # Piloto Sarah — validación técnica local (15/10/2026)
 
-**Estado: VALIDADO EN LOCAL · PILOTO NO CERRADO · PR #86 DRAFT.** Rama `test/sarah-capture-idempotency-20261015`. Incorporado primero `main@2e6a7a7` mediante merge `dc92dcd`, sin conflictos. Antes del push, main avanzó con #85 y #93; se incorporó también `main@e7adc51` mediante un segundo merge, sin reescribir historial. Sus conflictos en ROADMAP/HANDOFF eran inserciones al inicio: se conservaron el enlace al control canónico y la evidencia de esta PR. Se conservan el manifiesto firmado de #87, el bloqueo de sesiones Preview de #88 y la matriz local de #85; los archivos de producto y migraciones coinciden con el main actual.
+**Estado: VALIDADO EN LOCAL · PILOTO NO CERRADO · PR #86 DRAFT.** Rama `test/sarah-capture-idempotency-20261015`. Incorporado primero `main@2e6a7a7` mediante merge `dc92dcd`, sin conflictos. Antes del push, main avanzó con #85 y #93; se incorporó también `main@e7adc51` mediante un segundo merge, sin reescribir historial. El avance documental #94 (`main@1d8149a`) se incorporó mediante merge `91be515`, sin conflictos; se volvieron a ejecutar los tres gates finales. Los conflictos del segundo merge en ROADMAP/HANDOFF eran inserciones al inicio: se conservaron el enlace al control canónico y la evidencia de esta PR. Se conservan el manifiesto firmado de #87, el bloqueo de sesiones Preview de #88 y la matriz local de #85; los archivos de producto y migraciones coinciden con el main actual.
 
 Supabase local confirmado mediante `localSupabaseEnv()`: **`http://127.0.0.1:54321`**. Se usan cuentas ficticias, claves HMAC aleatorias y MCP simulado. Esta revalidación no accedió a Supabase alojado, no aplicó migraciones, no cambió Vercel ni flags y no llamó a proveedores reales.
 
@@ -37,7 +37,7 @@ Se conserva la cobertura de eliminación de eventos/resultados/importaciones, mo
 3. El fallo simulado devuelve `PROVIDER_STATUS` / `ERROR`, sin guardar resultados. El reintento inmediato reutiliza la entrada, llama una vez y guarda un resultado. El siguiente reenvío devuelve exactamente ese `resultId` sin nueva llamada.
 4. El bloqueo del proveedor simulado se libera en `finally` y se espera la petición pendiente antes de limpiar fixtures, incluso si una aserción falla.
 
-La primera ejecución de la suite tras reforzar las aserciones dio 59 PASS / 1 FAIL porque la nueva expectativa de error usaba `UNAVAILABLE`. El Core normaliza esa excepción como resultado `ERROR`; se corrigió la expectativa a `PROVIDER_STATUS` / `ERROR` y se repitió la suite completa: **60/60 PASS**. Tras incorporar también #85/#93, la suite completa volvió a ejecutarse: **74/74 PASS**. No fue necesario cambiar código de producto.
+La primera ejecución de la suite tras reforzar las aserciones dio 59 PASS / 1 FAIL porque la nueva expectativa de error usaba `UNAVAILABLE`. El Core normaliza esa excepción como resultado `ERROR`; se corrigió la expectativa a `PROVIDER_STATUS` / `ERROR` y se repitió la suite completa: **60/60 PASS**. Tras incorporar también #85/#93/#94, la suite completa volvió a ejecutarse: **74/74 PASS**. No fue necesario cambiar código de producto.
 
 **Riesgo residual:** una reserva de más de cinco minutos puede retomarse mientras la petición original siga viva. Puede haber lecturas duplicadas del proveedor. La exclusión por clave y el guardado transaccional evitan resultados duplicados en los casos comprobados; esta validación no acredita ejecución exactamente una vez ante una reserva expirada.
 
@@ -64,7 +64,7 @@ La activación alojada de `project` sigue siendo una decisión y operación sepa
 | `git diff --check` | Correcto |
 | Suite Playwright | **NO EJECUTADA / BLOQUEADA**: `e2e/global-setup.ts` elimina todos los usuarios `@ejemplo.test`; una consulta local posterior a las suites detectó 6 usuarios fuera de sus cinco cuentas explícitas. Ejecutarla afectaría fixtures ajenos. Requiere aislar el stack o limitar y revisar la limpieza antes de lanzarla |
 
-Las cifras originales 374/60/518 correspondían a la base histórica `main@506ea91`. La primera revalidación de esta sesión sobre `2e6a7a7` pasó 385/60/518. Después main incorporó #85 y #93; las cifras finales **385/74/532** proceden de nuevas ejecuciones en esta rama con esa matriz incluida (71 pruebas de integración de main + 3 del piloto). #85 ya está fusionada; #86 sigue Draft. GitHub Actions está bloqueado por facturación: no hay CI aprobada.
+Las cifras originales 374/60/518 correspondían a la base histórica `main@506ea91`. La primera revalidación de esta sesión sobre `2e6a7a7` pasó 385/60/518. Después main incorporó #85, #93 y #94; las cifras finales **385/74/532** proceden de nuevas ejecuciones en esta rama con esa matriz incluida (71 pruebas de integración de main + 3 del piloto). #85 ya está fusionada; #86 sigue Draft. GitHub Actions está bloqueado por facturación: no hay CI aprobada.
 
 ## Riesgos y decisiones pendientes
 
