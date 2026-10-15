@@ -12,6 +12,8 @@ export const STACKS = {
   // Claude S1 integration worktree (test-results/claude-s1-stack, scripts/claude-s1-stack.mjs).
   claudeS1: { selector: "RUBIK_TEST_CLAUDE_S1_STACK", apiPort: 57321, dbPort: 57322, projectId: "rubik-claude-s1-20261015" },
   n1Recovery: { selector: "RUBIK_TEST_N1_RECOVERY_STACK", apiPort: 58321, dbPort: 58322, projectId: "rubik-n1-recovery-20261015" },
+  // Codex N2-09; never targets the shared or N1/S1/S2 stacks.
+  n2: { selector: "RUBIK_TEST_N2_STACK", apiPort: 59321, dbPort: 59322, projectId: "rubik-n2-seo-20261015" },
 };
 
 /** The stack selected by the environment. More than one selector is refused, never resolved by precedence. */

@@ -9,6 +9,13 @@
 - **Pendientes:** U04 para migración/backup/ensayo Sarah alojado; U02/U03 para N1-05; decisiones R1/R3/R4/R7, custodia K3/K4, identidad/pooler real del escritor y CI GitHub bloqueada por facturación. H1 parcial y H2 bloqueado. S1/S2 aún sin acreditar en Supabase alojado; Preview permanece bloqueada.
 - **Handoff:** [HANDOFF-N1-05-N1-06-20261015.md](HANDOFF-N1-05-N1-06-20261015.md). Próximo trabajo autónomo: corte consistente y versionado de exportación con recibos concurrentes, más prueba de archivos v2 antiguos parcialmente leídos, sujeto a revisión de la PR activa. No fusionar sin auditoría del HEAD exacto.
 
+## Checkpoint N2-09 local · 15/10/2026
+
+- Rama independiente `codex/n2-09-seo-analysis-20261015`, base `d12b80ee4c229ab8c90f1044ecd0108165f8bb2e`. PR #113 de N1-06 sigue en otro worktree; no se han tocado sus módulos de recuperación/exportación/outbox.
+- Incremento navegable `/proyectos/{tenant}/{project}/seo`: incidencias OpenSEO verificadas por firma y proyecto, filtros, revisión On-Page por URL y keywords declaradas con RLS y edición. Fuentes ausentes se muestran «No evaluado» o «Sin medición disponible». Contratos, límites y reproducción: [N2-09-SEO-INCREMENTO-LOCAL-20261015.md](N2-09-SEO-INCREMENTO-LOCAL-20261015.md).
+- Gates locales: verify 484/484; integración completa 101/101 más dirigida 2/2; pgTAP 661/661; Playwright 153 PASS/48 SKIP y dirigido final N2 7 PASS/2 SKIP. Ninguna operación alojada ni proveedor de pago. Los fixtures E2E se limpiaron. Capturas ficticias bajo `docs/visual/`.
+- Falta aplicar y probar la migración N2 en un entorno alojado autorizado antes de publicar la ruta. H1/H2 continúan sin acreditación alojada. Preview bloqueada. Revisar compatibilidad con #113 al fusionar cualquiera de las ramas y repetir gates en un stack nuevo combinado. No fusionar la PR N2 automáticamente.
+
 ## Corte posterior a integración S1 · 15/10/2026
 
 - **GitHub main**: `31e3461c2bc8694081e5f07b25f9276f6dd145b7`; [PR #104](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/104) **MERGED**; N1-04 [#109](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/109) **MERGED**; #110 (Claude S1) y #111 (main→rama S1) **MERGED**. #105–107 sustituidas/cerradas. NO reabrir ni repetir fusiones.
