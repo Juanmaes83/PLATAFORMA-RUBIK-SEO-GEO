@@ -1,5 +1,7 @@
 # Roadmap de la plataforma
 
+> **CHECKPOINT post #97 — 15/10/2026:** la seguridad de fixtures Playwright está fusionada en `main@17001160`, con dos ejecuciones E2E locales reportadas (145 PASS y 44 SKIP cada una), verify 397/397, integración 78/78 y pgTAP 532/532. Próximo bloque de producto: S2 (consentimiento de membresías). Fuente vigente: [CONTROL-PROYECTO.md](CONTROL-PROYECTO.md).
+
 > **BLOQUE E2E — 15/10/2026, validado localmente en esta rama, pendiente de revisión:** preparación con namespace por ejecución y limpieza atómica limitada a IDs registrados. Verify **397/397**, integración **78/78**, pgTAP **532/532**. Dos Playwright completos: **145 PASS / 44 SKIP / 0 FAIL** cada uno; preservados los 11 usuarios previos, 2 organizaciones, 3 proyectos y membresías, sin acumulación. Detalle, límites y plan S2 en [E2E-FIXTURES-SEGUROS-20261015](E2E-FIXTURES-SEGUROS-20261015.md). S2 no se implementa en esta rama; solo podrá empezar en otra tras la fusión de E2E. Sin cambios alojados ni de Production. Los checkpoints inferiores son históricos.
 
 > **ACTUALIZACIÓN DE CONTROL — 15/10/2026, post #86:** #85 y #86 fusionadas como cobertura local; no se declara finalizado el aislamiento alojado ni el piloto Sarah. Playwright pendiente por limpieza de usuarios fuera de fixture; próxima PR: acotar `e2e/global-setup.ts` y demostrar que no elimina cuentas ajenas en Supabase LOCAL. Fuente vigente: [CONTROL-PROYECTO.md](CONTROL-PROYECTO.md). Los checkpoints inferiores son históricos.
