@@ -1,64 +1,75 @@
-# Piloto Sarah — cierre técnico en local (15/10/2026)
+# Piloto Sarah — validación técnica local (15/10/2026)
 
-> **Actualización posterior (15/10/2026):** la carencia de completitud señalada en §4.2 **ya está corregida en main** mediante PR #87, merge `ccdf104a`: manifiesto HMAC firmado sobre todas las columnas de resultados, auditoría, importaciones y operaciones; `planRestore` rechaza archivos `UNPROVEN` o `INCOMPLETE` con `TAMPERED`. Validación en el head de #87: 381 pruebas unitarias, 57 de integración, 518 SQL, build correcto. Las cifras 374/60/518 de abajo se refieren a la base anterior de **esta rama**, no a main actualizado. **La PR #86 sigue pendiente de revalidación y fusión**; ninguna migración ni flag se ha aplicado en alojado.
+**Estado: VALIDADO EN LOCAL · PILOTO NO CERRADO · PR #86 DRAFT.** Rama `test/sarah-capture-idempotency-20261015`. Incorporado `main@2e6a7a7` mediante merge `dc92dcd`, sin conflictos y sin reescribir historial. Se conserva el manifiesto firmado de #87 y el bloqueo de sesiones Preview de #88; los archivos de producto y migraciones coinciden con ese main.
 
-**Estado:** pruebas locales ampliadas; nada aplicado en alojado. Rama `test/sarah-capture-idempotency-20261015`, base `main@506ea91`. Sin datos reales de Sarah, sin claves HMAC reales, sin proveedores (MCP simulado), sin cambios en Vercel ni en flags.
+Supabase local confirmado mediante `localSupabaseEnv()`: **`http://127.0.0.1:54321`**. Se usan cuentas ficticias, claves HMAC aleatorias y MCP simulado. Esta revalidación no accedió a Supabase alojado, no aplicó migraciones, no cambió Vercel ni flags y no llamó a proveedores reales.
 
 ## 4.1 Migración `20261012130000_google_recovery_state`
 
-| Comprobación | Resultado |
+Revisión del fichero y consultas de solo lectura mediante `supabase db query --local`:
+
+| Comprobación local | Resultado |
 |---|---|
-| Presente en `supabase/migrations`, aplicada en el stack local | Sí (17/17 versiones en `supabase_migrations.schema_migrations`) |
-| Dependencias | Solo lee `public.projects`, `private.openseo_project_connections` (20261009120000), `private.openseo_google_properties` (20261010160000) y `private.google_captures` (20261012120000): las tres ya están entre las 16 aplicadas en alojado |
-| Naturaleza | Dos funciones nuevas (`private` DEFINER `stable` + envoltorio `public` INVOKER), `revoke` a `public/anon/authenticated` y `grant` a `authenticated`. Sin DDL de tablas ni cambios de datos |
-| Ensayo sobre estado «tipo alojado» | En una transacción con `rollback` sobre la base local: se eliminaron las dos funciones (estado anterior), se aplicó el fichero con `ON_ERROR_STOP`, y quedó `anon` sin `EXECUTE`, `authenticated` con `EXECUTE`, `search_path=""` en ambas y DEFINER solo en la privada. Rollback verificado (las dos funciones siguen presentes) |
-| pgTAP | `google_recovery_state.test.sql` dentro de la suite completa: **518/518** en esta rama (532/532 con la PR #85) |
-| Reversión | `drop function public.google_recovery_state(uuid); drop function private.google_recovery_state(uuid);` — sin pérdida de datos |
+| Historial local | 17 versiones; `20261012130000` presente |
+| Dependencias | `public.projects`, `private.openseo_project_connections`, `private.openseo_google_properties` y `private.google_captures` |
+| Función privada | `SECURITY DEFINER`, `STABLE`, `search_path=""`; comprueba `auth.uid()` y rol owner del proyecto antes de devolver datos |
+| Envoltorio público | `SECURITY INVOKER`, `STABLE`, `search_path=""` |
+| Privilegios efectivos de ambas funciones | `anon` sin EXECUTE; `authenticated` con EXECUTE, sujeto al control de owner dentro de la función |
+| Datos exportados | Conexiones y asociaciones del proyecto, incluido historial revocado; solo capturas `STORED`; sin claves del proveedor |
+| pgTAP | Suite completa **518/518**, incluidos los negativos de analyst/otra cuenta y la exclusión de otro proyecto |
 
-**Aplicación alojada: NO realizada. Requiere al propietario** con el flujo de `docs/SETUP-SUPABASE.md`.
+El ensayo de retirar y recrear las dos funciones dentro de una transacción con rollback fue evidencia de la ejecución original de la rama; **no se repitió en esta revalidación**. Aquí solo se inspeccionó el SQL y el estado local existente, sin reset ni DDL.
 
-## 4.2 Exportación verificable
+La aplicación alojada continúa pendiente según el relevo; no se consultó ni modificó su estado. Requiere operación del propietario con respaldo y el procedimiento de `docs/SETUP-SUPABASE.md`.
 
-Cobertura existente revisada (no se duplica): paginación con cursor estable y recuento antes/después (`project-export-pagination.test.ts`, 1001 filas a 100 por respuesta), verificación offline recomputando cadena y firmas (`recovery.test.ts`, `verify-export-cli.test.ts`), restauración sin duplicados, dos veces, con IDs/hashes/firmas idénticos (`restore.integration.test.ts`), fichero manipulado rechazado antes de generar SQL, mezcla de proyectos rechazada, firma auténtica copiada a otro proyecto rechazada.
+## 4.2 Exportación verificable: corrección #87 conservada
 
-**Hueco encontrado — completitud no demostrable.** La verificación offline prueba la *autenticidad* de lo que contiene el fichero, no que esté *completo*:
+La carencia histórica de completitud **está corregida en main** mediante #87 (`ccdf104a`). El servidor añade un manifiesto HMAC al cuerpo final de la exportación: recuento y cabeza de auditoría, digest de todas las columnas de resultados e importaciones y digest del estado operativo. La verificación recomputa esos valores; `planRestore` rechaza `UNPROVEN` e `INCOMPLETE` con `TAMPERED`.
 
-- quitar los últimos eventos de `audit.rows` deja un prefijo de cadena válido;
-- quitar un elemento de `results` o de `imports` no rompe nada verificable;
-- las filas de `imports` no llevan firma: su contenido no se puede verificar offline.
-
-Un fichero recortado o con importaciones alteradas pasa `verify:export` y el plan de restauración. Propuesta (PR separada): un **manifiesto firmado** en la exportación (recuentos, cabeza de la cadena y resumen de IDs/hashes de resultados e importaciones) que el verificador y el plan de restauración comprueben; los ficheros antiguos se seguirían leyendo con la completitud marcada como «no demostrada».
+Se conserva la cobertura de eliminación de eventos/resultados/importaciones, modificación de importaciones, manifiesto alterado o ausente, mezcla de proyectos y restauración idempotente. Las suites de aplicación e integración de esta rama incorporan esas pruebas de main y pasan. Esto no acredita una exportación o restauración de los datos reales de Sarah.
 
 ## 4.3 Reintento idempotente de captura
 
-Ya existía: reintento secuencial con la misma clave → mismo `resultId`, sin llamada al proveedor. **Añadido** en `tests/integration/google-capture.integration.test.ts`:
+`tests/integration/google-capture.integration.test.ts` usa la Data API local y un MCP simulado:
 
-1. **Dos sesiones HTTP del mismo owner** reintentan la misma clave a la vez (doble clic, dos pestañas): la segunda recibe `IN_PROGRESS` sin llamar al proveedor; al terminar la primera, la segunda reproduce el mismo resultado. Total: **1 llamada al proveedor, 1 resultado**.
-2. **Fallo del proveedor:** la clave se libera, no se guarda nada; el reintento lee una vez y guarda exactamente un resultado; un tercer intento reproduce sin llamar.
+1. Dos sesiones del mismo owner usan la misma clave. La primera queda esperando en el proveedor simulado; la segunda recibe `IN_PROGRESS` y ni siquiera construye el cliente MCP. Tras terminar la primera, el reintento reproduce exactamente su `resultId` sin llamar al proveedor.
+2. El inventario y la RPC de recuperación comprueban **una sola entrada de captura**, en `STORED`, vinculada al único resultado nuevo. Total del caso concurrente: **1 llamada simulada, 1 captura y 1 resultado**.
+3. El fallo simulado devuelve `PROVIDER_STATUS` / `ERROR`, sin guardar resultados. El reintento inmediato reutiliza la entrada, llama una vez y guarda un resultado. El siguiente reenvío devuelve exactamente ese `resultId` sin nueva llamada.
+4. El bloqueo del proveedor simulado se libera en `finally` y se espera la petición pendiente antes de limpiar fixtures, incluso si una aserción falla.
 
-Riesgo residual documentado: una reserva abandonada más de 5 minutos puede ser retomada. Si la petición original seguía viva (lectura del proveedor > 5 min), habría **dos lecturas del proveedor** pero un solo resultado guardado (la segunda `store` falla). Consecuencia: posible coste duplicado, no duplicación de datos.
+La primera ejecución de la suite tras reforzar las aserciones dio 59 PASS / 1 FAIL porque la nueva expectativa de error usaba `UNAVAILABLE`. El Core normaliza esa excepción como resultado `ERROR`; se corrigió la expectativa a `PROVIDER_STATUS` / `ERROR` y se repitió la suite completa: **60/60 PASS**. No fue necesario cambiar código de producto.
 
-## 4.4 Modo OpenSEO por proyecto (`legacy → project`)
+**Riesgo residual:** una reserva de más de cinco minutos puede retomarse mientras la petición original siga viva. Puede haber lecturas duplicadas del proveedor. La exclusión por clave y el guardado transaccional evitan resultados duplicados en los casos comprobados; esta validación no acredita ejecución exactamente una vez ante una reserva expirada.
 
-Revisado `src/lib/openseo/target.ts`: `legacy` por defecto (solo el literal `"project"` lo activa); en `project` se exige el registro de jobs, se lee la conexión ACTIVE por RPC owner-only y se **sobrescriben** `OPENSEO_PROJECT_ID` y `OPENSEO_AUDIT_ALLOWED_HOSTS`. Los jobs registran su `connectionId` y el seguimiento rechaza jobs de otra conexión (`JOB_CONNECTION_MISMATCH`). La base de datos limita los hosts al dominio del proyecto y su variante `www`.
+## 4.4 Modo OpenSEO por proyecto
 
-**Añadido** en `tests/integration/openseo-connections.integration.test.ts`, contra la base local real (antes solo había pruebas unitarias con cliente simulado):
+Revisado `src/lib/openseo/target.ts` y ejecutado `tests/integration/openseo-connections.integration.test.ts` con la base local:
 
-- el owner de A resuelve su conexión y los IDs globales ficticios **no sobreviven** en el entorno resultante;
-- el owner de B sobre el UUID real de A → `CONNECTION_FORBIDDEN`, sin petición al proveedor;
-- B en su propio proyecto obtiene sus IDs, nunca los de A;
-- sin registro de jobs → `CONNECTIONS_REQUIRE_JOBS` incluso para el owner;
-- sin la variable, `legacy` ignora las conexiones;
-- tras revocar → `PROJECT_NOT_CONNECTED`.
+- `legacy` sigue siendo el valor por defecto; solo `OPENSEO_PROJECT_CONNECTIONS_MODE=project` selecciona el modo por proyecto.
+- Se exige `OPENSEO_PROJECT_JOBS_ENABLED=true` antes de resolver la conexión: sin registro de jobs, `CONNECTIONS_REQUIRE_JOBS`.
+- El owner recibe solo su conexión ACTIVE; sus IDs y hosts sobrescriben los valores globales ficticios.
+- La cuenta B sobre el UUID de A recibe `CONNECTION_FORBIDDEN`; en su propio proyecto recibe los IDs de B.
+- Una conexión revocada produce `PROJECT_NOT_CONNECTED`.
+- Los casos existentes rechazan un `connectionId` ajeno al adquirir jobs y mover un job/audit entre proyectos del mismo owner. No se llama a OpenSEO.
 
-**Producción sigue en `legacy`. No se ha tocado ninguna variable de Vercel.** Activar `project` requiere decisión del propietario, conexión creada para Sarah y `OPENSEO_PROJECT_JOBS_ENABLED=true`.
+La activación alojada de `project` sigue siendo una decisión y operación separada del propietario. No se modificó configuración de producción.
 
-## Evidencia
+## Evidencia de la revalidación sobre main incorporado
 
-| Comando (Windows, Supabase local 2.118.0) | Resultado |
+| Comando | Resultado local |
 |---|---|
-| `npm run test:integration` | **60/60** (57 de `main` + 3 nuevas) |
-| `npm run verify` | exit 0 · Core pin `2aaf127` · secretos · lint · TS · **374/374** · build |
-| `supabase test db` | **518/518** |
+| `npm run verify` | Exit 0: Core pin `2aaf127`, secretos, lint, TypeScript, **385/385** en 41 archivos y build |
+| `npm run test:integration` | Exit 0: **60/60**, 10 archivos; incluye 6 casos de captura y 4 de conexiones OpenSEO |
+| `npm run test:db` | Exit 0: **518/518**, 18 archivos |
+| `git diff --check` | Correcto |
+| Suite Playwright | **NO EJECUTADA / BLOQUEADA**: `e2e/global-setup.ts` elimina todos los usuarios `@ejemplo.test`; una consulta local posterior a las suites detectó 6 usuarios fuera de sus cinco cuentas explícitas. Ejecutarla afectaría fixtures ajenos. Requiere aislar el stack o limitar y revisar la limpieza antes de lanzarla |
 
-GitHub Actions sigue bloqueado por facturación: sin CI.
+Las cifras originales 374/60/518 correspondían a la base histórica `main@506ea91`. Las 71 de integración y 532 pgTAP de #85 pertenecen a esa otra rama, que sigue Draft; no se atribuyen a #86. GitHub Actions está bloqueado por facturación: no hay CI aprobada.
+
+## Riesgos y decisiones pendientes
+
+- Revisar esta PR en Draft; el piloto Sarah no se declara cerrado.
+- Ejecutar navegador en un entorno aislado o tras corregir el alcance de su limpieza, sin borrar fixtures ajenos.
+- Propietario: aplicación alojada de recuperación, exportación/verificación real con el anillo y decisión/ensayo de `project`.
+- Aislamiento alojado con dos cuentas y limpieza supervisada pendiente.
+- S1/S2 de `docs/SECURITY-AUDIT-MEMBERSHIP-HMAC-20261015.md` siguen abiertos: contaminación del historial de auditoría y altas sin consentimiento; #90 es diseño, no mitigación implementada.

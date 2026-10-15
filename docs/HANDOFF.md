@@ -1,5 +1,11 @@
 # Handoff
 
+## Revalidación local de PR #86 — 15/10/2026
+
+#86 incorporó por merge `main@2e6a7a7`, incluidas #87 (manifiesto firmado) y #88 (sesiones Preview bloqueadas), sin conflictos. Verificación local de la rama: 385/385 aplicación, 60/60 integración y 518/518 pgTAP, con Supabase confirmado en `127.0.0.1:54321`. Se reforzó la comprobación de una captura/resultado por clave y la identidad exacta del reintento. Playwright no se lanzó: su limpieza amplia afectaría seis usuarios locales fuera de sus fixtures; requiere aislamiento o acotar el setup. Detalle en [PILOTO-SARAH-CIERRE-TECNICO-20261015](PILOTO-SARAH-CIERRE-TECNICO-20261015.md).
+
+#85 ya se actualizó y validó en su propia rama; #85 y #86 continúan Draft. No hay cierre del piloto ni CI aprobada (facturación). No se accedió a Supabase alojado ni se cambiaron flags, Vercel o proveedores. Los checkpoints inferiores conservan el estado histórico anterior a esta revalidación.
+
 ## Relevo comprobado — 15/10/2026, mañana
 
 - Integradas: PR #87 (ccdf104a, 956 pruebas locales), #91 (314a8a1), #89 (5f6c466), #84 (90209769, protocolo documental) y #90 (ffee0ace, diseño S1/S2 sin mitigación implementada).
