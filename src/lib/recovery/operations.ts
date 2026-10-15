@@ -33,6 +33,13 @@ export interface OperationalState {
   notIncluded: string[];
 }
 
+/** An unreadable part must not become a signed, apparently complete recovery export. */
+export function operationalStateComplete(state: OperationalState): boolean {
+  return state.openseo.connection.ok && state.openseo.activeJob.ok &&
+    state.openseo.jobs.every(({ job }) => job.ok) &&
+    state.webmaster.searchConsole.ok && state.webmaster.bing.ok && state.google.ok;
+}
+
 export const NOT_INCLUDED = Object.freeze([
   "signing-keys: the HMAC keyring lives outside the database and must be kept separately by the owner",
   "openseo-jobs-without-stored-results: jobs that never stored a result have no audit id to look them up",

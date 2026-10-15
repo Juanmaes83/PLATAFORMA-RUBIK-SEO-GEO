@@ -1,0 +1,31 @@
+# N1-05 · preparación local y protocolo de ejecución alojada
+
+**Corte:** 15/10/2026. **Base:** `main@d12b80ee4c229ab8c90f1044ecd0108165f8bb2e`. Estado: preparación técnica; ninguna validación alojada ni activación de Preview.
+
+## Auditoría de aislamiento y evidencia local
+
+La matriz existente `tests/integration/isolation-matrix.integration.test.ts` crea dos organizaciones ficticias, A1/A2 en A y B1 en B, con owner, account-manager, analyst, viewer, client-approver, miembro solo de A2, outsider y anónimo. Consulta la Data API, el esquema privado, GraphQL y todas las RPC públicas enumeradas. Contrasta el error de UUID ajeno con inexistente. `s1-writer-negatives.integration.test.ts` cubre actor/rol/proyecto falsos, sesión revocada, token aún válido tras retirada de membresía, HMAC/cadena dañados y fallo de escritor. `membership-consent.integration.test.ts`, pgTAP y E2E cubren las altas consentidas y el rechazo de INSERT directo. `restore.integration.test.ts` y `restore-google.integration.test.ts` prueban exportación, conflictos, aislamiento y replay en PostgreSQL local. Ninguna prueba de interfaz sustituye el control SQL.
+
+| Superficie | Denegación/contrato local | Límite pendiente |
+|---|---|---|
+| Organizaciones, proyectos, membresías, invitaciones | RLS, SQL S2, RPC owner-only y consentimiento; A1 no concede A2/B1 | Repetir por actor en alojado |
+| Sesiones/JWT | Anónimo, firma falsificada, JWT local auténtico pero caducado, metadatos de usuario falsos, sesión revocada y membresía retirada | Repetir caducidad/refresco contra Auth y Data API alojadas |
+| Auditoría, resultados, importaciones/exportación | INSERT ordinario HMAC denegado; writer revalida actor; resultados y exportación por scope; restauración transaccional | Ensayo alojado S1 y guarda R1 de esta rama aún sin integrar |
+| OpenSEO/Google/presupuestos | RPC por proyecto y owner, hosts y presupuesto aislados; proveedores simulados o apagados | Sin llamadas ni gasto reales; repetir alojado sin activar proveedores |
+| Limpieza | Fixtures con sufijo por ejecución y borrado solo de slugs/usuarios propios | Verificar residuos del proyecto Preview antes y después |
+
+La auditoría no detectó una ruta SQL nueva de lectura cruzada en el código revisado. Detectó el riesgo R1 de exportación con recibos pendientes, tratado en el incremento N1-06 de esta rama. La matriz local añade un JWT firmado con el secreto del **stack ficticio** y `exp` vencido; su Data API responde 401 sin exponer A1. No se exporta ese secreto ni se usa uno alojado.
+
+## Secuencia reproducible cuando se autoricen U02 y U03
+
+1. **U02:** propietario identifica un proyecto Supabase Preview vacío y aislado, ref y región, inventaría únicamente nombres y ámbitos de variables Vercel, separa Preview de Production, desactiva proveedores, verifica protección de URL y toma respaldo antes de migrar. Cualquier ref, URL o variable que apunte a Production detiene el ensayo. No copiar datos de Sarah.
+2. Registrar SHA exacto de `main`, árbol limpio, hash de migraciones, versión CLI fijada y estado de `supabase_migrations.schema_migrations` del proyecto destino. Comprobar que el despliegue Preview corresponde al mismo SHA. Divergencia de historia o esquema detiene la aplicación; conservar backup y log fuera de Git.
+3. Aplicar las migraciones en orden de nombre/versión, nunca a mano fuera de secuencia: base hasta `20261012130000_google_recovery_state.sql`; S2 `20261015115750_membership_consent.sql`; S1 `20261015145025_s1_trusted_audit_writer.sql`, `20261015170000_s1_import_audit_outbox.sql`, `20261015171000_s1_import_restore_boundary.sql`, `20261015172000_s1_import_receipt_identity.sql`, `20261015180000_s1_trusted_provider_results.sql`, `20261015183000_s1_provider_erase_outbox.sql`, `20261015190000_s1_provider_rpc_boundary.sql`, `20261015201500_s1_pending_receipt_delete_guard.sql` y `20261015210000_s1_provider_capture_receipts.sql`. Google recovery y tres migraciones S1 (`171000`, `172000`, `201500`) carecen de rollback individual; el respaldo previo es imprescindible. Verificar funciones, RLS, grants, identidad SQL de escritor y triggers después de cada bloque. No usar `db reset` ni `db push` implícito contra un proyecto enlazado sin ventana autorizada.
+4. **U03:** propietario fija ventana, operadores, cuentas ficticias A/B, retención y limpieza. Crear A1/A2/B1 solo en Preview y registrar `fecha | SHA | despliegue | actor | caso | 1280/360/390/API | esperado | observado | PASS/FAIL/BLOCKED | evidencia`. No guardar JWT, cookies, correos, contraseñas ni claves en el registro.
+5. Ejecutar primero los negativos de JWT y Data API, después RLS/RPC por actor, resultados/importaciones/exportación, retiro de membresía con la misma sesión, y finalmente vistas móvil/escritorio. Una fuga, respuesta distinta entre recurso ajeno e inexistente, error de firma, actividad de proveedor o indicio de Production: **parar**, conservar evidencia mínima, bloquear Preview y abrir incidencia.
+6. Limpiar solo fixtures identificados por recibos del ensayo; verificar ausencia de residuos en Auth, organizaciones, proyectos, invitaciones, imports y outbox. Un recibo pendiente se resuelve y documenta antes de borrar su proyecto; jamás borrar fixtures de terceros.
+7. Rollback: deshabilitar acceso Preview y restaurar el respaldo del proyecto Preview bajo decisión operativa. No revertir S1/S2 dejando INSERT JWT o membresías abiertas. Si la reversión SQL reabre una vulnerabilidad, mantener Preview cerrada y restaurar una copia segura; Production permanece sin cambios.
+
+**Evidencias que debe proporcionar el propietario:** decisión U02 completa, autorización U03, ref de proyecto aislado, respaldo y prueba de restaurabilidad, inventario de nombres/ámbitos Vercel, migraciones aplicadas, SHA/despliegue, matriz por caso/actor, capturas saneadas, residuos y acta de parada/rollback. No se requieren valores de secretos.
+
+**Dependencias:** U02 desbloquea infraestructura aislada y Preview; U03 desbloquea la ventana de matriz alojada. H2 sigue bloqueado por ambas, S1/S2 sin acreditar alojadas, CI de GitHub con cero pasos por facturación, operación real del escritor/pooler y decisiones de retención/alerta. Ver [protocolo base](N1-05-PROTOCOLO-ALOJADO-20261015.md) y [plan U02](N1-04-PLAN-ACTIVACION-PREVIEW-U02-20261015.md).
