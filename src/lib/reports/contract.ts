@@ -25,8 +25,8 @@ export const SECTION_SOURCE: Record<SectionId, { module: string; inMain: boolean
   keywords: { module: "N2-09", inMain: false, pendingOn: "PR #114" },
   competitors: { module: "N2-11", inMain: false, pendingOn: "PR #115" },
   content: { module: "N2-12", inMain: false, pendingOn: "PR #116" },
-  geo: { module: "N2-13", inMain: false, pendingOn: "PR N2-13 (Draft)" },
-  opportunities: { module: "N2-12 y N2-13", inMain: false, pendingOn: "PR #116 y PR N2-13" },
+  geo: { module: "N2-13", inMain: false, pendingOn: "PR #117" },
+  opportunities: { module: "N2-12 y N2-13", inMain: false, pendingOn: "PR #116 y PR #117" },
   "audit-trail": { module: "S1 audit_events (cadena firmada)", inMain: true },
 };
 

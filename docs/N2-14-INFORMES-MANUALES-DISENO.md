@@ -15,7 +15,7 @@ autorizó **reporting manual, local y sin efectos externos**. Evaluación de via
 | Palabras clave | N2-09 | No — PR #114 |
 | Competidores | N2-11 | No — PR #115 |
 | Contenidos | N2-12 | No — PR #116 |
-| Observaciones GEO | N2-13 | No — PR Draft N2-13 |
+| Observaciones GEO | N2-13 | No — PR #117 |
 | Oportunidades prioritarias | N2-12/N2-13 | No |
 
 Cinco de ocho secciones dependen de PR sin fusionar. Un informe funcional hoy sería casi vacío o
