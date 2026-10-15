@@ -1,5 +1,7 @@
 # Estado operativo comprobado — 10/10/2026
 
+> **AVISO DE VIGENCIA — 15/10/2026:** estado integral en [CONTROL-PROYECTO.md](CONTROL-PROYECTO.md). Esta página conserva evidencias históricas; no interpreta resultados de Supabase local como validación alojada. La migración `20261012130000`, el modo OpenSEO `project` y la fase B del Grupo 3 no se han ejecutado en alojado en este corte.
+
 ## Resolución de hallazgo de permisos — 14/10/2026
 
 Confirmado por SQL alojado de solo lectura que `authenticated` tiene permisos `INSERT`/`UPDATE` **por columna**, conforme a `supabase/migrations/20260928120000_core_9_1_tenancy.sql`. Que `has_table_privilege` devuelva `false` para INSERT/UPDATE completos es esperado; no representa falta de permiso efectivo sobre las columnas autorizadas. Las funciones privadas de pertenencia y las políticas RLS fueron inspeccionadas sin detectar un bypass en esas definiciones. Sin cambios alojados. Las pruebas negativas por sesiones separadas y CI continúan pendientes.

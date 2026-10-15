@@ -1,10 +1,12 @@
 # Handoff
 
-## Revalidación local de PR #86 — 15/10/2026
+> **RELEVO ACTUAL — 15/10/2026:** ver [CONTROL-PROYECTO.md](CONTROL-PROYECTO.md), fuente de control tras la fusión #88 (`2e6a7a7`) y #85 (`1e9d178`). Codex actualiza #86; no tocar su rama. Las secciones inferiores son histórico de entregas y pueden describir #85/#88 como Draft en fechas anteriores.
 
-#86 incorporó por merge `main@2e6a7a7`, incluidas #87 (manifiesto firmado) y #88 (sesiones Preview bloqueadas), sin conflictos. Verificación local de la rama: 385/385 aplicación, 60/60 integración y 518/518 pgTAP, con Supabase confirmado en `127.0.0.1:54321`. Se reforzó la comprobación de una captura/resultado por clave y la identidad exacta del reintento. Playwright no se lanzó: su limpieza amplia afectaría seis usuarios locales fuera de sus fixtures; requiere aislamiento o acotar el setup. Detalle en [PILOTO-SARAH-CIERRE-TECNICO-20261015](PILOTO-SARAH-CIERRE-TECNICO-20261015.md).
+## Revalidación final de PR #86 — 15/10/2026
 
-#85 ya se actualizó y validó en su propia rama; #85 y #86 continúan Draft. No hay cierre del piloto ni CI aprobada (facturación). No se accedió a Supabase alojado ni se cambiaron flags, Vercel o proveedores. Los checkpoints inferiores conservan el estado histórico anterior a esta revalidación.
+#86 incorporó por merge `main@e7adc51`, incluidas #87 (manifiesto firmado), #88 (sesiones Preview bloqueadas), #85 (matriz local) y #93 (control canónico). Los conflictos de inserción al inicio de ROADMAP/HANDOFF se resolvieron conservando el enlace canónico y la evidencia de #86; no hubo conflictos de producto. Verificación final local de la rama: 385/385 aplicación, 74/74 integración y 532/532 pgTAP, con Supabase confirmado en `127.0.0.1:54321`. Se reforzó la comprobación de una captura/resultado por clave y la identidad exacta del reintento. Playwright no se lanzó: su limpieza amplia afectaría seis usuarios locales fuera de sus fixtures; requiere aislamiento o acotar el setup. Detalle en [PILOTO-SARAH-CIERRE-TECNICO-20261015](PILOTO-SARAH-CIERRE-TECNICO-20261015.md).
+
+#85 y #88 están fusionadas; #86 continúa Draft para revisión tras esta validación local. No hay cierre del piloto ni CI aprobada (facturación). No se accedió a Supabase alojado ni se cambiaron flags, Vercel o proveedores. Los checkpoints inferiores conservan el estado histórico anterior a esta revalidación.
 
 ## Relevo comprobado — 15/10/2026, mañana
 
