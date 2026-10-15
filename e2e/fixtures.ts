@@ -1,9 +1,9 @@
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { execSync } from "node:child_process";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../src/lib/supabase/database.types";
-import { localSupabaseEnv } from "../scripts/supabase-test-env.mjs";
+import { localSupabaseEnv, SUPABASE_CLI } from "../scripts/supabase-test-env.mjs";
 import { assertFixtureEndpoint, fixtureScope } from "./fixture-scope";
 
 type OwnedUser = { id: string; email: string };
@@ -125,12 +125,12 @@ export async function cleanupFixtures() {
   const plan = planCleanup(ledger, await fixtureSnapshot());
   const sql = readFileSync(join("e2e", "fixture-cleanup.sql"), "utf8")
     .replace("__LEDGER_HEX__", Buffer.from(JSON.stringify(ledger)).toString("hex"));
-  const file = join("test-results", "e2e-fixtures", `${ledger.run}.cleanup.sql`);
+  const file = resolve("test-results", "e2e-fixtures", `${ledger.run}.cleanup.sql`);
   writeFileSync(file, sql, { mode: 0o600 });
   // Fixed local command, no remote flags, URLs or keys. SQL repeats the checks under
   // locks and deletes both roots atomically. A mismatch or lock timeout rolls it all back.
   try {
-    execSync(`npx --yes supabase@2.118.0 db query --local --file "${file}"`, { stdio: "pipe", timeout: 30_000 });
+    execSync(`${SUPABASE_CLI} db query --local --file "${file}"`, { stdio: "pipe", timeout: 30_000 });
   } catch (error) {
     const failed = error as { stdout?: unknown; stderr?: unknown };
     const diagnostic = `${failed.stdout ?? ""}${failed.stderr ?? ""}`;

@@ -1,6 +1,8 @@
 import { randomBytes } from "node:crypto";
 import { execSync } from "node:child_process";
 import { afterAll, beforeAll, expect, it } from "vitest";
+import { SUPABASE_CLI } from "../../scripts/supabase-test-env.mjs";
+import { consentedMembership } from "../fixtures/consented-membership";
 import { fixtureScope } from "../../e2e/fixture-scope";
 import { cleanupFixtures, fixtureClients, fixtureSnapshot, initializeLedger, readLedger, recordFixture, reserveBrowserAccount, type Snapshot } from "../../e2e/fixtures";
 
@@ -66,7 +68,7 @@ it("refuses preexisting users and organizations instead of adopting email or slu
 
 it("blocks all deletion when another run has attached a membership", async () => {
   activate(a);
-  must(await foreign.actor.from("organization_members").insert({ organization_id: foreign.org.id, user_id: own.user.id, role: "member" }));
+  const invitationId = await consentedMembership(foreign.actor, own.actor, foreign.project.id, "viewer");
   try {
     await expect(cleanupFixtures()).rejects.toThrow("Ambiguous");
     const after = await fixtureSnapshot();
@@ -76,6 +78,7 @@ it("blocks all deletion when another run has attached a membership", async () =>
   } finally {
     // Exact relationship created above by this regression, not a discovered membership.
     must(await foreign.actor.from("organization_members").delete().eq("organization_id", foreign.org.id).eq("user_id", own.user.id));
+    deleteRegressionInvitation(invitationId);
   }
 });
 
@@ -97,12 +100,16 @@ it("atomically preserves a private invitation even after its foreign membership 
   } finally {
     // Delete only the exact relationship whose creation id was returned above. Both
     // roots belong to this regression; no discovered invitation is adopted or erased.
-    for (const id of [invite.invitationId, foreign.project.id, own.user.id]) {
-      if (!/^[a-f0-9-]{36}$/.test(id)) throw new Error("Invalid regression receipt");
-    }
-    execSync(`npx --yes supabase@2.118.0 db query --local "delete from private.project_invitations where id='${invite.invitationId}' and project_id='${foreign.project.id}' and accepted_by='${own.user.id}'"`, { stdio: "pipe" });
+    deleteRegressionInvitation(invite.invitationId);
   }
 }, 60_000);
+
+function deleteRegressionInvitation(invitationId: string) {
+  for (const id of [invitationId, foreign.project.id, own.user.id]) {
+    if (!/^[a-f0-9-]{36}$/.test(id)) throw new Error("Invalid regression receipt");
+  }
+  execSync(`${SUPABASE_CLI} db query --local "delete from private.project_invitations where id='${invitationId}' and project_id='${foreign.project.id}' and accepted_by='${own.user.id}'"`, { stdio: "pipe" });
+}
 
 it("cleans only its receipts, repeats without accumulation and preserves the other run", async () => {
   activate(a);

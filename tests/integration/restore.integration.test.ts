@@ -12,6 +12,7 @@ import { appendAudit, exportProject, storeProviderResult } from "@/lib/provenanc
 import { verifyProjectExport } from "@/lib/recovery/verify-export";
 import { RESTORE_CONFLICT, planRestore } from "@/lib/restore/plan";
 import { RUN, createConfirmedUser, deleteOrganizations, deleteUsers, signedIn } from "./support";
+import { localDatabaseContainer } from "../../scripts/supabase-test-env.mjs";
 
 // Entrega E2: restore drill end to end against the DISPOSABLE local stack only. Export a
 // project as its owner and verify the file offline; then restore it over an identical, a
@@ -20,7 +21,7 @@ import { RUN, createConfirmedUser, deleteOrganizations, deleteUsers, signedIn } 
 // the same ids, hashes and signatures. The SQL (and the damage each case needs) runs through
 // psql inside the local stack's database container as its superuser; nothing else.
 type Client = SupabaseClient<Database>;
-const CONTAINER = "supabase_db_plataforma-rubik-seo-geo";
+const CONTAINER = localDatabaseContainer();
 const org = `ensayo-restauracion-${RUN}`, otherOrg = `ensayo-ajeno-${RUN}`;
 const users: string[] = [];
 let owner: Client, outsider: Client, project: ProjectRef;

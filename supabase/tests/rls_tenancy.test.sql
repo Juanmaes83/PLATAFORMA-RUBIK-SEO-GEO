@@ -14,6 +14,8 @@ insert into auth.users (id, email, aud, role, raw_user_meta_data) values
   ('00000000-0000-4000-8000-00000000000c', 'c@ejemplo.test', 'authenticated', 'authenticated', '{}'),
   ('00000000-0000-4000-8000-00000000000d', 'd@ejemplo.test', 'authenticated', 'authenticated', '{"role":"owner","organization":"agencia-a"}'),
   ('00000000-0000-4000-8000-00000000000e', 'e@ejemplo.test', 'authenticated', 'authenticated', '{}');
+update auth.users set email_confirmed_at = now()
+  where id in ('00000000-0000-4000-8000-00000000000c', '00000000-0000-4000-8000-00000000000e');
 
 create function pg_temp.act_as(uid uuid) returns void language sql as $$
   select set_config('role', 'authenticated', true),
@@ -71,6 +73,12 @@ create temp table ids on commit drop as
          (select id from public.projects where slug = 'proyecto-b1') b1;
 grant select on ids to authenticated;
 
+-- Local privileged fixture probe retains the composite FK invariant separately
+-- from the authenticated ACL denial (which now runs before constraints).
+select throws_ok($$insert into public.project_members (project_id, organization_id, user_id, role)
+  select a1, org_b, '00000000-0000-4000-8000-00000000000b', 'owner' from ids$$,
+  '23503', null, 'composite project/organization FK still prevents mismatched parents');
+
 select pg_temp.act_as('00000000-0000-4000-8000-00000000000b');
 select throws_ok($$insert into public.projects (organization_id, slug, name) select org_a, 'intrusa', 'X' from ids$$,
   '42501', null, 'b cannot create a project in agencia-a');
@@ -79,8 +87,8 @@ select throws_ok($$insert into public.organization_members (organization_id, use
 select throws_ok($$insert into public.project_members (project_id, organization_id, user_id, role)
   select a1, org_a, '00000000-0000-4000-8000-00000000000b', 'owner' from ids$$, '42501', null, 'b cannot add itself to proyecto-a1');
 select throws_ok($$insert into public.project_members (project_id, organization_id, user_id, role)
-  select a1, org_b, '00000000-0000-4000-8000-00000000000b', 'owner' from ids$$, '23503', null,
-  'a project id from agencia-a paired with agencia-b is rejected by the composite foreign key');
+  select a1, org_b, '00000000-0000-4000-8000-00000000000b', 'owner' from ids$$, '42501', null,
+  'cross-tenant membership INSERT is denied before foreign-key validation');
 select is_empty($$update public.projects set name = 'Hackeado' where id = (select a1 from ids) returning 1$$, 'b cannot update proyecto-a1');
 select is_empty($$update public.organizations set name = 'Hackeada' where id = (select org_a from ids) returning 1$$, 'b cannot rename agencia-a');
 select is_empty($$delete from public.project_members where project_id = (select a1 from ids) returning 1$$, 'b cannot delete memberships of proyecto-a1');
@@ -99,14 +107,31 @@ select throws_ok($$insert into public.projects (organization_id, slug, name) sel
 
 -- ── Roles inside one tenant ─────────────────────────────────────────────────────────────
 select pg_temp.act_as('00000000-0000-4000-8000-00000000000a');
-select lives_ok($$insert into public.organization_members (organization_id, user_id, role) select org_a, u, 'member' from ids,
-  unnest(array['00000000-0000-4000-8000-00000000000c', '00000000-0000-4000-8000-00000000000e']::uuid[]) u$$, 'the owner adds c and e to agencia-a');
-select lives_ok($$insert into public.project_members (project_id, organization_id, user_id, role) select a1, org_a, u, r from ids,
+select throws_ok($$insert into public.organization_members (organization_id, user_id, role) select org_a, u, 'member' from ids,
+  unnest(array['00000000-0000-4000-8000-00000000000c', '00000000-0000-4000-8000-00000000000e']::uuid[]) u$$,
+  '42501', null, 'even the owner cannot enroll c and e without consent');
+select throws_ok($$insert into public.project_members (project_id, organization_id, user_id, role) select a1, org_a, u, r from ids,
   (values ('00000000-0000-4000-8000-00000000000c'::uuid, 'analyst'), ('00000000-0000-4000-8000-00000000000e'::uuid, 'client-approver')) v(u, r)$$,
-  'the owner gives c the analyst role and e the client-approver role in proyecto-a1');
+  '42501', null, 'even the owner cannot grant project roles without consent');
 select throws_ok($$insert into public.project_members (project_id, organization_id, user_id, role)
-  select a1, org_a, '00000000-0000-4000-8000-00000000000d', 'viewer' from ids$$, '23503', null,
-  'a project role requires membership of the same organization');
+  select a1, org_a, '00000000-0000-4000-8000-00000000000d', 'viewer' from ids$$, '42501', null,
+  'owner cannot add a project member with no accepted invitation');
+
+-- Real consent prepares the role fixtures; no authenticated INSERT bypass for tests.
+create temp table consent_tokens as
+  select u, public.project_invitations(a1, 'create', jsonb_build_object('email', e, 'role', r))->>'token' token
+  from ids, (values
+    ('00000000-0000-4000-8000-00000000000c'::uuid, 'c@ejemplo.test', 'analyst'),
+    ('00000000-0000-4000-8000-00000000000e'::uuid, 'e@ejemplo.test', 'client-approver')) v(u,e,r);
+grant select on consent_tokens to authenticated;
+select pg_temp.act_as('00000000-0000-4000-8000-00000000000c');
+select lives_ok($$select public.accept_project_invitation((select token from consent_tokens where u=auth.uid()))$$, 'c accepts analyst membership');
+select pg_temp.act_as('00000000-0000-4000-8000-00000000000e');
+select lives_ok($$select public.accept_project_invitation((select token from consent_tokens where u=auth.uid()))$$, 'e accepts client-approver membership');
+select pg_temp.act_as_admin();
+select throws_ok($$insert into public.project_members (project_id, organization_id, user_id, role)
+  select a1, org_a, '00000000-0000-4000-8000-00000000000d', 'viewer' from ids$$,
+  '23503', null, 'composite organization/user FK still requires organization membership');
 select throws_ok($$insert into public.project_members (project_id, organization_id, user_id, role)
   select a1, org_a, '00000000-0000-4000-8000-00000000000c', 'ai' from ids$$, '23514', null, 'non-human Core roles cannot be assigned to people');
 

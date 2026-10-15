@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Database } from "@/lib/supabase/database.types";
+import { consentedMembership } from "../fixtures/consented-membership";
 import { RUN, anonClient, createConfirmedUser, deleteOrganizations, deleteUsers, env, signedIn } from "./support";
 
 // Group 3 · multi-tenant isolation matrix on the LOCAL Supabase stack (npm run test:integration).
@@ -75,8 +76,7 @@ beforeAll(async () => {
     ["am", ids.a1, "account-manager"], ["an", ids.a1, "analyst"], ["vw", ids.a1, "viewer"],
     ["ca", ids.a1, "client-approver"], ["a2v", ids.a2, "viewer"],
   ] as const) {
-    expect((await ownerA.from("organization_members").insert({ organization_id: oa, user_id: users[name], role: "member" })).error).toBeNull();
-    expect((await ownerA.from("project_members").insert({ project_id: project, organization_id: oa, user_id: users[name], role })).error).toBeNull();
+    await consentedMembership(ownerA, clients[name], project, role);
   }
 }, 90_000);
 

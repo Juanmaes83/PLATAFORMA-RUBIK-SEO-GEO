@@ -2,7 +2,7 @@
 // for integration and e2e tests only. Nothing is written to disk and nothing is printed.
 // It refuses any API URL that is not on this machine, so tests can never target the hosted
 // project. The keys are the local development stack's own keys, not the hosted project's.
-import { execSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 
 export const SUPABASE_CLI = process.env.SUPABASE_CLI ?? "npx --yes supabase@2.118.0";
 
@@ -21,9 +21,13 @@ export function localSupabaseEnv() {
       .map((m) => [m[1], m[2]]),
   );
   const url = new URL(env.API_URL ?? "");
-  if (!["127.0.0.1", "localhost"].includes(url.hostname)) {
+  const isolated = process.env.RUBIK_TEST_ISOLATED_STACK === "1";
+  const expectedOrigin = `http://127.0.0.1:${isolated ? 55321 : 54321}`;
+  if (url.origin !== expectedOrigin) {
     throw new Error(`Refused: ${url.origin} is not a local Supabase stack.`);
   }
+  const db = new URL(env.DB_URL ?? "");
+  if (db.hostname !== "127.0.0.1" || db.port !== (isolated ? "55322" : "54322")) throw new Error("Refused: local API and database do not match");
   if (!env.PUBLISHABLE_KEY || !env.SECRET_KEY) throw new Error("supabase status did not return the local keys.");
   return {
     apiUrl: env.API_URL,
@@ -32,4 +36,15 @@ export function localSupabaseEnv() {
     secretKey: env.SECRET_KEY,
     mailpitUrl: env.MAILPIT_URL ?? env.INBUCKET_URL,
   };
+}
+
+// Recovery drills execute SQL directly. Bind Docker to the SAME validated stack as Auth,
+// never a fixed shared container when the API was selected from another CLI workdir.
+export function localDatabaseContainer() {
+  localSupabaseEnv();
+  const isolated = process.env.RUBIK_TEST_ISOLATED_STACK === "1";
+  const name = `supabase_db_${isolated ? "rubik-s2-consent-20261015" : "plataforma-rubik-seo-geo"}`;
+  const ports = execFileSync("docker", ["port", name, "5432/tcp"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim().split(/\r?\n/);
+  if (!ports.length || ports.some(p => !p.endsWith(`:${isolated ? 55322 : 54322}`))) throw new Error("Refused: Docker database does not match local API");
+  return name;
 }

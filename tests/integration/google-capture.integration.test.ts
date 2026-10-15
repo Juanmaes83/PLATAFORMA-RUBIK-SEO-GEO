@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
+import { consentedMembership } from "../fixtures/consented-membership";
 import { loadProjectRef } from "@/lib/imports/repository";
 import { connectProject } from "@/lib/openseo/connections";
 import { captureGoogleReport, listGoogleCaptures } from "@/lib/openseo/google/capture";
@@ -52,8 +53,7 @@ beforeAll(async () => {
   const ref = await loadProjectRef(owner, { tenantId: org, projectId: "site" });
   if (!ref) throw new Error("project not visible");
   project = ref;
-  expect((await owner.from("organization_members").insert({ organization_id: orgId, user_id: users[1], role: "member" })).error).toBeNull();
-  expect((await owner.from("project_members").insert({ project_id: project.projectId, organization_id: orgId, user_id: users[1], role: "analyst" })).error).toBeNull();
+  await consentedMembership(owner, analyst, project.projectId, "analyst");
   expect(await connectProject(owner, project.projectId, { openseoProjectId: `gcap-${RUN}`, allowedHosts: [`gcap-${RUN}.example`], consent: true })).toMatchObject({ ok: true });
   expect(await connectGoogleProperty(owner, project.projectId, "search-console", { externalPropertyId: site, consent: true })).toMatchObject({ ok: true });
 }, 60_000);

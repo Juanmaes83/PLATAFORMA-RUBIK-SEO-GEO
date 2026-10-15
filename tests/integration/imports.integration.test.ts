@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Database } from "@/lib/supabase/database.types";
+import { consentedMembership } from "../fixtures/consented-membership";
 import { loadKeyring } from "@/lib/provenance/keyring";
 import { readAuditTrail, exportProject } from "@/lib/provenance/repository";
 import { eraseImport, findingsForUrl, getImport, importFile, listImports, loadProjectRef } from "@/lib/imports/repository";
@@ -38,9 +39,8 @@ beforeAll(async () => {
   const oa = (await a.from("organizations").select("id").eq("slug", orgA).single()).data!.id;
   expect((await a.from("projects").insert({ organization_id: oa, slug: "proyecto-a1", name: "A1" })).error).toBeNull();
   const a1 = (await a.from("projects").select("id").eq("organization_id", oa).single()).data!.id;
-  for (const [i, role] of [[2, "analyst"], [3, "viewer"]] as const) {
-    expect((await a.from("organization_members").insert({ organization_id: oa, user_id: users[i], role: "member" })).error).toBeNull();
-    expect((await a.from("project_members").insert({ project_id: a1, organization_id: oa, user_id: users[i], role })).error).toBeNull();
+  for (const [recipient, role] of [[c, "analyst"], [v, "viewer"]] as const) {
+    await consentedMembership(a, recipient, a1, role);
   }
   const ref = await loadProjectRef(c, { tenantId: orgA, projectId: "proyecto-a1" });
   if (!ref) throw new Error("project not visible to the analyst");

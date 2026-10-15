@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Database } from "@/lib/supabase/database.types";
+import { consentedMembership } from "../fixtures/consented-membership";
 import { TEST_PASSPHRASE, RUN, anonClient, createConfirmedUser, deleteOrganizations, deleteUsers, email, env, signedIn } from "./support";
 
 // Runs against the LOCAL Supabase stack through the same Data API and publishable key the
@@ -29,8 +30,7 @@ beforeAll(async () => {
   const b1 = (await b.from("projects").select("id").eq("slug", "proyecto-b1").single()).data!.id;
   ids = { orgA: oa, orgB: ob, a1, b1 };
 
-  expect((await a.from("organization_members").insert({ organization_id: oa, user_id: users[2], role: "member" })).error).toBeNull();
-  expect((await a.from("project_members").insert({ project_id: a1, organization_id: oa, user_id: users[2], role: "analyst" })).error).toBeNull();
+  await consentedMembership(a, c, a1, "analyst");
 }, 60_000);
 
 afterAll(async () => {

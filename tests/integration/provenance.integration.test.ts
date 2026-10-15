@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Database, Json } from "@/lib/supabase/database.types";
+import { consentedMembership } from "../fixtures/consented-membership";
 import { providers } from "@/lib/core";
 import { loadKeyring, type Keyring } from "@/lib/provenance/keyring";
 import type { ProjectRef } from "@/lib/provenance/audit";
@@ -41,8 +42,7 @@ beforeAll(async () => {
   expect((await b.from("projects").insert({ organization_id: ob, slug: "proyecto-b1", name: "B1" })).error).toBeNull();
   const a1 = (await a.from("projects").select("id").eq("organization_id", oa).single()).data!.id;
   const b1 = (await b.from("projects").select("id").eq("organization_id", ob).single()).data!.id;
-  expect((await a.from("organization_members").insert({ organization_id: oa, user_id: users[2], role: "member" })).error).toBeNull();
-  expect((await a.from("project_members").insert({ project_id: a1, organization_id: oa, user_id: users[2], role: "analyst" })).error).toBeNull();
+  await consentedMembership(a, c, a1, "analyst");
   pa = { projectId: a1, organizationId: oa, scope: { tenantId: orgA, projectId: "proyecto-a1" } };
   // Membership is granted after INSERT; read in a second request, as for the first project.
   expect((await a.from("projects").insert({ organization_id: oa, slug: "proyecto-a2", name: "A2" })).error).toBeNull();
