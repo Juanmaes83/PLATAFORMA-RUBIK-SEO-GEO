@@ -1,5 +1,7 @@
 # Night shift — checkpoint 14/10/2026
 
+> **Nota histórica (15/10/2026):** este documento conserva el estado observado el 14/10, **no** el estado actual. #81 y #83 se cerraron sin fusión por estar superadas; #87, #89 y #91 sí se fusionaron. #85 y #86 están pendientes de validación sobre `main` nuevo, #88 sigue en borrador con bloqueo Preview más estricto y #90 solo documenta riesgos S1/S2. El protocolo de #84 sigue sin ejecutarse en Supabase alojado. Referencia vigente: [ROADMAP](ROADMAP.md).
+
 ## Auditoría de arranque y ciclo A
 - `main@506ea91d24baa4feaff11e5f246f78135ee1b3ec`; Grupo 2 PR #82 fusionado.
 - PR #81 abierta y draft, texto del Grupo 1 anterior a #80; **no fusionar sin reconciliar**.
