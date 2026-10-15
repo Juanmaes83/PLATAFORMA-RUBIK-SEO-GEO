@@ -5,7 +5,9 @@
 > Verify **403/403**, integración **84/84**, pgTAP **581/581**, rollback **10/10**;
 > Playwright **145 PASS / 44 SKIP / 0 FAIL** en stack propio `127.0.0.1:55321` / DB 55322.
 > Preservados por huella los 11 usuarios, 2 organizaciones, 3 proyectos y membresías del stack
-> compartido; cero residuos en el propio. Pendiente PR Draft, revisión y merge supervisado.
+> compartido; cero residuos en el propio. [PR #100](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/100)
+> OPEN / Draft; pendiente revisión y merge supervisado. CI del HEAD `c772060`: jobs no iniciados
+> por facturación (FAILURE); Vercel Preview SUCCESS no sustituye CI ni aislamiento.
 > Migración alojada sin aplicar; S1 y H1/H2 continúan pendientes. Detalle en
 > [S2-CONSENTIMIENTO-MEMBRESIAS](S2-CONSENTIMIENTO-MEMBRESIAS-20261015.md) y continuidad en
 > [CODEX-AUTONOMIA-ESTADO](CODEX-AUTONOMIA-ESTADO.md). Los cortes inferiores son históricos.

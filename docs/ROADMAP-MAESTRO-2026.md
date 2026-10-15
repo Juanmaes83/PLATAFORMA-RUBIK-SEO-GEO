@@ -5,7 +5,8 @@
 **Estado:** planificación aprobada; no certifica funcionalidades ni despliegues. El estado operativo verificable por SHA lo mantiene CONTROL-PROYECTO. El registro de evidencias y el estado técnico por SHA permanecen en [CONTROL-PROYECTO](CONTROL-PROYECTO.md). La cronología permanece en [ROADMAP histórico](ROADMAP.md) y [HANDOFF](HANDOFF.md).
 
 **Checkpoint N1-02, 15/10/2026:** S2 PROBADO LOCAL en rama desde `main@3eba9d0`; pendiente
-PR Draft/revisión, fusión y autorización separada de migración alojada. Verify 403/403,
+[PR #100](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/100) OPEN / Draft,
+revisión, fusión y autorización separada de migración alojada. Verify 403/403,
 integración 84/84, pgTAP 581/581, rollback 10/10, E2E 145 PASS/44 SKIP/0 FAIL. Detalle operativo
 en CONTROL-PROYECTO. N1-03/S1 preparado solo como [plan para U01](S1-PLAN-ESCRITOR-CONFIABLE-20261015.md).
 

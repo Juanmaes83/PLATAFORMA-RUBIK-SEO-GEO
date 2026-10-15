@@ -1,7 +1,8 @@
 # N1-02 / S2 — consentimiento obligatorio de membresías
 
 Base: `main@3eba9d014a339dabdabff28f42e27209695b0bf9`, con #97 fusionada.
-Implementación: `5dad2c6` y documentación posterior. Estado: PROBADO LOCAL, preparado para PR Draft/revisión.
+Implementación: `5dad2c6` y documentación posterior. Estado: PROBADO LOCAL / PR EN REVISIÓN,
+[PR #100](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/100) abierta en Draft, sin fusionar.
 No hay aplicación alojada ni cierre de H1/H2 o del piloto Sarah.
 
 ## Cambio y auditoría
@@ -98,7 +99,10 @@ La migración alojada sigue pendiente: requiere revisión del SHA, inventario de
 administrativos externos, respaldo y autorización del propietario. Un merge del código no
 certifica que la base alojada tenga S2 aplicado; hasta entonces permanece vulnerable allí.
 No se cambiaron credenciales, Production, Vercel ni servicios de pago; cero llamadas reales
-a GSC/GA4/OpenSEO. CI GitHub sigue condicionada por facturación y debe comprobarse al publicar.
+a GSC/GA4/OpenSEO. CI GitHub en `c772060` marca FAILURE en verify Node 22/24 y E2E,
+pero ninguno de esos tres jobs se inició: las anotaciones del run `38734049022` confirman cuenta
+bloqueada por facturación. No es CI verde. Vercel Preview SUCCESS no sustituye las pruebas ni
+acredita aislamiento alojado. Revisar el nuevo HEAD después de cualquier checkpoint documental.
 
 S1 sigue abierto y requiere U01; plan de N1-03 en [S1-PLAN-ESCRITOR-CONFIABLE](S1-PLAN-ESCRITOR-CONFIABLE-20261015.md).
 No abrir otra rama de producto hasta la integración supervisada de S2.

@@ -1,6 +1,7 @@
 # Handoff
 
-> **RELEVO S2 — 15/10/2026:** bloque local completo sobre `main@3eba9d0`, pendiente PR Draft/revisión.
+> **RELEVO S2 — 15/10/2026:** bloque local completo sobre `main@3eba9d0`,
+> [PR #100](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/100) OPEN / Draft, pendiente revisión.
 > Retirados INSERT de tabla/columna y políticas de membresías; fixtures consentidos, sin RPC
 > alternativa. Verify 403/403, integración 84/84, pgTAP 581/581, rollback 10/10 y E2E
 > 145 PASS/44 SKIP/0 FAIL. Stack aislado 55321/55322, compartido preservado. No migración alojada.

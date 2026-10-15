@@ -1,7 +1,8 @@
 # Roadmap de la plataforma
 
 > **Checkpoint N1-02 / S2 — 15/10/2026:** implementado y probado localmente desde
-> `main@3eba9d0`, pendiente PR Draft/revisión y fusión supervisada. Verify 403/403,
+> `main@3eba9d0`, [PR #100](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/100)
+> OPEN / Draft, pendiente revisión y fusión supervisada. Verify 403/403,
 > integración 84/84, pgTAP 581/581, rollback 10/10; E2E 145 PASS/44 SKIP/0 FAIL.
 > Stack propio 55321/55322; compartido preservado. No aplicado alojado. Evidencia:
 > [S2-CONSENTIMIENTO-MEMBRESIAS](S2-CONSENTIMIENTO-MEMBRESIAS-20261015.md).
