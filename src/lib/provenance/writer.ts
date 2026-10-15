@@ -5,6 +5,7 @@ import { Pool } from "pg";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
 import { buildAuditRow, verifyAuditTrail, type AuditInput, type AuditRow, type ProjectRef } from "./audit";
+import { openProviderResult, sealProviderResult, type ProviderResultRow } from "./results";
 import type { Keyring } from "./keyring";
 
 type Client = SupabaseClient<Database>;
@@ -97,6 +98,70 @@ export async function appendTrustedAudit(
     if (db && !committed) {
       try { await db.query("rollback"); } catch { /* the server already discarded the transaction */ }
     }
+    const code = typeof error === "object" && error !== null && "code" in error ? String(error.code) : "";
+    return { ok: false, error: code === "42501" ? "NOT_ALLOWED" : code === "57014" || code === "55P03" ? "WRITER_TIMEOUT" : "WRITE_FAILED" };
+  } finally {
+    db?.release();
+  }
+}
+
+/** Persists only a Core-issued result sealed on this server, with a live SQL membership check. */
+export async function storeTrustedProviderResult(
+  userClient: Client, project: ProjectRef, result: unknown, keyring: Keyring,
+  opts: { operationId?: string } = {},
+): Promise<{ ok: true; id: string } | Failure> {
+  const pool = writerPool();
+  if (!pool) return { ok: false, error: "WRITER_NOT_CONFIGURED" };
+  if (!/^[0-9a-f-]{36}$/i.test(project.projectId)) return { ok: false, error: "INVALID_SCOPE" };
+  const verified = await userClient.auth.getUser();
+  const userId = verified.data.user?.id;
+  if (verified.error || !userId) return { ok: false, error: "NOT_ALLOWED" };
+  const sealed = sealProviderResult(result, project, keyring);
+  if (!sealed.ok) return sealed;
+  const id = opts.operationId ?? randomUUID();
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return { ok: false, error: "INVALID_OPERATION" };
+
+  let db;
+  try {
+    db = await pool.connect();
+    await db.query("begin");
+    await db.query("set local statement_timeout = '8s'");
+    await db.query("set local lock_timeout = '3s'");
+    await db.query("select pg_advisory_xact_lock(hashtextextended('audit_events:' || $1::text, 0))", [project.projectId]);
+    const actors = await db.query<ActorRow>("select * from private.audit_writer_actor($1::uuid, $2::uuid)", [project.projectId, userId]);
+    const actor = actors.rows[0];
+    if (!actor || actor.organization_id !== project.organizationId || actor.tenant_slug !== project.scope.tenantId
+      || actor.project_slug !== project.scope.projectId || !["owner", "account-manager", "analyst"].includes(actor.actor_role)) {
+      await db.query("rollback");
+      return { ok: false, error: "NOT_ALLOWED" };
+    }
+    const row = sealed.row;
+    await db.query(`insert into public.provider_results
+      (id, project_id, organization_id, provider, operation, status, captured_at, signed_payload, data,
+       data_hash_alg, data_hash, key_id, signature, created_by)
+      values ($1::uuid,$2::uuid,$3::uuid,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10,$11,$12,$13,$14::uuid)
+      on conflict (id) do nothing`, [id, project.projectId, project.organizationId, row.provider, row.operation,
+      row.status, row.captured_at, JSON.stringify(row.signed_payload), JSON.stringify(row.data), row.data_hash_alg,
+      row.data_hash, row.key_id, row.signature, userId]);
+    const stored = await db.query<ProviderResultRow & { created_by: string; content_matches: boolean }>(
+      `select *, (signed_payload = $2::jsonb and data is not distinct from $3::jsonb
+        and provider = $4 and operation = $5 and status = $6
+        and captured_at is not distinct from $7::timestamptz
+        and data_hash_alg = $8 and data_hash = $9) as content_matches
+       from public.provider_results where id = $1::uuid`,
+      [id, JSON.stringify(row.signed_payload), JSON.stringify(row.data), row.provider, row.operation,
+        row.status, row.captured_at, row.data_hash_alg, row.data_hash]);
+    const existing = stored.rows[0];
+    if (!existing || existing.project_id !== project.projectId || existing.organization_id !== project.organizationId
+      || existing.created_by !== userId || !existing.content_matches
+      || !openProviderResult(existing, project, keyring).verified) {
+      await db.query("rollback");
+      return { ok: false, error: "IDEMPOTENCY_CONFLICT" };
+    }
+    await db.query("commit");
+    return { ok: true, id };
+  } catch (error) {
+    if (db) { try { await db.query("rollback"); } catch { /* connection lost */ } }
     const code = typeof error === "object" && error !== null && "code" in error ? String(error.code) : "";
     return { ok: false, error: code === "42501" ? "NOT_ALLOWED" : code === "57014" || code === "55P03" ? "WRITER_TIMEOUT" : "WRITE_FAILED" };
   } finally {

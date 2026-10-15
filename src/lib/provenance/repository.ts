@@ -1,12 +1,12 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "@/lib/supabase/database.types";
+import type { Database } from "@/lib/supabase/database.types";
 import type { ProvenanceVerification } from "@/lib/core";
 import type { Keyring } from "./keyring";
 import { verifyAuditTrail, type AuditInput, type AuditRow, type AuditVerification, type ProjectRef } from "./audit";
-import { openProviderResult, sealProviderResult, type ProviderResultRow } from "./results";
-import { appendTrustedAudit } from "./writer";
+import { openProviderResult, type ProviderResultRow } from "./results";
+import { appendTrustedAudit, storeTrustedProviderResult } from "./writer";
 
 // Persistence through the signed-in user's Supabase client (publishable key): Postgres RLS
 // decides what each call may read or write; the database links and protects the chain
@@ -77,16 +77,10 @@ export async function readAuditTrail(client: Client, project: ProjectRef, keyrin
   return { ok: true, rows, verification: verifyAuditTrail(rows, project, keyring) };
 }
 
-export async function storeProviderResult(client: Client, project: ProjectRef, result: unknown, keyring: Keyring): Promise<{ ok: true; id: string } | Failure> {
-  const sealed = sealProviderResult(result, project, keyring);
-  if (!sealed.ok) return sealed;
-  const { data, error } = await client
-    .from("provider_results")
-    .insert({ ...sealed.row, signed_payload: sealed.row.signed_payload as NonNullable<Json>, data: sealed.row.data as Json })
-    .select("id")
-    .single();
-  if (error) return { ok: false, error: error.code === "42501" ? "NOT_ALLOWED" : "WRITE_FAILED" };
-  return { ok: true, id: data.id };
+export async function storeProviderResult(
+  client: Client, project: ProjectRef, result: unknown, keyring: Keyring, opts: { operationId?: string } = {},
+): Promise<{ ok: true; id: string } | Failure> {
+  return storeTrustedProviderResult(client, project, result, keyring, opts);
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

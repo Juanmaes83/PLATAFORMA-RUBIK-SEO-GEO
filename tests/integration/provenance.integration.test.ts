@@ -135,20 +135,20 @@ describe("CORE-9.2 signed provider results through the Data API", () => {
     expect(await listProviderResults(b, pa)).toEqual({ ok: true, rows: [] });
   });
 
-  it("does not trust a genuine signature copied into another project by its owner", async () => {
+  it("rejects a genuine signature copied into another project through the Data API", async () => {
     const original = await loadProviderResult(a, pa, id, keyring);
     if (!original.ok) throw new Error(original.error);
     const row = original.row;
-    const { data, error } = await a.from("provider_results").insert({
+    const copied = {
       project_id: pa2.projectId, organization_id: pa2.organizationId,
       provider: row.provider, operation: row.operation, status: row.status, captured_at: row.captured_at,
       signed_payload: row.signed_payload as NonNullable<Json>, data: row.data as Json,
       data_hash_alg: row.data_hash_alg, data_hash: row.data_hash, key_id: row.key_id, signature: row.signature,
-    }).select("id").single();
-    expect(error).toBeNull();
-    const copied = await loadProviderResult(a, pa2, data!.id, keyring);
-    if (!copied.ok) throw new Error(copied.error);
-    expect(copied.verification).toMatchObject({ verified: false, trust: "UNTRUSTED", reason: "SCOPE_MISMATCH" });
+    };
+    expect((await a.from("provider_results").insert(copied)).error?.code).toBe("42501");
+    expect((await a.from("provider_results").upsert(copied)).error?.code).toBe("42501");
+    const after = await listProviderResults(a, pa2);
+    expect(after.ok && after.rows).toHaveLength(1);
   });
 
   it("another tenant cannot read it; nobody can update it", async () => {
@@ -179,6 +179,17 @@ describe("CORE-9.2 signed provider results through the Data API", () => {
     const ex = await exportProject(b, pb, keyring, at(30));
     if (!ex.ok) throw new Error(ex.error);
     expect([ex.export.audit.rows.length, ex.export.audit.verification, ex.export.results.length]).toEqual([0, { valid: true, length: 0 }, 0]);
+  });
+
+  it("stores a Core result once per operation id and refuses reuse in another project", async () => {
+    const operationId = randomUUID();
+    const result = await liveResult();
+    const first = await storeProviderResult(a, pa2, result, keyring, { operationId });
+    if (!first.ok) throw new Error(first.error);
+    expect(await storeProviderResult(a, pa2, result, keyring, { operationId })).toEqual(first);
+    expect(await storeProviderResult(a, pa, result, keyring, { operationId })).toEqual({ ok: false, error: "IDEMPOTENCY_CONFLICT" });
+    const loaded = await loadProviderResult(a, pa2, operationId, keyring);
+    expect(loaded.ok && loaded.verification.verified).toBe(true);
   });
 });
 

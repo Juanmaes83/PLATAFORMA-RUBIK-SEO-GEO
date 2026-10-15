@@ -110,14 +110,20 @@ select throws_ok($$delete from public.audit_events$$, '42501', null, 'a signed-i
 create temp table payload on commit drop as select jsonb_build_object('provider', 'manual', 'operation', 'import', 'status', 'OK',
   'dataHashAlg', 'sha256', 'dataHash', pg_temp.h(55)) p;
 grant select on payload to authenticated;
+grant select on payload to rubik_audit_writer;
 
 select pg_temp.act_as('00000000-0000-4000-8000-0000000000c1');
+select throws_ok($$insert into public.provider_results (project_id, organization_id, provider, operation, status, signed_payload, data, data_hash_alg, data_hash, key_id, signature)
+  select a1, org_a, 'manual', 'import', 'OK', p, '[]', 'sha256', pg_temp.h(55), 'k-test', pg_temp.h(155) from ids, payload$$, '42501', null, 'the analyst cannot store a chosen HMAC');
+select pg_temp.act_as_admin();
+select pg_temp.act_as_writer('00000000-0000-4000-8000-0000000000c1');
 select lives_ok($$insert into public.provider_results (project_id, organization_id, provider, operation, status, signed_payload, data, data_hash_alg, data_hash, key_id, signature)
-  select a1, org_a, 'manual', 'import', 'OK', p, '[]', 'sha256', pg_temp.h(55), 'k-test', pg_temp.h(155) from ids, payload$$, 'the analyst stores a signed result');
+  select a1, org_a, 'manual', 'import', 'OK', p, '[]', 'sha256', pg_temp.h(55), 'k-test', pg_temp.h(155) from ids, payload$$, 'the dedicated writer can store the fixture result');
 select throws_ok($$insert into public.provider_results (project_id, organization_id, provider, operation, status, signed_payload, data, data_hash_alg, data_hash, key_id, signature)
   select a1, org_a, 'manual', 'import', 'OK', p || '{"dataHashAlg":"fnv1a32-mock"}', '[]', 'fnv1a32-mock', pg_temp.h(55), 'k-test', pg_temp.h(155) from ids, payload$$, '23514', null, 'the mock digest is refused');
 select throws_ok($$insert into public.provider_results (project_id, organization_id, provider, operation, status, signed_payload, data, data_hash_alg, data_hash, key_id, signature)
   select a1, org_a, 'manual', 'import', 'VERIFIED', p, '[]', 'sha256', pg_temp.h(55), 'k-test', pg_temp.h(155) from ids, payload$$, '23514', null, 'columns must repeat the signed payload');
+select pg_temp.act_as('00000000-0000-4000-8000-0000000000c1');
 select throws_ok($$update public.provider_results set status = 'OK'$$, '42501', null, 'nobody updates a stored result');
 select is_empty($$delete from public.provider_results returning 1$$, 'the analyst cannot delete results');
 

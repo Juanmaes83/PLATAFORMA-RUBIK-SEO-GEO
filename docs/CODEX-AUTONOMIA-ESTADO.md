@@ -1,5 +1,13 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
+## Checkpoint S1 · 15/10/2026, 16:04 UTC
+
+- **Base:** PR Draft #104, rama `codex/s1-trusted-audit-writer-20261015`, worktree `test-results/s1-writer`, remoto publicado `976f354a44105d289785d9b7552b163806da49be` antes del siguiente commit. `main` remoto comprobado `520e4119bafe8a9ce4b2293faad2e54b8e6d81d8`.
+- **Nuevo cambio local sin publicar todavía:** revocación SQL de INSERT JWT en `provider_results`; rol dedicado almacena solo resultados Core firmados en servidor tras revalidar actor/proyecto/rol en transacción, con UUID de operación idempotente. Añadidos negativos INSERT/UPSERT, privilegios y replay. Ningún secreto real ni cambio alojado.
+- **Pruebas actuales:** `verify:s1-local` PASS completo para el cambio nuevo: verify 405/405, integración 88/88, pgTAP 603/603 y Playwright **145 PASS / 44 SKIP / 0 FAIL** (3,9 min), limpieza de 11 usuarios/2 organizaciones propios. La ejecución anterior, sobre `976f354`, pasó 405/87/598 y 145 PASS/44 SKIP. Artefacto JSON ignorado en `test-results/s1-local-verification.json`.
+- **Rollback:** contención de INSERT `provider_results` probada en stack local: rol dedicado/JWT `f|f`; reaplicación del grant dedicado `t|f`. **Pendiente:** publicar commit y actualizar cuerpo/HEAD de #104; luego cerrar el borrado de resultados con recibo, traza externa y negativos de fallos de conexión/rotación. Actions no arranca por facturación; la alternativa es el runner local aislado. El ledger E2E ambiguo antiguo sigue preservado. No fusionar ni migrar alojado.
+- **Reanudación:** `cd C:/Users/temp123/Documents/ChatGPT/PLATAFORMA-RUBIK-SEO-GEO/s2-consent/test-results/s1-writer`; `git status -sb`; `git rev-parse HEAD`; `gh pr view 104 --json headRefOid,state,isDraft`; leer este checkpoint y `docs/S1-IMPLEMENTACION-LOCAL-20261015.md`. Stack S1 56321/56322; no resetearlo por el ledger ambiguo. No hay reanudación programada autorizada.
+
 ## Checkpoint S1 · 15/10/2026, 15:49 UTC
 
 - **Rama/worktree:** `codex/s1-trusted-audit-writer-20261015` en `test-results/s1-writer`; PR Draft #104, base `main@520e4119`. Consultar `git rev-parse HEAD` y `gh pr view 104` tras este commit para SHA exacto. S2 y FLOOR PLAN intactos.

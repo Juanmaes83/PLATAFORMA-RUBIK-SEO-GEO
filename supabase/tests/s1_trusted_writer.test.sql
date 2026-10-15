@@ -17,6 +17,10 @@ select ok(not has_column_privilege('authenticated', 'public.imports', 'id', 'ins
 select ok(has_function_privilege('authenticated', 'public.delete_import_with_receipt(uuid,uuid)', 'execute'), 'signed-in user may invoke RLS-bound import erasure');
 select ok(not has_function_privilege('anon', 'public.delete_import_with_receipt(uuid,uuid)', 'execute'), 'anon cannot invoke import erasure');
 select ok(not has_table_privilege('rubik_audit_writer', 'public.imports', 'insert,update,delete'), 'audit writer cannot mutate imports');
+select ok(not has_table_privilege('authenticated', 'public.provider_results', 'insert'), 'JWT cannot insert provider results');
+select ok(not has_column_privilege('authenticated', 'public.provider_results', 'signature', 'insert'), 'JWT cannot choose provider HMAC');
+select ok(has_table_privilege('rubik_audit_writer', 'public.provider_results', 'insert'), 'dedicated writer can store provider results');
+select ok(not has_table_privilege('rubik_audit_writer', 'public.provider_results', 'update,delete'), 'dedicated writer cannot alter provider results');
 select ok(has_function_privilege('rubik_audit_writer', 'private.audit_writer_actor(uuid,uuid)', 'execute'), 'dedicated writer can resolve live membership');
 select ok(not rolbypassrls and not rolcreaterole and not rolcreatedb and not rolsuper and not rolinherit,
   'writer role has no administrative or RLS bypass capability') from pg_roles where rolname = 'rubik_audit_writer';
