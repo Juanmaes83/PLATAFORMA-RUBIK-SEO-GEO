@@ -35,6 +35,64 @@ export function writerPool(): Pool | null {
   return sharedPool;
 }
 
+/** Read-only, per-project readiness probe before any metered provider request.
+ * This is deliberately uncached: a healthy environment variable is not evidence that the
+ * dedicated SQL identity can connect, see the schema, authorize this actor and verify the chain.
+ * A later network/commit failure remains possible and must still be reported as uncertain.
+ */
+export async function preflightTrustedWriter(userClient: Client, project: ProjectRef,
+  actorId: string, keyring: Keyring, operation: "google" | "openseo",
+): Promise<{ ok: true } | Failure> {
+  let pool: Pool | null;
+  try { pool = writerPool(); } catch { return { ok: false, error: "WRITER_UNAVAILABLE" }; }
+  if (!pool) return { ok: false, error: "WRITER_NOT_CONFIGURED" };
+  if (!/^[0-9a-f-]{36}$/i.test(project.projectId) || !/^[0-9a-f-]{36}$/i.test(actorId))
+    return { ok: false, error: "INVALID_SCOPE" };
+  let verified;
+  try { verified = await userClient.auth.getUser(); }
+  catch { return { ok: false, error: "WRITER_UNAVAILABLE" }; }
+  if (verified.error || verified.data.user?.id !== actorId) return { ok: false, error: "NOT_ALLOWED" };
+  let db;
+  try {
+    db = await pool.connect();
+    // audit_writer_actor takes FOR SHARE locks to revalidate membership; PostgreSQL forbids
+    // that in a READ ONLY transaction. This transaction still issues no mutations.
+    await db.query("begin");
+    await db.query("set local statement_timeout = '8s'");
+    await db.query("set local lock_timeout = '3s'");
+    const capability = await db.query<{ ready: boolean }>(`select
+      current_user = 'rubik_audit_writer'
+      and not (select rolbypassrls from pg_roles where rolname = current_user)
+      and has_table_privilege(current_user, 'public.audit_events', 'SELECT')
+      and has_table_privilege(current_user, 'public.audit_events', 'INSERT')
+      and has_table_privilege(current_user, 'public.provider_results', 'SELECT')
+      and has_table_privilege(current_user, 'public.provider_results', 'INSERT')
+      and has_table_privilege(current_user, 'private.audit_idempotency', 'SELECT')
+      and has_table_privilege(current_user, 'private.audit_idempotency', 'INSERT')
+      and has_table_privilege(current_user, 'private.audit_outbox', 'SELECT')
+      and has_column_privilege(current_user, 'private.audit_outbox', 'state', 'UPDATE')
+      and has_function_privilege(current_user, 'private.audit_writer_actor(uuid,uuid)', 'EXECUTE')
+      and has_function_privilege(current_user, $1, 'EXECUTE') as ready`,
+    [operation === "google" ? "private.google_capture_command(uuid,text,jsonb)" : "private.openseo_job(uuid,text,uuid,jsonb)"]);
+    if (!capability.rows[0]?.ready) return { ok: false, error: "WRITER_UNAVAILABLE" };
+    const actor = await db.query<ActorRow>("select * from private.audit_writer_actor($1::uuid, $2::uuid)", [project.projectId, actorId]);
+    const current = actor.rows[0];
+    if (!current || current.organization_id !== project.organizationId
+      || current.tenant_slug !== project.scope.tenantId || current.project_slug !== project.scope.projectId)
+      return { ok: false, error: "NOT_ALLOWED" };
+    const chain = await db.query<AuditRow>("select * from public.audit_events where project_id = $1::uuid order by seq", [project.projectId]);
+    if (!verifyAuditTrail(chain.rows, project, keyring).valid) return { ok: false, error: "CHAIN_INVALID" };
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "WRITER_UNAVAILABLE" };
+  } finally {
+    if (db) {
+      try { await db.query("rollback"); } catch { /* read-only transaction was discarded */ }
+      db.release();
+    }
+  }
+}
+
 /** The only ordinary append path. No request can supply a signed row or SQL role. */
 export async function appendTrustedAudit(
   userClient: Client, project: ProjectRef, input: AppendInput, keyring: Keyring,

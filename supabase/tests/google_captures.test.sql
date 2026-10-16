@@ -1,7 +1,7 @@
 -- Manual Google captures (migration 20261012120000): project owners only; reserve under an
 -- idempotency key, store atomically after re-validating connection and binding, replay without a
 -- second provider call, no storage after a revocation, the signed source must match the
--- reservation, and a released or abandoned key can be reused.
+-- reservation. F-OPS-2 keeps uncertain reservations until privileged reconciliation.
 begin;
 create extension if not exists pgtap with schema extensions;
 select no_plan();
@@ -90,14 +90,14 @@ select is(pg_temp.cap('release','{"key":"owner-key-00000001"}')->>'state','STORE
 select is((select count(*)::int from public.provider_results where project_id=(select prj from ids)),1,'exactly one result');
 select is((select created_by from public.provider_results where id=(select v::uuid from k where name='r1')),'00000000-0000-4000-8000-0000000000f1'::uuid,'authored by the owner');
 
--- Release and reuse; abandoned reservations can be taken over
+-- A JWT owner cannot release an uncertain reservation or take it over after five minutes.
 select is(pg_temp.begin('owner-key-00000002')->>'state','RESERVED','a second key reserves');
-select is(pg_temp.cap('release','{"key":"owner-key-00000002"}')->>'state','RELEASED','released after a provider failure');
-select is(pg_temp.begin('owner-key-00000002')->>'state','RESERVED','a released key can be reserved again');
+select throws_ok($$select pg_temp.cap('release','{"key":"owner-key-00000002"}')$$,'55P03',null,'JWT owner cannot release uncertain capture');
 select set_config('role','postgres',true);
+select set_config('request.jwt.claims','{}',true);
 update private.google_captures set reserved_at=now()-interval '10 minutes' where idempotency_key='owner-key-00000002';
 select pg_temp.act_as('00000000-0000-4000-8000-0000000000f1');
-select is(pg_temp.begin('owner-key-00000002')->>'state','RESERVED','an abandoned reservation can be taken over');
+select throws_ok($$select pg_temp.begin('owner-key-00000002')$$,'55P03',null,'JWT owner cannot take over expired reservation');
 
 -- Revocation between reservation and storage stores nothing
 select set_config('role','postgres',true);
