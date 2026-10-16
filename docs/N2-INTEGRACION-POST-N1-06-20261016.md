@@ -25,11 +25,29 @@
 - E2E en el primer SHA combinado: **156 PASS, 50 SKIP, 1 FAIL de 207**. La aserción heredada esperaba `rubik-project-export-v2` y `rubik-export-manifest-v1`, mientras que la ruta integrada produce v3 y manifiesto v2 con SEO, tal como implementa `exportar/route.ts`. La prueba se actualizó al contrato nuevo.
 - Repetición E2E sobre `f1ceb0e4fcf9e19cc6e78cd685d5b6b8fce58d88`: mismo recuento, con un fallo porque la prueba esperaba listas SEO vacías. Las pruebas de Competidores anteriores habían creado registros en el proyecto ficticio compartido por la suite; la exportación los incluyó correctamente. La aserción se ajustó para comprobar que las listas existen y que los recuentos firmados del manifiesto coinciden con su contenido, sin depender de que estén vacías. La limpieza informó 11 usuarios y 2 organizaciones propios, sin residuos. E2E completa queda pendiente de repetición tras este ajuste.
 
-## Gaps que bloquean el merge
+## Resultado final de verificación local · 16/10/2026 — SHA de código `b3596500f1d5cd867d2e006c05d2454677d7843c`
 
-1. Repetir E2E en el SHA con las aserciones dinámicas del bloque SEO/manifiesto; integración (119/119) y pgTAP (718/718) están acreditados localmente en su SHA padre, sin cambios de producto desde entonces. No resetear ni migrar un stack existente para resolver discrepancias.
-2. Cerrar la revisión del contrato de recuperación v3 y compatibilidad con archivos v1/v2, incluyendo lecturas operativas parciales, integridad de firmas, restauración idempotente y restricción al mismo proyecto.
-3. Confirmar una vez más que los contadores de acciones de auditoría de #114/#115 no se sobrescriben según el orden de migración.
-4. Reconciliar navegación y `database.types.ts` regenerando tipos contra el esquema completo combinado si la batería lo requiere.
+El propietario ejecutó todos los gates sobre la rama combinada local Windows, usando el stack identificado `rubik-n2-integration-20261016` y su configuración CLI en `test-results/n2-integration-stack`:
 
-El estado alojado de H1/H2, las migraciones de producción y el piloto Sarah permanecen sin acreditar. El despliegue Vercel de #113 no valida esta rama ni sus migraciones.
+- `npm run verify`: **PASS**, 57 archivos / 512 pruebas; core pin, escaneo de secretos (506 archivos), lint, tipos y build PASS.
+- `node scripts/verify-n2-integration.mjs`: **PASS**, 18/18 archivos / 119/119 pruebas.
+- `npx --yes supabase@2.118.0 --workdir test-results/n2-integration-stack test db`: **PASS**, 25/25 archivos / 718/718 aserciones pgTAP.
+- `node scripts/verify-n2-integration.mjs e2e --reporter=dot`: **PASS**, 157 PASS / 50 SKIP / 0 FAIL (207 casos, 4,5 min).
+- E2E cleanup informó 11 usuarios y 2 organizaciones propios y ningún residuo.
+- No se reportó reset del stack ni aplicación de migraciones en esta corrida. Los tests son locales; GitHub Actions sigue bloqueada por facturación y no ejecuta pasos.
+
+Las dos mejoras añadidas después de la E2E anterior también están presentes en este SHA: aviso al alcanzar el límite de 500 keywords y revocación de grants de escritura por columna en el rollback SEO. El estado del PR #120 y esta evidencia se actualizaron desde el HEAD verificado.
+
+## Estado de merge e integración posterior
+
+#120 continúa OPEN/Draft, base `main@b6555eaa8190ed8668c501813fda01e06c75163c`. No fusionar #114 ni #115 por separado: #120 consolida su código. #119, #116 y #117 continúan como ramas/PR Draft separadas con base anterior y requieren rebase/revisión una vez cerrado #120. #118 es únicamente diseño/contrato de N2-14.
+
+El merge a main queda **pendiente de resolver el comportamiento de despliegue**: las rutas SEO/Competidores consultan tablas N2 no aplicadas en Supabase alojado. No realizar migraciones alojadas, cambios de Production, secretos ni proveedores como parte de este PR. H1 sigue parcial y H2 bloqueado.
+
+## Plan por responsables
+
+1. **ChatGPT supervisor:** auditar el diff final de #120 y la estrategia de compatibilidad de despliegue; coordinar el merge por SHA solo cuando el código no exponga una aplicación incompatible con Production y el propietario mantenga su autorización.
+2. **Codex/Claude:** mientras #120 siga abierta, solo auditoría, análisis de conflictos y diseño documental independiente; no abrir otra PR de producto ni alterar su worktree. Después, rebasar #119; luego #116/#117 con exportación y recuperación firmadas para sus tablas, manteniendo formato anterior y listas de auditoría aditivas.
+3. **Claude, trabajo inmediato:** seguir el prompt de [HANDOFF-CLAUDE-INTEGRACION-N2-20261016.md](HANDOFF-CLAUDE-INTEGRACION-N2-20261016.md); entregar mapa de conflictos/dependencias, diseño fail-safe de despliegue y secuencia de integración sin cambios alojados.
+4. **Propietario:** resolver U02/U03/U04 y R1/R3/R4/R7 cuando corresponda; cualquier operación alojada necesita ventana, entorno, respaldo y autorización operativa específica.
+

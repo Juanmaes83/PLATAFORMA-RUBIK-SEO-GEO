@@ -1,5 +1,17 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
+## Corte de continuidad N2 · 16/10/2026
+
+- GitHub verificado: `main@b6555eaa8190ed8668c501813fda01e06c75163c`; PR #113 MERGED.
+- PR activa: #120 OPEN/Draft, `codex/n2-integration-post113-20261016`, HEAD local/remoto informado por GitHub `b3596500f1d5cd867d2e006c05d2454677d7843c`, base b6555ea.
+- Gates locales del propietario en Windows, SHA exacto #120: verify 512/512; integración 119/119; pgTAP 718/718; E2E 157 PASS/50 SKIP/0 FAIL. Sin residuos: 11 usuarios y 2 organizaciones de fixtures propios. GitHub Actions no ejecutó pasos por facturación; no es CI verde.
+- #120 integra el contenido de #114/#115 más exportación/recuperación SEO v3. #114/#115 siguen Draft pero no deben fusionarse por separado.
+- #119 N2-10, #116 N2-12, #117 N2-13 siguen Draft y basadas en main anterior; #118 N2-14 contiene solo diseño/contrato.
+- S2/S1/N1-06 están integrados como código, no validados en Supabase alojado. N1-05 no tiene matriz alojada; Sarah/Google recovery no ensayados alojados. H1 parcial; H2 bloqueado. Sin migraciones N2 alojadas.
+- Riesgo de fusión: rutas SEO/Competidores dependen de tablas N2 aún ausentes en Supabase alojado. Antes de integrar #120 en main, revisar cómo impedir una activación/degradación de Production; el mandato de merge no autoriza tocar Production ni aplicar migraciones.
+- Próximo trabajo autorizado sin operación alojada: terminar auditoría #120 y documentar compatibilidad; tras su cierre, rebasar #119 y luego #116/#117 incluyendo las tablas en exportación/recuperación firmada; convertir #118 en informes manuales de solo lectura cuando las fuentes estén integradas.
+- Ver [CONTROL-PROYECTO](CONTROL-PROYECTO.md), [ROADMAP-MAESTRO](ROADMAP-MAESTRO-2026.md) y [handoff Claude](HANDOFF-CLAUDE-INTEGRACION-N2-20261016.md). Mantener historial inferior; no usar sus cortes como estado actual.
+
 ## Checkpoint N1-05/N1-06 local · 15/10/2026
 
 - **Git/reconciliación:** cuenta `Juanmaes83`; `origin/main@d12b80ee4c229ab8c90f1044ecd0108165f8bb2e` (#100/#104/#109/#112 fusionadas). Rama/worktree propios `codex/n1-05-n1-06-local-20261015` / `C:\Users\temp123\Documents\ChatGPT\PLATAFORMA-RUBIK-SEO-GEO\n1-recovery`; consultar HEAD y PR Draft al reanudar. Checkouts y contenedores históricos S1/S2 preservados; FLOOR PLAN intacto.
