@@ -162,6 +162,23 @@ describe("manual Google capture (simulated provider and RPCs)", () => {
     expect(s.stored).toHaveLength(0);
   });
 
+  it("keeps the reservation when the writer fails after a successful provider response", async () => {
+    const s = setup({ storeError: "WRITE_FAILED" });
+    expect(await captureGoogleReport(s.client, project, query, key, actor, keyring,
+      { env, mcpFactory: s.mcpFactory, store: s.store, receipt: s.receipt }))
+      .toEqual({ ok: false, error: "STORE_FAILED" });
+    expect(s.callTool).toHaveBeenCalledTimes(1);
+    expect(s.store).toHaveBeenCalledTimes(1);
+    expect(s.stored).toHaveLength(0);
+    expect(s.captures.get(key)?.state).toBe("RESERVED");
+    expect(await captureGoogleReport(s.client, project, query, key, actor, keyring,
+      { env, mcpFactory: s.mcpFactory, store: s.store, receipt: s.receipt }))
+      .toEqual({ ok: false, error: "IN_PROGRESS" });
+    expect(s.callTool).toHaveBeenCalledTimes(1);
+    expect(s.store).toHaveBeenCalledTimes(1);
+    expect(s.receipt).not.toHaveBeenCalled();
+  });
+
   it("if the answer of a committed store is lost, retrying the same key returns the stored result and signs its audit without reading again", async () => {
     const s = setup({ lostStoreResponse: true });
     expect(await captureGoogleReport(s.client, project, query, key, actor, keyring, { env, mcpFactory: s.mcpFactory, store: s.store, receipt: s.receipt }))
