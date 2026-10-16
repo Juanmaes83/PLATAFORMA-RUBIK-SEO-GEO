@@ -35,6 +35,7 @@ export default async function SeoPage({ params, searchParams }: {
     listImports(supabase, ref),
   ]);
   const keywords = keywordsResult.error ? [] : keywordsResult.data as Keyword[];
+  const keywordsAtLimit = keywords.length === 500;
   const keyring = serverKeyring();
   const issueSummary = listed.ok ? listed.rows.find((r) => r.provider === "openseo" && r.operation === "auditIssues") : null;
   const issuesLoaded = issueSummary && keyring ? await loadProviderResult(supabase, ref, issueSummary.id, keyring) : null;
@@ -114,6 +115,7 @@ export default async function SeoPage({ params, searchParams }: {
       <h2 id="keywords-title">Palabras clave y oportunidades</h2>
       <p>Las palabras clave siguientes son declaraciones del equipo. Volumen, dificultad, CPC, posición y tendencia: <strong>sin medición disponible</strong>. Una keyword sin página objetivo es una oportunidad para investigar, no una recomendación de publicación.</p>
       {keywordsResult.error && <p className="notice notice-error" role="alert">No se pudieron leer las palabras clave.</p>}
+      {keywordsAtLimit && <p className="notice notice-info" role="status">Se muestran como máximo 500 keywords. Los solapamientos y las consultas sin página se calculan solo sobre esta lista; pueden faltar declaraciones anteriores.</p>}
       {canDraft && <form action={saveKeywordAction} className="card form"><h3>Añadir palabra clave</h3><input type="hidden" name="tenant" value={project.tenantId} /><input type="hidden" name="project" value={project.projectId} />
         <div className="field"><label htmlFor="kw-phrase">Consulta</label><input id="kw-phrase" name="phrase" required minLength={2} maxLength={160} /></div>
         <div className="field"><label htmlFor="kw-language">Idioma (ISO)</label><input id="kw-language" name="language" defaultValue="es" required pattern="[a-z]{2}(-[a-z]{2})?" /></div>
