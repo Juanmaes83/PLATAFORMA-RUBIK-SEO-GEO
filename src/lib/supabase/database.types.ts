@@ -177,6 +177,50 @@ isOneToOne: false
       referencedColumns: ["id","organization_id"]
     }
                   ]
+                },"geo_observations": {
+                  Row: {
+                    "answer_excerpt": string | null,"cited_sources": NonNullable<Json>,"created_at": string,"created_by": string,"engine": string,"engine_detail": string | null,"entity_name": string,"evidence_reference": string | null,"id": string,"market_country": string | null,"market_language": string | null,"mentioned_entities": NonNullable<Json>,"method": string,"notes": string | null,"observed_on": string,"organization_id": string,"presence": string,"project_id": string,"query_text": string,"supersedes_id": string | null,"verification": string,"verified_at": string | null,"verified_by": string | null
+                  }
+                  Insert: {
+                    "answer_excerpt"?: string | null,"cited_sources"?: NonNullable<Json>,"created_at"?: string,"created_by"?: string,"engine": string,"engine_detail"?: string | null,"entity_name": string,"evidence_reference"?: string | null,"id"?: string,"market_country"?: string | null,"market_language"?: string | null,"mentioned_entities"?: NonNullable<Json>,"method": string,"notes"?: string | null,"observed_on": string,"organization_id": string,"presence": string,"project_id": string,"query_text": string,"supersedes_id"?: string | null,"verification"?: string,"verified_at"?: string | null,"verified_by"?: string | null
+                  }
+                  Update: {
+                    "answer_excerpt"?: string | null,"cited_sources"?: NonNullable<Json>,"created_at"?: string,"created_by"?: string,"engine"?: string,"engine_detail"?: string | null,"entity_name"?: string,"evidence_reference"?: string | null,"id"?: string,"market_country"?: string | null,"market_language"?: string | null,"mentioned_entities"?: NonNullable<Json>,"method"?: string,"notes"?: string | null,"observed_on"?: string,"organization_id"?: string,"presence"?: string,"project_id"?: string,"query_text"?: string,"supersedes_id"?: string | null,"verification"?: string,"verified_at"?: string | null,"verified_by"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "geo_observations_project_id_organization_id_fkey"
+      columns: ["project_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "projects"
+      referencedColumns: ["id","organization_id"]
+    },{
+      foreignKeyName: "geo_observations_supersedes_id_project_id_fkey"
+      columns: ["supersedes_id","project_id"]
+isOneToOne: false
+      referencedRelation: "geo_observations"
+      referencedColumns: ["id","project_id"]
+    }
+                  ]
+                },"geo_proposals": {
+                  Row: {
+                    "created_at": string,"created_by": string,"evidence_ids": (string)[],"hypothesis": string,"id": string,"limitations": string | null,"organization_id": string,"priority": string,"priority_reason": string,"problem": string,"project_id": string,"query_text": string,"review_note": string | null,"reviewed_at": string | null,"reviewed_by": string | null,"rule": string,"status": string,"suggested_action": string,"title": string,"updated_at": string
+                  }
+                  Insert: {
+                    "created_at"?: string,"created_by"?: string,"evidence_ids"?: (string)[],"hypothesis": string,"id"?: string,"limitations"?: string | null,"organization_id": string,"priority": string,"priority_reason": string,"problem": string,"project_id": string,"query_text": string,"review_note"?: string | null,"reviewed_at"?: string | null,"reviewed_by"?: string | null,"rule": string,"status"?: string,"suggested_action": string,"title": string,"updated_at"?: string
+                  }
+                  Update: {
+                    "created_at"?: string,"created_by"?: string,"evidence_ids"?: (string)[],"hypothesis"?: string,"id"?: string,"limitations"?: string | null,"organization_id"?: string,"priority"?: string,"priority_reason"?: string,"problem"?: string,"project_id"?: string,"query_text"?: string,"review_note"?: string | null,"reviewed_at"?: string | null,"reviewed_by"?: string | null,"rule"?: string,"status"?: string,"suggested_action"?: string,"title"?: string,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "geo_proposals_project_id_organization_id_fkey"
+      columns: ["project_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "projects"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
                 },"imports": {
                   Row: {
                     "captured_at": string,"created_at": string,"created_by": string,"error_count": number,"errors": NonNullable<Json>,"file_bytes": number,"file_sha256": string,"finding_count": number,"findings": NonNullable<Json>,"format": string,"id": string,"organization_id": string,"period_end": string | null,"period_start": string | null,"project_id": string,"source_kind": string,"source_label": string,"source_tool": string | null,"source_url": string | null,"status": string
