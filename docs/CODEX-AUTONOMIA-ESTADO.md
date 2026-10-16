@@ -1,5 +1,12 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
+## Corte vigente · 16/10/2026, tras fusión #120
+
+- `main@9365387af16f79af8fc6f88cffed77b7b4725cdc`; #120 MERGED, Production READY para ese SHA. `npm run verify` en el HEAD fusionado 5e64b48: 523 PASS/1 SKIP, lint/tipos/build PASS. Integración local comunicada 123/123, pgTAP 734/734, E2E 157 PASS/50 SKIP; Actions bloqueada por facturación.
+- N2-09 y N2-11 están en main con interfaz apagada por defecto. #114/#115 absorbidas; #121 F-OPS-2 permanece Draft sobre main. #119, #116, #117 Draft; #118 diseño. Evitar verticales nuevas; priorizar H1/H2 y después integración con recuperación completa.
+- Candidato Supabase `yvdgmklgwlshizzgefpv`: 16/30 migraciones, sin rol escritor ni outbox. No equivale a Production acreditada. Identidad del destino, copia recuperable y secuencia N1 en [N1-VENTANA-ALOJADA-20261016.md](N1-VENTANA-ALOJADA-20261016.md). H1 parcial; H2 bloqueado.
+- Siguiente operación: comprobar destino y respaldo, migrar S2/S1/Google en ventana, ejecutar negativas alojadas y recuperación autorizada; no activar N2 ni proveedores por inferencia. El corte inferior es histórico.
+
 ## Corte de continuidad N2 · 16/10/2026
 
 - GitHub verificado: `main@b6555eaa8190ed8668c501813fda01e06c75163c`; PR #113 MERGED.
