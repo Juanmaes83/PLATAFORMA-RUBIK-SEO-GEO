@@ -1,5 +1,10 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
+## Checkpoint de seguridad de restauración · 16/10/2026, 10:40 UTC
+
+- HEAD publicado anterior `9631137` en `codex/n2-integration-113-114-115-20261016`; comprobar nuevo SHA tras push. Prueba v3 dirigida 4/4 PASS: conflicto de dominio aborta SQL sin escritura parcial. Rollback URL corregido para revocar grants de tabla **y de columna**; ensayo transaccional en stack propio: `t|t → f|f → t|t` para INSERT/UPDATE JWT, con ROLLBACK final. Archivos nuevos de este corte: `tests/integration/seo-recovery-v3.integration.test.ts`, `supabase/rollbacks/20261016110000_n2_seo_keyword_target_guard.sql` y documentos de continuidad. No se han repetido suites completas porque no cambió producción ni la migración aplicada; los resultados del corte `365b0c2` siguen registrados abajo.
+- Sigue pendiente: transferencia SEO a otro proyecto con nueva identidad/auditoría; ver alternativas A/B/C en la matriz. No fusionar PR ni aplicar esquemas alojados. Siguiente acción: publicar checkpoint, revisar estado remoto y preparar revisión supervisada del contrato v3 y del orden de despliegue.
+
 ## Checkpoint integración consolidada · 16/10/2026, 09:17 UTC
 
 - Branch/worktree `codex/n2-integration-113-114-115-20261016` / `s2-consent/test-results/n2-integration`; corte v3 publicado `365b0c2e4c9abdaacf890cb181c87b4fe66213ea`. Reconciliar HEAD remoto tras este checkpoint. `main@d12b80ee4c229ab8c90f1044ecd0108165f8bb2e`; #113 `55074b2`, #114 `e68fbd4`, #115 `52ce3a1`, todas OPEN/Draft según consulta reciente. Ninguna fusionada.

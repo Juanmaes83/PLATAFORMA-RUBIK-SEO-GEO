@@ -98,3 +98,21 @@ it("restores owned SEO rows with original ids, relationships and human verificat
   expect((await outsider.from("competitor_observations").select("id").eq("project_id", projectId)).data).toEqual([]);
   expect((await outsider.from("seo_keywords").select("id").eq("project_id", projectId)).data).toEqual([]);
 });
+
+it("aborts the whole restore on a changed destination domain and leaves SEO rows untouched", async () => {
+  const planned = planRestore(doc, keyring, { operatorId: users[0] });
+  expect(planned.ok).toBe(true);
+  if (!planned.ok || !original.ok) return;
+  psql(`update public.projects set domain = 'changed.example.test' where id = '${projectId}';`);
+  try {
+    expect(() => psql(planned.plan.sql)).toThrow(/el dominio del proyecto cambi/);
+    expect(Number(psql(`select count(*) from public.seo_keywords where project_id = '${projectId}';`)))
+      .toBe(original.value.keywords.length);
+    expect(Number(psql(`select count(*) from public.competitor_observations where project_id = '${projectId}';`)))
+      .toBe(original.value.observations.length);
+  } finally {
+    psql(`update public.projects set domain = 'seo-restore.example.test' where id = '${projectId}';`);
+  }
+  expect(await readSeoRecoveryState(owner, { projectId, organizationId, scope: { tenantId: org, projectId: "site" } }))
+    .toEqual(original);
+});
