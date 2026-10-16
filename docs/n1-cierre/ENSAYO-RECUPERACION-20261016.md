@@ -156,14 +156,47 @@ Datos de un volumen mínimo. **No se pueden extrapolar** a un piloto real.
 - **Cambio:** convertir este ensayo en una prueba con dos stacks propios. Ambas variantes, en aserciones.
 - El arnés de este ensayo (dos stacks, dos fases y la exportación que imita la ruta) se queda en el contenedor efímero y **no se publica** porque es código de prueba. §7 basta para reproducirlo.
 
-**F-JWT-1 · Dos stacks locales aceptan los JWT del otro** (información, decisiva para N1-05 alojado).
-- **Evidencia:** los dos stacks locales publican la **misma clave ES256** del CLI (mismo `kid` en `/auth/v1/.well-known/jwks.json`). Un token emitido por el origen (`iss = 127.0.0.1:61321`) obtuvo **HTTP 200** en la Data API del destino. Como la variante «identidades» comparte UUID, devolvió además la fila del proyecto restaurado. `/auth/v1/user` del destino respondió 403.
-- **Consecuencia:**
-  - el negativo «JWT de otro proyecto» (S-5 / J4) **no se puede acreditar en local**;
-  - en alojado depende de que el proyecto Preview tenga **claves de firma propias**;
-  - PostgREST no comprueba `iss`;
-  - restaurar o recrear identidades con los mismos UUID en un entorno que comparta claves daría acceso cruzado.
-- **Uso:** criterio de parada en la ventana A ([EJECUCION-ALOJADA](EJECUCION-ALOJADA-20261016.md)).
+**F-JWT-1 · Aislamiento entre proyectos por clave de firma** (corregido en la 2.ª entrega).
+
+**Primera entrega: observación y conclusión corregida**
+- **Observación:** los dos stacks del ensayo de recuperación usaban la **clave ES256 por defecto del CLI**, la misma en ambos (mismo material). Un token del origen obtuvo HTTP 200 en la Data API del destino.
+- **Conclusión de entonces:** que este negativo no podía probarse en local. **Era incorrecta:** la causa era la configuración por defecto, no una limitación.
+
+**Ensayo con claves distintas**
+- **Montaje:**
+  - dos stacks **exclusivamente propios**: `rubik-n1c-jwta-20261016` (127.0.0.1:63321) y `rubik-n1c-jwtb-20261016` (127.0.0.1:64321);
+  - el mismo `main@b6555ea`;
+  - en cada uno, una clave ES256 nueva (`supabase gen signing-key --algorithm ES256`, `signing_keys_path`) y un `jwt_secret` heredado aleatorio distinto;
+  - las claves están en el directorio temporal de la sesión, con permisos 600, y no se publican;
+  - ningún token ni clave de Production.
+- **Resultado:** 20 comprobaciones, 20 PASS. Al terminar, stacks parados, 0 contenedores y 0 volúmenes.
+
+| ID | Control | Observado | Qué distingue |
+|---|---|---|---|
+| K | JWKS de A frente a B, comparando la **huella RFC 7638** del material de clave y no solo el `kid` | Huellas distintas | Identidad de la clave |
+| T1 / T1u | Token propio de A → Data API y `/auth/v1/user` de A | 200 (1 fila) y 200 | Positivo |
+| T2 / T2r | Token de A → Data API de B, y de B → A | **401 `PGRST301`** en ambos sentidos | **Firma**: el token ajeno se rechaza |
+| T2u | Token de A → `/auth/v1/user` de B | 403 | Auth también lo rechaza |
+| C1 | Claims de A (`iss` = A) **firmados con la clave de B** → Data API de B | **200** (0 filas: ese `sub` no existe en B) | La Data API **no comprueba el emisor**: solo la firma |
+| C1u | El mismo token → `/auth/v1/user` de B | 403 | Auth exige una sesión existente |
+| C2 | Clave de A con `iss` reescrito a B → Data API de A | **200** (1 fila) | `iss` no se comprueba |
+| C3 | Carga útil alterada sin volver a firmar | 401 `PGRST301` | Integridad de la firma |
+| C4 | Firma válida de A con el `kid` de B | 401 | `kid` desconocido o incoherente |
+| C5 | Token de A caducado | 401 `PGRST303` | Caducidad |
+| C6 | `alg: none` | 401 | Algoritmo |
+| Z1 | Usuario autenticado de A sin membresía | 200, 0 filas | **Autorización (RLS)** |
+| Z2 | Firma válida de A para un `sub` inexistente | 200, 0 filas | La Data API no comprueba si el usuario existe; RLS sí lo cubre |
+| Z3 | Anónimo (solo clave publicable) | 401 / `42501` | Sin sesión |
+| L1–L3 | HS256 con el secreto heredado de A (→ A y → B) y con el secreto por defecto del CLI (→ A) | 401 en los tres | En **esta** configuración local no se aceptó ningún HS256 de usuario. No se determinó si el secreto heredado está deshabilitado o se usa otro valor |
+
+**Conclusiones**
+- El aislamiento entre proyectos **sí se puede probar en local** y pasa cuando las claves son distintas.
+- La Data API se apoya **solo en la firma**. Un emisor ajeno no se rechaza por su `iss` (C1, C2).
+- Si dos entornos comparten **cualquier** material de verificación (clave actual, de reserva o anterior, o el secreto heredado), un token de uno vale en el otro. Si además comparten UUID, por ejemplo con identidades recreadas al restaurar, da acceso a filas reales. Esto se observó con la clave por defecto en la primera entrega.
+- **Uso:**
+  - procedimiento de identidad de la [ventana A](EJECUCION-ALOJADA-20261016.md), que compara material de clave y modo de firma, no `kid`;
+  - **prueba negativa alojada autorizada** en la ventana B, que sigue siendo obligatoria.
+- **Propuesta para Codex:** convertir este ensayo en una prueba de integración con dos stacks propios (F-REC-3).
 
 ## 6. Corrección de documentos existentes
 

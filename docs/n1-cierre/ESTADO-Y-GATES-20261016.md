@@ -4,6 +4,15 @@
 **Rama:** `docs/n1-cierre-operativo-20261016`, solo documentación, creada desde `main@b6555eaa8190ed8668c501813fda01e06c75163c`.
 **Supervisión:** ChatGPT. **Decisión y operación alojada:** Juanma.
 
+> **2.ª entrega · 16/10/2026** (sobre el commit `9d065ca`). Cambios:
+> - P0 separado en cuatro planos: despliegue, configuración, esquema y funcionamiento (§1.1).
+> - Capacidades afectadas por la ausencia del escritor (§1.2) y hallazgo F-OPS-2.
+> - F-JWT-1 corregido con un ensayo local de claves distintas, 20/20 ([ENSAYO §5](ENSAYO-RECUPERACION-20261016.md)).
+> - Identidad del proyecto por material de clave y modo de firma, no por `kid` ([ventana A](EJECUCION-ALOJADA-20261016.md)).
+> - D-SEC-2 y el procedimiento de incidentes sin reversiones que reabran S1/S2 ([DECISIONES](DECISIONES-PROPIETARIO-20261016.md)).
+> - Estado de los hallazgos N2 según lo comunicado para `f9ef98a` (§7).
+> - Lista mínima de comprobaciones pendientes (§10).
+
 Este expediente **no declara H1, H2 ni el Nivel 1 terminados**. Distingue lo comprobado de lo pendiente y, para cada pendiente, indica qué evidencia lo cerraría.
 
 **Documentos del expediente:**
@@ -30,16 +39,38 @@ Este expediente **no declara H1, H2 ni el Nivel 1 terminados**. Distingue lo com
 | Cada push a una rama (también las documentales) crea una Preview de Vercel. Mi push `8a48fa9` creó una | [gh] deployments |
 | Worktrees de Codex y del propietario: no tocados. FLOOR PLAN: no accedido | [obs] |
 
-**Consecuencia del despliegue automático:**
-- Production ejecuta desde el 15/10 el código S2, S1 y #113.
-- Según la documentación vigente, las migraciones S2/S1 **no se han aplicado** en el Supabase alojado (CONTROL-PROYECTO, Roadmap Maestro) [com].
-- Sin `RUBIK_AUDIT_DATABASE_URL` (`src/lib/provenance/writer.ts:24`) [cód]:
-  - toda acción auditada devuelve `WRITER_NOT_CONFIGURED`;
-  - la exportación responde 503 (`exportar/route.ts`: `inspectProjectAuditOutbox`).
-- Con la variable configurada pero sin las migraciones, el escritor fallaría contra objetos inexistentes.
-- `/api/salud` no informa de nada de esto (`src/app/api/salud/route.ts`) [cód].
+### 1.1 P0 · Qué se sabe de Production (actualizado 16/10/2026, 2.ª entrega)
 
-**Production puede estar degradada sin que nada lo indique.** No se ha comprobado [nc]. Es la **comprobación P0** de la [ejecución alojada](EJECUCION-ALOJADA-20261016.md), solo de lectura.
+| Plano | Estado | Fuente |
+|---|---|---|
+| **Despliegue observado** | Production = `main@b6555ea`, READY (`dpl_FyR1A7uZG82KB7sZHrTuq9WZxy7A`, `githubCommitRef: main`). Cada merge en `main` despliega en Production | [gh] metadatos de Vercel, de Claude y del supervisor |
+| **Configuración actual observada** | En el inventario de variables del proyecto Vercel **no existen** `RUBIK_AUDIT_DATABASE_URL` ni `RUBIK_AUDIT_DRAIN_TOKEN`. `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` abarcan **Production y Preview** | Supervisor, lectura de metadatos; sin valores |
+| **Esquema** | **Desconocido.** Las conexiones de Supabase del supervisor no muestran el proyecto SEO/GEO. No se afirma que falten migraciones: la documentación dice que no se han aplicado [com], pero **no se ha comprobado** en el proyecto | [nc] |
+| **Plan de Vercel** | No identificado por el conector | [nc] |
+| **Funcionamiento real** | **No probado.** No se ha ejecutado nada contra Production ni contra Sarah | [nc] |
+
+**Lo que se deduce sin depender del esquema:** todo lo que pasa por el escritor está desactivado en Production. El código lo explica: `writerPool()` devuelve `null` sin `RUBIK_AUDIT_DATABASE_URL` (`src/lib/provenance/writer.ts:24`). §1.2 lista qué capacidades se ven afectadas y cómo.
+
+**`NEXT_PUBLIC_SUPABASE_*` en Preview:** con el código actual, Preview no crea un cliente Supabase (`preview-locked`, #88). La **única barrera** entre una Preview y la base de Production es ese bloqueo en código. Esto ya era el riesgo H2 de N1-04; ahora consta como observado.
+
+### 1.2 Capacidades afectadas por la ausencia del escritor (código de `main@b6555ea`)
+
+| Capacidad (ruta o acción) | Comportamiento sin escritor | ¿Hay efecto? | Fuente [cód] |
+|---|---|---|---|
+| Exportar proyecto (`/exportar`) | 503 siempre: `inspectProjectAuditOutbox` → `WRITER_NOT_CONFIGURED` | No | `exportar/route.ts`, `outbox.ts:104` |
+| Eventos de auditoría (`appendAudit`: export, cambios OpenSEO, importaciones rechazadas) | `WRITER_NOT_CONFIGURED` | Según la acción | `writer.ts:44` |
+| Importar archivo | **El INSERT por JWT se hace**, y después la firma del recibo falla → `AUDIT_FAILED` | **Sí, sin auditoría firmada** | `imports/repository.ts:89-118` |
+| Borrar importación | Si existe la RPC `delete_import_with_receipt` (depende del esquema): **borra** y devuelve `AUDIT_FAILED`. Si no existe: `WRITE_FAILED` | Depende del esquema | `imports/repository.ts:145-153` |
+| Retirar a una persona | **Se retira** y se muestra `retirada-sin-auditoria` | **Sí, sin auditoría firmada** | `people-actions.ts:31-35` |
+| Conectar o revocar OpenSEO | El cambio se aplica; `audited: false` | **Sí, sin auditoría firmada** | `openseo/actions.ts:93-104` |
+| Captura Google (si `OPENSEO_GOOGLE_READS_ENABLED=true`) | Reserva y **consulta al proveedor**; después `completeTrustedProviderCommand` falla → `STORE_FAILED` y libera la reserva. Cada reintento vuelve a consultar | **Sí: consumo de proveedor sin resultado** | `google/capture.ts:83-99`, `writer.ts:183` |
+| Lanzar un rastreo OpenSEO (si `OPENSEO_PROJECT_JOBS_ENABLED=true`) | El lanzamiento no depende del escritor: **el rastreo se crea** | Sí (coste) | `project-audit.ts:23-50` |
+| Consultar y guardar un rastreo | Lee los resultados de OpenSEO y después `completeAuditJob` falla → `JOB_UNAVAILABLE` | **Sí: lectura de proveedor sin guardado** | `project-audit.ts:67-95`, `jobs.ts:59-63` |
+| Guardar un resultado firmado (`storeProviderResult`) | `WRITER_NOT_CONFIGURED` antes de guardar | No | `writer.ts:113-119` |
+| Drenaje de recibos (`/api/operaciones/auditoria/pendientes`) | 404 sin `RUBIK_AUDIT_DRAIN_TOKEN` | No | `pendientes/route.ts:18` |
+| Lecturas (auditoría, resultados, importaciones, verificación de firmas) | Funcionan con JWT y anillo (si `PROVENANCE_*` existe) | No | `repository.ts` |
+
+**Consecuencia para H1:** con esta configuración, J3 (exportar Sarah) es imposible. Las acciones con efecto dejan cambios sin auditoría firmada. Las de proveedor, si sus banderas están activas, gastan cuota sin guardar el resultado. **No se ha comprobado** cuáles de esas banderas están en Production: el inventario de nombres del supervisor no las cita. Hallazgo de código **F-OPS-2** (§7).
 
 ## 2. Matriz de cierre N1-01 a N1-08
 
@@ -104,7 +135,7 @@ Este expediente **no declara H1, H2 ni el Nivel 1 terminados**. Distingue lo com
 | Pendiente concreto | Desbloquear la facturación (U02-a). Crear el proyecto aislado (U02-b). Inventariar los nombres y ámbitos de las variables de Vercel (U02-d). Ver §3 y §4 |
 | Dependencia | U02 |
 | Responsable | Juanma |
-| Criterio de aceptación | Un run de Actions con pasos ejecutados y verde sobre el SHA. Proyecto Preview con `ref` y JWKS distintos de Production (F-JWT-1) |
+| Criterio de aceptación | Un run de Actions con pasos ejecutados y verde sobre el SHA. Proyecto Preview con `ref` distinto y **sin material de verificación JWT compartido** con Production (procedimiento de la ventana A), más el negativo autorizado de la ventana B |
 | Estado | **Bloqueado** (U02) |
 
 ### N1-05 · Matriz de aislamiento alojada
@@ -116,7 +147,7 @@ Este expediente **no declara H1, H2 ni el Nivel 1 terminados**. Distingue lo com
 | Integrado (SHA) | #85 (matriz); #113 (JWT caducado) |
 | Evidencia local | [obs] `b6555ea`: `isolation-matrix`, `tenancy` y `membership-consent` dentro de 106/106. Cobertura en §5 |
 | Evidencia alojada | **Ninguna** |
-| Pendiente concreto | Ventana B con el registro preparado. El caso «JWT de otro proyecto» **no se puede probar en local** (F-JWT-1) |
+| Pendiente concreto | Ventana B con el registro preparado. El caso «JWT de otro proyecto» ya pasa en local con claves propias distintas (2.ª entrega); en alojado requiere la prueba negativa autorizada |
 | Dependencia | N1-02 y N1-03 aplicados en el aislado; U02; U03 |
 | Responsable | Juanma ejecuta; Claude/Codex preparan; ChatGPT audita |
 | Criterio de aceptación | Todos los casos de la ventana B en PASS; 0 residuos; acta firmada |
@@ -230,11 +261,15 @@ Quedan fuera de H2, como ampliaciones posteriores:
 Revisado el [plan U02](../N1-04-PLAN-ACTIVACION-PREVIEW-U02-20261015.md). **Sigue siendo válido, con estas correcciones:**
 
 1. **§11 está resuelto en `main`:** `writerPool()` devuelve `null` en Preview (`writer.ts:23`) [cód]. Queda como regla: `RUBIK_AUDIT_*` nunca en el ámbito Preview.
-2. **Identidad del proyecto: añadir un criterio criptográfico** (F-JWT-1).
-   - Los stacks locales comparten la clave de firma y la Data API aceptó un token de otro emisor [obs].
-   - PostgREST **no comprueba `iss`**: la comprobación de `iss` del §7.3 solo protege el camino del servidor.
-   - La separación real descansa en que **Preview y Production tengan claves de firma JWT distintas**.
-   - Paso nuevo de la ventana A: comparar el `kid` publicado en `https://<ref>.supabase.co/auth/v1/.well-known/jwks.json` de los dos proyectos (dato público, sin secretos). Si coincide, **parar**.
+2. **Identidad del proyecto: añadir un criterio criptográfico** (F-JWT-1, corregido en la 2.ª entrega).
+   - **Ensayo local con claves propias distintas** [obs], ver [ENSAYO §5](ENSAYO-RECUPERACION-20261016.md):
+     - un token ajeno se rechaza (401 `PGRST301`);
+     - la Data API valida la **firma** pero **no el emisor**: un `iss` reescrito o ajeno se acepta si la firma es válida;
+     - la autorización la decide RLS.
+   - La separación descansa en que **Preview y Production no compartan ningún material de verificación**: ni clave asimétrica actual, ni las de reserva o anteriores, ni el secreto heredado.
+   - La comprobación de `iss` del §7.3 solo protege el camino del servidor.
+   - **Un `kid` distinto no prueba claves distintas:** `kid` es una etiqueta. El procedimiento de la [ventana A](EJECUCION-ALOJADA-20261016.md) compara el material de clave y el modo de firma.
+   - **La prueba negativa alojada autorizada** de la ventana B sigue siendo obligatoria.
    - No importar nunca a Preview la clave de firma ni el secreto JWT heredado de Production.
 3. **Cualquier push crea una Preview** [gh]. El bloqueo por código debe seguir activo hasta que exista el proyecto aislado. La PR de desbloqueo no puede llevar el `ref` de Production en su lista permitida.
 4. **El merge a `main` despliega Production** [gh]. La PR de desbloqueo de Preview, y cualquier PR N2, modifican Production al fusionarse. La autorización de merge debe ir acompañada de la de despliegue (§1).
@@ -264,11 +299,11 @@ Revisado el [plan U02](../N1-04-PLAN-ACTIVACION-PREVIEW-U02-20261015.md). **Sigu
 | Retirada de acceso | `membership-consent` (efecto inmediato) y `s1-writer-negatives` (token aún válido de un miembro retirado) | PASS |
 | Auditoría falsa | `provenance` (INSERT directo), pgTAP `s1_trusted_writer` y ensayo de destino (`42501`) | PASS |
 | JWT auténtico caducado | `isolation-matrix` (firmado con el secreto del stack local, `exp` vencido → 401) | PASS |
-| JWT de **otro proyecto** | **No cubrible en local** (F-JWT-1) | Solo alojado |
+| JWT de **otro proyecto** | Ensayo con 2 stacks propios con claves ES256 y secretos heredados distintos (2.ª entrega): token propio aceptado, token ajeno rechazado (401 `PGRST301`), y controles de firma, emisor y autorización (ENSAYO §5) | PASS en local. **Alojado: obligatorio** (ventana B) |
 | No revelar existencia | RPC: UUID real = inexistente; token de invitación desconocido = malformado | PASS |
 | Páginas con 404 igual a inexistente | E2E (no ejecutado hoy); exportación con 404 para quien no es titular [cód] | [com] |
 
-**Huecos locales reales:** fuera del caso de otro proyecto, **ninguno**, así que no se han añadido pruebas. El registro alojado está preparado en la [ventana B](EJECUCION-ALOJADA-20261016.md).
+**Huecos locales reales:** el único era el caso de otro proyecto, ya ensayado con stacks propios. No se ha añadido ninguna prueba al repositorio. **Propuesta para Codex** (F-REC-3 ampliado): convertir el ensayo de claves distintas en una prueba de integración con dos stacks. El registro alojado está preparado en la [ventana B](EJECUCION-ALOJADA-20261016.md).
 
 ## 6. N1-07 / N1-08 · Operación comercial mínima: clasificación
 
@@ -301,8 +336,28 @@ Revisado el [plan U02](../N1-04-PLAN-ACTIVACION-PREVIEW-U02-20261015.md). **Sigu
 | F-ENV-1 | `docs/ENVIRONMENT.md` no documenta `RUBIK_AUDIT_DATABASE_URL` ni `RUBIK_AUDIT_DRAIN_TOKEN` | docs | Documental, compartido |
 | F-CI-1 | Fijar `runs-on: ubuntu-24.04` antes de que vuelva Actions | `.github/workflows/ci.yml` | Nuevo |
 | F-AUTH-1 | El cierre del registro rompe las invitaciones | `src/lib/auth/actions.ts`, ADR 0003/0020 | Necesita D-OPS-1 antes del código |
+| **F-OPS-2** | Sin escritor, varias acciones ejecutan su efecto (importación, retirada, cambios OpenSEO) o **llaman al proveedor** (captura Google, consulta y guardado OpenSEO) **antes** de descubrir que no pueden auditar ni guardar. Propuesta: comprobar que el escritor está disponible **antes** del efecto o de la llamada, y negarse sin efecto (`WRITER_NOT_CONFIGURED`) | `imports/repository.ts`, `people-actions.ts`, `openseo/actions.ts`, `google/capture.ts`, `project-audit.ts` | Nuevo. Es la contención en código de D-SEC-2 |
 
-De la [revisión N2](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/blob/claude/review-n2-integration-20261016/docs/REVISION-INTEGRACION-N2-CLAUDE-20261016.md) siguen vigentes B-1, D-1 a D-3 y R-1 a R-6. **No se duplican aquí** y se revisarán sobre el nuevo HEAD `f9ef98a` cuando se pida.
+**Estado de los hallazgos de la [revisión N2](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/blob/claude/review-n2-integration-20261016/docs/REVISION-INTEGRACION-N2-CLAUDE-20261016.md)** (`8a48fa9`), según lo **comunicado por Codex**:
+- fuentes: [resolución](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/blob/f9ef98aaf0e1514643566c5e7ba0f05e7647e12f/docs/REVISION-INTEGRACION-N2-CLAUDE-RESOLUCION-20261016.md), código en `ccf305b` y HEAD `f9ef98a`;
+- **ninguna** corrección ha sido revisada por Claude contra `f9ef98a`;
+- Codex conserva la propiedad.
+
+| ID | Tema | Estado comunicado por Codex | Pendiente |
+|---|---|---|---|
+| B-1 | Cabecera de tipos y paso de CI | Corregido | Revisar contra `f9ef98a`. Actions sigue bloqueada |
+| D-1 | Exportación 503 sin tablas N2 | Corregido con `RUBIK_N2_SCHEMA_AVAILABLE` (apagado: forma v2 `UNPROVEN`, sin manifiesto, no restaurable) | Revisar. **Decisión del propietario** sobre aceptar la descarga `UNPROVEN`. Prueba HTTP de la ruta pendiente (según Codex) |
+| D-2 | Rutas y navegación sin guarda de esquema | Corregido | Revisar. Unitarias y E2E del modo apagado pendientes (según Codex) |
+| D-3 | Restauración v3 y autores ausentes | Política unificada: el plan **aborta** si falta una identidad, también en `planRestore` | Revisar. Cubre **F-REC-1** si se confirma. Ensayo de rechazo sin escrituras pendiente (según Codex) |
+| R-1 | Lista de acciones de outbox | Corregido de otra forma: lista completa acumulada en orden canónico, sin helper dinámico | Revisar. Por diseño **no** tolera aplicar módulos fuera de orden: queda como regla de integración para #116/#117 |
+| R-2 | Auditoría y borrado de keywords | Corregido (trigger y recibos; `delete-data`; confirmación) | Revisar |
+| R-3 | FK de `created_by` bloquea el borrado de cuentas | **Mantenido por decisión** (retención) | Decisión del propietario (RETENCION D3) |
+| R-4 | El rollback borraba la tabla | Corregido (contención sin pérdida) | Revisar |
+| R-5 | Grant de `updated_at` | Corregido | Revisar |
+| R-6 | Capturas desactualizadas | **Pendiente** (comunicado) | `visual:evidence` al final |
+| Huecos de pruebas e inventario | — | Inventario tipado y prueba de integración añadidos; `notIncluded` ampliado | Revisar. Cubre **F-REC-2** si se confirma |
+
+**Repercusión en este expediente:** F-REC-1 y F-REC-2 son hallazgos de `main@b6555ea` y siguen presentes en `main`. Su corrección **comunicada** está en #120 y no se ha verificado.
 
 ## 8. Propuesta de actualización de los documentos canónicos (tras la revisión; no aplicada)
 
@@ -318,10 +373,28 @@ De la [revisión N2](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/blob
 
 ## 9. No comprobado
 
-- Esquema y migraciones aplicadas en el Supabase alojado, y variables y plan de Vercel. **No se consultaron**: solo los metadatos de despliegue.
+- Esquema y migraciones aplicadas en el Supabase alojado: el proyecto correcto aún no se ha identificado en ninguna conexión disponible. El plan de Vercel. Las banderas de proveedor de Production.
+- El funcionamiento real de las capacidades de §1.2 en Production: la tabla se deduce del código, no se ha ejecutado.
 - El estado funcional actual de Production y de Sarah.
 - Si las copias de seguridad del plan Supabase actual incluyen `auth.users`, y su retención.
 - Los precios y límites vigentes de Supabase y Vercel. Las páginas oficiales no eran accesibles desde el contenedor.
 - La ruta HTTP real de exportación: el ensayo repitió su secuencia fuera de Next.js.
 - E2E sobre `b6555ea`.
 - El HEAD `f9ef98a` de #120.
+
+## 10. Lista mínima pendiente de comprobar (sin pedir secretos)
+
+**En el proyecto Supabase correcto.** Primero identificarlo por el host de `NEXT_PUBLIC_SUPABASE_URL` de Production (P0-1); hoy ninguna conexión disponible lo muestra.
+
+1. Migraciones aplicadas: última versión y total, comparados con las 27 de `main@b6555ea` (P0-2).
+2. Modo de firma JWT: clave actual, de reserva y anteriores, y estado del secreto heredado (P0-3).
+3. Plan, copias diarias, retención y PITR (P0-4).
+4. Registro abierto o cerrado, SMTP personalizado y protección de contraseñas filtradas (P0-5).
+5. Existencia del rol `rubik_audit_writer` y si tiene LOGIN. Solo el atributo, nunca la contraseña. Se ve en el SQL Editor con `select rolname, rolcanlogin, rolbypassrls from pg_roles where rolname = 'rubik_audit_writer'`, de solo lectura. Si no existe, la migración S1 no está aplicada.
+
+**En Vercel:**
+
+6. Plan del equipo: Hobby, Pro u otro (P0-7).
+7. Nombres y ámbitos de `OPENSEO_*`, `PROVENANCE_*` y `RUBIK_N2_*` en Production (P0-6).
+8. Despliegues de Production anteriores con su SHA, sin promover ninguno (P0-8).
+9. Si Deployment Protection está activa en Preview (U02-f).

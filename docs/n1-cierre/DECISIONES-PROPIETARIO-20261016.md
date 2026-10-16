@@ -12,22 +12,52 @@ Mientras una decisión no se tome, **se mantiene el comportamiento seguro actual
 
 ## Grupo 1 · Desbloquear la ejecución alojada (lo primero)
 
-### D-SEC-2 · Desfase entre el código de Production y su esquema
+### D-SEC-2 · Production ejecuta código que depende del escritor; el esquema es desconocido (corregido en la 2.ª entrega)
 
-- **Problema:**
-  - `main` se despliega en Production automáticamente;
-  - el código S1/S2/#113 está desplegado desde el 15/10, y sus 11 migraciones no constan como aplicadas;
-  - sin el escritor configurado, las acciones auditadas y la exportación fallan; con el escritor configurado y sin las migraciones, fallaría contra objetos inexistentes;
-  - no se ha comprobado cuál de las dos situaciones se da (P0).
-- **Opciones:**
-  - **A.** Hacer P0 y, después de B, aplicar las migraciones y el escritor en Production en una ventana con copia de seguridad.
-  - **B.** Revertir Production al último despliegue compatible con su esquema (*Instant Rollback* de Vercel) hasta que llegue A.
-  - **C.** No hacer nada.
-- **Recomendación:** P0 **hoy**, que es solo lectura. Si P0 confirma el desfase y Sarah necesita operar antes de B, elegir **B**; si no, **A**. **Nunca C.**
-- **Consecuencia:**
-  - B devuelve código antiguo, sin S1, y por tanto **reabre S1/S2 en Production**: solo es aceptable como contención breve y documentada;
-  - A requiere B (la ventana) y D-SEC-1.
-- **Mientras tanto:** no fusionar en `main` nada que añada esquema (#120) sin resolver D-SEC-2 y D-1/D-2 de la revisión N2.
+**Hechos** ([ESTADO §1.1–1.2](ESTADO-Y-GATES-20261016.md)):
+
+| Tipo | Hecho |
+|---|---|
+| Observado | Production = `main@b6555ea` |
+| Observado | No existen `RUBIK_AUDIT_*` |
+| Desconocido | El esquema alojado |
+| No probado | El funcionamiento real |
+| Deducido del código | Exportación imposible (503) |
+| Deducido del código | Importaciones, retiradas y cambios OpenSEO con efecto pero sin auditoría firmada |
+| Deducido del código | Captura Google y guardado OpenSEO que pueden consumir cuota de proveedor sin guardar el resultado, si sus banderas están activas |
+
+**Reversiones: por qué no se recomiendan**
+
+| Candidata | Resultado |
+|---|---|
+| **Despliegues anteriores a `31e3461`** | **Descartados.** Escriben la auditoría por el camino JWT que S1 cierra. Si el esquema alojado ya tuviera S1, fallarían; si no lo tuviera, devolverían a la aplicación un camino que depende de la vulnerabilidad. **Reabren S1/S2 en la aplicación** |
+| `31e3461` y `d12b80e` | Tienen la **misma** dependencia del escritor que `b6555ea`, así que no aportan compatibilidad. `d12b80e` es documental |
+
+**Conclusión:** hoy **no hay ninguna reversión que demuestre compatibilidad y conserve la seguridad**. No se propone ninguna.
+
+**Contención: mantener cerradas las capacidades afectadas. No se ejecuta nada alojado; lo decide y lo hace Juanma**
+
+| # | Contención | Efecto | Coste o riesgo |
+|---|---|---|---|
+| C-1 | No usar en Production las acciones con efecto (importar, borrar importaciones, retirar personas, conectar o revocar OpenSEO) hasta la alineación. Avisar a Sarah | Evita cambios sin auditoría firmada | Operativo, no técnico |
+| C-2 | Si P0-6 muestra `OPENSEO_GOOGLE_READS_ENABLED=true` u `OPENSEO_PROJECT_JOBS_ENABLED=true`: **quitar esas variables solo en el ámbito Production** y redesplegar el mismo SHA | Cierra las rutas que gastan cuota sin guardar. Las banderas están apagadas por defecto en el código. No toca S1/S2 | Cambio alojado reversible. Requiere autorización |
+| C-3 | **No** configurar `RUBIK_AUDIT_DATABASE_URL` en Production hasta comprobar (P0-2) que el esquema S1 está aplicado | Evita un escritor contra objetos que quizá no existen | — |
+| C-4 | Codex implementa F-OPS-2 (rechazo antes del efecto o de la llamada cuando falta el escritor). Se fusiona y despliega con autorización expresa | Cierre en código, sin depender de la disciplina de uso | Requiere PR, revisión y despliegue |
+| C-5 | No fusionar en `main` nada que añada esquema o dependencias del escritor (#120 incluido) hasta cerrar D-SEC-2 | Evita ampliar el desfase | Retrasa N2 |
+
+**Alineación definitiva:**
+1. Ventana B (aislado) en PASS.
+2. Ventana de migración en Production con copia de seguridad y autorización concreta (U04 o equivalente), aplicando las migraciones que P0-2 muestre pendientes.
+3. Configuración del escritor según D-SEC-1.
+
+**Exposición en la base de datos:** si P0-2 mostrara que **faltan** las migraciones S1/S2, la exposición S1/S2 (INSERT JWT en la auditoría, altas directas de membresía) existiría **hoy** en la base de Production, **sea cual sea la versión de la aplicación**. Solo la cierra la migración autorizada, no ninguna reversión de código. Es una razón más para hacer P0-2 cuanto antes.
+
+**Recomendación:**
+1. P0 completo.
+2. C-1 de inmediato y C-3.
+3. C-2 si procede.
+4. Pedir C-4 a Codex, una vez cerrada #120 o como PR separada si el propietario la prioriza.
+5. Alineación tras B.
 
 ### D-SEC-1 · Credencial y transporte del escritor S1 en alojado
 
@@ -50,14 +80,14 @@ Mientras una decisión no se tome, **se mantiene el comportamiento seguro actual
 
 - **U02-a:** desbloquear la facturación de Actions.
 - **U02-b:** opción A, `rubik-preview` (Free si hay plaza).
-- **U02-c, d, f:** tal como están en la [hoja U02](../U02-REVISION-DECISION-20261015.md), con la corrección del `kid` ([ESTADO §4](ESTADO-Y-GATES-20261016.md)).
+- **U02-c, d, f:** tal como están en la [hoja U02](../U02-REVISION-DECISION-20261015.md), con el procedimiento de identidad por material de clave y modo de firma ([EJECUCION · ventana A](EJECUCION-ALOJADA-20261016.md)). Además, **U02-d** debe dividir `NEXT_PUBLIC_SUPABASE_*`, que hoy cubren Production y Preview (observado por el supervisor).
 - **U03:** ventana, dos usuarios ficticios y limpieza de la [ventana B](EJECUCION-ALOJADA-20261016.md).
 - **Comportamiento seguro actual:** Preview bloqueada; matriz solo local.
 
 **Respuesta mínima sugerida:**
 
 > P0: hecho / no.
-> D-SEC-2: A / B.
+> D-SEC-2: contención C-1/C-2/C-3 sí o no; C-4 a Codex sí o no.
 > D-SEC-1: A / B, con operador.
 > U02-a/b/c/d/f: sí / no, con importe máximo.
 > U03: ventana y operador.
@@ -147,16 +177,21 @@ Mientras una decisión no se tome, **se mantiene el comportamiento seguro actual
 - **Recomendación:** no registrarlas en la auditoría del proyecto, porque revelaría la existencia del proyecto. Si se quiere detectar abuso, usar los registros del proveedor.
 - **Pendiente:** si hace falta para el piloto. Propuesta: no.
 
-### D-OPS-4 · Soporte e incidentes
+### D-OPS-4 · Soporte e incidentes (corregido)
 
-- **Problema:** no hay documento de soporte ni de incidentes en `docs/`. Sí existen criterios de parada por ventana.
-- **Propuesta mínima:**
-  - canal de contacto de Sarah;
-  - quién decide la parada (Juanma);
-  - pasos de contención: Preview cerrada, *Instant Rollback* de Vercel y copia del proveedor;
-  - registro del incidente en HANDOFF;
-  - aviso al cliente según la asesoría.
-- **Pendiente:** aprobación del texto; Codex o Claude pueden redactarlo como documento tras la decisión.
+- **Problema:** no hay documento de soporte ni de incidentes en `docs/`. Hay criterios de parada por ventana.
+- **Propuesta mínima, sin aprobar:**
+  1. **Detección:** canal de contacto de Sarah; revisión manual del recuento de pendientes (S1-R4).
+  2. **Decisión:** Juanma decide la parada; ningún agente actúa en alojado.
+  3. **Contención que conserva la seguridad, por orden:**
+     - cerrar la capacidad afectada (uso, o bandera de servidor en el ámbito Production);
+     - mantener Preview bloqueada;
+     - retirar el acceso de las personas implicadas (ADR 0021).
+  4. **Reversión de despliegue:** solo a un despliegue que (a) contenga el código S1/S2 (≥ `31e3461`) y (b) tenga **compatibilidad acreditada** con el esquema observado. Si no hay ninguno, **no se revierte**: se mantiene la contención.
+  5. **Recuperación de datos:** restaurar la copia del proveedor en un destino aislado y comprobarla antes de tocar Production. Nunca rollbacks SQL que reabran S1/S2.
+  6. **Registro:** fecha, SHA, capacidad afectada, contención aplicada y evidencia sin datos personales en HANDOFF.
+  7. **Comunicación:** aviso al cliente según la asesoría.
+- **Pendiente:** aprobación del texto; después se redacta como documento de procedimiento.
 
 ## Grupo 4 · Comercial (antes de vender a más clientes)
 

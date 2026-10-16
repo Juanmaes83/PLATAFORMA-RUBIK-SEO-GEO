@@ -18,26 +18,40 @@ Donde aquí se dice algo distinto, prevalece este documento solo en los puntos c
 - **Crear un proyecto aislado no autoriza tocar Production.**
 - Ninguna reversión SQL puede reabrir S1/S2 (INSERT JWT en `audit_events`/`provider_results` ni altas de membresía directas). Si hace falta volver atrás, se restaura la copia de seguridad del proyecto afectado y el acceso queda cerrado.
 
-## P0 · Diagnóstico de solo lectura de Production (antes de A)
+## P0 · Diagnóstico de solo lectura de Production (antes de A) — actualizado 16/10/2026
 
-**Motivo:**
-- `main` se despliega en Production automáticamente [gh].
-- Production ejecuta S1/S2/#113 desde el 15/10.
-- La documentación dice que sus migraciones no están en alojado.
-- Mientras no se sepa qué esquema y qué variables tiene Production, no se puede planificar C ni decidir el merge de #120.
+**Ya observado** (supervisor y Claude, metadatos de GitHub y Vercel; ver [ESTADO §1.1](ESTADO-Y-GATES-20261016.md)):
+
+| Plano | Estado |
+|---|---|
+| Despliegue | `main@b6555ea` READY en Production |
+| Configuración | Sin `RUBIK_AUDIT_DATABASE_URL` ni `RUBIK_AUDIT_DRAIN_TOKEN`. `NEXT_PUBLIC_SUPABASE_*` en Production **y** Preview |
+| Esquema | **Desconocido.** No se afirma que falten migraciones |
+| Plan de Vercel | **Desconocido** |
+| Funcionamiento real | **No probado** |
+
+**Deducido del código, sin depender del esquema:** las capacidades que pasan por el escritor están desactivadas o se degradan como describe [ESTADO §1.2](ESTADO-Y-GATES-20261016.md). Algunas ejecutan su efecto o llaman al proveedor antes de fallar (F-OPS-2).
+
+**Lo que queda por comprobar en P0** (Juanma, solo lectura; **ningún secreto** sale de las consolas):
+
+| # | Dónde | Qué anotar | Para qué |
+|---|---|---|---|
+| P0-1 | Vercel → Settings → Environment Variables del proyecto `plataforma-rubik-seo-geo` | El **host** (no la clave) de `NEXT_PUBLIC_SUPABASE_URL` de Production: el `ref` del proyecto Supabase | Identificar el **proyecto Supabase correcto** sin adivinar |
+| P0-2 | Supabase → organización que contiene ese `ref` → Database → Migrations | Versión más reciente aplicada y total. Comparar con las 27 del repositorio (`main@b6555ea`) | Saber el esquema real |
+| P0-3 | El mismo proyecto → Authentication → JWT Keys / Signing Keys | Modo de firma: clave asimétrica actual (ES256/RS256), claves de reserva o anteriores, y si el secreto heredado (HS256) sigue habilitado para verificar | Base del procedimiento de identidad de la ventana A |
+| P0-4 | El mismo proyecto → Database → Backups; Settings → Billing | Plan, existencia de copias diarias, retención y PITR | D-OPS-2 y ventana C |
+| P0-5 | El mismo proyecto → Authentication → Providers / Sign In | Registro abierto o cerrado, SMTP personalizado o no, protección de contraseñas filtradas | D-OPS-1 |
+| P0-6 | Vercel → Settings → Environment Variables | **Nombres y ámbitos** de `PROVENANCE_*`, `OPENSEO_*` (sobre todo `OPENSEO_GOOGLE_READS_ENABLED`, `OPENSEO_PROJECT_JOBS_ENABLED`, `OPENSEO_PROJECT_CONNECTIONS_MODE`) y `RUBIK_N2_*` si existe | Saber qué capacidades de §1.2 pueden gastar cuota sin guardar |
+| P0-7 | Vercel → Team → Settings → Billing | Plan (Hobby, Pro u otro) | D-COM-3 |
+| P0-8 | Vercel → Deployments | Lista de despliegues de Production **anteriores** con su SHA, sin promover ninguno | Saber qué reversiones son candidatas (D-SEC-2) |
 
 | Campo | Contenido |
 |---|---|
-| Destino | Proyecto Supabase de Production y proyecto Vercel `plataforma-rubik-seo-geo` (team `juanma-espinosas-projects`) |
 | Operador | Juanma |
-| Autorización | Ninguna escritura. Solo lectura de paneles propios |
-| SHA | `b6555ea`: deployment `dpl_FyR1A7uZG82KB7sZHrTuq9WZxy7A` |
-| Pasos | (1) Supabase → Database → Migrations: anotar la **última versión** aplicada y el número total. En el repositorio hay 27; las 11 desde `20261012130000` son las pendientes según la documentación. (2) Vercel → Settings → Environment Variables: anotar **solo los nombres y ámbitos** de `NEXT_PUBLIC_SUPABASE_*`, `PROVENANCE_*`, `RUBIK_AUDIT_*` y `OPENSEO_*`. (3) Vercel → Settings → Plan: Hobby o Pro. (4) Con la sesión de titular, abrir el proyecto de Sarah **sin ejecutar acciones** y anotar si la página carga. **No pulsar «exportar»**: registra un evento y, sin el escritor, falla |
-| Salida esperada | Lista de versiones, lista de nombres/ámbitos y plan |
-| Evidencia | Texto con versiones y nombres, sin valores. Captura de la lista de migraciones |
-| Parar si | Alguna variable Supabase de Production aparece también en el ámbito Preview: no cambiarla aún, anotarlo para A |
-| Contención | No aplica: solo lectura |
-| Resultado que decide | Si Production carece de las migraciones S1/S2: **decidir D-SEC-2** (aplicarlas en Production después de B, o revertir el despliegue a un SHA compatible con su esquema). Hasta entonces, **no fusionar** nada más en `main` sin esa decisión |
+| Autorización | Ninguna escritura. **No** abrir el proyecto de Sarah ni pulsar acciones: exportar o importar dejarían eventos o efectos sin auditoría firmada |
+| Evidencia | Texto con `ref`, versiones, modos, plan y nombres de variables. Ningún valor |
+| Parar si | El `ref` de Production coincide con algún proyecto que se pensaba usar como Preview |
+| Resultado que decide | D-SEC-2 (contención y alineación del esquema) y el orden de las ventanas. **No fusionar en `main`** nada que dependa del escritor o añada esquema hasta resolver D-SEC-2 |
 
 ## Ventana A · Entorno aislado, identidad y configuración comprobadas
 
@@ -51,9 +65,18 @@ Donde aquí se dice algo distinto, prevalece este documento solo en los puntos c
 
 **Pasos (tras crear el proyecto vacío, plan U02 §2):**
 
-1. **Identidad:**
-   - anotar el `ref` de Preview;
-   - **comparar los `kid`** de `https://<ref-preview>.supabase.co/auth/v1/.well-known/jwks.json` y `https://<ref-production>.supabase.co/auth/v1/.well-known/jwks.json`. Es una URL pública y puede leerse en el navegador; deben ser **distintos** (F-JWT-1).
+1. **Identidad (procedimiento según el modo de firma; un `kid` distinto no prueba nada por sí solo):**
+   - anotar el `ref` de Preview (≠ Production);
+   - **claves asimétricas (ES256/RS256):**
+     - descargar `https://<ref>.supabase.co/auth/v1/.well-known/jwks.json` de los dos proyectos (público);
+     - calcular para **cada** clave publicada (actual, de reserva y anteriores) su huella RFC 7638 (SHA-256 de `{crv,kty,x,y}` en EC o de `{e,kty,n}` en RSA);
+     - **ninguna huella puede repetirse** entre proyectos. Comparar también el modo: algoritmo y número de claves;
+   - **secreto heredado (HS256):**
+     - no es público y no se puede comparar desde fuera;
+     - en el panel de cada proyecto, confirmar que el secreto se generó en ese proyecto y no se copió ni importó, y anotar si sigue habilitado para verificar;
+     - si en Preview no hace falta, deshabilitarlo **en Preview**; es un cambio solo en el aislado y requiere U02;
+   - **claves importadas:** confirmar en el panel que no se ha importado en Preview ninguna clave de Production;
+   - **esto no sustituye** la prueba negativa de la ventana B (X-1). La Data API solo valida la firma y no el emisor (ensayo local, [ENSAYO §5](ENSAYO-RECUPERACION-20261016.md)).
 2. **Auth del aislado** (plan U02 §4):
    - registro público desactivado;
    - contraseña mínima de 12;
@@ -68,9 +91,9 @@ Donde aquí se dice algo distinto, prevalece este documento solo en los puntos c
 
 | Campo | Contenido |
 |---|---|
-| Salida esperada | `ref` Preview ≠ Production; `kid` distinto; variables de Preview apuntando solo a `rubik-preview`; Preview todavía bloqueada |
-| Evidencia | Acta con el `ref` (no es secreto), los dos `kid` truncados, una tabla de nombres/ámbitos y una captura de `/api/salud` de la Preview |
-| Parar si | `kid` igual; `ref` igual; el proyecto nace con datos; no hay plaza ni gasto aprobado; aparece alguna variable de Production en Preview que no se puede dividir |
+| Salida esperada | `ref` Preview ≠ Production; ninguna huella de clave compartida; secreto heredado no copiado (o deshabilitado en Preview); variables de Preview apuntando solo a `rubik-preview`; Preview todavía bloqueada |
+| Evidencia | Acta con el `ref` (no es secreto), las huellas truncadas por proyecto, el modo de firma de cada uno, la tabla de nombres/ámbitos y una captura de `/api/salud` de la Preview |
+| Parar si | Alguna huella coincide; secreto heredado copiado o de origen incierto con HS256 habilitado; `ref` igual; el proyecto nace con datos; no hay plaza ni gasto aprobado; aparece alguna variable de Production en Preview que no se puede dividir |
 | Contención | Borrar del ámbito Preview las variables de `rubik-preview` y redesplegar (vuelve a `preview-locked`). Pausar el proyecto |
 | Limpieza | Ninguna en A, salvo si se aborta: pausar o eliminar `rubik-preview` |
 
@@ -112,8 +135,9 @@ Donde aquí se dice algo distinto, prevalece este documento solo en los puntos c
 
 | ID | Actor | Caso | Esperado |
 |---|---|---|---|
-| X-1 | A | Token de **Production** (de una cuenta de prueba en Production solo si existe y está autorizada; si no, BLOCKED) contra la Data API del aislado | 401 |
-| X-2 | B | Token del aislado contra la Data API de **Production** | **No ejecutar** (escritura o lectura en Production) → BLOCKED justificado. La separación se acredita con el `kid` de A |
+| X-1 | A | Token de una cuenta de prueba de **Production**, solo con autorización expresa y con una cuenta de prueba que ya exista; si no, BLOCKED, contra la Data API del aislado. Es la **prueba negativa alojada obligatoria** | 401 `PGRST301` |
+| X-2 | B | Token del aislado contra la Data API de **Production** (lectura `select id` de `organizations`) | Solo con autorización expresa, porque toca Production; se espera 401. Sin autorización: BLOCKED. Se registra que la separación hacia Production solo está acreditada por material de clave (A) y por X-1 |
+| X-3b | A | Token del aislado con `iss` alterado y re-firmado: **no se puede fabricar** sin la clave privada alojada, así que no se ejecuta | La comprobación de emisor queda cubierta en local (ENSAYO §5, C1/C2) |
 | X-3 | A | INSERT directo en `audit_events` con HMAC arbitrario | `42501` |
 | X-4 | A | INSERT/UPSERT de B en `project_members` de `pa1` | `42501` |
 | X-5 | B, tras retirarlo | Misma sesión, siguiente petición a `pa1` | Denegado |
