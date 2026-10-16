@@ -5,7 +5,7 @@
 - Repositorio: `Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO`.
 - Rama: `codex/n2-integration-post113-20261016`.
 - PR existente: [#120 Draft](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/120). No crear PR de producto adicional ni fusionar.
-- Este handoff se actualizará con el SHA publicado cuando finalice el gate.
+- Código y gates locales publicados en `ccf305b653c3af592d2ee9c25bacfa9593b3017d`; esta nota completa el handoff de ese HEAD en un commit documental posterior de la misma rama.
 - Informe Claude fuente: `8a48fa9969463e227c0c72389d09fe985c2aa9f1`, consultado por URL; su rama documental no se integró.
 - Resolución y matriz: [REVISION-INTEGRACION-N2-CLAUDE-RESOLUCION-20261016.md](REVISION-INTEGRACION-N2-CLAUDE-RESOLUCION-20261016.md).
 
