@@ -55,7 +55,7 @@ export async function startProjectAudit(client: SupabaseClient<Database>, projec
   return started;
 }
 
-export type SaveStatus = "not-requested" | "saved" | "pending" | "unavailable";
+export type SaveStatus = "not-requested" | "saved" | "audit-pending" | "pending" | "unavailable";
 /** `audited`: the `openseo.audit.store` receipt written with the results was signed (S1). */
 export type ProjectAuditFollow = AuditFollowUp & { saveStatus: SaveStatus; audited?: boolean };
 
@@ -83,10 +83,10 @@ export async function followProjectAudit(client: SupabaseClient<Database>, proje
       if (!prepared.ok) throw new Error("CAPTURE_FAILED");
       const stored = await completeAuditJob(client, project, found.job.jobId, prepared.prepared);
       if (!stored.ok || !stored.job.issuesResultId || !stored.job.pagesResultId) throw new Error("CAPTURE_FAILED");
-      saveStatus = "saved";
       // The receipt committed with the pair is signed now; if signing fails it stays pending
       // for the operator drain. The provider is never called again to repair the audit.
       audited = stored.job.auditId ? (await (deps.receipt ?? signProviderReceipt)(project, "openseo.audit.store", stored.job.auditId, keyring)).ok : false;
+      saveStatus = audited ? "saved" : "audit-pending";
     } : undefined,
   });
   if (response.progress.state === "FAILED") await failAuditJob(client, project, found.job.jobId);

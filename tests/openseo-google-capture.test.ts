@@ -6,6 +6,11 @@ import { captureGoogleReport } from "@/lib/openseo/google/capture";
 import { loadKeyring } from "@/lib/provenance/keyring";
 import { openProviderResult } from "@/lib/provenance/results";
 
+const gate = vi.hoisted(() => vi.fn(async () => ({ ok: true as const })));
+vi.mock("@/lib/provenance/writer", async original => ({
+  ...await original<typeof import("@/lib/provenance/writer")>(), preflightTrustedWriter: gate,
+}));
+
 // Manual Google capture, in memory only: the RPCs are a small state machine with the same rules as
 // migration 20261012120000, the MCP is simulated and nothing reaches a network or a database.
 // S1: storage goes through the trusted writer (simulated `store`, same rules) and the audit is
@@ -73,6 +78,16 @@ function setup({ storeError, revokeBetween, lostStoreResponse }: { storeError?: 
 }
 
 describe("manual Google capture (simulated provider and RPCs)", () => {
+  it.each(["WRITER_NOT_CONFIGURED", "WRITER_UNAVAILABLE"])("does not reserve or call Google when the writer fails: %s", async error => {
+    const s = setup();
+    gate.mockResolvedValueOnce({ ok: false, error } as never);
+    expect(await captureGoogleReport(s.client, project, query, key, actor, keyring,
+      { env, mcpFactory: s.mcpFactory, store: s.store, receipt: s.receipt }))
+      .toEqual({ ok: false, error: "WRITER_UNAVAILABLE" });
+    expect(s.callTool).not.toHaveBeenCalled();
+    expect(s.store).not.toHaveBeenCalled();
+    expect(s.rpc.mock.calls.some(call => call[0] === "google_capture")).toBe(false);
+  });
   it("stores one signed result whose source names the reserved connection and binding, signs its receipt, then replays without a new read", async () => {
     const s = setup();
     const first = await captureGoogleReport(s.client, project, query, key, actor, keyring, { env, mcpFactory: s.mcpFactory, store: s.store, receipt: s.receipt });
