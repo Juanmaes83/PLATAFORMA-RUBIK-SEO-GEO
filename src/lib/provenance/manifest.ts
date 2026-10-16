@@ -15,9 +15,10 @@ import { sha256, type Keyring } from "./keyring";
 // effect, which is why the owner's tooling can require it (`--require-complete`).
 
 export const MANIFEST_VERSION = "rubik-export-manifest-v1";
+export const SEO_MANIFEST_VERSION = "rubik-export-manifest-v2";
 
 export interface ExportManifest {
-  version: typeof MANIFEST_VERSION;
+  version: typeof MANIFEST_VERSION | typeof SEO_MANIFEST_VERSION;
   projectId: string;
   organizationId: string;
   scope: ProjectRef["scope"];
@@ -27,6 +28,9 @@ export interface ExportManifest {
   imports: { count: number; digest: string };
   /** Digest of `operations` (export v2), or null when the body has none. */
   operations: { digest: string | null };
+  /** Present only in v3 exports; binds declared SEO rows and their relationships. */
+  seo?: { projectDomain: string | null; keywords: { count: number; digest: string }; competitors: { count: number; digest: string };
+    observations: { count: number; digest: string } };
   keyId: string;
   signature: string;
 }
@@ -36,11 +40,12 @@ export type Completeness =
   | { status: "UNPROVEN" }
   | { status: "INCOMPLETE"; reasons: string[] };
 
-type Body = { exportedAt?: unknown; scope?: unknown; audit?: { rows?: unknown }; results?: unknown; imports?: unknown; operations?: unknown };
+type Body = { format?: unknown; exportedAt?: unknown; scope?: unknown; audit?: { rows?: unknown }; results?: unknown;
+  imports?: unknown; operations?: unknown; seo?: unknown };
 type Unsigned = Omit<ExportManifest, "keyId" | "signature">;
 
 const digest = (value: unknown) => sha256.hash(platform.canonicalJson(value));
-const signedText = (manifest: Unsigned) => `${MANIFEST_VERSION}:${platform.canonicalJson(manifest)}`;
+const signedText = (manifest: Unsigned) => `${manifest.version}:${platform.canonicalJson(manifest)}`;
 const byId = (a: { id?: unknown }, b: { id?: unknown }) => String(a?.id).localeCompare(String(b?.id));
 
 /** What the manifest says about a body, recomputed from the body itself. */
@@ -49,8 +54,10 @@ function describe(body: Body, project: Pick<ProjectRef, "projectId" | "organizat
   const head = audit.reduce<{ seq?: unknown; hash?: unknown } | null>((top, row) => (top === null || Number(row?.seq) > Number(top.seq) ? row : top), null);
   const results = ((Array.isArray(body.results) ? body.results : []) as { row?: Record<string, unknown> }[]).map((r) => r?.row ?? {});
   const imports = (Array.isArray(body.imports) ? body.imports : []) as Record<string, unknown>[];
+  const seo = body.seo as { projectDomain?: unknown; keywords?: unknown; competitors?: unknown; observations?: unknown } | undefined;
+  const seoRows = (value: unknown) => (Array.isArray(value) ? value : []) as Record<string, unknown>[];
   return {
-    version: MANIFEST_VERSION,
+    version: body.format === "rubik-project-export-v3" ? SEO_MANIFEST_VERSION : MANIFEST_VERSION,
     projectId: project.projectId,
     organizationId: project.organizationId,
     scope: { tenantId: project.scope.tenantId, projectId: project.scope.projectId },
@@ -61,6 +68,12 @@ function describe(body: Body, project: Pick<ProjectRef, "projectId" | "organizat
     // Imports are not signed: the digest covers every stored column.
     imports: { count: imports.length, digest: digest([...imports].sort(byId)) },
     operations: { digest: body.operations === undefined ? null : digest(body.operations) },
+    ...(body.format === "rubik-project-export-v3" ? { seo: {
+      projectDomain: typeof seo?.projectDomain === "string" ? seo.projectDomain : null,
+      keywords: { count: seoRows(seo?.keywords).length, digest: digest([...seoRows(seo?.keywords)].sort(byId)) },
+      competitors: { count: seoRows(seo?.competitors).length, digest: digest([...seoRows(seo?.competitors)].sort(byId)) },
+      observations: { count: seoRows(seo?.observations).length, digest: digest([...seoRows(seo?.observations)].sort(byId)) },
+    } } : {}),
   };
 }
 
@@ -78,7 +91,8 @@ export function signExportManifest(body: Body, project: ProjectRef, keyring: Key
 export function checkExportManifest(doc: Body & { manifest?: unknown }, project: Pick<ProjectRef, "projectId" | "organizationId" | "scope">, keyring: Keyring): Completeness {
   if (doc.manifest === undefined) return { status: "UNPROVEN" };
   const m = doc.manifest as Partial<ExportManifest> | null;
-  if (!m || typeof m !== "object" || m.version !== MANIFEST_VERSION || typeof m.signature !== "string" || typeof m.keyId !== "string") {
+  const expected = doc.format === "rubik-project-export-v3" ? SEO_MANIFEST_VERSION : MANIFEST_VERSION;
+  if (!m || typeof m !== "object" || m.version !== expected || typeof m.signature !== "string" || typeof m.keyId !== "string") {
     return { status: "INCOMPLETE", reasons: ["manifest.malformed"] };
   }
   const { keyId, signature, ...claimed } = m as ExportManifest;
@@ -92,5 +106,8 @@ export function checkExportManifest(doc: Body & { manifest?: unknown }, project:
   if (!same(claimed.results, actual.results)) reasons.push("manifest.results");
   if (!same(claimed.imports, actual.imports)) reasons.push("manifest.imports");
   if (!same(claimed.operations, actual.operations)) reasons.push("manifest.operations");
+  if (claimed.seo !== undefined || actual.seo !== undefined) {
+    if (claimed.seo === undefined || actual.seo === undefined || !same(claimed.seo, actual.seo)) reasons.push("manifest.seo");
+  }
   return reasons.length ? { status: "INCOMPLETE", reasons } : { status: "COMPLETE" };
 }

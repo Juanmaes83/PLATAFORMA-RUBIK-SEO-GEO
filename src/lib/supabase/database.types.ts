@@ -1,7 +1,6 @@
-// Generated from the LOCAL schema (supabase/migrations) with:
-//   npx supabase@2.118.0 gen types typescript --local --schema public > src/lib/supabase/database.types.ts
+// Generated from the N2 LOCAL schema (supabase/migrations) with:
+// npx --yes supabase@2.118.0 --workdir test-results/n2-seo-stack gen types typescript --local --schema public
 // Do not edit by hand; regenerate after changing a migration.
-
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
 
 export type Database = {
@@ -21,6 +20,50 @@ export type Database = {
                   Relationships: [
                     {
       foreignKeyName: "audit_events_project_id_organization_id_fkey"
+      columns: ["project_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "projects"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
+                },"competitor_observations": {
+                  Row: {
+                    "availability": string,"competitor_id": string | null,"created_at": string,"created_by": string | null,"device": string | null,"id": string,"market_country": string | null,"market_language": string | null,"method": string,"metric": string,"notes": string | null,"observed_on": string,"organization_id": string,"project_id": string,"source_name": string,"source_reference": string | null,"value": number | null,"verification": string,"verified_at": string | null,"verified_by": string | null
+                  }
+                  Insert: {
+                    "availability": string,"competitor_id"?: string | null,"created_at"?: string,"created_by"?: string | null,"device"?: string | null,"id"?: string,"market_country"?: string | null,"market_language"?: string | null,"method": string,"metric": string,"notes"?: string | null,"observed_on": string,"organization_id": string,"project_id": string,"source_name": string,"source_reference"?: string | null,"value"?: number | null,"verification"?: string,"verified_at"?: string | null,"verified_by"?: string | null
+                  }
+                  Update: {
+                    "availability"?: string,"competitor_id"?: string | null,"created_at"?: string,"created_by"?: string | null,"device"?: string | null,"id"?: string,"market_country"?: string | null,"market_language"?: string | null,"method"?: string,"metric"?: string,"notes"?: string | null,"observed_on"?: string,"organization_id"?: string,"project_id"?: string,"source_name"?: string,"source_reference"?: string | null,"value"?: number | null,"verification"?: string,"verified_at"?: string | null,"verified_by"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "competitor_observations_competitor_id_project_id_fkey"
+      columns: ["competitor_id","project_id"]
+isOneToOne: false
+      referencedRelation: "competitors"
+      referencedColumns: ["id","project_id"]
+    },{
+      foreignKeyName: "competitor_observations_project_id_organization_id_fkey"
+      columns: ["project_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "projects"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
+                },"competitors": {
+                  Row: {
+                    "archived_at": string | null,"created_at": string,"created_by": string | null,"domain": string,"id": string,"name": string | null,"notes": string | null,"organization_id": string,"project_id": string,"relation": string,"status": string,"updated_at": string
+                  }
+                  Insert: {
+                    "archived_at"?: string | null,"created_at"?: string,"created_by"?: string | null,"domain": string,"id"?: string,"name"?: string | null,"notes"?: string | null,"organization_id": string,"project_id": string,"relation"?: string,"status"?: string,"updated_at"?: string
+                  }
+                  Update: {
+                    "archived_at"?: string | null,"created_at"?: string,"created_by"?: string | null,"domain"?: string,"id"?: string,"name"?: string | null,"notes"?: string | null,"organization_id"?: string,"project_id"?: string,"relation"?: string,"status"?: string,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "competitors_project_id_organization_id_fkey"
       columns: ["project_id","organization_id"]
 isOneToOne: false
       referencedRelation: "projects"
@@ -135,6 +178,25 @@ isOneToOne: false
                   Relationships: [
                     {
       foreignKeyName: "provider_results_project_id_organization_id_fkey"
+      columns: ["project_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "projects"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
+                },"seo_keywords": {
+                  Row: {
+                    "country_code": string,"created_at": string,"created_by": string,"id": string,"intent": string,"language_code": string,"organization_id": string,"phrase": string,"project_id": string,"target_url": string | null,"topic": string,"updated_at": string
+                  }
+                  Insert: {
+                    "country_code": string,"created_at"?: string,"created_by"?: string,"id"?: string,"intent"?: string,"language_code": string,"organization_id": string,"phrase": string,"project_id": string,"target_url"?: string | null,"topic"?: string,"updated_at"?: string
+                  }
+                  Update: {
+                    "country_code"?: string,"created_at"?: string,"created_by"?: string,"id"?: string,"intent"?: string,"language_code"?: string,"organization_id"?: string,"phrase"?: string,"project_id"?: string,"target_url"?: string | null,"topic"?: string,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "seo_keywords_project_id_organization_id_fkey"
       columns: ["project_id","organization_id"]
 isOneToOne: false
       referencedRelation: "projects"

@@ -1,5 +1,7 @@
 # Roadmap de la plataforma
 
+> **N2-11 (Claude) — 16/10/2026:** primer incremento de competidores en [PR Draft](N2-11-COMPETIDORES.md) desde `main@d12b80e`, rama `claude/n2-11-competitor-intelligence-v1`. Local: verify 499/499, integración 111/111, pgTAP 695/695, E2E 149/46/0. Migración `20261016100000` **no aplicada en alojado**; fuentes automáticas desactivadas ([Fase A](N2-11-COMPETIDORES-FASE-A-20261016.md)). No operativo. Checkpoint: [CLAUDE-N2-11-CHECKPOINT](CLAUDE-N2-11-CHECKPOINT.md).
+
 > **Checkpoint N1-02 / S2 — 15/10/2026:** implementado y probado localmente desde
 > `main@3eba9d0`, [PR #100](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/100)
 > OPEN / Draft, pendiente revisión y fusión supervisada. Verify 403/403,

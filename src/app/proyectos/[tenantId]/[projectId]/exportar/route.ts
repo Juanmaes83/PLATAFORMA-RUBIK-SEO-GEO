@@ -7,6 +7,7 @@ import { signExportManifest } from "@/lib/provenance/manifest";
 import { inspectProjectAuditOutbox, sameOutboxCheckpoint } from "@/lib/provenance/outbox";
 import { appendAudit, exportProject } from "@/lib/provenance/repository";
 import { operationalStateComplete, readOperationalState } from "@/lib/recovery/operations";
+import { readSeoRecoveryState } from "@/lib/recovery/seo-state";
 import { createClient } from "@/lib/supabase/server";
 import { myProjectMembership } from "@/lib/tenancy";
 
@@ -36,10 +37,15 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ten
     return new Response("Export unavailable: provenance verification failed", { status: 503 });
   const operations = await readOperationalState(supabase, ref, result.export.results.map((r) => r.row));
   if (!operationalStateComplete(operations)) return new Response("Export unavailable: recovery state could not be read", { status: 503 });
+  const seo = await readSeoRecoveryState(supabase, ref);
+  if (!seo.ok) return new Response("Export unavailable: SEO data could not be read completely", { status: 503 });
+  const seoAgain = await readSeoRecoveryState(supabase, ref);
+  if (!seoAgain.ok || JSON.stringify(seo.value) !== JSON.stringify(seoAgain.value))
+    return new Response("Export unavailable: SEO data changed during read", { status: 503 });
   const after = await inspectProjectAuditOutbox(ref);
   if (!after.ok || !sameOutboxCheckpoint(before.checkpoint, after.checkpoint))
     return new Response("Export unavailable: audit receipts changed", { status: 503 });
-  const sealed = { ...result.export, format: "rubik-project-export-v2", operations };
+  const sealed = { ...result.export, format: "rubik-project-export-v3", operations, seo: seo.value };
   // Signed last, over the finished body: proves on the owner's machine that nothing was removed.
   const body = { ...sealed, manifest: signExportManifest(sealed, ref, keyring) };
   return new Response(JSON.stringify(body, null, 2), {

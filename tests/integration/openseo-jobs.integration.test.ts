@@ -2,6 +2,7 @@ import { afterAll, beforeAll, expect, it } from "vitest";
 import { randomBytes } from "node:crypto";
 import { providers } from "@/lib/core";
 import { prepareCompletedAuditResults } from "@/lib/openseo/persistence";
+import { diagnoseAudit } from "@/lib/seo/diagnosis";
 import { completeAuditJob } from "@/lib/openseo/jobs";
 import { loadKeyring } from "@/lib/provenance/keyring";
 import { loadProviderResult, readAuditTrail } from "@/lib/provenance/repository";
@@ -66,7 +67,9 @@ it("stores actual Core-signed originals atomically and verifies them after a dat
   if (!loaded.ok) throw new Error(loaded.error);
   // API-shaped fixtures delivered entirely in memory, never a remote provider.
   const mcp = { kind: "live" as const, callTool: async (name: string) => ({ structuredContent:
-    name === "get_audit_issues" ? { issues: [] } : { pages: [], total: 0 } }) };
+    name === "get_audit_issues"
+      ? { issues: [{ issueType: "missing-title", severity: "critical", url: "https://example.test/carta" }] }
+      : { pages: [{ url: "https://example.test/carta" }], total: 1 } }) };
   const issues = await providers.runProviderRequest({ provider: "openseo", operation: "auditIssues", input: { projectId: "fixture", auditId }, mcp });
   const pages = await providers.runProviderRequest({ provider: "openseo", operation: "auditPages", input: { projectId: "fixture", auditId }, mcp });
   const prepared = prepareCompletedAuditResults({ auditId, issues, pages }, project, loaded.keyring);
@@ -85,7 +88,12 @@ it("stores actual Core-signed originals atomically and verifies them after a dat
     expect(id).not.toBeNull();
     const opened = await loadProviderResult(owner, project, id!, loaded.keyring);
     expect(opened.ok).toBe(true);
-    if (opened.ok) expect(opened.verification.verified).toBe(true);
+    if (opened.ok) {
+      expect(opened.verification.verified).toBe(true);
+      if (id === stored.job.issuesResultId) expect(diagnoseAudit(opened.verification.result)).toMatchObject([
+        { url: "https://example.test/carta", category: "missing-title", group: "On-Page", severity: "ERROR" },
+      ]);
+    }
   }
   const retry = await completeAuditJob(owner, project, jobId, prepared.prepared);
   expect(retry).toEqual(stored);
