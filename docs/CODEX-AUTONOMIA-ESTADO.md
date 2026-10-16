@@ -1,5 +1,11 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
+## Checkpoint local N2-12/N2-13 · 17/10/2026
+
+- Integración local en `codex/n2-content-geo-integration-20261016` desde #119 `b423b11` y main `7ad4008`; sin PR de producto mientras #119 siga Draft. #116/#117 combinadas por merges semánticos, tipos regenerados desde el esquema local. Detalle y próxima acción exacta en [N2-CONTENIDOS-GEO-INTEGRACION-20261017.md](N2-CONTENIDOS-GEO-INTEGRACION-20261017.md).
+- Pruebas del árbol previo al checkpoint: verify 566 PASS/1 SKIP, integración 139/139, pgTAP 857/857, E2E dirigido 13 PASS/8 SKIP/0 FAIL, gate de exportación/inventario 2/2; stack exclusivo 65321/65322. SHA final local/remoto: comprobar tras el commit y push de este checkpoint. GitHub Actions bloqueada por facturación.
+- Bloqueo de producto: seis tablas de Contenidos/GEO aún no están en exportación/restauración. El contrato rechaza v3 con 503 cuando detecta alguna, evitando un archivo engañosamente completo. Siguiente trabajo: formato v4 firmado, verificación y restauración idempotente probadas en proyecto ficticio; después rollback/E2E combinado y reconciliación con main tras fusión supervisada de #119. No aplicar alojado ni activar N2.
+
 ## Checkpoint N2-10 · 16/10/2026, integración #119
 
 - `origin/main@7ad4008456935824cbd76eb6432aa6a043411e03`; rama propia `codex/pr119-integration-20261016`, worktree `s2-consent/test-results/pr119-integration`. HEAD funcional probado `a14527225fac9e9d9b9dae87ffd9b6835075bcb4`; HEAD documental/remoto se contrasta tras publicar. #119 permanece Draft para auditoría y fusión supervisada.

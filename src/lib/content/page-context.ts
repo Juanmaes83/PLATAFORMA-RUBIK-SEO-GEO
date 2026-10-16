@@ -6,6 +6,7 @@ import { requireSession } from "@/lib/auth/session";
 import { serverKeyring } from "@/lib/provenance/keyring";
 import { listPeople } from "@/lib/project-people";
 import { myProjectMembership } from "@/lib/tenancy";
+import { n2SchemaAvailable } from "@/lib/n2/availability";
 import { writerReady } from "./audit";
 import { loadContentProject, type ContentProject } from "./repository";
 
@@ -16,6 +17,7 @@ export async function contentPage(params: Promise<{ tenantId: string; projectId:
   const [{ tenantId, projectId }, { user, supabase }] = await Promise.all([params, requireSession()]);
   const access = projectAccess(await myProjectMembership(supabase, user.id, tenantId, projectId));
   if (!access) notFound();
+  if (!n2SchemaAvailable()) notFound();
   const project = await loadContentProject(supabase, { tenantId: access.project.tenantId, projectId: access.project.projectId });
   if (!project) notFound();
   const allowed = (action: string) => access.permissions.find((p) => p.action === action)?.decision.allowed === true;

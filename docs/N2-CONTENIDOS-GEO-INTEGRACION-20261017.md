@@ -1,0 +1,23 @@
+# Integración local N2-12/N2-13 · checkpoint de seguridad
+
+Fecha: 17/10/2026 (Europe/Madrid). Rama local `codex/n2-content-geo-integration-20261016`, worktree `s2-consent/test-results/n2-content-geo-integration`. Base: #119 `b423b11c9f52db11a898a62c341241261985738d`, que incorpora `main@7ad4008456935824cbd76eb6432aa6a043411e03`. PR #119 sigue Draft y no se ha fusionado; este incremento no tiene PR de producto y depende de esa revisión. #116 está en `f394cdbceef1d977c188071adeb6335e90e9e740`, #117 en `852b1b3681248415e113f93ccc1beb68a084eb72`; ambos siguen Draft en el último contraste.
+
+## Código combinado
+
+- Se integraron #116 y #117 en orden de migración `20261016130000` y `20261016160000`, conservando SEO, Competidores y Medición. Los conflictos en `docs/HANDOFF.md`, `docs/ROADMAP.md` y `database.types.ts` se resolvieron por contenido; los tipos se regeneraron con Supabase CLI 2.118.0 contra el esquema combinado, no escogiendo una versión parcial. `src/lib/navigation.ts` y `globals.css` conservaron ambas secciones.
+- Las cuatro tablas de Contenidos y las dos de GEO están presentes en el stack local exclusivo. La restricción de acciones del outbox conserva `competitor.add`, `content.brief.approve` y `geo.observation.verify` en una comprobación SQL conjunta. Ninguna migración alojada aplicada.
+- La navegación y las acciones de Contenidos/GEO obedecen `RUBIK_N2_SCHEMA_AVAILABLE=true`; con la bandera apagada no se muestran ni permiten escrituras. Las rutas directas requieren sesión/membresía y responden 404 si el módulo no está disponible.
+- Hallazgo de recuperabilidad: la exportación v3 incluía SEO/Competidores pero podía etiquetar como completa una base con tablas de Contenidos/GEO. El contrato ahora devuelve `unknown` y el endpoint falla con 503 ante cualquiera de esas seis tablas. El inventario las identifica como pendientes de v4. Es **contención provisional**, no exportación/recuperación de esos datos. No fusionar este código como producto hasta tener v4 con restauración, compatibilidad y pruebas.
+
+## Evidencia local sobre el árbol previo al commit de checkpoint
+
+Stack propio `rubik-n2-content-geo-20261016`, API 65321, DB 65322; datos E2E ficticios. `npm run verify`: 566 PASS/1 SKIP; pin, secretos, lint, tipos y build PASS. Integración combinada: 139/139. pgTAP: 857/857 en 28 archivos. Playwright dirigido `measurement`, `content-strategy`, `geo`: 13 PASS/8 SKIP/0 FAIL a 360, 390 y 1280 px; teardown de 5 usuarios y 2 organizaciones propios, sin residuos. Prueba dirigida del contrato e inventario de exportación: 2/2 PASS; tipos generados iguales al archivo versionado. Los SKIP de Playwright limitan revisiones de rol/HTTP a escritorio; no son PASS. Actions no ejecuta por facturación y no se usaron proveedores externos.
+
+## Pendiente antes de revisión de integración
+
+1. Implementar formato v4 firmado para `content_clusters`, `content_opportunities`, `content_evidence`, `content_briefs`, `geo_observations`, `geo_proposals`; lectura completa con conteo y aislamiento de proyecto, relaciones y procedencia.
+2. Verificador offline y restauración idempotente con conflictos explícitos, compatibilidad v1/v2/v3 y rollback; probar exportar/restaurar un proyecto ficticio y lectura parcial/corrupción. Hasta entonces el 503 es correcto.
+3. Probar apagado de ruta/acción contra bandera desactivada, rollback de contención y reaplicación en stack propio; ejecutar E2E de navegación SEO → Medición → Competidores → Contenidos → GEO y revisión visual tras v4.
+4. Auditar HEAD exacto de #119 y esperar fusión supervisada. Rebasar esta rama sobre ese main antes de considerar una PR combinada; cerrar #116/#117 como sustituidas solo cuando el incremento resultante esté fusionado. #118 permanece diseño.
+
+Production conserva migraciones N1 pendientes y módulos N2 apagados. H1 parcial, H2 bloqueado. No se han tocado Supabase alojado, Production, secretos, datos de Sarah, FLOOR PLAN ni ramas de #116/#117.

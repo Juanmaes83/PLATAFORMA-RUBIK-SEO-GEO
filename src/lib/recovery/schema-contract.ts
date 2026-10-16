@@ -23,6 +23,8 @@ export async function recoverySchemaContract(
   try {
     const result = await pool.query<{
       keywords: boolean; competitors: boolean; observations: boolean;
+      content_clusters: boolean; content_opportunities: boolean; content_evidence: boolean;
+      content_briefs: boolean; geo_observations: boolean; geo_proposals: boolean;
       keyword_audit: boolean; keyword_guard: boolean; competitor_audit: boolean;
       observation_audit: boolean; keywords_rls: boolean; competitors_rls: boolean; observations_rls: boolean;
       outbox_actions: string | null;
@@ -30,6 +32,12 @@ export async function recoverySchemaContract(
       to_regclass('public.seo_keywords') is not null as keywords,
       to_regclass('public.competitors') is not null as competitors,
       to_regclass('public.competitor_observations') is not null as observations,
+      to_regclass('public.content_clusters') is not null as content_clusters,
+      to_regclass('public.content_opportunities') is not null as content_opportunities,
+      to_regclass('public.content_evidence') is not null as content_evidence,
+      to_regclass('public.content_briefs') is not null as content_briefs,
+      to_regclass('public.geo_observations') is not null as geo_observations,
+      to_regclass('public.geo_proposals') is not null as geo_proposals,
       to_regprocedure('private.seo_keyword_after_write()') is not null as keyword_audit,
       to_regprocedure('private.seo_keyword_target_guard()') is not null as keyword_guard,
       to_regprocedure('private.competitor_after_write()') is not null as competitor_audit,
@@ -41,6 +49,10 @@ export async function recoverySchemaContract(
         where conrelid = to_regclass('private.audit_outbox') and conname = 'audit_outbox_action_check') as outbox_actions`);
     const row = result.rows[0];
     if (!row || result.rowCount !== 1) return "unknown";
+    // v3 contains SEO and competitors only. Any Content/GEO relation requires a new
+    // versioned export/restore contract; never label such an export complete.
+    if ([row.content_clusters, row.content_opportunities, row.content_evidence,
+      row.content_briefs, row.geo_observations, row.geo_proposals].some(Boolean)) return "unknown";
     const tables = [row.keywords, row.competitors, row.observations];
     const dependencies = [row.keyword_audit, row.keyword_guard, row.competitor_audit,
       row.observation_audit, row.keywords_rls, row.competitors_rls, row.observations_rls];

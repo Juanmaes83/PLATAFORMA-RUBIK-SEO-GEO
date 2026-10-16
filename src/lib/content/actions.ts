@@ -6,6 +6,7 @@ import { currentUser } from "@/lib/auth/session";
 import { serverKeyring } from "@/lib/provenance/keyring";
 import { createClient } from "@/lib/supabase/server";
 import { myProjectMembership } from "@/lib/tenancy";
+import { n2SchemaAvailable } from "@/lib/n2/availability";
 import { signContentReceipts, writerReady } from "./audit";
 import { OPPORTUNITY_STATUSES, parseBrief, parseCluster, parseEvidence, parseOpportunity, type BriefStatus } from "./contract";
 import * as repo from "./repository";
@@ -28,6 +29,7 @@ async function context(fd: FormData, action: CoreAction, back: string) {
   // `back` is a fixed sub-path built from validated ids, never a free URL.
   const here = `${base}${back}`;
   if (!access.permissions.find((p) => p.action === action)?.decision.allowed) redirect(`${here}?error=no-permitido`);
+  if (!n2SchemaAvailable()) redirect(`${here}?error=module-unavailable`);
   const keyring = serverKeyring();
   if (!keyring || !writerReady()) redirect(`${here}?error=firma-no-configurada`);
   const project = await repo.loadContentProject(supabase, { tenantId: access.project.tenantId, projectId: access.project.projectId });

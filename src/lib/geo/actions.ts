@@ -6,6 +6,7 @@ import { currentUser } from "@/lib/auth/session";
 import { serverKeyring } from "@/lib/provenance/keyring";
 import { createClient } from "@/lib/supabase/server";
 import { myProjectMembership } from "@/lib/tenancy";
+import { n2SchemaAvailable } from "@/lib/n2/availability";
 import { signGeoReceipts, writerReady } from "./audit";
 import { parseObservation } from "./contract";
 import * as repo from "./repository";
@@ -27,6 +28,7 @@ async function context(fd: FormData, action: CoreAction, back: string) {
   const base = `/proyectos/${access.project.tenantId}/${access.project.projectId}/geo`;
   const here = `${base}${back}`;
   if (!access.permissions.find((p) => p.action === action)?.decision.allowed) redirect(`${here}?error=no-permitido`);
+  if (!n2SchemaAvailable()) redirect(`${here}?error=module-unavailable`);
   const keyring = serverKeyring();
   if (!keyring || !writerReady()) redirect(`${here}?error=firma-no-configurada`);
   const project = await repo.loadGeoProject(supabase, { tenantId: access.project.tenantId, projectId: access.project.projectId });
