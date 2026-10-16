@@ -119,21 +119,24 @@ describe("manual Google capture (simulated provider and RPCs)", () => {
     expect(s.callTool).not.toHaveBeenCalled();
   });
 
-  it("releases the key when storage is refused (revocation between read and store) and stores nothing", async () => {
+  it("keeps the key when storage is refused after the read (revocation between read and store)", async () => {
     const s = setup({ storeError: "55000", revokeBetween: true });
     expect(await captureGoogleReport(s.client, project, query, key, actor, keyring, { env, mcpFactory: s.mcpFactory, store: s.store, receipt: s.receipt }))
       .toEqual({ ok: false, error: "SOURCE_CHANGED" });
-    expect(s.captures.get(key)?.state).toBe("RELEASED");
+    expect(s.captures.get(key)?.state).toBe("RESERVED");
     expect(s.stored).toHaveLength(0);
     expect(s.receipt).not.toHaveBeenCalled();
+    expect(await captureGoogleReport(s.client, project, query, key, actor, keyring, { env, mcpFactory: s.mcpFactory, store: s.store, receipt: s.receipt }))
+      .toEqual({ ok: false, error: "NOT_CONNECTED" });
+    expect(s.callTool).toHaveBeenCalledTimes(1);
   });
 
-  it("does not store a provider error and releases the key", async () => {
+  it("does not store a provider error and keeps the uncertain reservation", async () => {
     const s = setup();
     s.callTool.mockResolvedValueOnce({ structuredContent: { ok: false }, isError: true } as never);
     const r = await captureGoogleReport(s.client, project, query, key, actor, keyring, { env, mcpFactory: s.mcpFactory, store: s.store, receipt: s.receipt });
     expect(r.ok).toBe(false);
-    expect(s.captures.get(key)?.state).toBe("RELEASED");
+    expect(s.captures.get(key)?.state).toBe("RESERVED");
     expect(s.stored).toHaveLength(0);
   });
 
@@ -145,25 +148,25 @@ describe("manual Google capture (simulated provider and RPCs)", () => {
     expect(s.callTool).not.toHaveBeenCalled();
   });
 
-  it("a provider timeout stores nothing and releases the key; retrying the same key reads again and stores once", async () => {
+  it("a provider timeout stores nothing and the same key cannot trigger another read", async () => {
     const s = setup();
     s.callTool.mockRejectedValueOnce(Object.assign(new Error("The operation was aborted"), { name: "AbortError" }));
     const first = await captureGoogleReport(s.client, project, query, key, actor, keyring, { env, mcpFactory: s.mcpFactory, store: s.store, receipt: s.receipt });
     expect(first).toMatchObject({ ok: false });
-    expect(s.captures.get(key)?.state).toBe("RELEASED");
+    expect(s.captures.get(key)?.state).toBe("RESERVED");
     expect(s.stored).toHaveLength(0);
-    // Nothing was stored, so the same key may read again: one more provider call, one result.
+    // A timeout does not prove the provider did not consume quota.
     const retry = await captureGoogleReport(s.client, project, query, key, actor, keyring, { env, mcpFactory: s.mcpFactory, store: s.store, receipt: s.receipt });
-    expect(retry).toMatchObject({ ok: true, replayed: false });
-    expect(s.callTool).toHaveBeenCalledTimes(2);
-    expect(s.stored).toHaveLength(1);
+    expect(retry).toEqual({ ok: false, error: "IN_PROGRESS" });
+    expect(s.callTool).toHaveBeenCalledTimes(1);
+    expect(s.stored).toHaveLength(0);
   });
 
   it("if the answer of a committed store is lost, retrying the same key returns the stored result and signs its audit without reading again", async () => {
     const s = setup({ lostStoreResponse: true });
     expect(await captureGoogleReport(s.client, project, query, key, actor, keyring, { env, mcpFactory: s.mcpFactory, store: s.store, receipt: s.receipt }))
       .toEqual({ ok: false, error: "STORE_FAILED" });
-    // The release that follows cannot undo a committed capture: the key stays STORED.
+    // A committed capture stays STORED even when the answer never reaches the server.
     expect(s.captures.get(key)?.state).toBe("STORED");
     const resultId = s.captures.get(key)?.resultId as string;
     // The audit receipt committed with the result is still pending: nothing signed it yet.
