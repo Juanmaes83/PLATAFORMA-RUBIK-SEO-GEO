@@ -87,7 +87,7 @@ export async function followAuditAction(_prev: AuditFollowState, formData: FormD
   if ("error" in target) return { auditId, saveStatus: "unavailable", ...followRefused(target.error) };
   if (projectJobsEnabled()) {
     const result = await followProjectAudit(client, project, auditId, access.project.domain, save, serverKeyring(), { env: target.env }, target.connection);
-    if (result.saveStatus === "saved") revalidatePath(`/proyectos/${access.project.tenantId}/${access.project.projectId}/auditoria-tecnica`);
+    if (result.saveStatus === "saved" || result.saveStatus === "audit-pending") revalidatePath(`/proyectos/${access.project.tenantId}/${access.project.projectId}/auditoria-tecnica`);
     return { auditId, ...result };
   }
   return { auditId, saveStatus: "unavailable", report: null, captureError: null,

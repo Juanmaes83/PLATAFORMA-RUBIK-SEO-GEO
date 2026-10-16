@@ -123,6 +123,7 @@ export function OpenSeoConsole({ tenant, project, defaultUrl, maxPages, savingEn
             {follow.progress.error && <Problem code={follow.progress.error.code} message={follow.progress.error.message} diagnostic={follow.progress.error.diagnostic} />}
             {follow.captureError && <Problem code={follow.captureError.code} message={follow.captureError.message} />}
             {follow.saveStatus === "saved" && <p className="notice notice-info">Resultados guardados en el historial de este proyecto.</p>}
+            {follow.saveStatus === "audit-pending" && <p className="notice notice-info">Resultados guardados, pero el recibo de auditoría sigue pendiente de firma. No vuelvas a lanzar el rastreo; el operador debe completar el recibo.</p>}
             {follow.saveStatus === "pending" && <p className="notice notice-info">La auditoría sigue en curso. Cuando termine, vuelve a pulsar «Consultar y guardar resultados».</p>}
             <dl className="facts">
               <div><dt>Estado en OpenSEO</dt><dd>{follow.progress.providerStatus ?? "Desconocido"}{follow.progress.phase ? ` · ${follow.progress.phase}` : ""}</dd></div>
@@ -147,7 +148,7 @@ export function OpenSeoConsole({ tenant, project, defaultUrl, maxPages, savingEn
                   Páginas del dominio en el informe: {follow.report.pages.length}
                   {follow.report.pagesTotal !== null ? ` de ${follow.report.pagesTotal}` : ""}.
                   {follow.report.outsideProject > 0 ? ` Fuera del ámbito del proyecto: ${follow.report.hiddenPages} páginas y ${follow.report.hiddenIssues} incidencias ocultas.` : ""}
-                  {follow.saveStatus !== "saved" && <> Resultados sin guardar.{savingEnabled ? " Puedes guardarlos con «Consultar y guardar resultados»." : " El guardado aún no está activado."}</>}
+                  {follow.saveStatus !== "saved" && follow.saveStatus !== "audit-pending" && <> Resultados sin guardar.{savingEnabled ? " Puedes guardarlos con «Consultar y guardar resultados»." : " El guardado aún no está activado."}</>}
                 </p>
                 {follow.report.errors.map((e) => <Problem key={e.code} code={e.code} message={e.message} />)}
               </>

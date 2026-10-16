@@ -21,6 +21,8 @@ Google reservaba `google_capture`, llamaba al proveedor y solo después intentab
 
 La autorización de `manage-connectors` se conserva en las acciones OpenSEO; Google conserva la comprobación de fuente y rol del RPC. El preflight vuelve a validar actor/alcance con la identidad SQL dedicada. No usa `service_role` como escritor ni expone claves. La verificación no se almacena en caché para evitar disponibilidad ficticia. Los reintentos mantienen las claves y reservas previas; el preflight no crea una nueva operación.
 
+Si el guardado OpenSEO confirma datos pero el recibo no se puede firmar, la respuesta y la UI ahora muestran `audit-pending` y solicitan drenaje por el operador. No indican que el resultado carece de guardado ni que su auditoría está completa. La captura Google ya mostraba explícitamente `guardada-sin-auditoria`.
+
 ## Evidencia local y pendientes
 
 El probe exige que `current_user` sea `rubik_audit_writer` y que el rol no tenga `BYPASSRLS`; un pool que conecte como `postgres`, `service_role` u otra identidad privilegiada no cuenta como escritor disponible.
