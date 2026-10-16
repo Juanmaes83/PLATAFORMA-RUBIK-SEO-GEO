@@ -12,10 +12,12 @@ const stackConfig = stackKey === "fops2Combined"
   ? { selector: "RUBIK_TEST_N2_AUDIT_STACK", projectId: "rubik-n2-audit-20261016", workdir: "test-results/n2-audit-stack", dbPort: 61322 }
   : stackKey === "pr119Integration"
   ? { selector: "RUBIK_TEST_PR119_STACK", projectId: "rubik-pr119-integration-20261016", workdir: "test-results/pr119-stack", dbPort: 62322 }
+  : stackKey === "n2ContentGeo"
+  ? { selector: "RUBIK_TEST_CONTENT_GEO_STACK", projectId: "rubik-n2-content-geo-20261016", workdir: "test-results/n2-content-geo-stack", dbPort: 65322 }
   : stackKey === "n2Integration"
     ? { selector: "RUBIK_TEST_N2_INTEGRATION_STACK", projectId: "rubik-n2-integration-20261016", workdir: "test-results/n2-integration-stack", dbPort: 60322 }
     : null;
-if (!stackConfig) throw new Error("Refused: RUBIK_N2_TEST_STACK must be n2Integration, n2Audit, fops2Combined or pr119Integration");
+if (!stackConfig) throw new Error("Refused: unknown RUBIK_N2_TEST_STACK selector");
 process.env[stackConfig.selector] = "1";
 process.env.RUBIK_N2_SCHEMA_AVAILABLE = "true";
 process.env.SUPABASE_CLI = `npx --yes supabase@2.118.0 --workdir ${stackConfig.workdir}`;

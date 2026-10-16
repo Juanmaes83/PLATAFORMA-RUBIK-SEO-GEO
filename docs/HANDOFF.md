@@ -1,6 +1,7 @@
 # Handoff
 
 > **N2-11 (Claude) — 16/10/2026:** primer incremento de competidores en [PR Draft](N2-11-COMPETIDORES.md) desde `main@d12b80e`, rama `claude/n2-11-competitor-intelligence-v1`. Local: verify 499/499, integración 111/111, pgTAP 695/695, E2E 149/46/0. Migración `20261016100000` **no aplicada en alojado**; fuentes automáticas desactivadas ([Fase A](N2-11-COMPETIDORES-FASE-A-20261016.md)). No operativo. Checkpoint: [CLAUDE-N2-11-CHECKPOINT](CLAUDE-N2-11-CHECKPOINT.md).
+> **N2-12 (Claude) — 16/10/2026:** primer incremento de contenidos ([doc](N2-12-CONTENIDOS.md)) en rama `claude/n2-12-content-strategy-v1` desde `main@d12b80e`. Local en `637be49`: verify 494/494, integración 110/110, pgTAP 717/717, E2E 149/46/0. Migración `20261016130000` **no aplicada en alojado**; no operativo. Checkpoint: [CLAUDE-N2-12-CHECKPOINT](CLAUDE-N2-12-CHECKPOINT.md).
 
 > **RELEVO S2 — 15/10/2026:** bloque local completo sobre `main@3eba9d0`,
 > [PR #100](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/100) OPEN / Draft, pendiente revisión.
