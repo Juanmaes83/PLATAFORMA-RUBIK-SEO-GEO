@@ -1,10 +1,10 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
-## Corte vigente · 16/10/2026, tras fusión #120
+## Corte vigente · 16/10/2026, tras fusión #121 y ensayo de respaldo
 
-- `main@9365387af16f79af8fc6f88cffed77b7b4725cdc`; #120 MERGED, Production READY para ese SHA. `npm run verify` en el HEAD fusionado 5e64b48: 523 PASS/1 SKIP, lint/tipos/build PASS. Integración local comunicada 123/123, pgTAP 734/734, E2E 157 PASS/50 SKIP; Actions bloqueada por facturación.
-- N2-09 y N2-11 están en main con interfaz apagada por defecto. #114/#115 absorbidas; #121 F-OPS-2 permanece Draft sobre main. #119, #116, #117 Draft; #118 diseño. Evitar verticales nuevas; priorizar H1/H2 y después integración con recuperación completa.
-- Candidato Supabase `yvdgmklgwlshizzgefpv`: 16/30 migraciones, sin rol escritor ni outbox. Production `/api/salud` en `main@a91a63fa` confirma el ref configurado. Falta copia recuperable; secuencia N1 en [N1-VENTANA-ALOJADA-20261016.md](N1-VENTANA-ALOJADA-20261016.md). H1 parcial; H2 bloqueado.
+- `main@be65e4456c1a1e08d4bb2c32d8b5eae51fae289a`; #120 MERGED en `9365387`, #121 MERGED en `be65e44`. Production READY se había comprobado para `9365387`, no se revalidó para `be65e44` en este ensayo. Evidencia local histórica #121: verify 533 PASS/1 SKIP, integración 123/123, pgTAP 733/733 y E2E dirigido 11 PASS/16 SKIP. GitHub Actions bloqueada por facturación.
+- N2-09, N2-11 y la mitigación F-OPS-2 están en main, con interfaz N2 apagada por defecto; F-OPS-2 mantiene límites documentados. #114/#115 absorbidas; #119, #116 y #117 Draft; #118 diseño. Priorizar H1/H2 y la recuperación completa.
+- Candidato Supabase `yvdgmklgwlshizzgefpv`: 16 migraciones aplicadas hasta `20261012120000`, sin rol escritor ni outbox. Production `/api/salud` en `main@a91a63fa` confirma el ref configurado. [Copia lógica y restauración local](n1-cierre/N1-RESPALDO-RESTAURACION-CANDIDATO-20261016.md) ensayadas; faltan custodia operativa portable y pruebas completas de servicios. Dry run histórico desde `b6555ea`: exactamente 11 N1, ninguna aplicada. Secuencia en [N1-VENTANA-ALOJADA-20261016.md](N1-VENTANA-ALOJADA-20261016.md). H1 parcial; H2 bloqueado.
 - Siguiente operación: comprobar destino y respaldo, migrar S2/S1/Google en ventana, ejecutar negativas alojadas y recuperación autorizada; no activar N2 ni proveedores por inferencia. El corte inferior es histórico.
 
 ## Corte de continuidad N2 · 16/10/2026

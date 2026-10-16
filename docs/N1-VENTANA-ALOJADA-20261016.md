@@ -2,6 +2,8 @@
 
 Estado: **destino confirmado, migraciones sin ejecutar**. H1 parcial y H2 bloqueado. No registrar valores de secretos, JWT, datos Sarah ni copias SQL en GitHub o en el chat.
 
+**Evidencia posterior:** [respaldo lógico y restauración aislada del candidato](n1-cierre/N1-RESPALDO-RESTAURACION-CANDIDATO-20261016.md) PASS dentro de su cobertura; la custodia operativa portable, el corte global y los servicios Auth/Storage/Realtime siguen pendientes. El `db push --dry-run` desde `b6555ea` enumeró exactamente las 11 N1, sin aplicarlas.
+
 ## Inventario y destino
 
 `main@9365387af16f79af8fc6f88cffed77b7b4725cdc` contiene 30 migraciones. La terminal autenticada del propietario leyó el proyecto candidato `yvdgmklgwlshizzgefpv` (`plataforma-rubik-seo-geo-dev`): 16 aplicadas hasta `20261012120000`, 14 pendientes. Catálogo: `rubik_audit_writer` ausente y `private.audit_outbox` ausente; RLS habilitado en las tres tablas consultadas. Los privilegios INSERT de columna y las políticas existentes requieren evaluación efectiva conjunta. Production desplegó `main@a91a63fa0fe27f7acdafeb6a2b7e7cf6cdb0a317` (READY) y su `/api/salud` devolvió `supabaseProjectRef=yvdgmklgwlshizzgefpv`. Esto acredita el destino **configurado**, no la conexión SQL, los permisos ni el funcionamiento alojado. En Vercel no constan variables `RUBIK_AUDIT_*`; el valor de `NEXT_PUBLIC_SUPABASE_URL` es sensible y no fue recuperable por la inspección de metadatos.
