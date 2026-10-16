@@ -6,7 +6,7 @@ import type { AuditInput, ProjectRef } from "@/lib/provenance/audit";
 import type { Keyring } from "@/lib/provenance/keyring";
 import { signProviderReceipt } from "@/lib/provenance/outbox";
 import { sealProviderResult } from "@/lib/provenance/results";
-import { completeTrustedProviderCommand } from "@/lib/provenance/writer";
+import { completeTrustedProviderCommand, preflightTrustedWriter } from "@/lib/provenance/writer";
 import { runManualGoogleReport, validQuery, type ManualGoogleQuery } from "./manual-report";
 import { resolveGoogleSource } from "./properties";
 
@@ -27,7 +27,7 @@ import { resolveGoogleSource } from "./properties";
 type Client = SupabaseClient<Database>;
 export type CaptureError =
   | "DISABLED" | "INVALID" | "SIGNING_NOT_CONFIGURED" | "FORBIDDEN" | "NOT_CONNECTED" | "IN_PROGRESS"
-  | "SOURCE_CHANGED" | "CONFIGURATION" | "PROVIDER_STATUS" | "UNAVAILABLE" | "STORE_FAILED";
+  | "SOURCE_CHANGED" | "CONFIGURATION" | "PROVIDER_STATUS" | "UNAVAILABLE" | "STORE_FAILED" | "WRITER_UNAVAILABLE";
 export type CaptureOutcome =
   | { ok: true; resultId: string; replayed: boolean; audited: boolean }
   | { ok: false; error: CaptureError; status?: string };
@@ -53,7 +53,8 @@ async function capture(client: Client, projectId: string, command: "begin" | "st
 export async function captureGoogleReport(
   client: Client, project: ProjectRef, query: ManualGoogleQuery, key: string, actor: AuditInput["actor"], keyring: Keyring | null,
   deps: { env?: Record<string, string | undefined>; mcpFactory?: (opts: McpClientOptions) => Pick<OpenSeoMcpClient, "callTool" | "close">;
-    clock?: () => Date; store?: typeof completeTrustedProviderCommand; receipt?: typeof signProviderReceipt } = {},
+    clock?: () => Date; store?: typeof completeTrustedProviderCommand; receipt?: typeof signProviderReceipt;
+    preflight?: typeof preflightTrustedWriter } = {},
 ): Promise<CaptureOutcome> {
   const env = deps.env ?? process.env;
   if (!googleReadsEnabled(env)) return { ok: false, error: "DISABLED" };
@@ -63,6 +64,10 @@ export async function captureGoogleReport(
   const resolved = await resolveGoogleSource(client, project.projectId, query.provider);
   if (!resolved.ok) return { ok: false, error: resolved.error === "FORBIDDEN" ? "FORBIDDEN" : resolved.error === "NOT_CONNECTED" ? "NOT_CONNECTED" : "UNAVAILABLE" };
   const source = resolved.source;
+
+  // Check the live SQL writer and this actor's project chain before reserving or reading Google.
+  const ready = await (deps.preflight ?? preflightTrustedWriter)(client, project, actor.id, keyring, "google");
+  if (!ready.ok) return { ok: false, error: ready.error === "NOT_ALLOWED" ? "FORBIDDEN" : "WRITER_UNAVAILABLE" };
 
   const begun = await capture(client, project.projectId, "begin", {
     key, provider: query.provider, connectionId: source.connectionId, propertyBindingId: source.propertyBindingId,

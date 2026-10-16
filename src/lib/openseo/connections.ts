@@ -18,7 +18,7 @@ export interface OpenSeoProjectConnection {
   grantedAt: string;
   revokedAt: string | null;
 }
-export type ConnectionError = "CONNECTION_FORBIDDEN" | "CONNECTION_INVALID" | "CONNECTION_CONFLICT"
+export type ConnectionError = "AUDIT_WRITER_UNAVAILABLE" | "CONNECTION_FORBIDDEN" | "CONNECTION_INVALID" | "CONNECTION_CONFLICT"
   | "CONNECTION_TAKEN" | "CONNECTION_UNAVAILABLE" | "CONNECTION_INVALID_RESPONSE";
 type Outcome = { ok: true; connection: OpenSeoProjectConnection | null } | { ok: false; error: ConnectionError };
 
