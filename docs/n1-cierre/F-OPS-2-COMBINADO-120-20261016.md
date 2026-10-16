@@ -1,0 +1,35 @@
+# F-OPS-2 + #120: checkpoint de integración · 2026-10-16
+
+**Estado:** mitigación local revisable; F-OPS-2 **no cerrado**. `origin/main@b6555eaa8190ed8668c501813fda01e06c75163c`; #120 OPEN/Draft en `5e64b48f3701cecbbae0b9ad79381e3c59a0ef78` en el último contraste. Rama propia `codex/fops2-n2-combined-20261016`, creada desde #120. `ad94840888f1828ae02e499bfcc312cf28888637` fusiona sin conflictos el preflight F-OPS-2 local `767d532cdd12687bbe3b223678d76e9a65aa4817`; `0aeaba50878ad97da76e5f8ac211017524fd8eb9` añade el resguardo de reservas y las pruebas. No se modificó la rama ni el worktree del agente de #120. La PR F-OPS-2 debe tener **base #120**, mantenerse Draft y no fusionarse hasta que #120 y sus gates alojados estén resueltos.
+
+La causa raíz de F-OPS-2 era el orden proveedor → primer uso del escritor. El preflight de F-OPS-2 comprueba conexión SQL real como `rubik_audit_writer`, grants, actor, organización/proyecto, membresía y cadena HMAC; no crea recibo ni usa `service_role`. Google y OpenSEO rechazan antes de reservar o llamar al proveedor si el escritor falla. En el código combinado no hubo conflicto de archivo con #120; se conservaron sus rutas N2, tipos, exportación v2/v3 y gates de esquema. **La compatibilidad funcional se probó en un stack dedicado, no en alojado.**
+
+| Flujo | Preflight y orden | Resultado si falla antes del proveedor | Después de proveedor: garantía y límite | Evidencia local |
+| --- | --- | --- | --- | --- |
+| GSC/GA4 manual | Fuente/autorización → escritor/cadena → reserva → llamada → store+recibo | `WRITER_UNAVAILABLE`; cero llamadas y cero reserva | `RESERVED` se conserva ante timeout, estado no almacenable o fallo de store. La migración `20261016120000` impide `release` JWT y takeover tras cinco minutos. `STORED` se reejecuta solo para firmar recibo. Una nueva clave distinta puede consumir cuota: falta contrato de operación estable y conciliación | Unitario 9/9; integración Google 8/8; pgTAP y rollback |
+| OpenSEO start | permiso → escritor → reserva job → llamada → bind | `AUDIT_WRITER_UNAVAILABLE`; cero lanzamiento | `STARTING` incierto se reconcilia; no relanzar ciegamente. No hay transacción HTTP+SQL | Unitarios F-OPS-2; E2E reconciliación escritorio |
+| OpenSEO follow/store | permiso → escritor → consulta proveedor → store+recibo | cero consulta al fallar preflight | Fallo tras respuesta puede requerir volver a consultar estado/issues/pages; no existe clave de idempotencia externa acreditada. `audit-pending` no se presenta como auditado | Integración y unitarios; límite abierto |
+| Conexión/revocación OpenSEO | permiso → escritor → RPC de negocio → `appendAudit` | cero efecto al fallar preflight | RPC y auditoría siguen separados; puede existir efecto con `audited:false`. Requiere outbox/operación SQL atómica | Unitarios de acción; límite abierto |
+| Exportación/recuperación v2/v3 #120 | esquema disponible → lectura/verificación/recibos | fail-closed si faltan tablas/recibos | No se modificó el formato ni R1; N2 alojado ausente en candidato | Integración combinada y E2E SEO/competidores |
+
+El guard de captura conserva la reserva **del mismo idempotency key** en estado incierto. Un operador privilegiado puede liberarla tras comprobar externamente si hubo consumo y resultado; nunca debe hacerlo por temporizador. El rollback `supabase/rollbacks/20261016120000_fops2_google_capture_reservation_guard.sql` elimina el guard y devuelve el comportamiento antiguo de cinco minutos, por lo que requiere inventario de reservas y contención previa. No garantiza cero consumo de cuota tras una caída posterior al preflight: ninguna transacción SQL incluye HTTP externo. Tampoco elimina la posibilidad de iniciar una operación nueva con otra clave. No se debe presentar el gate como cierre total.
+
+## Gates locales del código combinado
+
+Stack exclusivo `rubik-fops2-n2-combined-20261016`, API `63321`, DB `63322`, CLI fijada `2.118.0`; Docker y puertos contrastados antes de arrancar. No se usó stack/fixture de otro agente. Código probado: `0aeaba50878ad97da76e5f8ac211017524fd8eb9` (el árbol de código posterior solo añade documentación).
+
+| Gate | Resultado |
+| --- | --- |
+| `npm run verify` | Core pin, secretos, lint, tipos y build PASS; 62 archivos unitarios, **532 PASS / 1 SKIP** |
+| `node scripts/verify-n2-integration.mjs` con `RUBIK_N2_TEST_STACK=fops2Combined` | Tipos Supabase generados coinciden; **21 archivos, 123/123 PASS**. Primera corrida detectó 2 aserciones antiguas de reintento; se corrigieron y repitió la suite completa |
+| `supabase --workdir test-results/fops2-combined-stack test db` | **26 archivos, 733/733 PASS**. Primeras corridas detectaron aserciones históricas de release y el JWT de una actualización de fixture; corregidos y repetidos |
+| Playwright dirigido (OpenSEO conexión/reconciliación, SEO, competidores) | **11 PASS / 16 SKIP / 0 FAIL** en 360, 390 y 1280 px. Los SKIP no cuentan como cobertura; la mayor parte de OpenSEO/SEO quedó condicionada a escritorio. Limpieza E2E: 5 usuarios y 2 organizaciones propios, sin restos |
+| `node scripts/test-fops2-rollback.mjs` | **3/3 PASS**: guard presente, rollback real lo elimina dentro de transacción, ROLLBACK restaura guard. Sin modificar esquema persistente |
+
+No se ejecutó toda la suite Playwright del repositorio sobre este SHA; el gate dirigido no sustituye una revisión visual humana ni pruebas alojadas. GitHub Actions continúa sin ejecutar jobs por facturación; sus checks `FAILURE` inmediatos no son un test de aplicación fallido ni CI verde. Vercel Preview `SUCCESS` solo acredita ese despliegue, no esquema ni Production.
+
+**Siguientes correcciones de producto antes de cerrar F-OPS-2:** (1) definir un ID de operación estable que impida nuevas claves arbitrarias para el mismo intento, con conciliación segura y retención; (2) OpenSEO follow: estado duradero de respuesta pendiente/desconocida o soporte real de replay del proveedor, sin segunda llamada ciega; (3) conexión/revocación: efecto y recibo en una transacción/outbox; (4) pruebas de caída entre HTTP y commit en cada flujo, con proveedor simulado; (5) evaluar el papel de la API de `release` y procedimiento operativo de reserva antigua. La matriz alojada está en `SUPABASE-CANDIDATO-OPERACION-20261016.md`.
+
+**Límites respetados:** cero llamadas a Google/OpenSEO, cero datos reales Sarah/clientes, cero cambios en Supabase alojado, Production, Vercel remoto, secretos, banderas y FLOOR PLAN. No se fusionó ninguna PR. La relación del candidato Supabase con Production permanece NO CONFIRMADA; H1 parcial y H2 bloqueado.
+
+**Reanudación manual:** en este worktree, ejecutar `git status -sb`, `git rev-parse HEAD`, `git ls-remote origin refs/heads/main`, `gh pr view 120 --json headRefOid,state,isDraft`, y comprobar la PR Draft F-OPS-2. Leer este expediente y el inventario alojado. Si #120 avanzó, revisar diff/merge antes de repetir solo gates afectados. No hay ejecución programada autorizada.
