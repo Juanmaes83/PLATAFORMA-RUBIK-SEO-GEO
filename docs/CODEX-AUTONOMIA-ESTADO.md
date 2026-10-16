@@ -2,10 +2,10 @@
 
 ## Corte vigente · 16/10/2026, tras fusión #121 y ensayo de respaldo
 
-- `main@be65e4456c1a1e08d4bb2c32d8b5eae51fae289a`; #120 MERGED en `9365387`, #121 MERGED en `be65e44`. Production READY se había comprobado para `9365387`, no se revalidó para `be65e44` en este ensayo. Evidencia local histórica #121: verify 533 PASS/1 SKIP, integración 123/123, pgTAP 733/733 y E2E dirigido 11 PASS/16 SKIP. GitHub Actions bloqueada por facturación.
+- `main@be65e4456c1a1e08d4bb2c32d8b5eae51fae289a`; #120 MERGED en `9365387`, #121 MERGED en `be65e44`. Production READY y `/api/salud` con el mismo ref se comprobaron también para `be65e44` desde supervisión. Evidencia local histórica #121: verify 533 PASS/1 SKIP, integración 123/123, pgTAP 733/733 y E2E dirigido 11 PASS/16 SKIP. GitHub Actions bloqueada por facturación.
 - N2-09, N2-11 y la mitigación F-OPS-2 están en main, con interfaz N2 apagada por defecto; F-OPS-2 mantiene límites documentados. #114/#115 absorbidas; #119, #116 y #117 Draft; #118 diseño. Priorizar H1/H2 y la recuperación completa.
 - Candidato Supabase `yvdgmklgwlshizzgefpv`: 16 migraciones aplicadas hasta `20261012120000`, sin rol escritor ni outbox. Production `/api/salud` en `main@a91a63fa` confirma el ref configurado. [Copia lógica y restauración local](n1-cierre/N1-RESPALDO-RESTAURACION-CANDIDATO-20261016.md) ensayadas; faltan custodia operativa portable y pruebas completas de servicios. Dry run histórico desde `b6555ea`: exactamente 11 N1, ninguna aplicada. Secuencia en [N1-VENTANA-ALOJADA-20261016.md](N1-VENTANA-ALOJADA-20261016.md). H1 parcial; H2 bloqueado.
-- Siguiente operación: comprobar destino y respaldo, migrar S2/S1/Google en ventana, ejecutar negativas alojadas y recuperación autorizada; no activar N2 ni proveedores por inferencia. El corte inferior es histórico.
+- Siguiente operación: comprobar destino y respaldo, migrar Google/S2/S1 en orden versionado durante la ventana, ejecutar negativas alojadas y recuperación autorizada; no activar N2 ni proveedores por inferencia. El corte inferior es histórico.
 
 ## Corte de continuidad N2 · 16/10/2026
 
