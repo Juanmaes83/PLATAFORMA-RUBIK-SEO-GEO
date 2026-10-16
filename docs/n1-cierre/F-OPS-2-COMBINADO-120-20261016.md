@@ -6,7 +6,7 @@ La causa raíz de F-OPS-2 era el orden proveedor → primer uso del escritor. El
 
 | Flujo | Preflight y orden | Resultado si falla antes del proveedor | Después de proveedor: garantía y límite | Evidencia local |
 | --- | --- | --- | --- | --- |
-| GSC/GA4 manual | Fuente/autorización → escritor/cadena → reserva → llamada → store+recibo | `WRITER_UNAVAILABLE`; cero llamadas y cero reserva | `RESERVED` se conserva ante timeout, estado no almacenable o fallo de store. La migración `20261016120000` impide `release` JWT y takeover tras cinco minutos. `STORED` se reejecuta solo para firmar recibo. Una nueva clave distinta puede consumir cuota: falta contrato de operación estable y conciliación | Unitario 9/9; integración Google 8/8; pgTAP y rollback |
+| GSC/GA4 manual | Fuente/autorización → escritor/cadena → reserva → llamada → store+recibo | `WRITER_UNAVAILABLE`; cero llamadas y cero reserva | `RESERVED` se conserva ante timeout, estado no almacenable o fallo de store. La migración `20261016120000` impide `release` JWT y takeover tras cinco minutos. `STORED` se reejecuta solo para firmar recibo. Una nueva clave distinta puede consumir cuota: falta contrato de operación estable y conciliación | Unitario 10/10; integración Google 8/8; pgTAP y rollback |
 | OpenSEO start | permiso → escritor → reserva job → llamada → bind | `AUDIT_WRITER_UNAVAILABLE`; cero lanzamiento | `STARTING` incierto se reconcilia; no relanzar ciegamente. No hay transacción HTTP+SQL | Unitarios F-OPS-2; E2E reconciliación escritorio |
 | OpenSEO follow/store | permiso → escritor → consulta proveedor → store+recibo | cero consulta al fallar preflight | Fallo tras respuesta puede requerir volver a consultar estado/issues/pages; no existe clave de idempotencia externa acreditada. `audit-pending` no se presenta como auditado | Integración y unitarios; límite abierto |
 | Conexión/revocación OpenSEO | permiso → escritor → RPC de negocio → `appendAudit` | cero efecto al fallar preflight | RPC y auditoría siguen separados; puede existir efecto con `audited:false`. Requiere outbox/operación SQL atómica | Unitarios de acción; límite abierto |
@@ -16,11 +16,11 @@ El guard de captura conserva la reserva **del mismo idempotency key** en estado 
 
 ## Gates locales del código combinado
 
-Stack exclusivo `rubik-fops2-n2-combined-20261016`, API `63321`, DB `63322`, CLI fijada `2.118.0`; Docker y puertos contrastados antes de arrancar. No se usó stack/fixture de otro agente. Código probado: `0aeaba50878ad97da76e5f8ac211017524fd8eb9` (el árbol de código posterior solo añade documentación).
+Stack exclusivo `rubik-fops2-n2-combined-20261016`, API `63321`, DB `63322`, CLI fijada `2.118.0`; Docker y puertos contrastados antes de arrancar. No se usó stack/fixture de otro agente. Integración, pgTAP, E2E y rollback se ejecutaron sobre `0aeaba50878ad97da76e5f8ac211017524fd8eb9`. `60f49f7ac0cd90e04099bbc1470d5ce252d08e90` añade solo una prueba unitaria negativa de caída del escritor tras respuesta del proveedor; `verify` se repitió sobre este SHA.
 
 | Gate | Resultado |
 | --- | --- |
-| `npm run verify` | Core pin, secretos, lint, tipos y build PASS; 62 archivos unitarios, **532 PASS / 1 SKIP** |
+| `npm run verify` | Core pin, secretos, lint, tipos y build PASS; 62 archivos unitarios, **533 PASS / 1 SKIP** sobre `60f49f7` |
 | `node scripts/verify-n2-integration.mjs` con `RUBIK_N2_TEST_STACK=fops2Combined` | Tipos Supabase generados coinciden; **21 archivos, 123/123 PASS**. Primera corrida detectó 2 aserciones antiguas de reintento; se corrigieron y repitió la suite completa |
 | `supabase --workdir test-results/fops2-combined-stack test db` | **26 archivos, 733/733 PASS**. Primeras corridas detectaron aserciones históricas de release y el JWT de una actualización de fixture; corregidos y repetidos |
 | Playwright dirigido (OpenSEO conexión/reconciliación, SEO, competidores) | **11 PASS / 16 SKIP / 0 FAIL** en 360, 390 y 1280 px. Los SKIP no cuentan como cobertura; la mayor parte de OpenSEO/SEO quedó condicionada a escritorio. Limpieza E2E: 5 usuarios y 2 organizaciones propios, sin restos |
