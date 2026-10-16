@@ -46,6 +46,6 @@ Todo lo anterior es evidencia de código y datos ficticios en local. Actions no 
 
 ## Reversión
 
-Revertir el commit de N2-10. No hay migración que revertir. El stack `rubik-n2-measurement-20261016` es independiente y desechable; detener solo ese `project_id` cuando se cierre la revisión. No detener los stacks de otros agentes.
+Revertir el commit de N2-10. No hay migración que revertir. El stack `rubik-n2-measurement-20261016` fue detenido explícitamente con su propio `project_id` y `--no-backup`; no detener los stacks de otros agentes.
 
 La rama parte de `d12b80ee4c229ab8c90f1044ecd0108165f8bb2e`. El commit funcional probado es `03fa66e` (`feat: add project organic measurement center`); el HEAD final incorporará este checkpoint documental. La continuación exacta y dependencias PR se documentan en [HANDOFF-N2-10-20261016.md](HANDOFF-N2-10-20261016.md).
