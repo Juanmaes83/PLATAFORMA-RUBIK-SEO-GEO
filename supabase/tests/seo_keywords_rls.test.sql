@@ -35,6 +35,12 @@ select ok(not has_column_privilege('authenticated','public.seo_keywords','create
 select pg_temp.act_as('00000000-0000-4000-8000-000000000921');
 select lives_ok($$insert into public.seo_keywords(project_id,organization_id,phrase,language_code,country_code)
  select id,organization_id,'consulta a','es','ES' from seo_ids where slug='seo-a1'$$,'A can declare keyword in A1');
+select lives_ok($$insert into public.seo_keywords(project_id,organization_id,phrase,language_code,country_code,target_url)
+ select id,organization_id,'consulta propia','es','ES','https://a.example.test/pagina' from seo_ids where slug='seo-a1'$$,'same-project HTTPS target is accepted');
+select throws_ok($$insert into public.seo_keywords(project_id,organization_id,phrase,language_code,country_code,target_url)
+ select id,organization_id,'consulta externa','es','ES','https://evil.example.test/pagina' from seo_ids where slug='seo-a1'$$,'23514',null,'direct Data API insert cannot target another host');
+select throws_ok($$update public.seo_keywords set target_url='https://a.example.test@evil.test/' where phrase='consulta a'$$,
+ '23514',null,'direct Data API update cannot use a userinfo host confusion');
 select lives_ok($$insert into public.seo_keywords(project_id,organization_id,phrase,language_code,country_code)
  select id,organization_id,'consulta a2','es','ES' from seo_ids where slug='seo-a2'$$,'A can declare keyword in A2');
 select throws_ok($$insert into public.seo_keywords(project_id,organization_id,phrase,language_code,country_code)
@@ -46,13 +52,13 @@ select results_eq($$select phrase from public.seo_keywords order by phrase$$,arr
 select is_empty($$update public.seo_keywords set topic='robado' where phrase='consulta a' returning 1$$,'B cannot edit A keyword');
 select is_empty($$delete from public.seo_keywords where phrase='consulta a' returning 1$$,'B cannot delete A keyword');
 select pg_temp.act_as('00000000-0000-4000-8000-000000000923');
-select results_eq($$select phrase from public.seo_keywords order by phrase$$,array['consulta a'],'analyst sees only assigned A1');
+select results_eq($$select phrase from public.seo_keywords order by phrase$$,array['consulta a','consulta propia'],'analyst sees only assigned A1');
 select lives_ok($$insert into public.seo_keywords(project_id,organization_id,phrase,language_code,country_code)
  select id,organization_id,'analista','es','ES' from seo_ids where slug='seo-a1'$$,'analyst can add in A1');
 select throws_ok($$insert into public.seo_keywords(project_id,organization_id,phrase,language_code,country_code)
  select id,organization_id,'sin acceso','es','ES' from seo_ids where slug='seo-a2'$$,'42501',null,'analyst cannot add to A2');
 select pg_temp.act_as('00000000-0000-4000-8000-000000000924');
-select results_eq($$select phrase from public.seo_keywords order by phrase$$,array['analista','consulta a'],'viewer can read A1');
+select results_eq($$select phrase from public.seo_keywords order by phrase$$,array['analista','consulta a','consulta propia'],'viewer can read A1');
 select throws_ok($$insert into public.seo_keywords(project_id,organization_id,phrase,language_code,country_code)
  select id,organization_id,'viewer write','es','ES' from seo_ids where slug='seo-a1'$$,'42501',null,'viewer cannot add');
 select is_empty($$update public.seo_keywords set topic='changed' returning 1$$,'viewer cannot edit');

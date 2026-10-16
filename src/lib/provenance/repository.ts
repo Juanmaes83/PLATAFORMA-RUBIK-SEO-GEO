@@ -22,7 +22,7 @@ const EXPORT_MAX_ROWS = 10_000;
 // PostgREST may cap a response below the requested limit. Count first and walk by a stable
 // cursor; an empty page, changed count or excessive export fails instead of silently omitting
 // signed rows. The cap is explicit because this route builds one in-memory download.
-async function readCompleteRows<T>(
+export async function readCompleteRows<T>(
   countRows: () => Promise<{ count: number | null; error: unknown }>,
   pageRows: (after: string | number | null) => Promise<{ data: T[] | null; error: unknown }>,
   cursorOf: (row: T) => string | number,

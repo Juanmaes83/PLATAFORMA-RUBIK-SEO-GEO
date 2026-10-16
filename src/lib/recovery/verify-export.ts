@@ -10,10 +10,10 @@ import { openProviderResult, type ProviderResultRow } from "@/lib/provenance/res
 // differ (a tampered or re-signed file). It never repairs, re-signs or imports anything.
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const FORMATS = new Set(["rubik-project-export-v1", "rubik-project-export-v2"]);
+const FORMATS = new Set(["rubik-project-export-v1", "rubik-project-export-v2", "rubik-project-export-v3"]);
 
 export type ExportCheck =
-  | { ok: false; error: "NOT_AN_EXPORT" | "UNSUPPORTED_FORMAT" | "MIXED_PROJECTS" | "EMPTY_SCOPE" }
+  | { ok: false; error: "NOT_AN_EXPORT" | "UNSUPPORTED_FORMAT" | "MIXED_PROJECTS" | "EMPTY_SCOPE" | "INVALID_SEO" }
   | {
       ok: true;
       format: string;
@@ -33,15 +33,42 @@ export function verifyProjectExport(doc: unknown, keyring: Keyring): ExportCheck
     return { ok: false, error: "NOT_AN_EXPORT" };
   }
   if (!FORMATS.has(d.format)) return { ok: false, error: "UNSUPPORTED_FORMAT" };
+  const seo = d.seo as { projectDomain?: unknown; keywords?: unknown; competitors?: unknown; observations?: unknown } | undefined;
+  if (d.format === "rubik-project-export-v3" && (!seo || !Array.isArray(seo.keywords)
+    || !Array.isArray(seo.competitors) || !Array.isArray(seo.observations)
+    || !(seo.projectDomain === null || typeof seo.projectDomain === "string")))
+    return { ok: false, error: "INVALID_SEO" };
   const scope = d.scope as ProjectRef["scope"] | undefined;
   const auditRows = (d.audit as { rows: AuditRow[]; verification?: AuditVerification }).rows;
   const results = d.results as { row: ProviderResultRow; verification?: { verified?: boolean } }[];
-  const ids = new Set([...auditRows, ...results.map((r) => r?.row)].map((r) => `${r?.project_id}|${r?.organization_id}`));
+  const seoRows = d.format === "rubik-project-export-v3"
+    ? [...seo!.keywords as Record<string, unknown>[], ...seo!.competitors as Record<string, unknown>[],
+      ...seo!.observations as Record<string, unknown>[]] : [];
+  const ids = new Set([...auditRows, ...results.map((r) => r?.row), ...seoRows]
+    .map((r) => `${r?.project_id}|${r?.organization_id}`));
+  // A new project may have no audit, provider or SEO rows yet. For v3 only, the
+  // manifest pins its identity; the completeness check below verifies its signature.
+  if (ids.size === 0 && d.format === "rubik-project-export-v3") {
+    const m = d.manifest as { projectId?: unknown; organizationId?: unknown } | undefined;
+    if (typeof m?.projectId === "string" && typeof m.organizationId === "string")
+      ids.add(`${m.projectId}|${m.organizationId}`);
+  }
   if (ids.size === 0) return { ok: false, error: "EMPTY_SCOPE" };
   if (ids.size > 1) return { ok: false, error: "MIXED_PROJECTS" };
   const [projectId, organizationId] = [...ids][0].split("|");
   if (!UUID.test(projectId) || !UUID.test(organizationId) || !scope?.tenantId || !scope?.projectId) return { ok: false, error: "EMPTY_SCOPE" };
   const project: ProjectRef = { projectId, organizationId, scope };
+  if (d.format === "rubik-project-export-v3") {
+    const validIds = (rows: Record<string, unknown>[]) => rows.every((row) => typeof row?.id === "string" && UUID.test(row.id));
+    const unique = (rows: Record<string, unknown>[]) => new Set(rows.map((row) => row.id)).size === rows.length;
+    const keywords = seo!.keywords as Record<string, unknown>[];
+    const competitors = seo!.competitors as Record<string, unknown>[];
+    const observations = seo!.observations as Record<string, unknown>[];
+    const competitorIds = new Set(competitors.map((row) => row.id));
+    if (![keywords, competitors, observations].every((rows) => validIds(rows) && unique(rows))
+      || observations.some((row) => row.competitor_id !== null && !competitorIds.has(row.competitor_id)))
+      return { ok: false, error: "INVALID_SEO" };
+  }
 
   const audit = verifyAuditTrail(auditRows, project, keyring);
   const mismatches: string[] = [];

@@ -30,13 +30,14 @@ const SLUG = /^[a-z0-9][a-z0-9-]{1,62}$/;
 
 export type RestoreRefusal =
   | "NOT_AN_EXPORT" | "UNSUPPORTED_FORMAT" | "MIXED_PROJECTS" | "EMPTY_SCOPE"
-  | "TAMPERED" | "AUDIT_CHAIN_INVALID" | "UNVERIFIED_RESULTS" | "INVALID_OPERATOR" | "INVALID_ROWS" | "GOOGLE_STATE_MISMATCH";
+  | "TAMPERED" | "AUDIT_CHAIN_INVALID" | "UNVERIFIED_RESULTS" | "INVALID_OPERATOR" | "INVALID_ROWS" | "GOOGLE_STATE_MISMATCH" | "INVALID_SEO";
 
 export interface RestorePlan {
   projectId: string;
   organizationId: string;
   scope: { tenantId: string; projectId: string };
   counts: { audit: number; results: number; imports: number; skippedUnverified: number;
+    seo: { keywords: number; competitors: number; observations: number } | null;
     /** Google state (operations.google): null when the export has none (older file) or could not read it. */
     google: { connections: number; bindings: number; captures: number; skippedCaptures: number } | null };
   /** One transaction: adds only what is missing, or changes nothing at all on a conflict. */
@@ -76,8 +77,10 @@ export function planRestore(doc: unknown, keyring: Keyring, opts: { operatorId: 
   if (!check.audit.valid) return { ok: false, error: "AUDIT_CHAIN_INVALID" };
   if (check.results.failed.length > 0 && !opts.skipUnverified) return { ok: false, error: "UNVERIFIED_RESULTS" };
 
-  const d = doc as { scope: { tenantId: string; projectId: string }; audit: { rows: Record<string, unknown>[] };
-    results: { row: Record<string, unknown> }[]; imports?: unknown; operations?: { google?: unknown } };
+  const d = doc as { format: string; scope: { tenantId: string; projectId: string }; audit: { rows: Record<string, unknown>[] };
+    results: { row: Record<string, unknown> }[]; imports?: unknown; operations?: { google?: unknown };
+    seo?: { projectDomain: string | null; keywords: Record<string, unknown>[];
+      competitors: Record<string, unknown>[]; observations: Record<string, unknown>[] } };
   const { projectId, organizationId } = check.project;
   const scope = { tenantId: d.scope.tenantId, projectId: d.scope.projectId };
   if (!SLUG.test(scope.tenantId) || !SLUG.test(scope.projectId)) return { ok: false, error: "EMPTY_SCOPE" };
@@ -98,12 +101,47 @@ export function planRestore(doc: unknown, keyring: Keyring, opts: { operatorId: 
   const skippedIds = new Set(d.results.filter((_, i) => failed.has(i)).map((r) => r.row?.id as string));
   const google = checkGoogleState(d.operations?.google, { projectId, organizationId }, results, skippedIds);
   if (!google.ok) return { ok: false, error: "GOOGLE_STATE_MISMATCH" };
+  const seo = d.format === "rubik-project-export-v3" ? d.seo! : null;
+  if (seo && (seo.projectDomain !== null && !/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(seo.projectDomain)
+    || [...seo.keywords, ...seo.competitors, ...seo.observations].some((row) => !inScope(row))))
+    return { ok: false, error: "INVALID_SEO" };
 
   const op = `'${opts.operatorId}'::uuid`;
   const org = `'${organizationId}'::uuid`, prj = `'${projectId}'::uuid`;
   const orgSlug = `'${scope.tenantId}'`, prjSlug = `'${scope.projectId}'`;
+  const domain = seo?.projectDomain ? `'${seo.projectDomain}'` : "null";
   const msg = (text: string, ...args: string[]) => `format('${RESTORE_CONFLICT}: ${text}'${args.map((a) => `, ${a}`).join("")})`;
   const g = google.state ? googleSql(google.state, { literal, op, prj, fail, msg, differs }) : { load: [], checks: [], setup: [], captures: [] };
+  const seoLoad = seo ? [
+    `create temp table rubik_keywords on commit drop as select * from jsonb_populate_recordset(null::public.seo_keywords, ${literal(seo.keywords)});`,
+    `create temp table rubik_competitors on commit drop as select * from jsonb_populate_recordset(null::public.competitors, ${literal(seo.competitors)});`,
+    `create temp table rubik_observations on commit drop as select * from jsonb_populate_recordset(null::public.competitor_observations, ${literal(seo.observations)});`,
+  ] : [];
+  const seoChecks = seo ? [
+    fail(msg("el dominio del proyecto cambió desde la exportación."),
+      `from public.projects p where p.id = ${prj} and p.domain is distinct from ${domain}`),
+    fail(msg("una keyword existente tiene otro contenido."),
+      "from rubik_keywords s join public.seo_keywords t on t.id = s.id where to_jsonb(t) is distinct from to_jsonb(s)"),
+    fail(msg("un competidor existente tiene otro contenido."),
+      "from rubik_competitors s join public.competitors t on t.id = s.id where to_jsonb(t) is distinct from to_jsonb(s)"),
+    fail(msg("una observación existente tiene otro contenido."),
+      "from rubik_observations s join public.competitor_observations t on t.id = s.id where to_jsonb(t) is distinct from to_jsonb(s)"),
+    fail(msg("un dominio de competidor ya existe con otro ID."),
+      "from rubik_competitors s join public.competitors t on t.project_id = s.project_id and t.domain = s.domain where t.id <> s.id"),
+    fail(msg("un autor de datos SEO no existe."),
+      "from (select created_by as uid from rubik_keywords union all select created_by from rubik_competitors union all select created_by from rubik_observations union all select verified_by from rubik_observations) actors where uid is not null and not exists (select 1 from auth.users u where u.id = actors.uid)"),
+  ] : [];
+  const seoInsert = seo ? [
+    // Offline maintenance transaction only: these BEFORE triggers overwrite immutable
+    // timestamps and verification state. ALTER TABLE takes a lock until COMMIT/ROLLBACK.
+    "alter table public.competitors disable trigger competitors_before_write;",
+    "alter table public.competitor_observations disable trigger competitor_observations_before_write;",
+    "insert into public.seo_keywords select * from rubik_keywords s where not exists (select 1 from public.seo_keywords t where t.id = s.id);",
+    "insert into public.competitors select * from rubik_competitors s where not exists (select 1 from public.competitors t where t.id = s.id);",
+    "insert into public.competitor_observations select * from rubik_observations s where not exists (select 1 from public.competitor_observations t where t.id = s.id);",
+    "alter table public.competitor_observations enable trigger competitor_observations_before_write;",
+    "alter table public.competitors enable trigger competitors_before_write;",
+  ] : [];
   const lines = [
     "-- Rubik restore drill. Generated from a verified export; review before running with psql.",
     "-- Adds only what is missing. Any conflict aborts the whole transaction: nothing is written.",
@@ -125,6 +163,7 @@ export function planRestore(doc: unknown, keyring: Keyring, opts: { operatorId: 
     `create temp table rubik_audit on commit drop as select * from jsonb_populate_recordset(null::public.audit_events, ${literal(audit)});`,
     `create temp table rubik_results on commit drop as select * from jsonb_populate_recordset(null::public.provider_results, ${literal(results)});`,
     `create temp table rubik_imports on commit drop as select * from jsonb_populate_recordset(null::public.imports, ${literal(imports)});`,
+    ...seoLoad,
     // Author of a row who no longer exists in this database: the operator (NOT NULL, not signed).
     `update rubik_results r set created_by = ${op} where not exists (select 1 from auth.users u where u.id = r.created_by);`,
     `update rubik_imports i set created_by = ${op} where not exists (select 1 from auth.users u where u.id = i.created_by);`,
@@ -143,6 +182,7 @@ export function planRestore(doc: unknown, keyring: Keyring, opts: { operatorId: 
       `from rubik_imports s join public.imports i on i.id = s.id where ${differs("i", "s", IMPORT_COLS)}`),
     fail(msg("el archivo %s ya está importado en el proyecto con otro id (%s, no %s).", "s.file_sha256", "i.id::text", "s.id::text"),
       `from rubik_imports s join public.imports i on i.project_id = s.project_id and i.file_sha256 = s.file_sha256 where i.id <> s.id`),
+    ...seoChecks,
     ...g.checks,
 
     "-- 4 · Create only what is missing. Existing memberships and roles are never touched.",
@@ -150,7 +190,7 @@ export function planRestore(doc: unknown, keyring: Keyring, opts: { operatorId: 
       + `not exists (select 1 from public.projects where id = ${prj}) as new_project;`,
     // The tenancy trigger makes created_by (the operator) the owner of a NEW organization only.
     `insert into public.organizations (id, slug, name, created_by) select ${org}, ${orgSlug}, ${orgSlug}, ${op} from rubik_restore_state where new_org;`,
-    `insert into public.projects (id, organization_id, slug, name) select ${prj}, ${org}, ${prjSlug}, ${prjSlug} from rubik_restore_state where new_project;`,
+    `insert into public.projects (id, organization_id, slug, name${seo ? ", domain" : ""}) select ${prj}, ${org}, ${prjSlug}, ${prjSlug}${seo ? `, ${domain}` : ""} from rubik_restore_state where new_project;`,
     `insert into public.project_members (project_id, organization_id, user_id, role) select ${prj}, ${org}, ${op}, 'owner' from rubik_restore_state `
       + `where new_project and exists (select 1 from public.organization_members m where m.organization_id = ${org} and m.user_id = ${op} and m.role = 'owner');`,
     ...g.setup,
@@ -162,6 +202,7 @@ export function planRestore(doc: unknown, keyring: Keyring, opts: { operatorId: 
     "end $rubik_chain$;",
     "insert into public.provider_results select * from rubik_results r where not exists (select 1 from public.provider_results p where p.id = r.id);",
     "insert into public.imports select * from rubik_imports s where not exists (select 1 from public.imports i where i.id = s.id);",
+    ...seoInsert,
     // Capture records point at results, so they go last.
     ...g.captures,
     "commit;",
@@ -170,6 +211,7 @@ export function planRestore(doc: unknown, keyring: Keyring, opts: { operatorId: 
     ok: true,
     skipped: check.results.failed,
     plan: { projectId, organizationId, scope, counts: { audit: audit.length, results: results.length, imports: imports.length, skippedUnverified: failed.size,
+      seo: seo ? { keywords: seo.keywords.length, competitors: seo.competitors.length, observations: seo.observations.length } : null,
       google: google.state ? { connections: google.state.connections.length, bindings: google.state.bindings.length, captures: google.state.captures.length, skippedCaptures: google.skippedCaptures } : null }, sql: lines.join("\n") + "\n" },
   };
 }
