@@ -55,9 +55,8 @@ const literal = (value: unknown) => {
   return `${tag}${json}${tag}::jsonb`;
 };
 
-// Columns compared when a row already exists. Everything stored except `created_by` (replaced
-// by the operator when its author no longer exists here) and, for audit events, `created_at`
-// (the chain trigger sets it at insert time; it is not signed, `at` is).
+// Original authors are preserved. Restore preflight refuses a target missing an author account
+// instead of assigning the operator. For audit events `created_at` is set by the chain trigger.
 const AUDIT_COLS = ["organization_id", "at", "actor_role", "actor_id", "action", "target", "outcome", "details", "prev_hash", "hash", "key_id", "signature"];
 const RESULT_COLS = ["project_id", "organization_id", "provider", "operation", "status", "captured_at", "signed_payload", "data", "data_hash_alg", "data_hash", "key_id", "signature", "created_at"];
 const IMPORT_COLS = ["project_id", "organization_id", "format", "source_kind", "source_label", "source_url", "source_tool", "captured_at",
@@ -164,9 +163,6 @@ export function planRestore(doc: unknown, keyring: Keyring, opts: { operatorId: 
     `create temp table rubik_results on commit drop as select * from jsonb_populate_recordset(null::public.provider_results, ${literal(results)});`,
     `create temp table rubik_imports on commit drop as select * from jsonb_populate_recordset(null::public.imports, ${literal(imports)});`,
     ...seoLoad,
-    // Author of a row who no longer exists in this database: the operator (NOT NULL, not signed).
-    `update rubik_results r set created_by = ${op} where not exists (select 1 from auth.users u where u.id = r.created_by);`,
-    `update rubik_imports i set created_by = ${op} where not exists (select 1 from auth.users u where u.id = i.created_by);`,
     ...g.load,
 
     "-- 3 · Rows that already exist must be identical; otherwise nothing is restored.",
@@ -182,6 +178,8 @@ export function planRestore(doc: unknown, keyring: Keyring, opts: { operatorId: 
       `from rubik_imports s join public.imports i on i.id = s.id where ${differs("i", "s", IMPORT_COLS)}`),
     fail(msg("el archivo %s ya está importado en el proyecto con otro id (%s, no %s).", "s.file_sha256", "i.id::text", "s.id::text"),
       `from rubik_imports s join public.imports i on i.project_id = s.project_id and i.file_sha256 = s.file_sha256 where i.id <> s.id`),
+    fail(msg("falta una cuenta de autor original; no se sustituye por el operador."),
+      "from (select actor_id as uid from rubik_audit union select created_by from rubik_results union select created_by from rubik_imports) actors where uid is not null and not exists (select 1 from auth.users u where u.id = actors.uid)"),
     ...seoChecks,
     ...g.checks,
 

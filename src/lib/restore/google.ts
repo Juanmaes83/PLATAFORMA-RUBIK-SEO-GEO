@@ -59,8 +59,7 @@ export function checkGoogleState(block: unknown, scope: { projectId: string; org
   return { ok: true, state: { connections, bindings, captures }, skippedCaptures };
 }
 
-// Columns compared when a row already exists: everything except the people columns, which are
-// replaced by the operator when that account does not exist in the destination (as created_by).
+// Original people columns are preserved. Restore preflight refuses missing account dependencies.
 const CONN_COLS = ["project_id", "organization_id", "state", "credential_mode", "openseo_project_id", "allowed_hosts", "granted_at", "revoked_at"];
 const BIND_COLS = ["project_id", "organization_id", "connection_id", "provider", "external_property_id", "state", "source", "granted_at", "revoked_at"];
 const CAP_COLS = ["project_id", "organization_id", "idempotency_key", "provider", "connection_id", "property_binding_id", "state", "result_id", "created_at", "reserved_at", "closed_at"];
@@ -70,16 +69,14 @@ export function googleSql(state: GoogleRecoveryState, h: {
   literal: (v: unknown) => string; op: string; prj: string; fail: (message: string, from: string) => string;
   msg: (text: string, ...args: string[]) => string; differs: (a: string, b: string, cols: string[]) => string;
 }) {
-  const people = (table: string, cols: string[]) => cols.map((c) => `update ${table} t set ${c} = ${h.op} where t.${c} is not null and not exists (select 1 from auth.users u where u.id = t.${c});`);
   const load = [
     `create temp table rubik_connections on commit drop as select * from jsonb_populate_recordset(null::private.openseo_project_connections, ${h.literal(state.connections)});`,
     `create temp table rubik_bindings on commit drop as select * from jsonb_populate_recordset(null::private.openseo_google_properties, ${h.literal(state.bindings)});`,
     `create temp table rubik_captures on commit drop as select * from jsonb_populate_recordset(null::private.google_captures, ${h.literal(state.captures)});`,
-    ...people("rubik_connections", ["granted_by", "revoked_by"]),
-    ...people("rubik_bindings", ["granted_by", "revoked_by"]),
-    ...people("rubik_captures", ["created_by"]),
   ];
   const checks = [
+    h.fail(h.msg("falta una cuenta de autor o revisor original del estado Google; no se sustituye por el operador."),
+      "from (select granted_by as uid from rubik_connections union select revoked_by from rubik_connections union select granted_by from rubik_bindings union select revoked_by from rubik_bindings union select created_by from rubik_captures) actors where uid is not null and not exists (select 1 from auth.users u where u.id = actors.uid)"),
     h.fail(h.msg("la conexión de OpenSEO %s ya existe con otro contenido.", "c.id::text"),
       `from rubik_connections c join private.openseo_project_connections x on x.id = c.id where ${h.differs("x", "c", CONN_COLS)}`),
     h.fail(h.msg("el proyecto ya tiene otra conexión de OpenSEO activa (%s).", "x.id::text"),

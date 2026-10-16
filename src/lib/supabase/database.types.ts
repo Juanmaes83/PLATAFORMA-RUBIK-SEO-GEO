@@ -1,6 +1,7 @@
-// Generated from the N2 LOCAL schema (supabase/migrations) with:
-// npx --yes supabase@2.118.0 --workdir test-results/n2-seo-stack gen types typescript --local --schema public
+// Generated from the LOCAL schema (supabase/migrations) with:
+//   npx supabase@2.118.0 gen types typescript --local --schema public > src/lib/supabase/database.types.ts
 // Do not edit by hand; regenerate after changing a migration.
+
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
 
 export type Database = {

@@ -1,5 +1,17 @@
 # Integración N2 sobre N1-06 · 16/10/2026
 
+## Actualización: resolución de revisión Claude en #120 · 16/10/2026
+
+La matriz completa está en [REVISION-INTEGRACION-N2-CLAUDE-RESOLUCION-20261016.md](REVISION-INTEGRACION-N2-CLAUDE-RESOLUCION-20261016.md). El informe fuente se leyó por su commit `8a48fa9969463e227c0c72389d09fe985c2aa9f1`, sin integrar su rama documental.
+
+- Se corrigieron permisos de `updated_at`, eliminación de keywords y recibos S1; se añadió el fixture de rollback de contención. El borrado de keywords requiere `delete-data`; una prueba E2E valida que analyst no puede borrar y titular sí con confirmación.
+- El allowlist outbox ahora conserva explícitamente acciones acumuladas S1 → SEO → Competidores. El helper dinámico anterior falló al serializar arrays y se eliminó; la migración canónica corregida pasa integración y pgTAP.
+- Export v2 anterior y export actual con N2 disponible no se confunden. Con N2 deshabilitado el endpoint declara omisiones, no firma manifiesto y reporta `UNPROVEN`; los errores de lectura con N2 activo no producen fallback. No se presenta una exportación que omite datos N2 como completa.
+- El restore no reasigna autoría al operador; preflight aborta si faltan cuentas de autores. R1 y la retención/anonimización legal siguen pendientes de decisión.
+- Última validación local en stack exclusivo `rubik-n2-audit-20261016`: `npm run verify` 58/514 PASS; integración 20/121 PASS; pgTAP 26/734 PASS; Playwright 157 PASS / 50 SKIP / 0 FAIL de 207. Limpieza E2E: 11 usuarios/2 organizaciones propios, sin residuos.
+- No se ejecutaron migraciones alojadas ni se consultaron Supabase alojado, Vercel Preview, proveedores o datos reales de Sarah. GitHub Actions sigue bloqueada antes de ejecutar pasos por facturación.
+- Los interruptores adicionales y la futura v4 citados en el informe Claude son propuestas. No son decisiones aprobadas ni están implementadas aquí.
+
 ## Estado del corte
 
 - Rama local: `codex/n2-integration-post113-20261016`, basada en `main` después de #113 (`b6555eaa8190ed8668c501813fda01e06c75163c`).

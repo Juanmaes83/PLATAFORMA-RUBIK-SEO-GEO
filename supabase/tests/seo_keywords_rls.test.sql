@@ -31,6 +31,9 @@ select ok((select relrowsecurity from pg_class where oid='public.seo_keywords'::
 select ok(not has_table_privilege('anon','public.seo_keywords','select,insert,update,delete'),'anon has no table privilege');
 select ok(not has_column_privilege('authenticated','public.seo_keywords','project_id','update'),'scope cannot be updated');
 select ok(not has_column_privilege('authenticated','public.seo_keywords','created_by','insert'),'actor cannot be forged');
+select ok(not has_column_privilege('authenticated','public.seo_keywords','updated_at','update'),'client cannot choose updated_at');
+select ok((select pg_get_constraintdef(oid) like '%seo.keyword.add%' and pg_get_constraintdef(oid) like '%seo.keyword.update%' and pg_get_constraintdef(oid) like '%seo.keyword.erase%'
+  from pg_constraint where conrelid='private.audit_outbox'::regclass and conname='audit_outbox_action_check'),'keyword audit actions are allowed');
 
 select pg_temp.act_as('00000000-0000-4000-8000-000000000921');
 select lives_ok($$insert into public.seo_keywords(project_id,organization_id,phrase,language_code,country_code)
@@ -55,6 +58,7 @@ select pg_temp.act_as('00000000-0000-4000-8000-000000000923');
 select results_eq($$select phrase from public.seo_keywords order by phrase$$,array['consulta a','consulta propia'],'analyst sees only assigned A1');
 select lives_ok($$insert into public.seo_keywords(project_id,organization_id,phrase,language_code,country_code)
  select id,organization_id,'analista','es','ES' from seo_ids where slug='seo-a1'$$,'analyst can add in A1');
+select is_empty($$delete from public.seo_keywords where phrase='analista' returning 1$$,'analyst cannot delete with draft permission only');
 select throws_ok($$insert into public.seo_keywords(project_id,organization_id,phrase,language_code,country_code)
  select id,organization_id,'sin acceso','es','ES' from seo_ids where slug='seo-a2'$$,'42501',null,'analyst cannot add to A2');
 select pg_temp.act_as('00000000-0000-4000-8000-000000000924');
@@ -67,5 +71,18 @@ select pg_temp.act_as('00000000-0000-4000-8000-000000000925');
 select is_empty($$select 1 from public.seo_keywords$$,'outsider sees nothing');
 select throws_ok($$insert into public.seo_keywords(project_id,organization_id,phrase,language_code,country_code)
  select id,organization_id,'outside','es','ES' from seo_ids where slug='seo-a1'$$,'42501',null,'outsider cannot add');
+select pg_temp.act_as('00000000-0000-4000-8000-000000000921');
+select lives_ok($$insert into public.seo_keywords(project_id,organization_id,phrase,language_code,country_code)
+ select id,organization_id,'audit keyword','es','ES' from seo_ids where slug='seo-a1'$$,'owner creates audited keyword');
+select lives_ok($$update public.seo_keywords set topic='audited update' where phrase='audit keyword'$$,'owner updates keyword');
+select lives_ok($$delete from public.seo_keywords where phrase='audit keyword'$$,'owner deletes with delete-data scope');
+select set_config('role','postgres',true);
+select is((select count(*)::int from private.audit_outbox where action in ('seo.keyword.add','seo.keyword.update','seo.keyword.erase') and target_text='audit keyword'),3,
+  'create, update and delete each enqueue an S1 receipt');
+insert into public.seo_keywords(project_id,organization_id,phrase,language_code,country_code,created_by)
+ select id,organization_id,'autor retenido','es','ES','00000000-0000-4000-8000-000000000923'::uuid
+ from seo_ids where slug='seo-a1';
+select throws_ok($$delete from auth.users where id='00000000-0000-4000-8000-000000000923'$$,
+  '23503',null,'account deletion is blocked while its keyword authorship is retained');
 select * from finish();
 rollback;

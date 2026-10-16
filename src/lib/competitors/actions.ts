@@ -6,6 +6,7 @@ import { currentUser } from "@/lib/auth/session";
 import { serverKeyring } from "@/lib/provenance/keyring";
 import { createClient } from "@/lib/supabase/server";
 import { myProjectMembership } from "@/lib/tenancy";
+import { n2SchemaAvailable } from "@/lib/n2/availability";
 import { signCompetitorReceipts, writerReady } from "./audit";
 import { parseCompetitorDetails, parseObservation } from "./contract";
 import { normalizeCompetitorDomain } from "./domain";
@@ -31,6 +32,7 @@ async function context(formData: FormData, action: CoreAction, back?: string) {
   const base = `/proyectos/${access.project.tenantId}/${access.project.projectId}/competidores`;
   const here = back && isUuid(back) ? `${base}/${back}` : base;
   if (!access.permissions.find((p) => p.action === action)?.decision.allowed) redirect(`${here}?error=no-permitido`);
+  if (!n2SchemaAvailable()) redirect(`${here}?error=module-unavailable`);
   const keyring = serverKeyring();
   if (!keyring || !writerReady()) redirect(`${here}?error=firma-no-configurada`);
   const project = await loadCompetitorProject(supabase, { tenantId: access.project.tenantId, projectId: access.project.projectId });

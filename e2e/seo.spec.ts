@@ -26,7 +26,12 @@ test("N2 keyword declaration, edit and removal stay in the authorized project", 
   await card.getByRole("button", { name: "Actualizar" }).click();
   await expect(page).toHaveURL(/aviso=actualizada/);
   await expect(page.locator("li.card", { hasText: phrase })).toContainText("Tema revisado");
-  await page.locator("li.card", { hasText: phrase }).getByRole("button", { name: "Eliminar" }).click();
+  await expect(page.locator("li.card", { hasText: phrase }).getByRole("button", { name: "Eliminar" })).toHaveCount(0);
+  await signIn(page, "owner");
+  await page.goto(path);
+  const ownerCard = page.locator("li.card", { hasText: phrase });
+  await ownerCard.getByLabel("Confirmo que quiero eliminar esta keyword.").check();
+  await ownerCard.getByRole("button", { name: "Eliminar" }).click();
   await expect(page).toHaveURL(/aviso=borrada/);
   await expect(page.getByRole("heading", { name: phrase })).toHaveCount(0);
 });

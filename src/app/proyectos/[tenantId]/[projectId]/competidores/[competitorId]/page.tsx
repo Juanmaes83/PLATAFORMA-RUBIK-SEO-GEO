@@ -22,6 +22,8 @@ import type { Database } from "@/lib/supabase/database.types";
 import { formatDateTime } from "@/lib/format";
 import { serverKeyring } from "@/lib/provenance/keyring";
 import { myProjectMembership } from "@/lib/tenancy";
+import { n2SchemaAvailable } from "@/lib/n2/availability";
+import { N2ModuleUnavailable } from "@/components/N2ModuleUnavailable";
 
 export default async function CompetitorPage({ params, searchParams }: {
   params: Promise<{ tenantId: string; projectId: string; competitorId: string }>;
@@ -31,6 +33,7 @@ export default async function CompetitorPage({ params, searchParams }: {
   const access = projectAccess(await myProjectMembership(supabase, user.id, tenantId, projectId));
   if (!access) notFound();
   const { project } = access;
+  if (!n2SchemaAvailable()) return <N2ModuleUnavailable title="Competidores" projectName={project.name} base={`/proyectos/${project.tenantId}/${project.projectId}`} current="competidores" />;
   const ref = await loadCompetitorProject(supabase, { tenantId: project.tenantId, projectId: project.projectId });
   if (!ref) notFound();
   // Bound to this project: an id of another project's competitor answers 404, like an unknown one.

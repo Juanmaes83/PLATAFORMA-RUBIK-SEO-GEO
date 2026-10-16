@@ -186,10 +186,11 @@ create policy "project owners erase observations" on public.competitor_observati
 
 -- ── S1 audit receipts, in the same transaction as the change ──────────────────────────────
 
+-- Complete action list for the canonical S1 → SEO keyword → competitor migration order.
 alter table private.audit_outbox drop constraint audit_outbox_action_check;
 alter table private.audit_outbox add constraint audit_outbox_action_check
   check (action in ('member.withdraw', 'import.file', 'import.erase', 'provider-results.erase',
-    'google.capture', 'openseo.audit.store',
+    'google.capture', 'openseo.audit.store', 'seo.keyword.add', 'seo.keyword.update', 'seo.keyword.erase',
     'competitor.add', 'competitor.update', 'competitor.archive', 'competitor.restore', 'competitor.erase',
     'competitor.observation.add', 'competitor.observation.verify', 'competitor.observation.erase'));
 alter table private.audit_outbox drop constraint audit_outbox_target_check;

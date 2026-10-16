@@ -8,6 +8,8 @@ import { inspectProjectAuditOutbox, sameOutboxCheckpoint } from "@/lib/provenanc
 import { appendAudit, exportProject } from "@/lib/provenance/repository";
 import { operationalStateComplete, readOperationalState } from "@/lib/recovery/operations";
 import { readSeoRecoveryState } from "@/lib/recovery/seo-state";
+import { buildExportWithoutN2 } from "@/lib/recovery/export-compat";
+import { n2SchemaAvailable } from "@/lib/n2/availability";
 import { createClient } from "@/lib/supabase/server";
 import { myProjectMembership } from "@/lib/tenancy";
 
@@ -37,6 +39,19 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ten
     return new Response("Export unavailable: provenance verification failed", { status: 503 });
   const operations = await readOperationalState(supabase, ref, result.export.results.map((r) => r.row));
   if (!operationalStateComplete(operations)) return new Response("Export unavailable: recovery state could not be read", { status: 503 });
+  // With N2 explicitly disabled, preserve the legacy downloadable contract but never attach a
+  // manifest: it cannot claim completeness while N2 rows may exist outside this payload.
+  if (!n2SchemaAvailable()) {
+    const body = buildExportWithoutN2(result.export, operations);
+    return new Response(JSON.stringify(body, null, 2), {
+      headers: {
+        "content-type": "application/json; charset=utf-8",
+        "content-disposition": `attachment; filename="${ref.scope.tenantId}-${ref.scope.projectId}-${at.slice(0, 10)}.unverified.json"`,
+        "x-rubik-export-completeness": "UNPROVEN-N2-DISABLED",
+        "cache-control": "no-store",
+      },
+    });
+  }
   const seo = await readSeoRecoveryState(supabase, ref);
   if (!seo.ok) return new Response("Export unavailable: SEO data could not be read completely", { status: 503 });
   const seoAgain = await readSeoRecoveryState(supabase, ref);

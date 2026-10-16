@@ -16,6 +16,8 @@ export const STACKS = {
   n2: { selector: "RUBIK_TEST_N2_STACK", apiPort: 59321, dbPort: 59322, projectId: "rubik-n2-seo-20261015" },
   // Combined N2-09/N2-11 integration stack; never reset by the verifier.
   n2Integration: { selector: "RUBIK_TEST_N2_INTEGRATION_STACK", apiPort: 60321, dbPort: 60322, projectId: "rubik-n2-integration-20261016" },
+  // Fresh stack for Claude audit resolutions; separate from every historical S1/S2/N1/N2 stack.
+  n2Audit: { selector: "RUBIK_TEST_N2_AUDIT_STACK", apiPort: 61321, dbPort: 61322, projectId: "rubik-n2-audit-20261016" },
 };
 
 /** The stack selected by the environment. More than one selector is refused, never resolved by precedence. */

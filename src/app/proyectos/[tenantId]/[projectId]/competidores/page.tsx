@@ -20,6 +20,8 @@ import type { ProjectAccess } from "@/lib/access";
 import type { Database } from "@/lib/supabase/database.types";
 import { serverKeyring } from "@/lib/provenance/keyring";
 import { myProjectMembership } from "@/lib/tenancy";
+import { n2SchemaAvailable } from "@/lib/n2/availability";
+import { N2ModuleUnavailable } from "@/components/N2ModuleUnavailable";
 
 export default async function CompetitorsPage({ params, searchParams }: {
   params: Promise<{ tenantId: string; projectId: string }>;
@@ -29,6 +31,7 @@ export default async function CompetitorsPage({ params, searchParams }: {
   const access = projectAccess(await myProjectMembership(supabase, user.id, tenantId, projectId));
   if (!access) notFound();
   const { project } = access;
+  if (!n2SchemaAvailable()) return <N2ModuleUnavailable title="Competidores" projectName={project.name} base={`/proyectos/${project.tenantId}/${project.projectId}`} current="competidores" />;
   const ref = await loadCompetitorProject(supabase, { tenantId: project.tenantId, projectId: project.projectId });
   if (!ref) notFound();
   // Access and 404 are decided above, before anything streams (a route-level loading.tsx

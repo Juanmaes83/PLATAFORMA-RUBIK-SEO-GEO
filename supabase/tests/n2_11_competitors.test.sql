@@ -53,6 +53,13 @@ select ok(not has_column_privilege('authenticated', 'public.competitor_observati
   and not has_column_privilege('authenticated', 'public.competitor_observations', 'verification', 'insert'), 'verification is never self-declared');
 select ok(not has_table_privilege('authenticated', 'private.audit_outbox', 'insert'), 'JWT cannot write audit receipts');
 select ok(not has_table_privilege('authenticated', 'public.audit_events', 'insert'), 'JWT cannot write audit events');
+select ok((select pg_get_constraintdef(oid) like '%member.withdraw%' and pg_get_constraintdef(oid) like '%provider-results.erase%'
+  and pg_get_constraintdef(oid) like '%seo.keyword.add%' and pg_get_constraintdef(oid) like '%competitor.observation.erase%'
+  from pg_constraint where conrelid='private.audit_outbox'::regclass and conname='audit_outbox_action_check'),
+  'S1, SEO and competitor audit actions survive the ordered migrations');
+select ok(not exists (select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+  where n.nspname='private' and p.proname='extend_audit_outbox_action_check'),
+  'audit action allowlist is fixed by migrations, not an executable helper');
 
 -- ── Add competitors (draft roles) ──────────────────────────────────────────────────────────
 select pg_temp.act_as('00000000-0000-4000-8000-0000000c0a02');

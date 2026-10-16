@@ -44,6 +44,7 @@ export default defineConfig({
       NEXT_TELEMETRY_DISABLED: "1",
       NEXT_PUBLIC_SUPABASE_URL: supabase.apiUrl,
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: supabase.publishableKey,
+      RUBIK_N2_SCHEMA_AVAILABLE: "true",
       PROVENANCE_SIGNING_KEYS: `k-e2e:${signingKey}`,
       PROVENANCE_ACTIVE_KEY_ID: "k-e2e",
       RUBIK_AUDIT_DATABASE_URL: process.env.RUBIK_AUDIT_DATABASE_URL ?? "",

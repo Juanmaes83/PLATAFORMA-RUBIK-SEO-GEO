@@ -1,0 +1,45 @@
+# Resolución de la revisión independiente de #120 · 16/10/2026
+
+Informe contrastado: [`REVISION-INTEGRACION-N2-CLAUDE-20261016.md`](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/blob/8a48fa9969463e227c0c72389d09fe985c2aa9f1/docs/REVISION-INTEGRACION-N2-CLAUDE-20261016.md), commit `8a48fa9969463e227c0c72389d09fe985c2aa9f1`. Se consultó por referencia en GitHub; su rama documental no se fusionó.
+
+## Matriz hallazgo → cambio → prueba → pendiente
+
+| Hallazgo | Estado | Cambio en #120 | Prueba/evidencia requerida | Pendiente |
+|---|---|---|---|---|
+| Cabecera de `database.types.ts` incompatible con el `tail -n +4` de CI | Confirmado y corregido | Cabecera canónica de `main`; el gate local de integración genera tipos con Supabase CLI `2.118.0` y compara desde la línea 4 | Repetir el mismo comando en el stack aislado de esta rama | Actions sigue sin arrancar por facturación; no cuenta como PASS |
+| Export v3 intenta leer tablas N2 aunque el esquema desplegado sea anterior | Corregido con modo de compatibilidad explícito | `RUBIK_N2_SCHEMA_AVAILABLE` es falso salvo valor exacto `true`. Apagado: forma v2, motivo `notIncluded`, nombre `.unverified.json`, cabecera `UNPROVEN-N2-DISABLED`, sin manifiesto. Encendido: errores de lectura mantienen 503, sin fallback | Unitarias de flag/helper PASS; inspección de inventario PASS. Prueba HTTP de ruta y error `PGRST205` pendiente | La descarga sin N2 no es restaurable como COMPLETE. El propietario debe decidir si admite este modo de descarga parcial explícitamente no verificada |
+| Rutas y navegación SEO/Competidores sin guarda de esquema | Confirmado; corregido | SEO conserva análisis, importaciones y resultados anteriores; solo omite consultas de keywords apagadas. Competidores comprueba la capacidad tras autenticar y antes de leer tablas; acciones también la comprueban | Unitarias/E2E del modo apagado y lectura-error pendientes | La bandera solo se activa tras instalar y comprobar las migraciones dependientes; no se activa en alojado |
+| Error al leer keywords se presentaba también como lista vacía | Confirmado; corregido | Error visible; no se muestran empty state, solapamientos ni recuentos derivados cuando falla la lectura | Prueba de lectura rechazada pendiente | Ninguno conocido en este cambio |
+| Auditoría S1 ausente para alta, edición y borrado de keywords | Corregido | Trigger transaccional `seo.keyword.add/update/erase`, firma posterior solo de recibos del actor actual y aviso si queda pendiente | pgTAP e integración verifican los tres recibos, cadena HMAC y roles; gates locales PASS | Hosted pendiente de U02/U03 |
+| El borrado usaba `draft` y daba capacidad a analista | Confirmado; corregido según Core | RLS y Server Action requieren `delete-data`; botón solo para roles permitidos por Core; checkbox explícito de confirmación | pgTAP: analista no borra, titular sí; integración verifica actor/rol/recibo | Core marca la función `delete-data` como no disponible en fase; confirmar la superficie final con el propietario antes de activar producto |
+| Cliente podía fijar `updated_at` | Corregido | Grant de UPDATE retira esa columna; trigger `BEFORE UPDATE` impone `now()`; acción no envía timestamp | pgTAP e integración negativa de privilegio PASS | Hosted pendiente de U02/U03 |
+| Constraint de acciones de outbox podía quitar acciones de otro módulo | Corregido; se descartó el helper dinámico defectuoso | Cada migración establece el allowlist completo acumulado en el orden canónico S1 → SEO → Competidores. No se crea helper ejecutable ni se afirma tolerancia a aplicar módulos en orden arbitrario | pgTAP valida que las 17 acciones de S1/SEO/Competidores están permitidas; inserciones y firmas SEO pasan en integración | Módulos futuros deben extender el allowlist completo. Compatibilidad con futuras listas `content.*`/`geo.*` requiere sus migraciones y pruebas; no es una decisión v4 |
+| Rollback de keywords borraba la tabla | Corregido | Contención: revoca permisos y políticas, RLS queda activa sin políticas; conserva filas, FK, triggers y recibos | pgTAP transaccional PASS: conserva fila, tabla, RLS, los 3 triggers, 2 constraints de outbox y revoca acceso | La eliminación definitiva requerirá respaldo y proceso separado autorizado |
+| Autores ausentes se reasignaban silenciosamente al operador en resultados/importaciones/Google | Confirmado; corregido según encargo | No se actualizan identificadores. La restauración genera preflight que aborta si falta una identidad autora/revisora antes de la primera escritura | Unitarias comprueban preflight y ausencia de UPDATE; ensayo de rechazo sin escrituras pendiente | U04 entre entornos puede requerir recrear identidades originales. No se crea usuario ficticio ni se reatribuyen firmas |
+| FK de `seo_keywords.created_by` impide borrar usuario autor | Confirmado en el informe; se mantiene la retención | No se cambia el esquema de autoría ni se añade CASCADE/SET NULL | pgTAP verifica que borrar un analista con autoría retenida falla por FK | Política de retención/anonimización compatible con obligaciones legales queda a decisión del propietario y revisión legal |
+| Exportación puede omitir tablas no inventariadas | Cubierto para el esquema actual | Inventario tipado `export-inventory.ts`; test local falla si una tabla de `public`/`private` no está clasificada. `operations.notIncluded` enumera exclusiones conocidas | Integración de inventario PASS | Añadir/actualizar inventario y export/restore antes de fusionar cualquier módulo con tablas nuevas |
+| Capturas visuales son previas a la integración | Pendiente | No se regeneran hasta que el comportamiento sea estable | `npm run visual:evidence`, inspección 360/390/1280 | Ejecutar al final de los cambios funcionales |
+
+## Contrato de exportación observado
+
+- Exportaciones v1/v2 anteriores conservan su contrato y pueden verificarse según el manifiesto que tuvieran. No contienen filas N2.
+- La exportación activa con capacidad N2 produce v3 y manifiesto v2; incluye keywords, competidores y observaciones en sus recuentos/digests. Cualquier fallo de lectura, discrepancia o cambio durante lectura aborta con 503.
+- Con N2 explícitamente apagado, el endpoint entrega el cuerpo de forma v2 para mantener la descarga anterior, declara las tablas omitidas, carece de manifiesto y es `UNPROVEN`. El verificador offline lo mantiene no verificado y `planRestore` lo rechaza como `TAMPERED`. Nunca se presenta como `COMPLETE`.
+- `COMPLETE` significa que el cuerpo coincide con la cobertura declarada para esa versión y el inventario; no significa clon de todas las tablas. Membresías, invitaciones, secretos, budgets, spend, claves internas e invitaciones no se restauran. Las exclusiones se explican en `EXPORT_TABLE_INVENTORY` y `operations.notIncluded`.
+- Una futura v4 para `content_*` y `geo_*` es propuesta de Claude, no decisión aprobada ni parte de #120. Tampoco se adopta una nueva semántica de manifiesto aquí. Ningún export de #116/#117 debe presentarse COMPLETE hasta ampliar formato, manifiesto, inventario, verificador y restauración.
+
+## Decisiones y límites
+
+- El propietario decide si acepta el modo v2 `UNPROVEN` al desactivar N2 y cómo preservar la restaurabilidad N1-06 en ese caso. Una solución que firme un backup COMPLETE sin leer N2 no es aceptable.
+- La restauración no reescribe autores: en destino faltan identidades, el plan aborta sin escrituras. En origen, la FK de keywords conserva la atribución y bloquea borrado de la cuenta autora. No se propone una identidad falsa ni borrado en cascada. Retención/anónimo reversible y obligaciones legales requieren decisión del propietario.
+- U02/U03/U04, migraciones alojadas, Vercel Preview, Production, proveedor y datos reales de Sarah permanecen fuera de esta ejecución.
+- N2-12/N2-13, la v4 y cualquier política comercial de datos no están implementados ni decididos.
+
+## Gates locales de este HEAD candidato
+
+- `npm run verify`: PASS, 58 archivos / 514 pruebas unitarias; core pin, secreto (519 archivos), lint, TypeScript y build PASS.
+- `node scripts/verify-n2-integration.mjs` contra `rubik-n2-audit-20261016` (60321/60322 en su selección exclusiva): PASS, 20 archivos / 121 pruebas. El generador de tipos y el escritor usan el mismo stack elegido.
+- `supabase test db --local`: PASS, 26 archivos / 734 pruebas pgTAP, incluye rollback de contención.
+- Playwright completo: primer pase 156 PASS / 50 SKIP / 1 FAIL; el único fallo reveló que el test atribuía borrado al analyst. Se corrigió para probar analyst sin borrado y owner con confirmación; el caso aislado pasó 1/1. Repetición completa de 207 casos pendiente al escribir esta revisión.
+- Sin operaciones alojadas, proveedores, ni datos reales de Sarah. La salida de GitHub Actions no se contabiliza: el workflow está bloqueado antes de ejecutar pasos por facturación.
+- Actualización posterior a la primera redacción: rollback de contención **26 archivos / 734 pruebas pgTAP PASS**; Playwright completo **157 PASS / 50 SKIP / 0 FAIL** (207 casos), después del caso dirigido de borrado por rol.

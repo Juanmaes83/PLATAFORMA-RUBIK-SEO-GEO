@@ -12,6 +12,7 @@ import { deleteKeywordAction, saveKeywordAction } from "@/lib/seo/actions";
 import { diagnoseAudit, ONPAGE_FIELDS, urlPath } from "@/lib/seo/diagnosis";
 import { INTENTS, keywordOverlaps, type Keyword } from "@/lib/seo/keywords";
 import { myProjectMembership } from "@/lib/tenancy";
+import { n2SchemaAvailable } from "@/lib/n2/availability";
 
 const SEVERITY = { ERROR: "Error", WARNING: "Aviso", OPPORTUNITY: "Oportunidad", UNKNOWN: "Sin clasificar" };
 const INTENT_LABELS = { unknown: "Sin clasificar", informational: "Informativa", navigational: "Navegacional", commercial: "Comercial", transactional: "Transaccional" };
@@ -19,7 +20,7 @@ const FILTERS = ["Todas", "Indexabilidad", "Canonical", "Hreflang", "Sitemap", "
 
 export default async function SeoPage({ params, searchParams }: {
   params: Promise<{ tenantId: string; projectId: string }>;
-  searchParams: Promise<{ category?: string; severity?: string; status?: string; url?: string; error?: string; aviso?: string }>;
+  searchParams: Promise<{ category?: string; severity?: string; status?: string; url?: string; error?: string; aviso?: string; auditoria?: string }>;
 }) {
   const [{ tenantId, projectId }, query, { user, supabase }] = await Promise.all([params, searchParams, requireSession()]);
   const access = projectAccess(await myProjectMembership(supabase, user.id, tenantId, projectId));
@@ -28,13 +29,17 @@ export default async function SeoPage({ params, searchParams }: {
   const ref = await loadProjectRef(supabase, { tenantId: project.tenantId, projectId: project.projectId });
   if (!ref) notFound();
   const base = `/proyectos/${project.tenantId}/${project.projectId}`;
+  const n2Available = n2SchemaAvailable();
   const canDraft = access.permissions.some((p) => p.action === "draft" && p.decision.allowed);
+  const canDelete = access.permissions.some((p) => p.action === "delete-data" && p.decision.allowed);
   const [listed, keywordsResult, importSummaries] = await Promise.all([
     listProviderResults(supabase, ref, { limit: 100 }),
-    supabase.from("seo_keywords").select("id,phrase,language_code,country_code,intent,topic,target_url,created_at").eq("project_id", ref.projectId).eq("organization_id", ref.organizationId).order("created_at", { ascending: false }).limit(500),
+    n2Available
+      ? supabase.from("seo_keywords").select("id,phrase,language_code,country_code,intent,topic,target_url,created_at").eq("project_id", ref.projectId).eq("organization_id", ref.organizationId).order("created_at", { ascending: false }).limit(500)
+      : Promise.resolve({ data: [], error: null }),
     listImports(supabase, ref),
   ]);
-  const keywords = keywordsResult.error ? [] : keywordsResult.data as Keyword[];
+  const keywords = !n2Available || keywordsResult.error ? [] : keywordsResult.data as Keyword[];
   const keywordsAtLimit = keywords.length === 500;
   const keyring = serverKeyring();
   const issueSummary = listed.ok ? listed.rows.find((r) => r.provider === "openseo" && r.operation === "auditIssues") : null;
@@ -73,6 +78,7 @@ export default async function SeoPage({ params, searchParams }: {
     <p>Diagnóstico de resultados guardados en este proyecto. Las incidencias OpenSEO solo se muestran tras verificar firma y ámbito. Las importaciones y palabras clave son datos declarados, con procedencia separada.</p>
     {query.error && <p className="notice notice-error" role="alert">No se pudo completar la operación ({query.error}). Revisa los datos y permisos.</p>}
     {query.aviso && <p className="notice notice-info" role="status">Palabra clave {query.aviso}.</p>}
+    {query.auditoria === "pendiente" && <p className="notice notice-error" role="alert">El cambio se guardó y su recibo S1 está pendiente de firma. No borres el proyecto hasta que se resuelva.</p>}
     <nav aria-label="Áreas de análisis" className="subnav"><ul><li><a href="#cobertura">Cobertura</a></li><li><a href="#incidencias">Incidencias</a></li><li><a href="#paginas">On-Page</a></li><li><a href="#keywords">Keywords</a></li></ul></nav>
 
     <section id="cobertura" className="section" aria-labelledby="cobertura-title">
@@ -114,9 +120,10 @@ export default async function SeoPage({ params, searchParams }: {
     <section id="keywords" className="section" aria-labelledby="keywords-title">
       <h2 id="keywords-title">Palabras clave y oportunidades</h2>
       <p>Las palabras clave siguientes son declaraciones del equipo. Volumen, dificultad, CPC, posición y tendencia: <strong>sin medición disponible</strong>. Una keyword sin página objetivo es una oportunidad para investigar, no una recomendación de publicación.</p>
-      {keywordsResult.error && <p className="notice notice-error" role="alert">No se pudieron leer las palabras clave.</p>}
+      {!n2Available && <p className="notice notice-info" role="status">La gestión de keywords no está activada en este despliegue; el diagnóstico SEO, las importaciones y los resultados guardados siguen disponibles.</p>}
+      {n2Available && keywordsResult.error && <p className="notice notice-error" role="alert">No se pudieron leer las palabras clave. El error no se interpreta como una lista vacía.</p>}
       {keywordsAtLimit && <p className="notice notice-info" role="status">Se muestran como máximo 500 keywords. Los solapamientos y las consultas sin página se calculan solo sobre esta lista; pueden faltar declaraciones anteriores.</p>}
-      {canDraft && <form action={saveKeywordAction} className="card form"><h3>Añadir palabra clave</h3><input type="hidden" name="tenant" value={project.tenantId} /><input type="hidden" name="project" value={project.projectId} />
+      {n2Available && !keywordsResult.error && canDraft && <form action={saveKeywordAction} className="card form"><h3>Añadir palabra clave</h3><input type="hidden" name="tenant" value={project.tenantId} /><input type="hidden" name="project" value={project.projectId} />
         <div className="field"><label htmlFor="kw-phrase">Consulta</label><input id="kw-phrase" name="phrase" required minLength={2} maxLength={160} /></div>
         <div className="field"><label htmlFor="kw-language">Idioma (ISO)</label><input id="kw-language" name="language" defaultValue="es" required pattern="[a-z]{2}(-[a-z]{2})?" /></div>
         <div className="field"><label htmlFor="kw-country">País (ISO)</label><input id="kw-country" name="country" defaultValue="ES" required pattern="[A-Z]{2}" /></div>
@@ -125,9 +132,9 @@ export default async function SeoPage({ params, searchParams }: {
         <div className="field"><label htmlFor="kw-target">Página objetivo del dominio del proyecto (opcional)</label><input id="kw-target" name="targetUrl" type="url" placeholder={project.domain ? `https://${project.domain}/pagina` : "https://dominio-del-proyecto/pagina"} /></div>
         <button className="btn" type="submit">Guardar keyword declarada</button>
       </form>}
-      {keywords.length === 0 ? <EmptyState title="Aún no hay keywords declaradas"><p>Añade una consulta real del proyecto con idioma y país. No se harán consultas de pago.</p></EmptyState> : <ul className="cards">{keywords.map((keyword) => <li className="card" key={keyword.id}><h3>{keyword.phrase}</h3><p>{keyword.language_code} · {keyword.country_code} · {INTENT_LABELS[keyword.intent as keyof typeof INTENT_LABELS] ?? "Sin clasificar"} · Tema: {keyword.topic || "Sin grupo"}</p><p className="break">Página: {keyword.target_url ?? "Sin asignar: investigar página objetivo"}</p><p className="muted small">Declarada por usuario · {formatDateTime(keyword.created_at)} · Sin medición disponible.</p>{canDraft && <><form action={saveKeywordAction} className="form"><input type="hidden" name="tenant" value={project.tenantId} /><input type="hidden" name="project" value={project.projectId} /><input type="hidden" name="id" value={keyword.id} /><input type="hidden" name="phrase" value={keyword.phrase} /><input type="hidden" name="language" value={keyword.language_code} /><input type="hidden" name="country" value={keyword.country_code} /><div className="field"><label htmlFor={`intent-${keyword.id}`}>Corregir intención</label><select id={`intent-${keyword.id}`} name="intent" defaultValue={keyword.intent}>{INTENTS.map((v) => <option key={v} value={v}>{INTENT_LABELS[v]}</option>)}</select></div><div className="field"><label htmlFor={`topic-${keyword.id}`}>Tema</label><input id={`topic-${keyword.id}`} name="topic" defaultValue={keyword.topic} maxLength={80} /></div><div className="field"><label htmlFor={`target-${keyword.id}`}>Página objetivo</label><input id={`target-${keyword.id}`} name="targetUrl" type="url" defaultValue={keyword.target_url ?? ""} /></div><button className="btn" type="submit">Actualizar</button></form><form action={deleteKeywordAction}><input type="hidden" name="tenant" value={project.tenantId} /><input type="hidden" name="project" value={project.projectId} /><input type="hidden" name="id" value={keyword.id} /><button className="btn" type="submit">Eliminar</button></form></>}</li>)}</ul>}
-      {overlaps.length > 0 && <p className="notice notice-info">Posible solapamiento de páginas para: {overlaps.join(", ")}. Revisar intención y página principal antes de decidir.</p>}
-      <p className="muted small">Oportunidades pendientes de análisis: {keywords.filter((k) => !k.target_url).length} consultas sin página asignada. No se asigna prioridad automática sin demanda y contexto comercial medidos.</p>
+      {n2Available && !keywordsResult.error && (keywords.length === 0 ? <EmptyState title="Aún no hay keywords declaradas"><p>Añade una consulta real del proyecto con idioma y país. No se harán consultas de pago.</p></EmptyState> : <ul className="cards">{keywords.map((keyword) => <li className="card" key={keyword.id}><h3>{keyword.phrase}</h3><p>{keyword.language_code} · {keyword.country_code} · {INTENT_LABELS[keyword.intent as keyof typeof INTENT_LABELS] ?? "Sin clasificar"} · Tema: {keyword.topic || "Sin grupo"}</p><p className="break">Página: {keyword.target_url ?? "Sin asignar: investigar página objetivo"}</p><p className="muted small">Declarada por usuario · {formatDateTime(keyword.created_at)} · Sin medición disponible.</p>{canDraft && <form action={saveKeywordAction} className="form"><input type="hidden" name="tenant" value={project.tenantId} /><input type="hidden" name="project" value={project.projectId} /><input type="hidden" name="id" value={keyword.id} /><input type="hidden" name="phrase" value={keyword.phrase} /><input type="hidden" name="language" value={keyword.language_code} /><input type="hidden" name="country" value={keyword.country_code} /><div className="field"><label htmlFor={`intent-${keyword.id}`}>Corregir intención</label><select id={`intent-${keyword.id}`} name="intent" defaultValue={keyword.intent}>{INTENTS.map((v) => <option key={v} value={v}>{INTENT_LABELS[v]}</option>)}</select></div><div className="field"><label htmlFor={`topic-${keyword.id}`}>Tema</label><input id={`topic-${keyword.id}`} name="topic" defaultValue={keyword.topic} maxLength={80} /></div><div className="field"><label htmlFor={`target-${keyword.id}`}>Página objetivo</label><input id={`target-${keyword.id}`} name="targetUrl" type="url" defaultValue={keyword.target_url ?? ""} /></div><button className="btn" type="submit">Actualizar</button></form>}{canDelete && <form action={deleteKeywordAction}><input type="hidden" name="tenant" value={project.tenantId} /><input type="hidden" name="project" value={project.projectId} /><input type="hidden" name="id" value={keyword.id} /><div className="field"><label><input type="checkbox" required /> Confirmo que quiero eliminar esta keyword.</label></div><button className="btn" type="submit">Eliminar</button></form>}</li>)}</ul>)}
+      {n2Available && !keywordsResult.error && overlaps.length > 0 && <p className="notice notice-info">Posible solapamiento de páginas para: {overlaps.join(", ")}. Revisar intención y página principal antes de decidir.</p>}
+      {n2Available && !keywordsResult.error && <p className="muted small">Oportunidades pendientes de análisis: {keywords.filter((k) => !k.target_url).length} consultas sin página asignada. No se asigna prioridad automática sin demanda y contexto comercial medidos.</p>}
     </section>
   </>;
 }
