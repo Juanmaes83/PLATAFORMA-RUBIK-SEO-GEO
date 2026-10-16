@@ -1,12 +1,12 @@
 # Ventana alojada N1 · corte de supervisión 16/10/2026
 
-Estado: **preparada, sin ejecutar**. H1 parcial y H2 bloqueado. No registrar valores de secretos, JWT, datos Sarah ni copias SQL en GitHub o en el chat.
+Estado: **destino confirmado, migraciones sin ejecutar**. H1 parcial y H2 bloqueado. No registrar valores de secretos, JWT, datos Sarah ni copias SQL en GitHub o en el chat.
 
 ## Inventario y destino
 
-`main@9365387af16f79af8fc6f88cffed77b7b4725cdc` contiene 30 migraciones. La terminal autenticada del propietario leyó el proyecto candidato `yvdgmklgwlshizzgefpv` (`plataforma-rubik-seo-geo-dev`): 16 aplicadas hasta `20261012120000`, 14 pendientes. Catálogo: `rubik_audit_writer` ausente y `private.audit_outbox` ausente; RLS habilitado en las tres tablas consultadas. Los privilegios INSERT de columna y las políticas existentes requieren evaluación efectiva conjunta. **No está acreditado que ese proyecto sea la base conectada a Production.** El despliegue Vercel de `main@9365387` está READY; no prueba la conexión ni el esquema. En Vercel no constan variables `RUBIK_AUDIT_*`; el valor de `NEXT_PUBLIC_SUPABASE_URL` es sensible y no fue recuperable por la inspección de metadatos.
+`main@9365387af16f79af8fc6f88cffed77b7b4725cdc` contiene 30 migraciones. La terminal autenticada del propietario leyó el proyecto candidato `yvdgmklgwlshizzgefpv` (`plataforma-rubik-seo-geo-dev`): 16 aplicadas hasta `20261012120000`, 14 pendientes. Catálogo: `rubik_audit_writer` ausente y `private.audit_outbox` ausente; RLS habilitado en las tres tablas consultadas. Los privilegios INSERT de columna y las políticas existentes requieren evaluación efectiva conjunta. Production desplegó `main@a91a63fa0fe27f7acdafeb6a2b7e7cf6cdb0a317` (READY) y su `/api/salud` devolvió `supabaseProjectRef=yvdgmklgwlshizzgefpv`. Esto acredita el destino **configurado**, no la conexión SQL, los permisos ni el funcionamiento alojado. En Vercel no constan variables `RUBIK_AUDIT_*`; el valor de `NEXT_PUBLIC_SUPABASE_URL` es sensible y no fue recuperable por la inspección de metadatos.
 
-La primera prueba de identidad debe relacionar por un canal operativo seguro el host/ref de `NEXT_PUBLIC_SUPABASE_URL` usado por **el despliegue Production vigente** con el proyecto Supabase. Se registra solo `coincide / no coincide`, ref y SHA, nunca el valor de otra credencial. Si no se consigue, detener la ventana. No asumir que el nombre `-dev`, los comentarios de variables o la lista de proyectos identifican Production.
+Identidad del destino: **PASS** por el ref público de `/api/salud` del despliegue Production vigente. Volver a comprobarla al iniciar la ventana si cambia el SHA o la configuración. No registrar claves ni inferir que el esquema o la conexión SQL estén operativos.
 
 ## Puertas de entrada
 
