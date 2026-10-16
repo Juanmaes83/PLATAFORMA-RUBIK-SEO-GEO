@@ -1,5 +1,12 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
+## Checkpoint N2-10 · 16/10/2026, integración #119
+
+- `origin/main@7ad4008456935824cbd76eb6432aa6a043411e03`; rama propia `codex/pr119-integration-20261016`, worktree `s2-consent/test-results/pr119-integration`. HEAD funcional probado `a14527225fac9e9d9b9dae87ffd9b6835075bcb4`; HEAD documental/remoto se contrasta tras publicar. #119 permanece Draft para auditoría y fusión supervisada.
+- Conflicto `ProjectNav.tsx` resuelto conservando Medición orgánica y el filtro de Competidores si falta esquema N2. Retirado `medicion/loading.tsx` para no iniciar streaming con 200 antes del `notFound()` de una membresía inexistente; nueva prueba HTTP 404 entre organizaciones. Sin cambios de esquema de producto ni llamadas a proveedores.
+- Evidencia sobre `a145272` en stack Docker exclusivo `rubik-pr119-integration-20261016` (62321/62322): `npm run verify` 536 PASS/1 SKIP, lint/tipos/build PASS; integración 123/123; pgTAP 733/733; Playwright dirigido Medición 5 PASS/4 SKIP/0 FAIL a 360/390/1280. Los cuatro SKIP son checks de rol/HTTP limitados a escritorio; no se cuentan como PASS. Limpieza: cinco usuarios ficticios y dos organizaciones propios, sin residuos. El test de navegador observó cero peticiones a Google/Bing/OpenSEO. GitHub Actions sigue sin ejecutar jobs por facturación.
+- Pendiente: auditoría externa del HEAD remoto exacto de #119, fusión por ChatGPT supervisor; Production aloja esquema N1 incompleto y no se ha validado allí. Mantener N2 apagado. Después, reconciliar #116/#117 con main y ampliar exportación/restauración antes de afirmar recuperabilidad; #118 sigue diseño. No tocar Supabase alojado, Production ni datos reales.
+
 ## Corte vigente · 16/10/2026, tras fusión #121 y ensayo de respaldo
 
 - `main@be65e4456c1a1e08d4bb2c32d8b5eae51fae289a`; #120 MERGED en `9365387`, #121 MERGED en `be65e44`. Production READY y `/api/salud` con el mismo ref se comprobaron también para `be65e44` desde supervisión. Evidencia local histórica #121: verify 533 PASS/1 SKIP, integración 123/123, pgTAP 733/733 y E2E dirigido 11 PASS/16 SKIP. GitHub Actions bloqueada por facturación.
