@@ -3,7 +3,11 @@ import { PROJECT_SECTIONS } from "@/lib/navigation";
 
 /** Project sub-navigation; wraps on small screens (no horizontal scroll). */
 export function ProjectNav({ base, current }: { base: string; current: string | null }) {
-  const items = [{ href: base, label: "Resumen", key: null as string | null }, ...PROJECT_SECTIONS.map((s) => ({ href: `${base}/${s.slug}`, label: s.label, key: s.slug }))];
+  const items = [
+    { href: base, label: "Resumen", key: null as string | null },
+    { href: `${base}/medicion`, label: "Medición orgánica", key: "medicion" },
+    ...PROJECT_SECTIONS.map((s) => ({ href: `${base}/${s.slug}`, label: s.label, key: s.slug })),
+  ];
   return (
     <nav aria-label="Secciones del proyecto" className="subnav">
       <ul>
