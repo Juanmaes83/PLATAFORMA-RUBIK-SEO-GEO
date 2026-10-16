@@ -1,5 +1,10 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
+## Checkpoint UI N2-09 · 16/10/2026, 10:55 UTC
+
+- Corte publicado previo `647b34c` integra `main@b6555eaa` después del squash #113. #114/#115 seguían Draft en el último control. Cambio nuevo en `src/app/proyectos/[tenantId]/[projectId]/seo/page.tsx`: aviso de límite 100 resultados/500 keywords y error de lectura separado de estado vacío. `npm run lint`, `npm run typecheck` y `git diff --check` PASS. E2E visual SEO 6/6 PASS a 360/390/1280 px en stack propio 60321/60322. El puerto web 3217 estaba ocupado por `rubik-n2-pr120` (PID 137760), ajeno a este worktree; se usó 3317 sin interrumpirlo. No se actualizaron capturas ficticias porque no alcanzan los límites mostrados.
+- Siguiente acción: commit/push de esta corrección; revalidar main y HEAD de #114/#115, preparar auditoría supervisada de integración y contrato de importación cruzada. No fusionar ni desplegar con esquema alojado ausente.
+
 ## Reconciliación main tras #113 · 16/10/2026, 10:45 UTC
 
 - GitHub `main@b6555eaa8190ed8668c501813fda01e06c75163c`, squash merge de [#113](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/113) a las 08:07 UTC; #114 `e68fbd4` y #115 `52ce3a1` siguen OPEN/Draft. La rama combinada nació del main anterior y contiene el HEAD original de #113; se incorporó el nuevo main mediante merge semántico, sin force push ni segunda copia funcional de N1-06. Comprobar HEAD de esta rama tras commit/push. Los checkpoints de abajo describen estados históricos antes de esta fusión.
