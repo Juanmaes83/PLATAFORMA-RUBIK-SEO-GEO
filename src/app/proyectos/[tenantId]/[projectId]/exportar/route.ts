@@ -8,8 +8,7 @@ import { inspectProjectAuditOutbox, sameOutboxCheckpoint } from "@/lib/provenanc
 import { appendAudit, exportProject } from "@/lib/provenance/repository";
 import { operationalStateComplete, readOperationalState } from "@/lib/recovery/operations";
 import { readSeoRecoveryState } from "@/lib/recovery/seo-state";
-import { buildExportWithoutN2 } from "@/lib/recovery/export-compat";
-import { n2SchemaAvailable } from "@/lib/n2/availability";
+import { recoverySchemaContract } from "@/lib/recovery/schema-contract";
 import { createClient } from "@/lib/supabase/server";
 import { myProjectMembership } from "@/lib/tenancy";
 
@@ -30,6 +29,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ten
   if (!ref) return notFound();
   const before = await inspectProjectAuditOutbox(ref);
   if (!before.ok) return new Response("Export unavailable: audit receipts require review", { status: 503 });
+  const schema = await recoverySchemaContract();
+  if (schema === "unknown") return new Response("Export unavailable: recovery schema could not be established", { status: 503 });
   const at = new Date().toISOString();
   const logged = await appendAudit(supabase, ref, { actor: { role: access.role as Role, id: user.id }, action: "project.export", outcome: "allowed" }, keyring);
   if (!logged.ok) return new Response("Export failed", { status: 500 });
@@ -39,28 +40,22 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ten
     return new Response("Export unavailable: provenance verification failed", { status: 503 });
   const operations = await readOperationalState(supabase, ref, result.export.results.map((r) => r.row));
   if (!operationalStateComplete(operations)) return new Response("Export unavailable: recovery state could not be read", { status: 503 });
-  // With N2 explicitly disabled, preserve the legacy downloadable contract but never attach a
-  // manifest: it cannot claim completeness while N2 rows may exist outside this payload.
-  if (!n2SchemaAvailable()) {
-    const body = buildExportWithoutN2(result.export, operations);
-    return new Response(JSON.stringify(body, null, 2), {
-      headers: {
-        "content-type": "application/json; charset=utf-8",
-        "content-disposition": `attachment; filename="${ref.scope.tenantId}-${ref.scope.projectId}-${at.slice(0, 10)}.unverified.json"`,
-        "x-rubik-export-completeness": "UNPROVEN-N2-DISABLED",
-        "cache-control": "no-store",
-      },
-    });
+  let seo;
+  if (schema === "n2-v3") {
+    seo = await readSeoRecoveryState(supabase, ref);
+    if (!seo.ok) return new Response("Export unavailable: SEO data could not be read completely", { status: 503 });
+    const seoAgain = await readSeoRecoveryState(supabase, ref);
+    if (!seoAgain.ok || JSON.stringify(seo.value) !== JSON.stringify(seoAgain.value))
+      return new Response("Export unavailable: SEO data changed during read", { status: 503 });
   }
-  const seo = await readSeoRecoveryState(supabase, ref);
-  if (!seo.ok) return new Response("Export unavailable: SEO data could not be read completely", { status: 503 });
-  const seoAgain = await readSeoRecoveryState(supabase, ref);
-  if (!seoAgain.ok || JSON.stringify(seo.value) !== JSON.stringify(seoAgain.value))
-    return new Response("Export unavailable: SEO data changed during read", { status: 503 });
+  if (await recoverySchemaContract() !== schema)
+    return new Response("Export unavailable: recovery schema changed during read", { status: 503 });
   const after = await inspectProjectAuditOutbox(ref);
   if (!after.ok || !sameOutboxCheckpoint(before.checkpoint, after.checkpoint))
     return new Response("Export unavailable: audit receipts changed", { status: 503 });
-  const sealed = { ...result.export, format: "rubik-project-export-v3", operations, seo: seo.value };
+  const sealed = schema === "n2-v3"
+    ? { ...result.export, format: "rubik-project-export-v3", operations, seo: seo!.value }
+    : { ...result.export, format: "rubik-project-export-v2", operations };
   // Signed last, over the finished body: proves on the owner's machine that nothing was removed.
   const body = { ...sealed, manifest: signExportManifest(sealed, ref, keyring) };
   return new Response(JSON.stringify(body, null, 2), {

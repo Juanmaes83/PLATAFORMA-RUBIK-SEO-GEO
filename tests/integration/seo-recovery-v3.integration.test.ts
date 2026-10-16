@@ -98,3 +98,22 @@ it("restores owned SEO rows with original ids, relationships and human verificat
   expect((await outsider.from("competitor_observations").select("id").eq("project_id", projectId)).data).toEqual([]);
   expect((await outsider.from("seo_keywords").select("id").eq("project_id", projectId)).data).toEqual([]);
 });
+
+it("missing original author aborts the restore transaction before creating a project", () => {
+  const missingAuthor = crypto.randomUUID();
+  const body = structuredClone(doc) as { seo: { keywords: { created_by: string }[] } } & Record<string, unknown>;
+  delete body.manifest;
+  body.seo.keywords[0].created_by = missingAuthor;
+  const ref = { projectId, organizationId, scope: { tenantId: org, projectId: "site" } };
+  const signed = { ...body, manifest: signExportManifest(body, ref, keyring) };
+  const planned = planRestore(signed, keyring, { operatorId: users[0] });
+  expect(planned.ok).toBe(true);
+  if (!planned.ok) return;
+  psql(`delete from public.projects where id = '${projectId}';`);
+  expect(psql(`select count(*) from public.projects where id = '${projectId}';`)).toBe("0");
+  let error = "";
+  try { psql(planned.plan.sql); } catch (caught) { error = String((caught as { stderr?: string }).stderr ?? caught); }
+  expect(error).toContain("un autor de datos SEO no existe");
+  expect(psql(`select count(*) from public.projects where id = '${projectId}';`)).toBe("0");
+  expect(psql(`select count(*) from public.seo_keywords where project_id = '${projectId}';`)).toBe("0");
+});
