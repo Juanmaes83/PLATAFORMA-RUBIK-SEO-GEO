@@ -3,6 +3,7 @@ export const CAPTURE_ERRORS: Record<string, string> = {
   DISABLED: "Las lecturas de Google están desactivadas en esta instalación. No se ha consultado nada.",
   INVALID: "Revisa las fechas (máximo 31 días), las dimensiones y los límites.",
   SIGNING_NOT_CONFIGURED: "La firma de resultados no está configurada en el servidor. No se ha consultado nada.",
+  WRITER_UNAVAILABLE: "La auditoría firmada no está disponible. No se ha consultado a Google ni reservado una captura.",
   FORBIDDEN: "Solo la persona titular del proyecto puede capturar datos de Google.",
   NOT_CONNECTED: "Falta una conexión de OpenSEO activa o una propiedad de Google asociada a este proyecto.",
   IN_PROGRESS: "Esta misma captura ya se está ejecutando. Espera unos segundos y vuelve a abrir la página.",

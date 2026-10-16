@@ -23,7 +23,7 @@ const PORTS = { 54321: 57321, 54322: 57322, 54320: 57320, 54329: 57329, 54323: 5
 /** Rewrites project_id and every `port`/`*_port` line of config.toml. Unknown ports fail. */
 export function rewriteConfig(text) {
   let projectIdSeen = false;
-  const out = text.split("\n").map((line) => {
+  const out = text.replace(/\r\n/g, "\n").split("\n").map((line) => {
     if (/^project_id\s*=/.test(line)) { projectIdSeen = true; return `project_id = "${STACK.projectId}"`; }
     const m = /^(\s*[a-z_]*port\s*=\s*)(\d+)(.*)$/.exec(line);
     if (!m) return line;

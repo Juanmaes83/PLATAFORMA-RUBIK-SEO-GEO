@@ -1,7 +1,26 @@
 # ROADMAP MAESTRO · Rubik SEO/GEO
 
-**CORTE DE INTEGRACIÓN S1 · 15/10/2026:** N1-02/S2 integrado en código vía [#100](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/100), N1-04/CI local y Preview fail-closed vía [#109](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/109), y **N1-03/S1 FUSIONADO en `main@31e3461c2bc8694081e5f07b25f9276f6dd145b7`** vía [#104](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/104) después de [#110](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/110) y [#111](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/111). **Gate de código LOCAL reportado para HEAD `6f52270069b391c10bbac24576e3361754848f26`:** verify 479/479, integración 101/101, pgTAP 641/641, Playwright 145 PASS/44 SKIP/0 FAIL, negativos 76/76, rollback, outbox y concurrencia. GitHub Actions aún no ejecuta pasos por bloqueo de facturación; runner local PARTIAL por Chromium y diferencias de infraestructura. **No se han aplicado migraciones S2/S1 a Supabase alojado**, ni configurado el escritor real, probado pooler/Vercel o desbloqueado Preview. U02, U03 y las decisiones R1 (exportar con pendientes), R3 (retención), R4 (alertas) y R7 (denegaciones) siguen pendientes. Los checkpoints inferiores son históricos y no deben tratarse como el estado actual. Próximo trabajo: decisiones U02/U03 y gates alojados N1-05, además de carriles de producto independientes según dependencias; ningún despliegue real se autoriza por esta integración.
+**CORTE VIGENTE · 16/10/2026, posterior a #120.** `main@9365387af16f79af8fc6f88cffed77b7b4725cdc`; [#120](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/120) fusionada con N2-09, N2-11 y recuperación SEO compatible. Vercel Production desplegó ese SHA y está READY; esto no acredita esquema, permisos, escritor ni flujos alojados. `npm run verify` sobre el HEAD fusionado de #120 (`5e64b48`): 523 PASS/1 SKIP, lint, tipos y build PASS. Las baterías locales comunicadas para su código fueron integración 123/123, pgTAP 734/734 y E2E 157 PASS/50 SKIP/0 FAIL; Actions continúa bloqueada por facturación.
 
+**Prioridad operativa:** H1 parcial y H2 bloqueado. El proyecto Supabase candidato `yvdgmklgwlshizzgefpv` muestra 16 migraciones aplicadas frente a 30 del repositorio y no tiene el rol `rubik_audit_writer` ni `private.audit_outbox`; el endpoint Production `/api/salud` en `main@a91a63fa` confirma que es el destino configurado; falta respaldo restaurable. No aplicar las 14 migraciones restantes por inferencia. Ejecutar la [ventana alojada N1](N1-VENTANA-ALOJADA-20261016.md) con el destino ya confirmado y el respaldo acreditado, y después probar seguridad y recuperación. #114/#115 quedaron absorbidas por #120. #121 continúa Draft como mitigación F-OPS-2; #119, #116, #117 y #118 requieren integración secuencial y pruebas combinadas. No activar N2 ni usar datos reales hasta cumplir sus gates.
+
+**Orden siguiente:** (1) destino y copia recuperable; (2) migraciones N1 en orden versionado Google→S2→S1 en ventana controlada y verificaciones negativas alojadas; (3) H1 con exportación/recuperación Sarah autorizadas y H2 con Preview aislada, dos identidades y operación comercial; (4) #119 y #116/#117 con recuperación ampliada, #118 funcional. Los párrafos siguientes reflejan cortes anteriores y deben leerse como historial.
+
+**CORTE HISTÓRICO · 16/10/2026, previo a #120, GitHub y terminal local contrastados.** `main@b6555eaa8190ed8668c501813fda01e06c75163c`; PR [#113](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/113) está fusionada. La PR [#120](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/120), rama `codex/n2-integration-post113-20261016`, HEAD de código probado `b3596500f1d5cd867d2e006c05d2454677d7843c`, integra N2-09 (#114) y N2-11 (#115) con exportación/recuperación firmada SEO v3. Continúa OPEN/Draft, no fusionada.
+
+**Gates locales del propietario en Windows, sobre el SHA exacto `b3596500f1d5cd867d2e006c05d2454677d7843c`:** `npm run verify` PASS (512/512 unitarias, 57 archivos, pin, secretos, lint, TypeScript y build); integración PASS (119/119, 18 archivos); pgTAP PASS (718/718, 25 archivos); E2E PASS (157 PASS / 50 SKIP / 0 FAIL, 207 casos; limpieza: 11 usuarios y 2 organizaciones ficticios propios, sin residuos). El stack usado es `rubik-n2-integration-20261016` (60321/60322); no se informó reset ni migración en esta pasada. Evidencia local, no CI ni validación alojada.
+
+| Línea | Estado verificado al corte |
+|---|---|
+| N1-02/S2 y N1-03/S1 | Código fusionado en main; migraciones/validación alojadas y condiciones operativas pendientes. |
+| N1-04 | #109 fusionada; Actions bloqueada por facturación y Preview aislada no acreditada. |
+| N1-05/N1-06 | #113 fusionada; auditoría y recuperación siguen sin prueba alojada con Sarah. |
+| N2-09/N2-11 | Código integrado en #120 y probado localmente; no está en main. #114/#115 están absorbidas y no se fusionan por separado. |
+| N2-10 | #119 OPEN/Draft; rebasar/reconciliar tras cerrar #120. |
+| N2-12/N2-13 | #116/#117 OPEN/Draft; tablas aún no cubiertas por exportación/recuperación combinada. |
+| N2-14 | #118 OPEN/Draft; solo diseño/contrato, aún no funcional. |
+
+**H1 sigue parcial; H2 bloqueado.** No hay migraciones N2 aplicadas en Supabase alojado. Antes de fusionar código que activa rutas SEO/Competidores hay que resolver compatibilidad con el esquema ausente y el efecto de despliegue de `main`. Esta PR no autoriza cambios en Production, migraciones alojadas, secretos ni proveedores. U02/U03/U04 y las decisiones R1/R3/R4/R7 siguen pendientes. Los checkpoints que siguen describen historia, no el estado actual.
 
 **CHECKPOINT N1-03/S1 · 15/10/2026, 16:20 UTC:** borrado de `provider_results` con efecto+recibo atómicos y firma reintentable en la misma PR Draft #104; integración dirigida 16/16 y pgTAP de procedencia 41/41 PASS, batería completa del nuevo cambio pendiente. Falta traza durable con proveedores externos, retención y gates alojados; no declarar S1/H2 cerrado. Ver [S1-IMPLEMENTACION-LOCAL-20261015.md](S1-IMPLEMENTACION-LOCAL-20261015.md).
 
@@ -72,13 +91,15 @@ Construir Rubik SEO/GEO como plataforma segura, multicliente, verificable y oper
 
 **Fronteras:** La fase alojada no se inicia con variables de Preview que apunten al Supabase de Production. Las pruebas locales solo dan aprobación de integración técnica, nunca permiso para aplicar migraciones. No ejecutar db reset, limpieza masiva de usuarios, envíos de invitaciones ni consultas facturables sin autorización precisa. N1-07 puede documentar una alternativa sin credenciales propias si el piloto usa OpenSEO; la primera versión genéricamente multicliente necesitará una decisión explícita del ADR 0010, no una suposición.
 
-### Cola inmediata y criterio de traspaso
+### Cola inmediata y criterio de traspaso · corte 16/10/2026
 
-- **N1-01 COMPLETADO (cobertura local):** #97 fusionada; pruebas reportadas y estado canónico en CONTROL-PROYECTO. No repetir sin regresión nueva.
-- **N1-02/S2, código integrado en #100**: migración, tests y rollback fusionados en `main@aca06a08`; **migración alojada, inventario de callers externos y prueba real pendientes**, sujetos a permiso independiente.
-- **AHORA: N1-03/S1 (U01 pendiente)**: [ADR propuesta](ADR-S1-ESCRITOR-CONFIABLE-U01-20261015.md) integrada documentalmente en #101. El propietario decide escritor, claves, semántica de revocación/outbox y alcance; hasta entonces Codex solo investiga alternativas y prototipos locales de bajo riesgo.
-- **En paralelo: N1-04/U02**: [plan de CI y entornos](N1-04-CI-ENTORNOS-PREPARACION-20261015.md) integrado en #101; diagnosticar facturación y Preview aislada sin secretos ni escritura alojada.
-- **Después:** N1-03 → N1-04 → N1-05/06 → N1-07 → N1-08; adaptar dependencias por evidencia.
+1. **Cerrar revisión de #120 por SHA `b3596500f1d5cd867d2e006c05d2454677d7843c`.** Los gates locales completos están registrados arriba y en [CONTROL-PROYECTO](CONTROL-PROYECTO.md). La PR sigue Draft hasta completar auditoría externa y resolver el despliegue compatible con el esquema alojado ausente.
+2. **No fusionar #114 ni #115 por separado.** Su contenido se consolidó en #120. Tras integrar #120 y verificar GitHub, cerrarlas como sustituidas, conservando enlaces e historial.
+3. **Siguiente integración de producto, después de #120:** rebasar #119 (medición) sobre main actualizado, auditarla y probarla; luego integrar #116 (contenidos) y #117 (GEO) junto con su exportación/recuperación firmada, manteniendo acciones de auditoría aditivas y contratos v1/v2 compatibles. No usar sus tablas con datos reales antes de completar el respaldo/recuperación.
+4. **N2-14 funcional:** desarrollar el primer informe manual, de solo lectura, una vez disponibles sus fuentes N2; #118 es solo diseño/contrato. No añadir scheduler, envíos, IndexNow ni consultas externas en este primer incremento.
+5. **N1 alojado:** U02/U03/U04, R1/R3/R4/R7 y plan de respaldo/rollback son carriles separados, requieren decisiones y ventanas concretas del propietario. H1/H2 no se cierran por pruebas locales.
+
+La política permanente prohíbe abrir otra PR de producto mientras #120 siga abierta; se permite análisis y arquitectura independientes, sin tocar su worktree. La aceptación previa de merges a main no autoriza migraciones alojadas ni operaciones en Production.
 
 ### Acciones concretas reservadas al propietario
 
@@ -94,6 +115,9 @@ Construir Rubik SEO/GEO como plataforma segura, multicliente, verificable y oper
 Para J1–J13 históricos, usar [relevo de tareas del propietario](relevos/CONTINUACION-NUEVA-CUENTA.md) con revisión de vigencia antes de cada paso. No llamar «hecho» a lo que el documento histórico sugería sin confirmación actual.
 
 ## 5. NIVEL 2 · Seis dominios funcionales de expansión (P1/P2, tras H2 o pilotos aislados)
+
+**Estado vigente 16/10/2026:** el orden de la tabla siguiente expresa dependencias de producto, no prueba de integración. N2-09/11 están en #120 OPEN/Draft; N2-10 en #119 OPEN/Draft; N2-12 y N2-13 en #116/#117 OPEN/Draft; N2-14 en #118 OPEN/Draft, solo diseño. Ninguno de estos módulos está en `main` salvo las capacidades preexistentes de medición indicadas en sus respectivos contratos. Los HEAD/base y estados se mantienen en [CONTROL-PROYECTO](CONTROL-PROYECTO.md). No activar módulos que requieren tablas alojadas todavía ausentes.
+
 
 Las seis unidades son **agrupaciones de gestión propuestas**, no las seis fases históricas numeradas del ROADMAP. No abrirlas todas a la vez ni convertir un catálogo en publicidad de capacidades reales.
 

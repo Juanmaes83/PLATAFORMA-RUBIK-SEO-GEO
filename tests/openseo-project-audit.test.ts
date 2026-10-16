@@ -107,8 +107,18 @@ describe("project audit lifecycle", () => {
       await deps.captureCompletedResults({ auditId: "audit-1", issues: {}, pages: {} });
       return response;
     });
-    expect(await followProjectAudit(client, project, "audit-1", input.projectDomain, true, keyring)).toMatchObject({ saveStatus: "saved" });
+    expect(await followProjectAudit(client, project, "audit-1", input.projectDomain, true, keyring,
+      { receipt: vi.fn(async () => ({ ok: true as const, seq: 1 })) })).toMatchObject({ saveStatus: "saved", audited: true });
     expect(m.complete).toHaveBeenCalledWith(client, project, job.jobId, m.prepare.mock.results[0].value.prepared);
+  });
+  it("discloses a committed result with an unsigned audit receipt", async () => {
+    m.follow.mockImplementation(async (_id, _domain, deps) => {
+      await deps.captureCompletedResults({ auditId: "audit-1", issues: {}, pages: {} });
+      return response;
+    });
+    expect(await followProjectAudit(client, project, "audit-1", input.projectDomain, true, keyring,
+      { receipt: vi.fn(async () => ({ ok: false as const, error: "WRITER_UNAVAILABLE" })) }))
+      .toMatchObject({ saveStatus: "audit-pending", audited: false });
   });
   it("a pending audit is not reported as saved", async () => {
     m.follow.mockResolvedValue({ ...response, progress: { state: "SYNCING", error: null }, report: null });

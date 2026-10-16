@@ -6,7 +6,7 @@ import type { AuditInput, ProjectRef } from "@/lib/provenance/audit";
 import type { Keyring } from "@/lib/provenance/keyring";
 import { signProviderReceipt } from "@/lib/provenance/outbox";
 import { sealProviderResult } from "@/lib/provenance/results";
-import { completeTrustedProviderCommand } from "@/lib/provenance/writer";
+import { completeTrustedProviderCommand, preflightTrustedWriter } from "@/lib/provenance/writer";
 import { runManualGoogleReport, validQuery, type ManualGoogleQuery } from "./manual-report";
 import { resolveGoogleSource } from "./properties";
 
@@ -18,7 +18,8 @@ import { resolveGoogleSource } from "./properties";
 //   3. the provider is called once; the source it used must be the one reserved;
 //   4. the result is sealed with the server keyring (its signed source names connection and binding);
 //   5. `store` re-validates connection and binding and inserts the result in one transaction.
-// Any failure after step 2 releases the key. Only measured results (OK, PARTIAL, EMPTY) are stored.
+// Once a provider request may have begun, keep the reservation on any uncertain failure.
+// A replay must not spend quota again merely because persistence or the response failed.
 // S1: step 5 also writes the `google.capture` audit receipt in the same transaction
 // (20261015210000); the server then signs that receipt. A lost answer or a signing failure is
 // repaired by retrying the same key (it replays the stored result and signs the pending
@@ -27,7 +28,7 @@ import { resolveGoogleSource } from "./properties";
 type Client = SupabaseClient<Database>;
 export type CaptureError =
   | "DISABLED" | "INVALID" | "SIGNING_NOT_CONFIGURED" | "FORBIDDEN" | "NOT_CONNECTED" | "IN_PROGRESS"
-  | "SOURCE_CHANGED" | "CONFIGURATION" | "PROVIDER_STATUS" | "UNAVAILABLE" | "STORE_FAILED";
+  | "SOURCE_CHANGED" | "CONFIGURATION" | "PROVIDER_STATUS" | "UNAVAILABLE" | "STORE_FAILED" | "WRITER_UNAVAILABLE";
 export type CaptureOutcome =
   | { ok: true; resultId: string; replayed: boolean; audited: boolean }
   | { ok: false; error: CaptureError; status?: string };
@@ -53,7 +54,8 @@ async function capture(client: Client, projectId: string, command: "begin" | "st
 export async function captureGoogleReport(
   client: Client, project: ProjectRef, query: ManualGoogleQuery, key: string, actor: AuditInput["actor"], keyring: Keyring | null,
   deps: { env?: Record<string, string | undefined>; mcpFactory?: (opts: McpClientOptions) => Pick<OpenSeoMcpClient, "callTool" | "close">;
-    clock?: () => Date; store?: typeof completeTrustedProviderCommand; receipt?: typeof signProviderReceipt } = {},
+    clock?: () => Date; store?: typeof completeTrustedProviderCommand; receipt?: typeof signProviderReceipt;
+    preflight?: typeof preflightTrustedWriter } = {},
 ): Promise<CaptureOutcome> {
   const env = deps.env ?? process.env;
   if (!googleReadsEnabled(env)) return { ok: false, error: "DISABLED" };
@@ -63,6 +65,10 @@ export async function captureGoogleReport(
   const resolved = await resolveGoogleSource(client, project.projectId, query.provider);
   if (!resolved.ok) return { ok: false, error: resolved.error === "FORBIDDEN" ? "FORBIDDEN" : resolved.error === "NOT_CONNECTED" ? "NOT_CONNECTED" : "UNAVAILABLE" };
   const source = resolved.source;
+
+  // Check the live SQL writer and this actor's project chain before reserving or reading Google.
+  const ready = await (deps.preflight ?? preflightTrustedWriter)(client, project, actor.id, keyring, "google");
+  if (!ready.ok) return { ok: false, error: ready.error === "NOT_ALLOWED" ? "FORBIDDEN" : "WRITER_UNAVAILABLE" };
 
   const begun = await capture(client, project.projectId, "begin", {
     key, provider: query.provider, connectionId: source.connectionId, propertyBindingId: source.propertyBindingId,
@@ -76,25 +82,21 @@ export async function captureGoogleReport(
   }
   if (begun.data.state !== "RESERVED") return { ok: false, error: "UNAVAILABLE" };
 
-  const release = async <T extends CaptureOutcome>(outcome: T): Promise<T> => {
-    await capture(client, project.projectId, "release", { key });
-    return outcome;
-  };
   const read = await runManualGoogleReport(client, project.projectId, query, deps);
   if (!read.ok) {
-    return release({ ok: false, error: read.error === "DISABLED" || read.error === "INVALID" || read.error === "CONFIGURATION" || read.error === "FORBIDDEN"
-      || read.error === "NOT_CONNECTED" ? read.error : "UNAVAILABLE" });
+    return { ok: false, error: read.error === "DISABLED" || read.error === "INVALID" || read.error === "CONFIGURATION" || read.error === "FORBIDDEN"
+      || read.error === "NOT_CONNECTED" ? read.error : "UNAVAILABLE" };
   }
   if (read.source.connectionId !== source.connectionId || read.source.propertyBindingId !== source.propertyBindingId) {
-    return release({ ok: false, error: "SOURCE_CHANGED" });
+    return { ok: false, error: "SOURCE_CHANGED" };
   }
-  if (!STORABLE.has(read.result.status)) return release({ ok: false, error: "PROVIDER_STATUS", status: read.result.status });
+  if (!STORABLE.has(read.result.status)) return { ok: false, error: "PROVIDER_STATUS", status: read.result.status };
 
   const sealed = sealProviderResult(read.result, project, keyring);
-  if (!sealed.ok) return release({ ok: false, error: "STORE_FAILED" });
+  if (!sealed.ok) return { ok: false, error: "STORE_FAILED" };
   const stored = await (deps.store ?? completeTrustedProviderCommand)(client, project, { kind: "google", key, row: sealed.row });
   if (!stored.ok || typeof stored.data.resultId !== "string" || !UUID.test(stored.data.resultId)) {
-    return release({ ok: false, error: !stored.ok && stored.error === "SOURCE_CHANGED" ? "SOURCE_CHANGED" : "STORE_FAILED" });
+    return { ok: false, error: !stored.ok && stored.error === "SOURCE_CHANGED" ? "SOURCE_CHANGED" : "STORE_FAILED" };
   }
   const resultId = stored.data.resultId;
   return { ok: true, resultId, replayed: false, audited: await signReceipt(resultId) };

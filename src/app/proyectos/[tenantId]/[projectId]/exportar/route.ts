@@ -4,8 +4,11 @@ import type { Role } from "@/lib/core";
 import { loadProjectRef } from "@/lib/imports/repository";
 import { serverKeyring } from "@/lib/provenance/keyring";
 import { signExportManifest } from "@/lib/provenance/manifest";
+import { inspectProjectAuditOutbox, sameOutboxCheckpoint } from "@/lib/provenance/outbox";
 import { appendAudit, exportProject } from "@/lib/provenance/repository";
-import { readOperationalState } from "@/lib/recovery/operations";
+import { operationalStateComplete, readOperationalState } from "@/lib/recovery/operations";
+import { readSeoRecoveryState } from "@/lib/recovery/seo-state";
+import { recoverySchemaContract } from "@/lib/recovery/schema-contract";
 import { createClient } from "@/lib/supabase/server";
 import { myProjectMembership } from "@/lib/tenancy";
 
@@ -24,13 +27,35 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ten
   if (!keyring) return new Response("Export unavailable: audit signing is not configured", { status: 503 });
   const ref = await loadProjectRef(supabase, { tenantId: access.project.tenantId, projectId: access.project.projectId });
   if (!ref) return notFound();
+  const before = await inspectProjectAuditOutbox(ref);
+  if (!before.ok) return new Response("Export unavailable: audit receipts require review", { status: 503 });
+  const schema = await recoverySchemaContract();
+  if (schema === "unknown") return new Response("Export unavailable: recovery schema could not be established", { status: 503 });
   const at = new Date().toISOString();
   const logged = await appendAudit(supabase, ref, { actor: { role: access.role as Role, id: user.id }, action: "project.export", outcome: "allowed" }, keyring);
   if (!logged.ok) return new Response("Export failed", { status: 500 });
   const result = await exportProject(supabase, ref, keyring, at);
   if (!result.ok) return new Response("Export failed", { status: 500 });
+  if (!result.export.audit.verification.valid || result.export.results.some((r) => !r.verification.verified))
+    return new Response("Export unavailable: provenance verification failed", { status: 503 });
   const operations = await readOperationalState(supabase, ref, result.export.results.map((r) => r.row));
-  const sealed = { ...result.export, format: "rubik-project-export-v2", operations };
+  if (!operationalStateComplete(operations)) return new Response("Export unavailable: recovery state could not be read", { status: 503 });
+  let seo;
+  if (schema === "n2-v3") {
+    seo = await readSeoRecoveryState(supabase, ref);
+    if (!seo.ok) return new Response("Export unavailable: SEO data could not be read completely", { status: 503 });
+    const seoAgain = await readSeoRecoveryState(supabase, ref);
+    if (!seoAgain.ok || JSON.stringify(seo.value) !== JSON.stringify(seoAgain.value))
+      return new Response("Export unavailable: SEO data changed during read", { status: 503 });
+  }
+  if (await recoverySchemaContract() !== schema)
+    return new Response("Export unavailable: recovery schema changed during read", { status: 503 });
+  const after = await inspectProjectAuditOutbox(ref);
+  if (!after.ok || !sameOutboxCheckpoint(before.checkpoint, after.checkpoint))
+    return new Response("Export unavailable: audit receipts changed", { status: 503 });
+  const sealed = schema === "n2-v3"
+    ? { ...result.export, format: "rubik-project-export-v3", operations, seo: seo!.value }
+    : { ...result.export, format: "rubik-project-export-v2", operations };
   // Signed last, over the finished body: proves on the owner's machine that nothing was removed.
   const body = { ...sealed, manifest: signExportManifest(sealed, ref, keyring) };
   return new Response(JSON.stringify(body, null, 2), {

@@ -93,6 +93,41 @@ export async function pendingAuditOutbox(): Promise<{ pending: number; oldestAt:
   return { pending: Number(result.rows[0].pending), oldestAt: result.rows[0].oldest_at?.toISOString() ?? null };
 }
 
+export type OutboxCheckpoint = { total: number };
+
+/** Fail closed for exports. Count by project, including receipts with a damaged organization id. */
+export async function inspectProjectAuditOutbox(project: ProjectRef): Promise<
+  { ok: true; checkpoint: OutboxCheckpoint } |
+  { ok: false; error: "WRITER_NOT_CONFIGURED" | "AUDIT_CHECK_UNAVAILABLE" | "AUDIT_PENDING" | "AUDIT_SCOPE_INVALID" | "AUDIT_RECEIPT_UNLINKED" }
+> {
+  const pool = writerPool();
+  if (!pool) return { ok: false, error: "WRITER_NOT_CONFIGURED" };
+  try {
+    const result = await pool.query<{ total: string; pending: string; wrong_scope: string; unlinked: string }>(
+      `select count(*)::text as total,
+        count(*) filter (where state = 'pending')::text as pending,
+        count(*) filter (where organization_id <> $2::uuid)::text as wrong_scope,
+        count(*) filter (where state = 'completed' and not exists (
+          select 1 from public.audit_events e where e.project_id = o.project_id
+            and e.organization_id = o.organization_id and e.seq = o.event_seq
+            and e.details ->> 'receiptId' = o.id::text))::text as unlinked
+       from private.audit_outbox o where project_id = $1::uuid`,
+      [project.projectId, project.organizationId],
+    );
+    const row = result.rows[0];
+    if (!row || ![row.total, row.pending, row.wrong_scope, row.unlinked].every((n) => /^\d+$/.test(n)))
+      return { ok: false, error: "AUDIT_CHECK_UNAVAILABLE" };
+    if (Number(row.wrong_scope) > 0) return { ok: false, error: "AUDIT_SCOPE_INVALID" };
+    if (Number(row.unlinked) > 0) return { ok: false, error: "AUDIT_RECEIPT_UNLINKED" };
+    if (Number(row.pending) > 0) return { ok: false, error: "AUDIT_PENDING" };
+    return { ok: true, checkpoint: { total: Number(row.total) } };
+  } catch {
+    return { ok: false, error: "AUDIT_CHECK_UNAVAILABLE" };
+  }
+}
+
+export const sameOutboxCheckpoint = (before: OutboxCheckpoint, after: OutboxCheckpoint) => before.total === after.total;
+
 /**
  * Signs the receipt that the database wrote in the same transaction as a provider result
  * (20261015210000): `google.capture` targets the stored result id, `openseo.audit.store` the

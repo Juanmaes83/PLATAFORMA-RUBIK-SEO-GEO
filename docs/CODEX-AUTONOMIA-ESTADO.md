@@ -1,5 +1,39 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
+## Corte vigente · 16/10/2026, tras fusión #121 y ensayo de respaldo
+
+- `main@be65e4456c1a1e08d4bb2c32d8b5eae51fae289a`; #120 MERGED en `9365387`, #121 MERGED en `be65e44`. Production READY y `/api/salud` con el mismo ref se comprobaron también para `be65e44` desde supervisión. Evidencia local histórica #121: verify 533 PASS/1 SKIP, integración 123/123, pgTAP 733/733 y E2E dirigido 11 PASS/16 SKIP. GitHub Actions bloqueada por facturación.
+- N2-09, N2-11 y la mitigación F-OPS-2 están en main, con interfaz N2 apagada por defecto; F-OPS-2 mantiene límites documentados. #114/#115 absorbidas; #119, #116 y #117 Draft; #118 diseño. Priorizar H1/H2 y la recuperación completa.
+- Candidato Supabase `yvdgmklgwlshizzgefpv`: 16 migraciones aplicadas hasta `20261012120000`, sin rol escritor ni outbox. Production `/api/salud` en `main@a91a63fa` confirma el ref configurado. [Copia lógica y restauración local](n1-cierre/N1-RESPALDO-RESTAURACION-CANDIDATO-20261016.md) ensayadas; faltan custodia operativa portable y pruebas completas de servicios. Dry run histórico desde `b6555ea`: exactamente 11 N1, ninguna aplicada. Secuencia en [N1-VENTANA-ALOJADA-20261016.md](N1-VENTANA-ALOJADA-20261016.md). H1 parcial; H2 bloqueado.
+- Siguiente operación: comprobar destino y respaldo, migrar Google/S2/S1 en orden versionado durante la ventana, ejecutar negativas alojadas y recuperación autorizada; no activar N2 ni proveedores por inferencia. El corte inferior es histórico.
+
+## Corte de continuidad N2 · 16/10/2026
+
+- GitHub verificado: `main@b6555eaa8190ed8668c501813fda01e06c75163c`; PR #113 MERGED.
+- PR activa: #120 OPEN/Draft, `codex/n2-integration-post113-20261016`, HEAD local/remoto informado por GitHub `b3596500f1d5cd867d2e006c05d2454677d7843c`, base b6555ea.
+- Gates locales del propietario en Windows, SHA exacto #120: verify 512/512; integración 119/119; pgTAP 718/718; E2E 157 PASS/50 SKIP/0 FAIL. Sin residuos: 11 usuarios y 2 organizaciones de fixtures propios. GitHub Actions no ejecutó pasos por facturación; no es CI verde.
+- #120 integra el contenido de #114/#115 más exportación/recuperación SEO v3. #114/#115 siguen Draft pero no deben fusionarse por separado.
+- #119 N2-10, #116 N2-12, #117 N2-13 siguen Draft y basadas en main anterior; #118 N2-14 contiene solo diseño/contrato.
+- S2/S1/N1-06 están integrados como código, no validados en Supabase alojado. N1-05 no tiene matriz alojada; Sarah/Google recovery no ensayados alojados. H1 parcial; H2 bloqueado. Sin migraciones N2 alojadas.
+- Riesgo de fusión: rutas SEO/Competidores dependen de tablas N2 aún ausentes en Supabase alojado. Antes de integrar #120 en main, revisar cómo impedir una activación/degradación de Production; el mandato de merge no autoriza tocar Production ni aplicar migraciones.
+- Próximo trabajo autorizado sin operación alojada: terminar auditoría #120 y documentar compatibilidad; tras su cierre, rebasar #119 y luego #116/#117 incluyendo las tablas en exportación/recuperación firmada; convertir #118 en informes manuales de solo lectura cuando las fuentes estén integradas.
+- Ver [CONTROL-PROYECTO](CONTROL-PROYECTO.md), [ROADMAP-MAESTRO](ROADMAP-MAESTRO-2026.md) y [handoff Claude](HANDOFF-CLAUDE-INTEGRACION-N2-20261016.md). Mantener historial inferior; no usar sus cortes como estado actual.
+
+## Checkpoint N1-05/N1-06 local · 15/10/2026
+
+- **Git/reconciliación:** cuenta `Juanmaes83`; `origin/main@d12b80ee4c229ab8c90f1044ecd0108165f8bb2e` (#100/#104/#109/#112 fusionadas). Rama/worktree propios `codex/n1-05-n1-06-local-20261015` / `C:\Users\temp123\Documents\ChatGPT\PLATAFORMA-RUBIK-SEO-GEO\n1-recovery`; consultar HEAD y PR Draft al reanudar. Checkouts y contenedores históricos S1/S2 preservados; FLOOR PLAN intacto.
+- **N1-05:** auditoría/matriz SQL y protocolo operativo en [N1-05-PREPARACION-LOCAL-20261015.md](N1-05-PREPARACION-LOCAL-20261015.md). Añadido rechazo de JWT local auténtico caducado. U02 (Preview aislada, variables/CI) y U03 (ventana y dos identidades ficticias alojadas) pendientes; ninguna fase alojada ejecutada. H2 sigue bloqueado.
+- **N1-06:** guarda R1 fail-closed en exportación para outbox pendiente, vínculo recibo-evento inválido, escritor caído, concurrencia detectable, cadena/resultado inválidos y lecturas operativas fallidas. Ensayo Google recovery local y checklist U04 en [N1-06-RECUPERACION-LOCAL-20261015.md](N1-06-RECUPERACION-LOCAL-20261015.md). Formatos v1/v2 intactos; la política comercial R1 necesita decisión del propietario.
+- **Evidencia propia sobre este diff:** `npm run verify` 486/486 unitarias, lint/tipos/build PASS; `npm run test:integration` 106/106 en 16 archivos PASS; pgTAP 641/641 en 23 archivos PASS; Playwright 145 PASS/44 SKIP/0 FAIL (360/390/1280 px; 11 usuarios y 2 organizaciones propios limpiados sin residuos); rollback transaccional de funciones Google `DROPPED_IN_TX`/`RESTORED`. Base exclusiva `rubik-n1-recovery-20261015`, puertos 58321/58322, datos ficticios y proveedores simulados. No atribuir estas cifras a GitHub Actions.
+- **Pendientes:** U04 para migración/backup/ensayo Sarah alojado; U02/U03 para N1-05; decisiones R1/R3/R4/R7, custodia K3/K4, identidad/pooler real del escritor y CI GitHub bloqueada por facturación. H1 parcial y H2 bloqueado. S1/S2 aún sin acreditar en Supabase alojado; Preview permanece bloqueada.
+- **Handoff:** [HANDOFF-N1-05-N1-06-20261015.md](HANDOFF-N1-05-N1-06-20261015.md). Próximo trabajo autónomo: corte consistente y versionado de exportación con recibos concurrentes, más prueba de archivos v2 antiguos parcialmente leídos, sujeto a revisión de la PR activa. No fusionar sin auditoría del HEAD exacto.
+## Checkpoint N2-09 local · 15/10/2026
+
+- Rama independiente `codex/n2-09-seo-analysis-20261015`, base `d12b80ee4c229ab8c90f1044ecd0108165f8bb2e`. PR #113 de N1-06 sigue en otro worktree; no se han tocado sus módulos de recuperación/exportación/outbox.
+- Incremento navegable `/proyectos/{tenant}/{project}/seo`: incidencias OpenSEO verificadas por firma y proyecto, filtros, revisión On-Page por URL y keywords declaradas con RLS y edición. Fuentes ausentes se muestran «No evaluado» o «Sin medición disponible». Contratos, límites y reproducción: [N2-09-SEO-INCREMENTO-LOCAL-20261015.md](N2-09-SEO-INCREMENTO-LOCAL-20261015.md).
+- Gates locales: verify 484/484; integración completa 101/101 más dirigida 2/2; pgTAP 661/661; Playwright 153 PASS/48 SKIP y dirigido final N2 7 PASS/2 SKIP. Ninguna operación alojada ni proveedor de pago. Los fixtures E2E se limpiaron. Capturas ficticias bajo `docs/visual/`.
+- Falta aplicar y probar la migración N2 en un entorno alojado autorizado antes de publicar la ruta. H1/H2 continúan sin acreditación alojada. Preview bloqueada. Revisar compatibilidad con #113 al fusionar cualquiera de las ramas y repetir gates en un stack nuevo combinado. No fusionar la PR N2 automáticamente.
+
 ## Corte posterior a integración S1 · 15/10/2026
 
 - **GitHub main**: `31e3461c2bc8694081e5f07b25f9276f6dd145b7`; [PR #104](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/104) **MERGED**; N1-04 [#109](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/109) **MERGED**; #110 (Claude S1) y #111 (main→rama S1) **MERGED**. #105–107 sustituidas/cerradas. NO reabrir ni repetir fusiones.

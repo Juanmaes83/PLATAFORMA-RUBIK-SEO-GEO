@@ -2,7 +2,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
-import { PROJECT, TENANT, signIn } from "./support";
+import { OTHER_PROJECT, OTHER_TENANT, PROJECT, TENANT, signIn } from "./support";
 
 const PAGE = `/proyectos/${TENANT}/${PROJECT}`;
 
@@ -43,4 +43,13 @@ test("viewer can inspect the center but receives no connection or capture contro
   await expect(page.getByRole("heading", { name: "Medición orgánica" })).toBeVisible();
   await expect(page.getByRole("button", { name: /capturar|conectar|revocar/i })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Abrir capturas e historial de Google" }).first()).toBeVisible();
+});
+
+test("another organization's measurement page returns HTTP 404 before streaming", async ({ page }, info) => {
+  test.skip(info.project.name !== "escritorio-1280", "HTTP status is viewport-independent");
+  await signIn(page, "owner");
+  const foreign = await page.goto(`/proyectos/${OTHER_TENANT}/${OTHER_PROJECT}/medicion`);
+  const missing = await page.goto(`/proyectos/${OTHER_TENANT}/00000000-0000-4000-8000-000000000001/medicion`);
+  expect(foreign?.status()).toBe(404);
+  expect(missing?.status()).toBe(404);
 });

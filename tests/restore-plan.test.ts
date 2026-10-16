@@ -63,6 +63,9 @@ describe("restore plan", () => {
     // the tenancy trigger, and a new project's owner must already own the organization.
     expect(r.plan.sql).not.toMatch(/insert into public\.organization_members/);
     expect(r.plan.sql).toMatch(/where new_project and exists \(select 1 from public\.organization_members m where .* m\.role = 'owner'\)/);
+    expect(r.plan.sql).toContain("falta una cuenta de autor original; no se sustituye por el operador.");
+    expect(r.plan.sql).not.toMatch(/update rubik_(results|imports) .*created_by/);
+    expect(r.plan.sql).toContain("select actor_id as uid from rubik_audit union select created_by from rubik_results union select created_by from rubik_imports");
     if (process.env.RESTORE_DRILL_OUT) {
       mkdirSync(process.env.RESTORE_DRILL_OUT, { recursive: true });
       writeFileSync(join(process.env.RESTORE_DRILL_OUT, "restore.sql"), r.plan.sql);

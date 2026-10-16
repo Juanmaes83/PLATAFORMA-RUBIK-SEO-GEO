@@ -6,6 +6,11 @@ import { captureGoogleReport } from "@/lib/openseo/google/capture";
 import { loadKeyring } from "@/lib/provenance/keyring";
 import { openProviderResult } from "@/lib/provenance/results";
 
+const gate = vi.hoisted(() => vi.fn(async () => ({ ok: true as const })));
+vi.mock("@/lib/provenance/writer", async original => ({
+  ...await original<typeof import("@/lib/provenance/writer")>(), preflightTrustedWriter: gate,
+}));
+
 // Manual Google capture, in memory only: the RPCs are a small state machine with the same rules as
 // migration 20261012120000, the MCP is simulated and nothing reaches a network or a database.
 // S1: storage goes through the trusted writer (simulated `store`, same rules) and the audit is
@@ -73,6 +78,16 @@ function setup({ storeError, revokeBetween, lostStoreResponse }: { storeError?: 
 }
 
 describe("manual Google capture (simulated provider and RPCs)", () => {
+  it.each(["WRITER_NOT_CONFIGURED", "WRITER_UNAVAILABLE"])("does not reserve or call Google when the writer fails: %s", async error => {
+    const s = setup();
+    gate.mockResolvedValueOnce({ ok: false, error } as never);
+    expect(await captureGoogleReport(s.client, project, query, key, actor, keyring,
+      { env, mcpFactory: s.mcpFactory, store: s.store, receipt: s.receipt }))
+      .toEqual({ ok: false, error: "WRITER_UNAVAILABLE" });
+    expect(s.callTool).not.toHaveBeenCalled();
+    expect(s.store).not.toHaveBeenCalled();
+    expect(s.rpc.mock.calls.some(call => call[0] === "google_capture")).toBe(false);
+  });
   it("stores one signed result whose source names the reserved connection and binding, signs its receipt, then replays without a new read", async () => {
     const s = setup();
     const first = await captureGoogleReport(s.client, project, query, key, actor, keyring, { env, mcpFactory: s.mcpFactory, store: s.store, receipt: s.receipt });
@@ -104,21 +119,24 @@ describe("manual Google capture (simulated provider and RPCs)", () => {
     expect(s.callTool).not.toHaveBeenCalled();
   });
 
-  it("releases the key when storage is refused (revocation between read and store) and stores nothing", async () => {
+  it("keeps the key when storage is refused after the read (revocation between read and store)", async () => {
     const s = setup({ storeError: "55000", revokeBetween: true });
     expect(await captureGoogleReport(s.client, project, query, key, actor, keyring, { env, mcpFactory: s.mcpFactory, store: s.store, receipt: s.receipt }))
       .toEqual({ ok: false, error: "SOURCE_CHANGED" });
-    expect(s.captures.get(key)?.state).toBe("RELEASED");
+    expect(s.captures.get(key)?.state).toBe("RESERVED");
     expect(s.stored).toHaveLength(0);
     expect(s.receipt).not.toHaveBeenCalled();
+    expect(await captureGoogleReport(s.client, project, query, key, actor, keyring, { env, mcpFactory: s.mcpFactory, store: s.store, receipt: s.receipt }))
+      .toEqual({ ok: false, error: "NOT_CONNECTED" });
+    expect(s.callTool).toHaveBeenCalledTimes(1);
   });
 
-  it("does not store a provider error and releases the key", async () => {
+  it("does not store a provider error and keeps the uncertain reservation", async () => {
     const s = setup();
     s.callTool.mockResolvedValueOnce({ structuredContent: { ok: false }, isError: true } as never);
     const r = await captureGoogleReport(s.client, project, query, key, actor, keyring, { env, mcpFactory: s.mcpFactory, store: s.store, receipt: s.receipt });
     expect(r.ok).toBe(false);
-    expect(s.captures.get(key)?.state).toBe("RELEASED");
+    expect(s.captures.get(key)?.state).toBe("RESERVED");
     expect(s.stored).toHaveLength(0);
   });
 
@@ -130,25 +148,42 @@ describe("manual Google capture (simulated provider and RPCs)", () => {
     expect(s.callTool).not.toHaveBeenCalled();
   });
 
-  it("a provider timeout stores nothing and releases the key; retrying the same key reads again and stores once", async () => {
+  it("a provider timeout stores nothing and the same key cannot trigger another read", async () => {
     const s = setup();
     s.callTool.mockRejectedValueOnce(Object.assign(new Error("The operation was aborted"), { name: "AbortError" }));
     const first = await captureGoogleReport(s.client, project, query, key, actor, keyring, { env, mcpFactory: s.mcpFactory, store: s.store, receipt: s.receipt });
     expect(first).toMatchObject({ ok: false });
-    expect(s.captures.get(key)?.state).toBe("RELEASED");
+    expect(s.captures.get(key)?.state).toBe("RESERVED");
     expect(s.stored).toHaveLength(0);
-    // Nothing was stored, so the same key may read again: one more provider call, one result.
+    // A timeout does not prove the provider did not consume quota.
     const retry = await captureGoogleReport(s.client, project, query, key, actor, keyring, { env, mcpFactory: s.mcpFactory, store: s.store, receipt: s.receipt });
-    expect(retry).toMatchObject({ ok: true, replayed: false });
-    expect(s.callTool).toHaveBeenCalledTimes(2);
-    expect(s.stored).toHaveLength(1);
+    expect(retry).toEqual({ ok: false, error: "IN_PROGRESS" });
+    expect(s.callTool).toHaveBeenCalledTimes(1);
+    expect(s.stored).toHaveLength(0);
+  });
+
+  it("keeps the reservation when the writer fails after a successful provider response", async () => {
+    const s = setup({ storeError: "WRITE_FAILED" });
+    expect(await captureGoogleReport(s.client, project, query, key, actor, keyring,
+      { env, mcpFactory: s.mcpFactory, store: s.store, receipt: s.receipt }))
+      .toEqual({ ok: false, error: "STORE_FAILED" });
+    expect(s.callTool).toHaveBeenCalledTimes(1);
+    expect(s.store).toHaveBeenCalledTimes(1);
+    expect(s.stored).toHaveLength(0);
+    expect(s.captures.get(key)?.state).toBe("RESERVED");
+    expect(await captureGoogleReport(s.client, project, query, key, actor, keyring,
+      { env, mcpFactory: s.mcpFactory, store: s.store, receipt: s.receipt }))
+      .toEqual({ ok: false, error: "IN_PROGRESS" });
+    expect(s.callTool).toHaveBeenCalledTimes(1);
+    expect(s.store).toHaveBeenCalledTimes(1);
+    expect(s.receipt).not.toHaveBeenCalled();
   });
 
   it("if the answer of a committed store is lost, retrying the same key returns the stored result and signs its audit without reading again", async () => {
     const s = setup({ lostStoreResponse: true });
     expect(await captureGoogleReport(s.client, project, query, key, actor, keyring, { env, mcpFactory: s.mcpFactory, store: s.store, receipt: s.receipt }))
       .toEqual({ ok: false, error: "STORE_FAILED" });
-    // The release that follows cannot undo a committed capture: the key stays STORED.
+    // A committed capture stays STORED even when the answer never reaches the server.
     expect(s.captures.get(key)?.state).toBe("STORED");
     const resultId = s.captures.get(key)?.resultId as string;
     // The audit receipt committed with the result is still pending: nothing signed it yet.
