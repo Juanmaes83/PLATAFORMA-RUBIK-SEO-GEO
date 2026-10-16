@@ -56,6 +56,7 @@ export const ERROR_TEXT: Readonly<Record<string, string>> = {
   RECONCILE_RELEASE_FAILED: "La reserva ya no está pendiente (quizá se vinculó mientras tanto). No se ha liberado nada.",
   PERSISTENCE_DISABLED: "El registro de trabajos no está activado en este servidor.",
   JOB_UNAVAILABLE: "El registro de trabajos no está disponible ahora mismo.",
+  WRITER_UNAVAILABLE: "El escritor de auditoría no está preparado. No se ha lanzado ni consultado ningún trabajo nuevo.",
 };
 
 export const AUDIT_STATE_LABELS: Readonly<Record<string, { label: string; tone: "neutral" | "warn" | "ok" | "no" }>> = {

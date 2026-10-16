@@ -7,7 +7,8 @@ import { projectJobsEnabled } from "@/lib/openseo/jobs";
 import { ERROR_TEXT } from "@/lib/openseo/labels";
 
 const m = vi.hoisted(() => ({ acquire: vi.fn(), bind: vi.fn(), complete: vi.fn(), fail: vi.fn(), find: vi.fn(), active: vi.fn(), release: vi.fn(),
-  validate: vi.fn(), start: vi.fn(), follow: vi.fn(), prepare: vi.fn() }));
+  validate: vi.fn(), start: vi.fn(), follow: vi.fn(), prepare: vi.fn(), writerReady: vi.fn() }));
+vi.mock("@/lib/provenance/provider-writer-readiness", () => ({ providerWriterReady: m.writerReady }));
 vi.mock("@/lib/openseo/jobs", async original => ({ ...await original<typeof import("@/lib/openseo/jobs")>(),
   acquireAuditJob: m.acquire, bindAuditJob: m.bind, completeAuditJob: m.complete, failAuditJob: m.fail, findAuditJob: m.find,
   findActiveAuditJob: m.active, releaseStartingAuditJob: m.release }));
@@ -24,6 +25,7 @@ const keyring = {} as Keyring;
 beforeEach(() => {
   vi.resetAllMocks();
   m.validate.mockReturnValue(null);
+  m.writerReady.mockResolvedValue(true);
   m.acquire.mockResolvedValue({ ok: true, job: { ...job, state: "STARTING", auditId: null, acquired: true } });
   m.bind.mockResolvedValue({ ok: true, job });
   m.find.mockResolvedValue({ ok: true, job });
@@ -46,6 +48,12 @@ describe("project audit lifecycle", () => {
     expect(m.acquire).not.toHaveBeenCalled();
     expect(m.start).not.toHaveBeenCalled();
   });
+  it("rejects an unavailable writer before a new reservation or provider launch", async () => {
+    m.writerReady.mockResolvedValue(false);
+    expect(await startProjectAudit(client, project, input)).toMatchObject({ error: { code: "WRITER_UNAVAILABLE" } });
+    expect(m.acquire).not.toHaveBeenCalled();
+    expect(m.start).not.toHaveBeenCalled();
+  });
   it("never launches without a durable reservation", async () => {
     m.acquire.mockResolvedValue({ ok: false, error: "JOB_UNAVAILABLE" });
     expect(await startProjectAudit(client, project, input)).toMatchObject({ ok: false });
@@ -63,6 +71,7 @@ describe("project audit lifecycle", () => {
   });
   it("reserves before launching and binds the returned identifier", async () => {
     expect(await startProjectAudit(client, project, input)).toEqual(started);
+    expect(m.writerReady.mock.invocationCallOrder[0]).toBeLessThan(m.acquire.mock.invocationCallOrder[0]);
     expect(m.acquire.mock.invocationCallOrder[0]).toBeLessThan(m.start.mock.invocationCallOrder[0]);
     expect(m.bind).toHaveBeenCalledWith(client, project, job.jobId, "audit-1");
   });
@@ -97,6 +106,14 @@ describe("project audit lifecycle", () => {
     expect(await followProjectAudit(client, project, "audit-1", input.projectDomain, true, null)).toMatchObject({ saveStatus: "unavailable" });
     expect(m.follow).not.toHaveBeenCalled();
   });
+  it("rejects a save when the writer fails but permits status-only reads", async () => {
+    m.writerReady.mockResolvedValue(false);
+    expect(await followProjectAudit(client, project, "audit-1", input.projectDomain, true, keyring))
+      .toMatchObject({ saveStatus: "unavailable", progress: { error: { code: "WRITER_UNAVAILABLE" } } });
+    expect(m.follow).not.toHaveBeenCalled();
+    await followProjectAudit(client, project, "audit-1", input.projectDomain, false, keyring);
+    expect(m.follow).toHaveBeenCalledTimes(1);
+  });
   it("a status-only click installs no persistence callback", async () => {
     await followProjectAudit(client, project, "audit-1", input.projectDomain, false, keyring);
     expect(m.follow.mock.calls[0][2]).toMatchObject({ boundAuditId: "audit-1", captureCompletedResults: undefined });
@@ -118,6 +135,19 @@ describe("project audit lifecycle", () => {
   it("a capture failure never reports saved", async () => {
     m.follow.mockResolvedValue({ ...response, captureError: { code: "CAPTURE_FAILED" } });
     expect(await followProjectAudit(client, project, "audit-1", input.projectDomain, true, keyring)).toMatchObject({ saveStatus: "unavailable" });
+  });
+  it("a failure after following does not relaunch an OpenSEO crawl or mark it saved", async () => {
+    m.complete.mockResolvedValue({ ok: false, error: "JOB_UNAVAILABLE" });
+    m.follow.mockImplementation(async (_id, _domain, deps) => {
+      try { await deps.captureCompletedResults({ auditId: "audit-1", issues: {}, pages: {} }); }
+      catch { return { ...response, captureError: { code: "CAPTURE_FAILED" } }; }
+      throw new Error("expected completion failure");
+    });
+    expect(await followProjectAudit(client, project, "audit-1", input.projectDomain, true, keyring))
+      .toMatchObject({ saveStatus: "unavailable", captureError: { code: "CAPTURE_FAILED" } });
+    expect(m.follow).toHaveBeenCalledTimes(1);
+    expect(m.start).not.toHaveBeenCalled();
+    expect(m.fail).not.toHaveBeenCalled();
   });
 
   describe("project mode: one connection per job (ADR 0007, phase 4)", () => {

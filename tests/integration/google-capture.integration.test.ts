@@ -97,6 +97,19 @@ describe("manual Google capture on the local stack (simulated MCP)", () => {
     expect(audit.ok && audit.rows.filter((e) => e.action === "google.capture" && e.target === resultId)).toHaveLength(1);
   });
 
+  it("a failed writer probe creates no local reservation and makes no provider call", async () => {
+    const probeKey = randomUUID();
+    const before = await captureLedger();
+    const m = mcp();
+    expect(await captureGoogleReport(owner, project, query, probeKey, { role: "owner", id: users[0] }, keyring,
+      { env, mcpFactory: m.factory, writerReady: async () => false }))
+      .toEqual({ ok: false, error: "WRITER_UNAVAILABLE" });
+    expect(m.callTool).not.toHaveBeenCalled();
+    const after = await captureLedger();
+    expect(after.count).toBe(before.count);
+    expect(after.stored.some((row) => row.idempotency_key === probeKey)).toBe(false);
+  });
+
   it("a signing failure after the commit leaves a durable receipt; the retry signs it once without a provider call", async () => {
     const lostKey = randomUUID();
     const m = mcp();
@@ -194,7 +207,7 @@ describe("manual Google capture on the local stack (simulated MCP)", () => {
     expect((await owner.from("provider_results").select("id").eq("project_id", project.projectId)).data).toHaveLength(before + 1);
   });
 
-  it("a provider failure releases the key: the retry reads once more and stores exactly one result", async () => {
+  it("a provider failure preserves the reservation: retry cannot repeat an uncertain call", async () => {
     const retryKey = randomUUID();
     const before = (await owner.from("provider_results").select("id").eq("project_id", project.projectId)).data!.length;
     const ledgerBefore = await captureLedger();
@@ -206,21 +219,15 @@ describe("manual Google capture on the local stack (simulated MCP)", () => {
     const ledgerFailed = await captureLedger();
     expect(ledgerFailed.count).toBe(ledgerBefore.count + 1);
     expect(ledgerFailed.stored.filter((row) => row.idempotency_key === retryKey)).toEqual([]);
+    expect(ledgerFailed.stored.filter((row) => row.idempotency_key === retryKey)).toHaveLength(0);
     expect((await owner.from("provider_results").select("id").eq("project_id", project.projectId)).data).toHaveLength(before);
     const retry = mcp();
-    const recovered = await captureGoogleReport(owner, project, query, retryKey, { role: "owner", id: users[0] }, keyring, { env, mcpFactory: retry.factory });
-    expect(recovered).toMatchObject({ ok: true, replayed: false });
-    if (!recovered.ok) throw new Error("retry must store a result");
-    expect(retry.callTool).toHaveBeenCalledTimes(1);
-    const again = mcp();
-    expect(await captureGoogleReport(owner, project, query, retryKey, { role: "owner", id: users[0] }, keyring, { env, mcpFactory: again.factory }))
-      .toEqual({ ok: true, resultId: recovered.resultId, replayed: true, audited: true });
+    expect(await captureGoogleReport(owner, project, query, retryKey, { role: "owner", id: users[0] }, keyring, { env, mcpFactory: retry.factory }))
+      .toEqual({ ok: false, error: "IN_PROGRESS" });
+    expect(retry.callTool).not.toHaveBeenCalled();
     const ledgerAfter = await captureLedger();
     expect(ledgerAfter.count).toBe(ledgerBefore.count + 1);
-    expect(ledgerAfter.stored.filter((row) => row.idempotency_key === retryKey))
-      .toEqual([expect.objectContaining({ state: "STORED", result_id: recovered.resultId })]);
-    expect(again.callTool).not.toHaveBeenCalled();
-    expect((await owner.from("provider_results").select("id").eq("project_id", project.projectId)).data).toHaveLength(before + 1);
+    expect((await owner.from("provider_results").select("id").eq("project_id", project.projectId)).data).toHaveLength(before);
   });
 
   it("after revoking the binding no capture starts; the stored one stays verifiable", async () => {

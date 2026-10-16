@@ -5,12 +5,13 @@ export const CAPTURE_ERRORS: Record<string, string> = {
   SIGNING_NOT_CONFIGURED: "La firma de resultados no está configurada en el servidor. No se ha consultado nada.",
   FORBIDDEN: "Solo la persona titular del proyecto puede capturar datos de Google.",
   NOT_CONNECTED: "Falta una conexión de OpenSEO activa o una propiedad de Google asociada a este proyecto.",
-  IN_PROGRESS: "Esta misma captura ya se está ejecutando. Espera unos segundos y vuelve a abrir la página.",
+  IN_PROGRESS: "Esta captura sigue reservada. Si una respuesta se perdió, hay que reconciliarla antes de volver a consultar a Google.",
   SOURCE_CHANGED: "La conexión o la propiedad cambió durante la captura. No se ha guardado nada.",
   CONFIGURATION: "OpenSEO no está configurado en el servidor. No se ha consultado nada.",
-  PROVIDER_STATUS: "Google no devolvió una medición utilizable (sin permiso, límite de uso o error). No se ha guardado nada.",
-  UNAVAILABLE: "El servicio no está disponible ahora mismo. No se ha guardado nada.",
-  STORE_FAILED: "No se pudo confirmar el guardado. Vuelve atrás y reenvía el mismo formulario: si llegó a guardarse, se mostrará esa captura sin volver a consultar a Google.",
+  PROVIDER_STATUS: "No se recibió una medición utilizable. La consulta pudo realizarse; se conserva la reserva para reconciliarla.",
+  UNAVAILABLE: "La respuesta de Google no se pudo confirmar. La reserva se conserva para evitar repetir la consulta.",
+  STORE_FAILED: "No se pudo confirmar el guardado. Reenvía la misma captura solo para comprobar si quedó guardada; si sigue reservada, solicita reconciliación.",
+  WRITER_UNAVAILABLE: "El escritor de auditoría no está preparado. No se ha reservado ni consultado nada.",
 };
 export const CAPTURE_NOTICES: Record<string, string> = {
   guardada: "Captura guardada y firmada.",

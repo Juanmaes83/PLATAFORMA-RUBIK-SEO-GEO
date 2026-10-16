@@ -8,6 +8,9 @@ import { acquireAuditJob, bindAuditJob, completeAuditJob, failAuditJob, findActi
 import { prepareCompletedAuditResults } from "./persistence";
 import type { OpenSeoProjectConnection } from "./connections";
 import { signProviderReceipt } from "@/lib/provenance/outbox";
+import { providerWriterReady } from "@/lib/provenance/provider-writer-readiness";
+
+type ProjectAuditDeps = BridgeDeps & { writerReady?: typeof providerWriterReady };
 
 const failStart = (code: string, message: string): AuditStart => ({ ok: false, auditId: null, url: null,
   maxPages: null, startedAt: null, reused: false, error: { code, message, retryable: false } });
@@ -21,10 +24,12 @@ const unavailable = (code: string, message: string): AuditFollowUp => ({ progres
  * the job records the connection; a job reserved under another connection is never reused.
  */
 export async function startProjectAudit(client: SupabaseClient<Database>, project: ProjectRef,
-  input: { url: string; maxPages: number; projectDomain: string | null }, deps: BridgeDeps = {},
+  input: { url: string; maxPages: number; projectDomain: string | null }, deps: ProjectAuditDeps = {},
   connection: OpenSeoProjectConnection | null = null): Promise<AuditStart> {
   const validation = validateAuditStart(input, deps);
   if (validation) return { ...failStart(validation.code, validation.message), error: validation };
+  if (!await (deps.writerReady ?? providerWriterReady)(client, project, "openseo"))
+    return failStart("WRITER_UNAVAILABLE", "El escritor de auditoría no está disponible. No se ha reservado ni lanzado ningún rastreo.");
   const acquired = await acquireAuditJob(client, project, connection?.connectionId);
   if (!acquired.ok) return acquired.error === "JOB_CONNECTION_REFUSED"
     ? failStart("CONNECTION_NOT_ACTIVE", "La conexión de OpenSEO de este proyecto ya no está activa. No se ha lanzado ningún rastreo.")
@@ -66,7 +71,7 @@ export type ProjectAuditFollow = AuditFollowUp & { saveStatus: SaveStatus; audit
  */
 export async function followProjectAudit(client: SupabaseClient<Database>, project: ProjectRef,
   auditId: string, projectDomain: string | null, save: boolean, keyring: Keyring | null,
-  deps: BridgeDeps & { receipt?: typeof signProviderReceipt } = {}, connection: OpenSeoProjectConnection | null = null): Promise<ProjectAuditFollow> {
+  deps: ProjectAuditDeps & { receipt?: typeof signProviderReceipt } = {}, connection: OpenSeoProjectConnection | null = null): Promise<ProjectAuditFollow> {
   const found = await findAuditJob(client, project, auditId);
   if (!found.ok) return { ...unavailable(found.error === "JOB_NOT_FOUND" ? "AUDIT_NOT_BOUND" : found.error,
     "No se ha encontrado una auditoría vinculada a este proyecto."), saveStatus: "unavailable" };
@@ -74,6 +79,8 @@ export async function followProjectAudit(client: SupabaseClient<Database>, proje
     "Esta auditoría se lanzó con otra conexión de OpenSEO, ya revocada o sustituida. No se ha consultado."), saveStatus: "unavailable" };
   if (save && !keyring) return { ...unavailable("SIGNING_MISSING", "Faltan las claves de firma del servidor. No se ha consultado ni guardado el resultado."), saveStatus: "unavailable" };
   if (found.job.state === "FAILED") return { ...unavailable("AUDIT_FAILED", "Este trabajo terminó con un fallo confirmado."), saveStatus: "unavailable" };
+  if (save && !await (deps.writerReady ?? providerWriterReady)(client, project, "openseo"))
+    return { ...unavailable("WRITER_UNAVAILABLE", "El escritor de auditoría no está disponible. No se ha consultado al proveedor."), saveStatus: "unavailable" };
   let saveStatus: SaveStatus = save ? "pending" : "not-requested";
   let audited: boolean | undefined;
   const response = await followSiteAudit(auditId, projectDomain, {
