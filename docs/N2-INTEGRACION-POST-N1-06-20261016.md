@@ -6,9 +6,9 @@ La matriz completa está en [REVISION-INTEGRACION-N2-CLAUDE-RESOLUCION-20261016.
 
 - Se corrigieron permisos de `updated_at`, eliminación de keywords y recibos S1; se añadió el fixture de rollback de contención. El borrado de keywords requiere `delete-data`; una prueba E2E valida que analyst no puede borrar y titular sí con confirmación.
 - El allowlist outbox ahora conserva explícitamente acciones acumuladas S1 → SEO → Competidores. El helper dinámico anterior falló al serializar arrays y se eliminó; la migración canónica corregida pasa integración y pgTAP.
-- Export v2 anterior y export actual con N2 disponible no se confunden. Con N2 deshabilitado el endpoint declara omisiones, no firma manifiesto y reporta `UNPROVEN`; los errores de lectura con N2 activo no producen fallback. No se presenta una exportación que omite datos N2 como completa.
+- Se corrigió la regresión posterior de exportación: el esquema anterior a N2, acreditado y comprobado por catálogo SQL, conserva v2 con manifiesto firmado. Si N2 está completo, el endpoint entrega v3 incluso con la bandera de interfaz apagada. Un esquema incierto o un error de lectura aborta sin fallback. El sondeo del esquema y el outbox se repiten antes de firmar; esos controles no equivalen a una instantánea transaccional.
 - El restore no reasigna autoría al operador; preflight aborta si faltan cuentas de autores. R1 y la retención/anonimización legal siguen pendientes de decisión.
-- Última validación local en stack exclusivo `rubik-n2-audit-20261016`: `npm run verify` 58/514 PASS; integración 20/121 PASS; pgTAP 26/734 PASS; Playwright 157 PASS / 50 SKIP / 0 FAIL de 207. Limpieza E2E: 11 usuarios/2 organizaciones propios, sin residuos.
+- La validación local de esta corrección se registra por SHA funcional en [REVISION-INTEGRACION-N2-CLAUDE-RESOLUCION-20261016.md](REVISION-INTEGRACION-N2-CLAUDE-RESOLUCION-20261016.md). Las cifras 58/514, 20/121, 26/734 y 157/50 pertenecen al HEAD anterior `f9ef98a`, no acreditan el nuevo exportador.
 - No se ejecutaron migraciones alojadas ni se consultaron Supabase alojado, Vercel Preview, proveedores o datos reales de Sarah. GitHub Actions sigue bloqueada antes de ejecutar pasos por facturación.
 - Los interruptores adicionales y la futura v4 citados en el informe Claude son propuestas. No son decisiones aprobadas ni están implementadas aquí.
 
