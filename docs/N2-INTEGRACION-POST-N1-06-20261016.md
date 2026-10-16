@@ -15,9 +15,16 @@
 - pgTAP y Playwright combinados: pendientes de ejecutar en un stack local desechable exclusivo.
 - GitHub Actions continúa bloqueada por facturación; no hay CI verde para esta integración.
 
+## Corrección del destino de integración local · 16/10/2026
+
+- En el checkout limpio `e3257613194fd5fd5053a96ee6b173299db441be`, el propietario ejecutó el runner y obtuvo 16 archivos aprobados, 2 fallidos, 107 pruebas aprobadas, 9 fallidas y 3 omitidas. Los fallos fueron en Competidores y recuperación v3; PostgREST devolvió `PGRST205` porque el stack SEO de `59321` no tenía las tablas `competitors` ni `competitor_observations`.
+- La consulta SQL local de solo lectura confirmó que `rubik-n2-integration-20261016` (`60321/60322`) sí tiene `seo_keywords`, `competitors` y `competitor_observations`; `rubik-n2-seo-20261015` (`59321/59322`) solo tiene `seo_keywords`. No se aplicaron migraciones ni se reseteó ninguno de los stacks.
+- El verificador se corrigió para seleccionar el stack combinado exacto, comprobar URL API, puerto DB, nombre del contenedor y presencia de las tres tablas antes de modificar el rol local o iniciar pruebas. Si el esquema no coincide, aborta con un error explícito. `scripts/n2-integration-stack.mjs` solo genera una configuración CLI ignorada bajo `test-results/`; no inicia, detiene ni resetea contenedores.
+- `npm run verify` tras esta corrección: **512/512 unitarias**, lint, tipos, secreto/core pin y build PASS; `git diff --check` PASS. El stack Docker de la máquina propietaria no es accesible desde este runtime, así que queda pendiente repetir integración, pgTAP y E2E desde el runner corregido en `60321`.
+
 ## Gaps que bloquean el merge
 
-1. Ejecutar desde cero todas las migraciones en Supabase local desechable y completar integración, pgTAP, E2E y verificación de exportación/restauración sobre el mismo SHA combinado.
+1. Ejecutar integración, pgTAP, E2E y verificación de exportación/restauración sobre el mismo SHA combinado mediante el stack local combinado `rubik-n2-integration-20261016`. No resetear ni migrar un stack existente para resolver una discrepancia de destino.
 2. Revisar el contrato de recuperación v3 con manifests v1/v2, lecturas operativas parciales, integridad de firmas, restauración idempotente y restricción al mismo proyecto.
 3. Confirmar una vez más que los contadores de acciones de auditoría de #114/#115 no se sobrescriben según el orden de migración.
 4. Reconciliar navegación y `database.types.ts` regenerando tipos contra el esquema completo combinado si la batería lo requiere.

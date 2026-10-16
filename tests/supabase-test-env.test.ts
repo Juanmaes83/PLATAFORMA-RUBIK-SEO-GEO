@@ -57,9 +57,20 @@ describe("local test API / SQL destination binding (no database operations)", ()
       expect(() => localSupabaseEnv(), pair.join("/")).toThrow("Refused");
     }
   });
+  it("binds the combined N2 integration stack to its exact API, DB port and Docker container", () => {
+    vi.stubEnv("RUBIK_TEST_N2_INTEGRATION_STACK", "1");
+    shell.execSync.mockReturnValue(status(60321, 60322));
+    shell.execFileSync.mockReturnValue("0.0.0.0:60322\n[::]:60322\n");
+    expect(localSupabaseEnv().apiUrl).toBe("http://127.0.0.1:60321");
+    expect(localDatabaseContainer()).toBe("supabase_db_rubik-n2-integration-20261016");
+    for (const pair of [[59321, 59322], [60321, 59322], [54321, 54322]]) {
+      shell.execSync.mockReturnValue(status(pair[0], pair[1]));
+      expect(() => localSupabaseEnv(), pair.join("/")).toThrow("Refused");
+    }
+  });
   it("refuses two selectors instead of picking one by precedence", () => {
     shell.execSync.mockReturnValue(status(57321, 57322));
-    for (const other of ["RUBIK_TEST_S1_STACK", "RUBIK_TEST_ISOLATED_STACK"]) {
+    for (const other of ["RUBIK_TEST_S1_STACK", "RUBIK_TEST_ISOLATED_STACK", "RUBIK_TEST_N2_STACK"]) {
       vi.unstubAllEnvs();
       vi.stubEnv("RUBIK_TEST_CLAUDE_S1_STACK", "1");
       vi.stubEnv(other, "1");
