@@ -64,9 +64,11 @@ export async function readContentGeoRecoveryState(client: SupabaseClient<Databas
   if (opportunities.rows.some((row) => row.cluster_id !== null && !clusterIds.has(row.cluster_id))
     || evidence.rows.some((row) => !opportunityIds.has(row.opportunity_id))
     || briefs.rows.some((row) => !opportunityIds.has(row.opportunity_id))
-    || geoObservations.rows.some((row) => row.supersedes_id !== null && !observationIds.has(row.supersedes_id))
-    || geoProposals.rows.some((row) => row.evidence_ids.some((id) => !observationIds.has(id))))
+    || geoObservations.rows.some((row) => row.supersedes_id !== null && !observationIds.has(row.supersedes_id)))
     return { ok: false, error: "CONTENT_GEO_RELATION_MISSING" };
+
+  // geo_proposals.evidence_ids is a historical array, not a foreign key. A deleted
+  // observation deliberately leaves its ID as a tombstone in the proposal.
 
   return { ok: true, value: { clusters: clusters.rows, opportunities: opportunities.rows,
     evidence: evidence.rows, briefs: briefs.rows, geoObservations: geoObservations.rows,

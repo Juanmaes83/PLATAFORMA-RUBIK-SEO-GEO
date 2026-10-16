@@ -9,6 +9,7 @@ Fecha: 17/10/2026 (Europe/Madrid). Rama local `codex/n2-content-geo-integration-
 - La navegación y las acciones de Contenidos/GEO obedecen `RUBIK_N2_SCHEMA_AVAILABLE=true`; con la bandera apagada no se muestran ni permiten escrituras. Las rutas directas requieren sesión/membresía y responden 404 si el módulo no está disponible.
 - Hallazgo de recuperabilidad: la exportación v3 incluía SEO/Competidores pero podía etiquetar como completa una base con tablas de Contenidos/GEO. El contrato ahora devuelve `unknown` y el endpoint falla con 503 ante cualquiera de esas seis tablas. El inventario las identifica como pendientes de v4. Es **contención provisional**, no exportación/recuperación de esos datos. No fusionar este código como producto hasta tener v4 con restauración, compatibilidad y pruebas.
 - La base de lectura v4 ya tiene un lector de las seis tablas, paginado con conteo exacto y cursor estable, que comprueba relaciones entre clústeres, oportunidades, briefs, evidencias y observaciones/propuestas GEO. Una prueba de integración confirma que el propietario ve su clúster ficticio y otra organización no lo ve. Aún no se conecta a un formato firmado ni a restauración.
+- Corrección del contrato GEO histórico: `geo_proposals.evidence_ids` conserva el ID de una observación borrada como lápida; el lector no rechaza esa referencia. Ensayo dirigido: crear observación/propuesta ficticias, borrar la observación, leer la propuesta y comprobar aislamiento del otro tenant: 1/1 PASS.
 
 ## Evidencia local sobre el árbol previo al commit de checkpoint
 
