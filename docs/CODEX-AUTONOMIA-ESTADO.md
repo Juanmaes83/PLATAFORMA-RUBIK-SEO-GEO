@@ -5,6 +5,7 @@
 - Integración local en `codex/n2-content-geo-integration-20261016` desde #119 `b423b11` y main `7ad4008`; sin PR de producto mientras #119 siga Draft. #116/#117 combinadas por merges semánticos, tipos regenerados desde el esquema local. Detalle y próxima acción exacta en [N2-CONTENIDOS-GEO-INTEGRACION-20261017.md](N2-CONTENIDOS-GEO-INTEGRACION-20261017.md).
 - Pruebas del árbol previo al checkpoint: verify 566 PASS/1 SKIP, integración 139/139, pgTAP 857/857, E2E dirigido 13 PASS/8 SKIP/0 FAIL, gate de exportación/inventario 2/2; stack exclusivo 65321/65322. SHA final local/remoto: comprobar tras el commit y push de este checkpoint. GitHub Actions bloqueada por facturación.
 - Bloqueo de producto: seis tablas de Contenidos/GEO aún no están en exportación/restauración. El contrato rechaza v3 con 503 cuando detecta alguna, evitando un archivo engañosamente completo. Siguiente trabajo: formato v4 firmado, verificación y restauración idempotente probadas en proyecto ficticio; después rollback/E2E combinado y reconciliación con main tras fusión supervisada de #119. No aplicar alojado ni activar N2.
+- Avance posterior: lector completo de las seis tablas con comprobación de relaciones, typecheck/lint PASS e integración dirigida 1/1; rollback de contención de ambas migraciones y reaplicación en el stack propio, pgTAP posterior 857/857. Falta conectar el lector a formato v4 y restauración; el 503 sigue siendo obligatorio.
 
 ## Checkpoint N2-10 · 16/10/2026, integración #119
 
