@@ -17,7 +17,7 @@ La exportación la descarga solo el owner (`export-data`) desde `/proyectos/{ten
 | `operations.webmaster` | RPC `webmaster_property(get)` para Search Console y Bing | Propiedad `ACTIVE` o `null` |
 | `operations.notIncluded` | Lista fija | Lo que el fichero **no** permite recuperar |
 
-Cada parte de `operations` lleva su propio `ok` o código de error. Si falla una, el resto sigue; ninguna se rellena con valores supuestos. La exportación solo usa comandos de lectura, nunca `acquire`, `bind`, `complete`, `fail`, `connect` ni `revoke`, y no incluye secretos.
+Cada parte de `operations` lleva su propio `ok` o código de error. Si falla una, el resto sigue para diagnóstico, pero la ruta de descarga ahora rechaza el fichero con 503 antes de firmarlo. Ninguna se rellena con valores supuestos. La exportación solo usa comandos de lectura, nunca `acquire`, `bind`, `complete`, `fail`, `connect` ni `revoke`, y no incluye secretos. La guarda R1 también rechaza recibos de auditoría pendientes del proyecto y caída del escritor; ver [N1-06 local](N1-06-RECUPERACION-LOCAL-20261015.md).
 
 **Integridad de la descarga (corrección 10/10/2026):** la lectura de `audit_events`, `provider_results` e `imports` pagina por cursor estable y contrasta el recuento antes y después. Un límite de filas de PostgREST, una página perdida o un cambio de recuento no producen ya un fichero aparentemente completo: la exportación falla. El límite actual es 10 000 filas por colección para evitar una descarga ilimitada en memoria; superarlo requiere un exportador por lotes, no omitir filas. El endpoint registra `project.export` antes de leer, por lo que un intento fallido puede dejar ese evento de auditoría, pero no devuelve un fichero parcial. La prueba automatizada simula un servidor que entrega como máximo 100 filas por respuesta y comprueba 1001 resultados, cambio de recuento y límite excedido (`tests/project-export-pagination.test.ts`). Las peticiones paginadas no comparten una transacción: un reemplazo concurrente que preserve el mismo recuento todavía requeriría un snapshot transaccional para detectarse con certeza. Esto no acredita todavía la descarga real de Sarah.
 
@@ -53,7 +53,7 @@ Para que el propietario verifique en su equipo una exportación descargada de Pr
 - No envía nada por red, no escribe nada y no repara ni re-firma el fichero.
 - No imprime claves ni valores de clave: del anillo solo muestra cuántas claves tiene y el identificador de la activa, que no es secreto (ADR 0004).
 - Se niega a usar un fichero versionado en Git y avisa si la exportación o el anillo están dentro del repositorio.
-- El estado Google (`operations.google`) se muestra como recuento informativo: no va firmado y no cuenta para el veredicto. Si aparece «sin operations.google» o «no disponible», la migración `20261012130000` no estaba aplicada al exportar.
+- El estado Google (`operations.google`) se muestra como recuento informativo: sus filas no llevan HMAC individual, pero el bloque queda cubierto por el manifiesto firmado del archivo v2. Si aparece «sin operations.google» o «no disponible», investigar la versión y el fallo de lectura antes de tratar la copia como recuperable. Los archivos v2 anteriores a la guarda R1 pueden tener un manifiesto válido sobre un estado operativo parcial.
 
 **Procedimiento para J3 (lo ejecuta Juanma):**
 1. Requisitos: Node 22.12 o posterior y una copia del repositorio con `npm ci`. No hace falta `.env` de la aplicación.

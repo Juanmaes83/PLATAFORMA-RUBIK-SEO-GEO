@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { randomUUID } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
+import { execSync } from "node:child_process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Database } from "@/lib/supabase/database.types";
 import { consentedMembership } from "../fixtures/consented-membership";
@@ -247,6 +248,22 @@ describe("Group 3 · raw HTTP against the Data API", () => {
       expect(response.status).toBe(401);
       expect(await response.text()).not.toContain("matriz-a1");
     }
+  });
+
+  it("an authentically signed but expired LOCAL bearer token cannot read A1", async () => {
+    const status = execSync(`${process.env.SUPABASE_CLI} status -o env`, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+    const secret = status.match(/^JWT_SECRET="?([^"\r\n]+)"?$/m)?.[1];
+    if (!secret) throw new Error("Local JWT secret unavailable; expiry test cannot be skipped");
+    const real = await token(clients.ownerA);
+    const [header, payload] = real.split(".");
+    const claims = JSON.parse(Buffer.from(payload, "base64url").toString());
+    claims.exp = Math.floor(Date.now() / 1000) - 60;
+    const expiredPayload = Buffer.from(JSON.stringify(claims)).toString("base64url");
+    const signed = `${header}.${expiredPayload}`;
+    const expired = `${signed}.${createHmac("sha256", secret).update(signed).digest("base64url")}`;
+    const response = await rest(`/rest/v1/projects?select=slug&id=eq.${ids.a1}`, expired);
+    expect(response.status).toBe(401);
+    expect(await response.text()).not.toContain("matriz-a1");
   });
 
   it("GraphQL returns nothing of tenant A to an anonymous caller or an outsider", async () => {

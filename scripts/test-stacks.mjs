@@ -11,6 +11,7 @@ export const STACKS = {
   s1: { selector: "RUBIK_TEST_S1_STACK", apiPort: 56321, dbPort: 56322, projectId: "rubik-s1-writer-20261015" },
   // Claude S1 integration worktree (test-results/claude-s1-stack, scripts/claude-s1-stack.mjs).
   claudeS1: { selector: "RUBIK_TEST_CLAUDE_S1_STACK", apiPort: 57321, dbPort: 57322, projectId: "rubik-claude-s1-20261015" },
+  n1Recovery: { selector: "RUBIK_TEST_N1_RECOVERY_STACK", apiPort: 58321, dbPort: 58322, projectId: "rubik-n1-recovery-20261015" },
 };
 
 /** The stack selected by the environment. More than one selector is refused, never resolved by precedence. */
