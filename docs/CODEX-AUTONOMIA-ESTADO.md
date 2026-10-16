@@ -1,5 +1,11 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
+## Reconciliación main tras #113 · 16/10/2026, 10:45 UTC
+
+- GitHub `main@b6555eaa8190ed8668c501813fda01e06c75163c`, squash merge de [#113](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/113) a las 08:07 UTC; #114 `e68fbd4` y #115 `52ce3a1` siguen OPEN/Draft. La rama combinada nació del main anterior y contiene el HEAD original de #113; se incorporó el nuevo main mediante merge semántico, sin force push ni segunda copia funcional de N1-06. Comprobar HEAD de esta rama tras commit/push. Los checkpoints de abajo describen estados históricos antes de esta fusión.
+- Los tres conflictos revisados fueron este checkpoint, `scripts/test-stacks.mjs` y la ruta de exportación. Se conservaron entradas de stacks independientes, el comportamiento S1 de outbox del main y la extensión v3 SEO. Repetir pruebas dirigidas de exportación/restore, tipos y diff antes de atribuir al nuevo merge las suites previas.
+- Comprobación tras resolver: `npm run verify` 511/511 PASS, lint/tipos/build PASS; integración dirigida de v3 y outbox 8/8 PASS (2 archivos); E2E de importaciones/exportación escritorio 3/3 PASS y limpieza propia completa. pgTAP 718/718 y E2E completo anteriores pertenecen al corte previo de la misma lógica de producto; no se han repetido tras el merge documental y semántico. `git diff --check` y ausencia de marcadores de conflicto comprobados.
+
 ## Checkpoint de seguridad de restauración · 16/10/2026, 10:40 UTC
 
 - HEAD publicado anterior `9631137` en `codex/n2-integration-113-114-115-20261016`; comprobar nuevo SHA tras push. Prueba v3 dirigida 4/4 PASS: conflicto de dominio aborta SQL sin escritura parcial. Rollback URL corregido para revocar grants de tabla **y de columna**; ensayo transaccional en stack propio: `t|t → f|f → t|t` para INSERT/UPDATE JWT, con ROLLBACK final. Archivos nuevos de este corte: `tests/integration/seo-recovery-v3.integration.test.ts`, `supabase/rollbacks/20261016110000_n2_seo_keyword_target_guard.sql` y documentos de continuidad. No se han repetido suites completas porque no cambió producción ni la migración aplicada; los resultados del corte `365b0c2` siguen registrados abajo.
