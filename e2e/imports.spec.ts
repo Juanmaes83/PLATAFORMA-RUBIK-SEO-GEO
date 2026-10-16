@@ -101,19 +101,26 @@ test.describe("manual import flow", () => {
     expect(response.status()).toBe(200);
     expect(response.headers()["content-disposition"]).toMatch(new RegExp(`^attachment; filename="${TENANT}-${PROJECT}-\\d{4}-\\d{2}-\\d{2}\\.json"$`));
     const exported = await response.json();
-    expect(exported.format).toBe("rubik-project-export-v2");
-    // v2 operational state: read through owner RPCs, each part with its own outcome, no secrets.
+    expect(exported.format).toBe("rubik-project-export-v3");
+    // v3 keeps the v2 operational state and adds project-scoped SEO declarations.
     expect(exported.operations.openseo.connection.ok).toBe(true);
     expect(exported.operations.openseo.activeJob.ok).toBe(true);
     expect(exported.operations.webmaster.searchConsole).toEqual({ ok: true, value: null });
     expect(exported.operations.notIncluded.length).toBeGreaterThan(0);
+    expect(exported.seo.projectDomain).toBe("restaurante.ejemplo.test");
+    expect(Array.isArray(exported.seo.keywords)).toBe(true);
+    expect(Array.isArray(exported.seo.competitors)).toBe(true);
+    expect(Array.isArray(exported.seo.observations)).toBe(true);
     expect(JSON.stringify(exported)).not.toMatch(/PROVENANCE_SIGNING_KEYS|OPENSEO_API_KEY/);
     expect(exported.imports.length).toBeGreaterThan(0);
     expect(exported.audit.verification.valid).toBe(true);
     // Signed manifest over the finished body: counts and chain head match the file itself.
-    expect(exported.manifest).toMatchObject({ version: "rubik-export-manifest-v1", exportedAt: exported.exportedAt, scope: exported.scope,
+    expect(exported.manifest).toMatchObject({ version: "rubik-export-manifest-v2", exportedAt: exported.exportedAt, scope: exported.scope,
       audit: { count: exported.audit.rows.length, headHash: exported.audit.rows.at(-1).hash },
-      results: { count: exported.results.length }, imports: { count: exported.imports.length }, keyId: "k-e2e" });
+      results: { count: exported.results.length }, imports: { count: exported.imports.length },
+      seo: { projectDomain: "restaurante.ejemplo.test",
+        keywords: { count: exported.seo.keywords.length }, competitors: { count: exported.seo.competitors.length },
+        observations: { count: exported.seo.observations.length } }, keyId: "k-e2e" });
     expect(exported.manifest.signature).toMatch(/^[0-9a-f]{64}$/);
     expect(exported.audit.rows.map((r: { action: string }) => r.action)).toContain("import.file");
 

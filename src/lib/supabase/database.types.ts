@@ -27,6 +27,50 @@ isOneToOne: false
       referencedColumns: ["id","organization_id"]
     }
                   ]
+                },"competitor_observations": {
+                  Row: {
+                    "availability": string,"competitor_id": string | null,"created_at": string,"created_by": string | null,"device": string | null,"id": string,"market_country": string | null,"market_language": string | null,"method": string,"metric": string,"notes": string | null,"observed_on": string,"organization_id": string,"project_id": string,"source_name": string,"source_reference": string | null,"value": number | null,"verification": string,"verified_at": string | null,"verified_by": string | null
+                  }
+                  Insert: {
+                    "availability": string,"competitor_id"?: string | null,"created_at"?: string,"created_by"?: string | null,"device"?: string | null,"id"?: string,"market_country"?: string | null,"market_language"?: string | null,"method": string,"metric": string,"notes"?: string | null,"observed_on": string,"organization_id": string,"project_id": string,"source_name": string,"source_reference"?: string | null,"value"?: number | null,"verification"?: string,"verified_at"?: string | null,"verified_by"?: string | null
+                  }
+                  Update: {
+                    "availability"?: string,"competitor_id"?: string | null,"created_at"?: string,"created_by"?: string | null,"device"?: string | null,"id"?: string,"market_country"?: string | null,"market_language"?: string | null,"method"?: string,"metric"?: string,"notes"?: string | null,"observed_on"?: string,"organization_id"?: string,"project_id"?: string,"source_name"?: string,"source_reference"?: string | null,"value"?: number | null,"verification"?: string,"verified_at"?: string | null,"verified_by"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "competitor_observations_competitor_id_project_id_fkey"
+      columns: ["competitor_id","project_id"]
+isOneToOne: false
+      referencedRelation: "competitors"
+      referencedColumns: ["id","project_id"]
+    },{
+      foreignKeyName: "competitor_observations_project_id_organization_id_fkey"
+      columns: ["project_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "projects"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
+                },"competitors": {
+                  Row: {
+                    "archived_at": string | null,"created_at": string,"created_by": string | null,"domain": string,"id": string,"name": string | null,"notes": string | null,"organization_id": string,"project_id": string,"relation": string,"status": string,"updated_at": string
+                  }
+                  Insert: {
+                    "archived_at"?: string | null,"created_at"?: string,"created_by"?: string | null,"domain": string,"id"?: string,"name"?: string | null,"notes"?: string | null,"organization_id": string,"project_id": string,"relation"?: string,"status"?: string,"updated_at"?: string
+                  }
+                  Update: {
+                    "archived_at"?: string | null,"created_at"?: string,"created_by"?: string | null,"domain"?: string,"id"?: string,"name"?: string | null,"notes"?: string | null,"organization_id"?: string,"project_id"?: string,"relation"?: string,"status"?: string,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "competitors_project_id_organization_id_fkey"
+      columns: ["project_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "projects"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
                 },"imports": {
                   Row: {
                     "captured_at": string,"created_at": string,"created_by": string,"error_count": number,"errors": NonNullable<Json>,"file_bytes": number,"file_sha256": string,"finding_count": number,"findings": NonNullable<Json>,"format": string,"id": string,"organization_id": string,"period_end": string | null,"period_start": string | null,"project_id": string,"source_kind": string,"source_label": string,"source_tool": string | null,"source_url": string | null,"status": string
@@ -135,6 +179,25 @@ isOneToOne: false
                   Relationships: [
                     {
       foreignKeyName: "provider_results_project_id_organization_id_fkey"
+      columns: ["project_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "projects"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
+                },"seo_keywords": {
+                  Row: {
+                    "country_code": string,"created_at": string,"created_by": string,"id": string,"intent": string,"language_code": string,"organization_id": string,"phrase": string,"project_id": string,"target_url": string | null,"topic": string,"updated_at": string
+                  }
+                  Insert: {
+                    "country_code": string,"created_at"?: string,"created_by"?: string,"id"?: string,"intent"?: string,"language_code": string,"organization_id": string,"phrase": string,"project_id": string,"target_url"?: string | null,"topic"?: string,"updated_at"?: string
+                  }
+                  Update: {
+                    "country_code"?: string,"created_at"?: string,"created_by"?: string,"id"?: string,"intent"?: string,"language_code"?: string,"organization_id"?: string,"phrase"?: string,"project_id"?: string,"target_url"?: string | null,"topic"?: string,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "seo_keywords_project_id_organization_id_fkey"
       columns: ["project_id","organization_id"]
 isOneToOne: false
       referencedRelation: "projects"

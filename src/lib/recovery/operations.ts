@@ -45,6 +45,12 @@ export const NOT_INCLUDED = Object.freeze([
   "openseo-jobs-without-stored-results: jobs that never stored a result have no audit id to look them up",
   "google-captures-in-flight: reserved or released capture keys hold no result and are not exported; only stored captures are",
   "credentials: no provider credential is stored by the platform or exported",
+  "memberships: organization and project roles are not restored from an export; establish access through the approved membership flow",
+  "organization-project-metadata: only scope identity is bound; display metadata and other records are recreated or reviewed manually",
+  "provider-budgets-and-spend: financial limits and usage ledger are excluded and require separate owner reconciliation",
+  "project-invitations: invitation records are excluded and must not be replayed",
+  "audit-idempotency: internal request deduplication keys are excluded",
+  "audit-outbox: pending receipts block export; completed receipts are represented by signed audit events",
 ]);
 
 const AUDIT_ID = /^[A-Za-z0-9_-]{1,64}$/;
