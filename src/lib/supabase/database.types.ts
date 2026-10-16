@@ -1,5 +1,5 @@
-// Generated from the N2 LOCAL schema (supabase/migrations) with:
-// npx --yes supabase@2.118.0 --workdir test-results/n2-seo-stack gen types typescript --local --schema public
+// Generated from the combined #113/#114/#115 LOCAL schema with:
+// npx --yes supabase@2.118.0 --workdir test-results/n2-integration-stack gen types typescript --local --schema public
 // Do not edit by hand; regenerate after changing a migration.
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
 

@@ -76,7 +76,8 @@ it("v3 binds declarations, relations and verification without reinterpreting v1/
 });
 
 it("accepts an empty v3 project only when a valid signed manifest pins its identity", () => {
-  const { manifest: _manifest, ...body } = doc;
+  const body = structuredClone(doc);
+  delete body.manifest;
   const empty = { ...body, audit: { rows: [], verification: { valid: true } }, results: [], imports: [],
     seo: { projectDomain: "seo-restore.example.test", keywords: [], competitors: [], observations: [] } };
   const ref = { projectId, organizationId, scope: { tenantId: org, projectId: "site" } };
