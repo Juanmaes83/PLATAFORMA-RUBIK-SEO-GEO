@@ -14,7 +14,7 @@ if (!loaded.ok) throw new Error(loaded.error);
 const keyring = loaded.keyring;
 const projectId = randomUUID(), organizationId = randomUUID(), author = randomUUID();
 const ref = { projectId, organizationId, scope: { tenantId: "agencia-u", projectId: "site" } };
-const row = (extra: Record<string, unknown> = {}) => ({ id: randomUUID(), project_id: projectId, organization_id: organizationId, created_by: author, ...extra });
+const row = (extra: Record<string, unknown> = {}): Record<string, unknown> => ({ id: randomUUID(), project_id: projectId, organization_id: organizationId, created_by: author, ...extra });
 
 type Tables = Record<string, Record<string, unknown>[]>;
 /** Minimal stand-in for the Data API: count, then pages ordered by id; `fail`/`changeCount` inject faults. */
