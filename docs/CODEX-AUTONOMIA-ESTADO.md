@@ -1,5 +1,11 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
+## Corte vigente · 17/10/2026, identidad y N1 alojado
+
+- Production SEO/GEO → Supabase `yvdgmklgwlshizzgefpv` (nombre `plataforma-rubik-seo-geo-dev`); `jlrppmpopaodpxtqtwmn` es Funding OS y está excluido. Seguir la [regla de identidad y parada](SUPABASE-IDENTIDAD-ENTORNOS-20261017.md) antes de operar con cualquier cuenta, conector o terminal.
+- La terminal del propietario aplicó las 11 N1 desde `b6555eaa8190ed8668c501813fda01e06c75163c` y verificó 27 migraciones remotas hasta `20261015210000`, escritor NOLOGIN/NOBYPASSRLS, outbox con 0 pendientes, INSERT sensibles denegados y antiguas políticas INSERT ausentes. **No repetir `db push` N1.** Es evidencia de esquema, no de flujos alojados. Faltan escritor operativo, N1-05 y recuperación Sarah; H1 parcial y H2 bloqueado. El checkpoint inferior de 16 versiones es histórico.
+- Para el siguiente agente: verificar `main`, Production y PR vigentes; continuar la integración N2 por su propia secuencia. La lista exacta de migraciones N2 y el estado de #119/#116/#117 se revalidan antes de actuar. No usar Funding OS como atajo si el conector no accede al ref SEO/GEO.
+
 ## Corte vigente · 16/10/2026, tras fusión #121 y ensayo de respaldo
 
 - `main@be65e4456c1a1e08d4bb2c32d8b5eae51fae289a`; #120 MERGED en `9365387`, #121 MERGED en `be65e44`. Production READY y `/api/salud` con el mismo ref se comprobaron también para `be65e44` desde supervisión. Evidencia local histórica #121: verify 533 PASS/1 SKIP, integración 123/123, pgTAP 733/733 y E2E dirigido 11 PASS/16 SKIP. GitHub Actions bloqueada por facturación.

@@ -1,5 +1,7 @@
 # Ventana alojada N1 · corte de supervisión 16/10/2026
 
+> **ACTUALIZACIÓN POSTERIOR · 17/10/2026: SQL N1 EJECUTADO.** La terminal del propietario aplicó las 11 migraciones de esta ventana al ref SEO/GEO `yvdgmklgwlshizzgefpv` desde el commit exacto `b6555eaa8190ed8668c501813fda01e06c75163c` y comprobó 27 versiones remotas hasta `20261015210000`. El catálogo posterior mostró `rubik_audit_writer` NOLOGIN/NOBYPASSRLS, `private.audit_outbox` existente (0 pendientes), denegación de INSERT efectivo a `authenticated` en las tres tablas sensibles y ninguna de las antiguas políticas INSERT. **No volver a ejecutar los comandos de aplicación de esta página:** lo que sigue es el protocolo histórico, no una tarea pendiente. Falta acreditar escritor operativo, pruebas alojadas N1-05 y recuperación Sarah; H1 parcial, H2 bloqueado. Identificar siempre el proyecto con [la regla de entornos](SUPABASE-IDENTIDAD-ENTORNOS-20261017.md).
+
 Estado: **destino confirmado, migraciones sin ejecutar**. H1 parcial y H2 bloqueado. No registrar valores de secretos, JWT, datos Sarah ni copias SQL en GitHub o en el chat.
 
 **Evidencia posterior:** [respaldo lógico y restauración aislada del candidato](n1-cierre/N1-RESPALDO-RESTAURACION-CANDIDATO-20261016.md) PASS dentro de su cobertura; la custodia operativa portable, el corte global y los servicios Auth/Storage/Realtime siguen pendientes. El `db push --dry-run` desde `b6555ea` enumeró exactamente las 11 N1, sin aplicarlas.
