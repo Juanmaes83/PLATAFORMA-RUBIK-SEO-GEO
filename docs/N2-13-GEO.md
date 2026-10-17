@@ -1,7 +1,8 @@
 # N2-13 · GEO e IA con evidencia (primer incremento)
 
-Estado: **implementado y probado en local; no operativo en ningún entorno alojado.** Rama
-`claude/n2-13-geo-evidence-v1`, base `main@d12b80e`, independiente de N2-11 (#115) y N2-12 (#116).
+Estado: **integrado en local sobre `main@f5afc09` en la rama `claude/n2-12-13-integration-20261017`**
+(sin PR ni merge); no operativo en ningún entorno alojado. Origen: #117 (`claude/n2-13-geo-evidence-v1`,
+base `main@d12b80e`). Integración, contrato de recuperación y pruebas: [N2-12/N2-13 · integración sobre main](N2-12-13-INTEGRACION-20261017.md).
 
 ## Inventario previo (B1)
 
@@ -10,9 +11,9 @@ Estado: **implementado y probado en local; no operativo en ningún entorno aloja
 | Contrato AI Citation Monitoring (Release E) | Core `@rubik/seo-geo-core/authority` (`normalizeCitationObservation`, `SOURCE_TYPES`, `OBSERVATION_STATUSES`) | Vocabulario reutilizado: mención ≠ cita, entidad propia/competidor, proveedor/modelo, procedencia `MANUAL`. Registro Core por observación (`coreCitation`). |
 | Escritor confiable S1, outbox, recibos | `main` | Recibos `geo.*` en la misma transacción, firmados después. |
 | Proyectos, organizaciones, roles, RLS | `main` | Mismo patrón y matriz Core. |
-| Contenidos y briefs (N2-12) | PR #116, Draft | Adaptador `contentTarget`: «no integrado». |
-| Competidores (N2-11) | PR #115, Draft | Adaptador `competitorNames`: «no integrado». |
-| Keywords (N2-09) | PR #114, Draft (Codex) | Adaptador `keywordQuestions`: «no integrado». |
+| Contenidos y briefs (N2-12) | Esta misma integración | Adaptador `contentTarget`: «no integrado» (enlace pendiente). |
+| Competidores (N2-11) | `main` (#120) | Adaptador `competitorNames`: «no integrado» (lectura pendiente). |
+| Keywords (N2-09) | `main` (#120) | Adaptador `keywordQuestions`: «no integrado» (lectura pendiente). |
 | Consultas automáticas a motores | — | **No existen ni se activan.** Sin autorización, proveedor ni presupuesto. |
 
 **Discrepancia con el Core (propuesta, sin modificarlo):** `normalizeCitationObservation` marca como
@@ -64,18 +65,16 @@ RLS y FKs compuestas por proyecto/organización; una corrección o una propuesta
 observaciones de otro proyecto; texto hostil guardado como dato y mostrado escapado (prueba E2E con
 `<img onerror>`); URLs solo http(s), sin credenciales, mostradas como texto; ninguna petición sale
 de la plataforma (prueba de integración que intercepta `fetch` durante todo el flujo); recibos S1
-con la lista de acciones reconstruida de forma aditiva (convive con `competitor.*` y `content.*`).
+con la lista de acciones completa y fija (43 acciones: S1, SEO, competidores, contenidos y GEO).
 
 ## Migración, rollback y dependencias
 
 - `supabase/migrations/20261017110000_n2_13_geo_observations.sql`; rollback de contención
   `supabase/rollbacks/20261017110000_n2_13_geo_observations.sql` ensayado con datos y reaplicado.
-- **#113:** `geo_observations` y `geo_proposals` no entran todavía en exportación/recuperación →
-  **no listo para datos reales** hasta integrarlas.
-- **#115/#116:** orden de migraciones compatible con el bloque aditivo; N2-11 debe adoptarlo (ver #116).
-- Archivos compartidos: `navigation.ts` (+6, entrada antes de «Conectores»), `database.types.ts`
-  (regenerar al integrar), `globals.css` (regla `textarea` **idéntica** a #116),
-  `src/types/rubik-seo-geo-core.d.ts` (+ declaración mínima del subpath `authority`).
+- **Exportación/recuperación:** incluidas en la exportación **v4** firmada (manifiesto v3); autores,
+  verificadores y revisores se exigen al restaurar y nunca se sustituyen. Detalle: [N2-12/N2-13 · integración sobre main](N2-12-13-INTEGRACION-20261017.md).
+- **Barrera:** `RUBIK_N2_CONTENT_GEO_SCHEMA_AVAILABLE=true` además de `RUBIK_N2_SCHEMA_AVAILABLE=true`.
+- Autoría y verificación con FK a `auth.users` (retención, como `seo_keywords`).
 - No aplicada en alojado.
 
 ## Limitaciones

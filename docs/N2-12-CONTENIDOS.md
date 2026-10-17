@@ -1,7 +1,8 @@
 # N2-12 · Estrategia de contenidos (primer incremento)
 
-Estado: **implementado y probado en local; no operativo en ningún entorno alojado.** Rama
-`claude/n2-12-content-strategy-v1`, base `main@d12b80e`. Inventario y matriz de datos:
+Estado: **integrado en local sobre `main@f5afc09` en la rama `claude/n2-12-13-integration-20261017`**
+(sin PR ni merge); no operativo en ningún entorno alojado. Origen: #116 (`claude/n2-12-content-strategy-v1`,
+base `main@d12b80e`). Integración, contrato de recuperación y pruebas: [N2-12/N2-13 · integración sobre main](N2-12-13-INTEGRACION-20261017.md). Inventario y matriz de datos:
 [N2-12-CONTENIDOS-INVENTARIO-20261016](N2-12-CONTENIDOS-INVENTARIO-20261016.md).
 
 ## Qué puede hacer un usuario
@@ -54,7 +55,8 @@ petición (retirar el acceso surte efecto inmediato). Un JWT caducado es rechaza
 Recibo en `private.audit_outbox` en la misma transacción por cada alta, cambio, revisión o borrado
 (`content.cluster|opportunity|evidence|brief.*`), con el rol vivo del proyecto; firmado después por
 el escritor de confianza (`src/lib/content/audit.ts`). Las cascadas no generan recibos huérfanos.
-La lista de acciones permitidas se **reconstruye de forma aditiva** a partir de la restricción viva.
+La lista de acciones permitidas es **completa y fija** en cada migración (S1 → SEO → competidores →
+contenidos → GEO), la convención de main desde #120; ya no se reconstruye de forma aditiva.
 
 ## Migración, rollback y dependencias
 
@@ -62,16 +64,13 @@ La lista de acciones permitidas se **reconstruye de forma aditiva** a partir de 
   `supabase/rollbacks/20261017100000_n2_12_content_strategy.sql`: retira grants y políticas, conserva
   datos, recibos y la restricción ampliada. Ensayado con datos: rollback → lectura denegada → reaplicar
   la sección de privilegios → lectura restablecida, datos intactos.
-- **Orden con N2-11 (#115):** aplicadas por fecha (N2-11 y luego N2-12) conviven. Si N2-11 se aplicase
-  después de N2-12 (fuera de orden), su lista fija retiraría las acciones `content.*`. Antes de fusionar
-  la segunda, dar a N2-11 el mismo bloque aditivo. Ensayado en transacción.
-- **Exportación/recuperación (#113):** las tablas nuevas no entran todavía en la exportación del
-  proyecto. Contrato: añadir `content_clusters`, `content_opportunities`, `content_evidence` y
-  `content_briefs` al paquete de exportación y a la verificación de completitud cuando #113 esté
-  fusionada. **Hasta entonces el módulo no está listo para datos reales.**
-- **Archivos compartidos:** `src/lib/navigation.ts` (+6 líneas, entrada propia antes de «Borradores»,
-  hunk distinto de #114 y #115), `src/lib/supabase/database.types.ts` (regenerado; conflicto previsible
-  con #114/#115, resolver regenerando), `src/app/globals.css` (+1 regla para `textarea`).
+- **Orden de migraciones:** fijo por fecha tras las N2 de main (`20261015220000` … `20261016120000`); aplicar
+  fuera de orden no está soportado.
+- **Exportación/recuperación:** incluidas en la exportación **v4** firmada (manifiesto v3) y en su
+  restauración; v1–v3 sin cambios. Detalle: [N2-12/N2-13 · integración sobre main](N2-12-13-INTEGRACION-20261017.md).
+- **Barrera:** `RUBIK_N2_CONTENT_GEO_SCHEMA_AVAILABLE=true` además de `RUBIK_N2_SCHEMA_AVAILABLE=true`.
+- **Corrección de la integración:** editar un clúster fallaba en el trigger de auditoría (leía `new.status`);
+  corregido con `to_jsonb`. Autoría con FK a `auth.users` (retención, como `seo_keywords`).
 - No aplicada en alojado.
 
 ## Limitaciones

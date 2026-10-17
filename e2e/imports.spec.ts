@@ -101,8 +101,11 @@ test.describe("manual import flow", () => {
     expect(response.status()).toBe(200);
     expect(response.headers()["content-disposition"]).toMatch(new RegExp(`^attachment; filename="${TENANT}-${PROJECT}-\\d{4}-\\d{2}-\\d{2}\\.json"$`));
     const exported = await response.json();
-    expect(exported.format).toBe("rubik-project-export-v3");
-    // v3 keeps the v2 operational state and adds project-scoped SEO declarations.
+    // The database decides the format (recoverySchemaContract): v4 on a stack with Contenidos/GEO
+    // (selected by scripts/verify-n2-integration.mjs, which checks the six tables), v3 otherwise.
+    const v4 = process.env.RUBIK_N2_CONTENT_GEO_SCHEMA_AVAILABLE === "true";
+    expect(exported.format).toBe(v4 ? "rubik-project-export-v4" : "rubik-project-export-v3");
+    // v3/v4 keep the v2 operational state and add project-scoped SEO declarations.
     expect(exported.operations.openseo.connection.ok).toBe(true);
     expect(exported.operations.openseo.activeJob.ok).toBe(true);
     expect(exported.operations.webmaster.searchConsole).toEqual({ ok: true, value: null });
@@ -115,7 +118,15 @@ test.describe("manual import flow", () => {
     expect(exported.imports.length).toBeGreaterThan(0);
     expect(exported.audit.verification.valid).toBe(true);
     // Signed manifest over the finished body: counts and chain head match the file itself.
-    expect(exported.manifest).toMatchObject({ version: "rubik-export-manifest-v2", exportedAt: exported.exportedAt, scope: exported.scope,
+    if (v4) {
+      for (const part of ["clusters", "opportunities", "evidence", "briefs"]) expect(Array.isArray(exported.content[part])).toBe(true);
+      for (const part of ["observations", "proposals"]) expect(Array.isArray(exported.geo[part])).toBe(true);
+      expect(exported.manifest).toMatchObject({ content: { briefs: { count: exported.content.briefs.length } },
+        geo: { observations: { count: exported.geo.observations.length } } });
+    } else {
+      expect(exported.content).toBeUndefined();
+    }
+    expect(exported.manifest).toMatchObject({ version: v4 ? "rubik-export-manifest-v3" : "rubik-export-manifest-v2", exportedAt: exported.exportedAt, scope: exported.scope,
       audit: { count: exported.audit.rows.length, headHash: exported.audit.rows.at(-1).hash },
       results: { count: exported.results.length }, imports: { count: exported.imports.length },
       seo: { projectDomain: "restaurante.ejemplo.test",
