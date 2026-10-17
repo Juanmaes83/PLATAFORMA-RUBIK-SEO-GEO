@@ -3,47 +3,58 @@ import { join } from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import { fixtureScope } from "./fixture-scope";
-import { fixtureClients } from "./fixtures";
-import { OTHER_PROJECT, OTHER_TENANT, PROJECT, TENANT, TEST_PASSPHRASE, USERS, recordBrowserProject, signIn } from "./support";
+import { fixtureClients, recordFixture } from "./fixtures";
+import { consentedMembership } from "../tests/fixtures/consented-membership";
+import { OTHER_PROJECT, OTHER_TENANT, PROJECT, TENANT, TEST_PASSPHRASE, USERS, signIn } from "./support";
 
-// N2-14 manual project report on the LOCAL stack with fictitious data. Two own projects of this
-// run: one with declared data in every N2 module the environment accredits, one with nothing.
-// Contenidos/GEO are only seeded and expected when this stack has their migrations.
+// N2-14 manual project report on the LOCAL stack with fictitious data. A dedicated account
+// ("reporter") owns its own organization with two projects: one with declared data in every N2
+// module the environment accredits, one with nothing. "report-guest" is an analyst of the empty
+// project only, to prove isolation between projects of the same organization. The shared
+// accounts' dashboards stay untouched. Contenidos/GEO are only seeded and expected when this
+// stack has their migrations.
 const contentGeo = process.env.RUBIK_N2_CONTENT_GEO_SCHEMA_AVAILABLE === "true";
 const prefix = fixtureScope().prefix;
-const WITH_DATA = `${prefix}-informe-datos`;
-const EMPTY = `${prefix}-informe-vacio`;
-const path = (slug: string) => `/proyectos/${TENANT}/${slug}/informe`;
+const ORG = `${prefix}-informe`;
+const WITH_DATA = "bodega-con-datos";
+const EMPTY = "bodega-sin-datos";
+const path = (slug: string) => `/proyectos/${ORG}/${slug}/informe`;
 
 test.beforeAll(async () => {
-  const owner = fixtureClients().client();
-  const signedIn = await owner.auth.signInWithPassword({ email: USERS.owner, password: TEST_PASSPHRASE });
-  if (signedIn.error) throw signedIn.error;
-  const org = await owner.from("organizations").select("id").eq("slug", TENANT).single();
-  if (org.error) throw org.error;
-  for (const [slug, name] of [[WITH_DATA, "Bodega ficticia con datos"], [EMPTY, "Bodega ficticia sin datos"]]) {
-    const exists = await owner.from("projects").select("id").eq("organization_id", org.data.id).eq("slug", slug).maybeSingle();
-    if (exists.data) continue; // beforeAll runs once per viewport project; the rows are created once per run.
-    const created = await owner.from("projects").insert({ organization_id: org.data.id, slug, name, domain: `${slug}.ejemplo.test` });
-    if (created.error) throw created.error;
-    await recordBrowserProject(slug);
-    if (slug !== WITH_DATA) continue;
-    const project = (await owner.from("projects").select("id, organization_id").eq("organization_id", org.data.id).eq("slug", slug).single()).data!;
-    const s = { project_id: project.id, organization_id: project.organization_id };
-    const must = async (q: PromiseLike<{ error: unknown }>) => { const r = await q; if (r.error) throw r.error; };
-    await must(owner.from("seo_keywords").insert({ ...s, phrase: "vino de la casa", language_code: "es", country_code: "ES", intent: "commercial" }));
-    await must(owner.from("competitors").insert({ ...s, domain: "bodega-rival.ejemplo.test", name: "Bodega rival (ficticia)" }));
-    if (!contentGeo) continue;
-    await must(owner.from("content_clusters").insert({ ...s, name: "Carta de vinos", main_topic: "vinos" }));
-    const cluster = (await owner.from("content_clusters").select("id").eq("project_id", project.id).single()).data!;
-    await must(owner.from("content_opportunities").insert({ ...s, cluster_id: cluster.id, cluster_role: "pillar", topic: "Maridajes", search_intent: "informational",
-      market_language: "es", page_kind: "proposed", opportunity_type: "create", rationale: "No hay página de maridajes.", priority: "medium", priority_reason: "Hipótesis del equipo" }));
-    const opportunity = (await owner.from("content_opportunities").select("id").eq("project_id", project.id).single()).data!;
-    await must(owner.from("content_evidence").insert({ ...s, opportunity_id: opportunity.id, kind: "manual-source", title: "Guía consultada (ficticia)",
-      source_url: "https://fuente.ejemplo.test/guia", source_date: "2026-10-01" }));
-    await must(owner.from("geo_observations").insert({ ...s, entity_name: "Bodega ficticia", engine: "perplexity", query_text: "¿Dónde comer con vino de la casa?",
-      observed_on: "2026-10-16", method: "manual-copy", presence: "absent" }));
+  const { client } = fixtureClients();
+  const [reporter, guest] = [client(), client()];
+  for (const [c, email] of [[reporter, USERS.reporter], [guest, USERS["report-guest"]]] as const) {
+    const signedIn = await c.auth.signInWithPassword({ email, password: TEST_PASSPHRASE });
+    if (signedIn.error) throw signedIn.error;
   }
+  // beforeAll runs once per viewport project; the rows are created once per run.
+  if ((await reporter.from("organizations").select("id").eq("slug", ORG).maybeSingle()).data) return;
+  const must = async (q: PromiseLike<{ error: unknown }>) => { const r = await q; if (r.error) throw r.error; };
+  await must(reporter.from("organizations").insert({ slug: ORG, name: "Bodegas ficticias" }));
+  const org = (await reporter.from("organizations").select("id,slug,created_by").eq("slug", ORG).single()).data!;
+  recordFixture({ kind: "organization", value: org });
+  for (const [slug, name, domain] of [[WITH_DATA, "Bodega ficticia con datos", "bodega-con-datos.ejemplo.test"], [EMPTY, "Bodega ficticia sin datos", "bodega-sin-datos.ejemplo.test"]]) {
+    await must(reporter.from("projects").insert({ organization_id: org.id, slug, name, domain }));
+    // Created by this run inside its own recorded organization: recorded as such for cleanup.
+    const created = (await reporter.from("projects").select("id,slug,organization_id").eq("organization_id", org.id).eq("slug", slug).single()).data!;
+    recordFixture({ kind: "project", value: created });
+  }
+  const projectOf = async (slug: string) => (await reporter.from("projects").select("id, organization_id").eq("organization_id", org.id).eq("slug", slug).single()).data!;
+  await consentedMembership(reporter, guest, (await projectOf(EMPTY)).id, "analyst");
+  const project = await projectOf(WITH_DATA);
+  const s = { project_id: project.id, organization_id: project.organization_id };
+  await must(reporter.from("seo_keywords").insert({ ...s, phrase: "vino de la casa", language_code: "es", country_code: "ES", intent: "commercial" }));
+  await must(reporter.from("competitors").insert({ ...s, domain: "bodega-rival.ejemplo.test", name: "Bodega rival (ficticia)" }));
+  if (!contentGeo) return;
+  await must(reporter.from("content_clusters").insert({ ...s, name: "Carta de vinos", main_topic: "vinos" }));
+  const cluster = (await reporter.from("content_clusters").select("id").eq("project_id", project.id).single()).data!;
+  await must(reporter.from("content_opportunities").insert({ ...s, cluster_id: cluster.id, cluster_role: "pillar", topic: "Maridajes", search_intent: "informational",
+    market_language: "es", page_kind: "proposed", opportunity_type: "create", rationale: "No hay página de maridajes.", priority: "medium", priority_reason: "Hipótesis del equipo" }));
+  const opportunity = (await reporter.from("content_opportunities").select("id").eq("project_id", project.id).single()).data!;
+  await must(reporter.from("content_evidence").insert({ ...s, opportunity_id: opportunity.id, kind: "manual-source", title: "Guía consultada (ficticia)",
+    source_url: "https://fuente.ejemplo.test/guia", source_date: "2026-10-01" }));
+  await must(reporter.from("geo_observations").insert({ ...s, entity_name: "Bodega ficticia", engine: "perplexity", query_text: "¿Dónde comer con vino de la casa?",
+    observed_on: "2026-10-16", method: "manual-copy", presence: "absent" }));
 });
 
 const sectionOf = (page: Page, title: string) => page.locator("section.report-section").filter({ has: page.getByRole("heading", { level: 2, name: title }) });
@@ -65,8 +76,8 @@ async function readable(page: Page) {
 test("report with declared data: each source with its state and nature, no provider request, printable", async ({ page }, info) => {
   const external: string[] = [];
   page.on("request", (r) => { const host = new URL(r.url()).hostname; if (host !== "localhost" && host !== "127.0.0.1") external.push(host); });
-  await signIn(page, "owner");
-  await page.goto(`/proyectos/${TENANT}/${WITH_DATA}`);
+  await signIn(page, "reporter");
+  await page.goto(`/proyectos/${ORG}/${WITH_DATA}`);
   await page.getByRole("navigation", { name: "Secciones del proyecto" }).getByRole("link", { name: "Informe del proyecto", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`${path(WITH_DATA)}$`));
   await expect(page.getByRole("heading", { level: 1, name: "Informe del proyecto" })).toBeVisible();
@@ -112,7 +123,7 @@ test("report with declared data: each source with its state and nature, no provi
 });
 
 test("report of a project without data shows every read source as empty, never as zero", async ({ page }, info) => {
-  await signIn(page, "owner");
+  await signIn(page, "reporter");
   await page.goto(path(EMPTY));
   for (const title of ["SEO técnico", "Hallazgos importados", "Palabras clave", "Medición orgánica", "Competidores", ...(contentGeo ? ["Contenidos", "GEO e IA"] : [])]) {
     const section = sectionOf(page, title);
@@ -125,25 +136,28 @@ test("report of a project without data shows every read source as empty, never a
 
 test("only members see a report: other organizations, other projects and non-members get 404 with nothing of the project", async ({ page }, info) => {
   test.skip(info.project.name !== "escritorio-1280", "HTTP status is viewport-independent");
-  await signIn(page, "owner");
+  await signIn(page, "reporter");
   expect((await page.goto(`/proyectos/${OTHER_TENANT}/${OTHER_PROJECT}/informe`))?.status()).toBe(404);
-  await signIn(page, "outsider");
-  const foreign = await page.goto(path(WITH_DATA));
-  expect(foreign?.status()).toBe(404);
-  await expect(page.getByText("Bodega ficticia con datos")).toHaveCount(0);
-  // The analyst belongs to this organization's main project only, not to the report's project.
-  await signIn(page, "analyst");
+  expect((await page.goto(`/proyectos/${TENANT}/${PROJECT}/informe`))?.status()).toBe(404);
+  for (const user of ["owner", "outsider"] as const) {
+    await signIn(page, user);
+    expect((await page.goto(path(WITH_DATA)))?.status()).toBe(404);
+    await expect(page.getByText("Bodega ficticia con datos")).toHaveCount(0);
+  }
+  // Same organization, another project: the guest is an analyst of the empty project only.
+  await signIn(page, "report-guest");
   expect((await page.goto(path(WITH_DATA)))?.status()).toBe(404);
   await expect(page.getByText("vino de la casa")).toHaveCount(0);
-  expect((await page.goto(path(PROJECT)))?.status()).toBe(200);
+  expect((await page.goto(path(EMPTY)))?.status()).toBe(200);
+  await expect(page.getByRole("heading", { level: 1, name: "Informe del proyecto" })).toBeVisible();
   await signIn(page, "newcomer");
-  expect((await page.goto(path(PROJECT)))?.status()).toBe(404);
+  expect((await page.goto(`/proyectos/${TENANT}/${PROJECT}/informe`))?.status()).toBe(404);
 });
 
 test("a client-approver reads the report without any write control", async ({ page }, info) => {
   test.skip(info.project.name !== "escritorio-1280", "role check is viewport-independent");
   await signIn(page, "client");
-  await page.goto(path(PROJECT));
+  await page.goto(`/proyectos/${TENANT}/${PROJECT}/informe`);
   await expect(page.getByRole("heading", { level: 1, name: "Informe del proyecto" })).toBeVisible();
   await expect(page.locator("main").locator("form, input, textarea, select")).toHaveCount(0);
   await expect(page.locator("main").getByRole("button")).toHaveText(["Imprimir o guardar como PDF"]);
