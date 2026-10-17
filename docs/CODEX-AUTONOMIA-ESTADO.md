@@ -1,6 +1,12 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
-## Corte vigente · 17/10/2026 12:18 UTC · escritor N1 alojado
+## Corte vigente · 17/10/2026 · N2-10 integrada
+
+- `main@46a6113fa4b6fd1ddc1614cfd99164ff55aaa656`: #119 fusionada. Production READY en `dpl_ug9sCBswRo7q8iB184s8ZdApfvcx`; `/api/salud` 200 devuelve `yvdgmklgwlshizzgefpv`. Verify combinado local 538 PASS/1 SKIP, lint/tipos/build PASS; TLS conservado. No cambió esquema alojado ni estado H1/H2.
+- Claude: rebasar `claude/n2-12-13-integration-20261017@78619bb` sobre ese `main`, repetir gates completos y abrir una PR conjunta para sustituir #116/#117. Codex: U02/U03 en #129 sin tocar la rama de Claude. Ref Preview `rhnnplewqsekrnaousyl` creado, todavía sin aislamiento alojado acreditado; no se habilitan sesiones por inferencia.
+- #128 aporta evidencia N1 del escritor PASS acotado; H1/H2 siguen bloqueados. Actions no ejecuta jobs por facturación.
+
+## Corte histórico · 17/10/2026 12:18 UTC · escritor N1 alojado
 
 - Código y Production `main@f5afc09833eee77ab605abda3a2ec9d4a1e80a92`; despliegue final `dpl_3UsSnD3hXnnHuNCtATK3i9BnFKB7` READY; `/api/salud` 200, ref `yvdgmklgwlshizzgefpv`. PR #127 fusionada; rama documental `docs/n1-writer-hosted-window-20261017` en el worktree propio `s2-consent/test-results/n1-hosted-gates-20261017`. Consultar el HEAD remoto de esa rama antes de continuar.
 - Antes de activar: 27 migraciones hasta `20261015210000`, NOLOGIN/NOBYPASSRLS/NOSUPERUSER, cero sesiones/outbox, variable ausente. Respaldo renovado `2026-10-17T11:57:45Z`: dos copias DPAPI SHA-256 `34DDD997C7F9CBEC180FF7140C5B37E4625042BB354B21516BF18E302A9CBA11`; descifrado y hashes de siete componentes verificados; restauración propia 38/38 filas, 27/27 versiones, cero restricciones sin validar. Stack detenido y SQL descifrado eliminado. DPAPI no es portable ni snapshot global; servicios Auth/Storage/Realtime fuera del ensayo.
