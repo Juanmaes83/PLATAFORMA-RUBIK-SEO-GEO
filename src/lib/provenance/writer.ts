@@ -8,6 +8,7 @@ import { buildAuditRow, verifyAuditTrail, type AuditInput, type AuditRow, type P
 import { openProviderResult, sealProviderResult, type ProviderResultRow } from "./results";
 import type { Keyring } from "./keyring";
 import { previewLocked } from "@/lib/auth/mode";
+import { SUPABASE_ROOT_2021_CA } from "./supabase-root-ca";
 
 type Client = SupabaseClient<Database>;
 type Failure = { ok: false; error: string };
@@ -28,9 +29,14 @@ export function writerPool(): Pool | null {
   const parsed = new URL(url);
   const local = parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost";
   if (!local && parsed.protocol !== "postgresql:") return null;
+  // pg can let SSL query parameters override the explicit TLS settings below.
+  if (!local && [...parsed.searchParams.keys()].some((key) => key.toLowerCase().startsWith("ssl"))) return null;
+  const supabaseHost = parsed.hostname.endsWith(".pooler.supabase.com")
+    || /^db\.[a-z0-9]+\.supabase\.co$/.test(parsed.hostname);
   poolUrl = url;
   sharedPool = new Pool({ connectionString: url, max: 4, connectionTimeoutMillis: 3000,
-    idleTimeoutMillis: 10000, ssl: local ? false : { rejectUnauthorized: true } });
+    idleTimeoutMillis: 10000, ssl: local ? false : { rejectUnauthorized: true,
+      ...(supabaseHost ? { ca: SUPABASE_ROOT_2021_CA } : {}) } });
   sharedPool.on("error", () => { /* idle client failure: next checkout reconnects */ });
   return sharedPool;
 }

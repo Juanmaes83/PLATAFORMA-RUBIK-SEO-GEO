@@ -1,5 +1,21 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
+## Corte vigente · 17/10/2026 08:58 UTC · ventana escritor N1
+
+- Rama/worktree `codex/n1-hosted-gates-20261017` en `s2-consent/test-results/n1-hosted-gates-20261017`; `main/Production@9aeef8d979e60fb33b2363888065383203acb6a5`; código TLS probado y commit `b9a8c47d7c32218963604635e8ad2c6e85cb7363`. [PR Draft #127](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/127) para revisión; no fusionar sin auditoría.
+- Ref Production `yvdgmklgwlshizzgefpv`, 27 migraciones hasta `20261015210000`. Respaldo actualizado 7 componentes DPAPI SHA-256 `C068BD7BD29B595B74C43365F62A8038C741397B8E2383D3B96FC9EC2D14ED56`; dos copias locales fuera de Git, restauración aislada 50 COPY/38 filas/27 versiones, cero restricciones sin validar. No es copia portable ni snapshot global; Auth/Storage como servicios no ensayados.
+- Primer transporte alojado falló `SELF_SIGNED_CERT_IN_CHAIN`; rol devuelto a NOLOGIN. Con CA pública Supabase verificada, segunda prueba temporal: TLS 1.3, identidad restringida, grants y rollback PASS. Contención final verificada: NOLOGIN/NOBYPASSRLS/NOSUPERUSER, cero sesiones, outbox 0, variable Vercel ausente, sin despliegue.
+- `npm run verify` sobre código `b9a8c47`: 535 PASS, 1 SKIP, 0 FAIL; pin, secretos, lint, tipos y build PASS. Escritura/firma alojada, idempotencia y outbox funcional **BLOQUEADOS** hasta integrar corrección, configurar URL Secret y usar proyecto ficticio autorizado. No se llamaron proveedores ni se tocaron Sarah, N2 o proyectos ajenos. Actions no ejecuta jobs por facturación.
+- Siguiente acción exacta: supervisor audita y fusiona la corrección TLS por SHA; después revalidar identidad/respaldo, activar el rol y URL Production, redesplegar y ejecutar escritura firmada ficticia, reintento y outbox; contener con retirada de variable/NOLOGIN si falla. H1/H2 permanecen BLOQUEADOS. Detalle: [expediente N1](n1-cierre/N1-GATES-ALOJADOS-20261017.md). Sin reanudación automática.
+
+## Corte vigente · 17/10/2026 08:15 UTC · N1 alojado
+
+- Worktree s2-consent/test-results/n1-hosted-gates-20261017, rama codex/n1-hosted-gates-20261017, base y código probado 9aeef8d979e60fb33b2363888065383203acb6a5. Production sirve ese SHA y /api/salud publica el ref yvdgmklgwlshizzgefpv. #119/#116/#117/#118 continúan abiertas fuera de esta rama.
+- Catálogo de solo lectura con ref explícito: 27 migraciones, escritor NOLOGIN/NOBYPASSRLS, grants relevantes presentes, outbox 0 pendientes, RLS y denegaciones sensibles. Metadatos Vercel Production muestran anillo de firma por nombre pero no RUBIK_AUDIT_DATABASE_URL; no se leyeron valores. Escritor operativo FAIL como precondición.
+- HTTP anónimo a exportación ficticia: 404 PASS negativo limitado. Pruebas locales dirigidas sobre 9aeef8d: 23 PASS / 1 SKIP / 0 FAIL tras npm ci; primer intento sin pg inválido y corregido. Integración/pgTAP/E2E y flujos alojados pendientes; Actions bloqueada antes de jobs por facturación.
+- **H1 BLOQUEADO** por escritor y U03/U04; **H2 BLOQUEADO** además por U02 y operación comercial. No hubo proveedor, escritura alojada, dato Sarah, migración, secreto, cambio Production ni recursos ajenos. Expediente: [N1-GATES-ALOJADOS-20261017](n1-cierre/N1-GATES-ALOJADOS-20261017.md).
+- Próxima acción: Juanma decide ventana y custodia de credencial dedicada para activar el rol sin elevar privilegios y configurar URL solo en Production; verificar conexión, firma ficticia y reversión. Después U03 y exportación/restauración ficticia; Sarah solo con U04. Sin reanudación programada autorizada.
+
 ## Corte vigente · 17/10/2026, identidad y N1 alojado
 
 - Production SEO/GEO → Supabase `yvdgmklgwlshizzgefpv` (nombre `plataforma-rubik-seo-geo-dev`); `jlrppmpopaodpxtqtwmn` es Funding OS y está excluido. Seguir la [regla de identidad y parada](SUPABASE-IDENTIDAD-ENTORNOS-20261017.md) antes de operar con cualquier cuenta, conector o terminal.
