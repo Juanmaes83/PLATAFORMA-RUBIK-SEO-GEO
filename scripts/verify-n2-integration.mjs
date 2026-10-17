@@ -7,7 +7,7 @@ import { resolve } from "node:path";
 const root = resolve(import.meta.dirname, "..");
 const stackKey = process.env.RUBIK_N2_TEST_STACK ?? "n2Integration";
 const stackConfig = stackKey === "n2ContentGeo"
-  ? { selector: "RUBIK_TEST_N2_CONTENT_GEO_STACK", projectId: "rubik-claude-n2-content-geo-20261017", workdir: "test-results/n2-content-geo-stack", dbPort: 64322 }
+  ? { selector: "RUBIK_TEST_N2_CONTENT_GEO_STACK", projectId: "rubik-n2-final-20261017", workdir: "test-results/n2-final-stack", dbPort: 52322 }
   : stackKey === "fops2Combined"
   ? { selector: "RUBIK_TEST_FOPS2_COMBINED_STACK", projectId: "rubik-fops2-n2-combined-20261016", workdir: "test-results/fops2-combined-stack", dbPort: 63322 }
   : stackKey === "n2Audit"
