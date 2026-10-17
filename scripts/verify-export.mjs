@@ -101,6 +101,15 @@ if (!check.ok) {
   process.exit(2);
 }
 
+function sectionCounts(d) {
+  const n = (v) => (Array.isArray(v) ? v.length : 0);
+  const parts = [];
+  if (d.seo) parts.push(`SEO ${n(d.seo.keywords)} keyword(s), ${n(d.seo.competitors)} competidor(es), ${n(d.seo.observations)} observación(es)`);
+  if (d.content) parts.push(`Contenidos ${n(d.content.clusters)} clúster(es), ${n(d.content.opportunities)} oportunidad(es), ${n(d.content.evidence)} evidencia(s), ${n(d.content.briefs)} brief(s)`);
+  if (d.geo) parts.push(`GEO ${n(d.geo.observations)} observación(es), ${n(d.geo.proposals)} propuesta(s)`);
+  return parts.length ? parts.join(" · ") : null;
+}
+
 const verified = check.audit.valid && check.results.failed.length === 0 && check.mismatches.length === 0
   && (!opts.requireComplete || check.completeness.status === "COMPLETE");
 const report = {
@@ -113,6 +122,8 @@ const report = {
   mismatches: check.mismatches,
   completeness: check.completeness,
   google: googleSummary(doc),
+  // v3/v4 declared data (covered by the signed manifest when completeness is COMPLETE).
+  sections: sectionCounts(doc),
   warnings,
 };
 
@@ -134,6 +145,7 @@ if (opts.json) {
     report.google.present
       ? `Estado Google (informativo, sin firma): ${report.google.connections} conexión(es), ${report.google.bindings} asociación(es), ${report.google.captures} captura(s)`
       : `Estado Google: ${report.google.note}`,
+    ...(report.sections ? [`Datos declarados (cubiertos por el manifiesto): ${report.sections}`] : []),
     ...warnings.map((w) => `Aviso: ${w}`),
     verified ? "RESULTADO: VERIFICADA" : "RESULTADO: NO VERIFICADA",
   ];

@@ -6,7 +6,9 @@ import { resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
 const stackKey = process.env.RUBIK_N2_TEST_STACK ?? "n2Integration";
-const stackConfig = stackKey === "fops2Combined"
+const stackConfig = stackKey === "n2ContentGeo"
+  ? { selector: "RUBIK_TEST_N2_CONTENT_GEO_STACK", projectId: "rubik-claude-n2-content-geo-20261017", workdir: "test-results/n2-content-geo-stack", dbPort: 64322 }
+  : stackKey === "fops2Combined"
   ? { selector: "RUBIK_TEST_FOPS2_COMBINED_STACK", projectId: "rubik-fops2-n2-combined-20261016", workdir: "test-results/fops2-combined-stack", dbPort: 63322 }
   : stackKey === "n2Audit"
   ? { selector: "RUBIK_TEST_N2_AUDIT_STACK", projectId: "rubik-n2-audit-20261016", workdir: "test-results/n2-audit-stack", dbPort: 61322 }
@@ -15,9 +17,10 @@ const stackConfig = stackKey === "fops2Combined"
   : stackKey === "n2Integration"
     ? { selector: "RUBIK_TEST_N2_INTEGRATION_STACK", projectId: "rubik-n2-integration-20261016", workdir: "test-results/n2-integration-stack", dbPort: 60322 }
     : null;
-if (!stackConfig) throw new Error("Refused: RUBIK_N2_TEST_STACK must be n2Integration, n2Audit, fops2Combined or pr119Integration");
+if (!stackConfig) throw new Error("Refused: RUBIK_N2_TEST_STACK must be n2Integration, n2Audit, fops2Combined, pr119Integration or n2ContentGeo");
 process.env[stackConfig.selector] = "1";
 process.env.RUBIK_N2_SCHEMA_AVAILABLE = "true";
+if (stackKey === "n2ContentGeo") process.env.RUBIK_N2_CONTENT_GEO_SCHEMA_AVAILABLE = "true";
 process.env.SUPABASE_CLI = `npx --yes supabase@2.118.0 --workdir ${stackConfig.workdir}`;
 const { localDatabaseContainer } = await import("./supabase-test-env.mjs");
 const name = localDatabaseContainer(); // Checks API, database port and exact Docker container.
@@ -25,6 +28,11 @@ if (name !== `supabase_db_${stackConfig.projectId}`) throw new Error("Refused: n
 const relations = execFileSync("docker", ["exec", "-i", name, "psql", "-U", "postgres", "-v", "ON_ERROR_STOP=1", "-qAt", "-c",
   "select to_regclass('public.seo_keywords') is not null, to_regclass('public.competitors') is not null, to_regclass('public.competitor_observations') is not null;"], { encoding: "utf8" }).trim();
 if (relations !== "t|t|t") throw new Error("Refused: combined N2 schema is incomplete; expected seo_keywords, competitors and competitor_observations");
+if (stackKey === "n2ContentGeo") {
+  const cg = execFileSync("docker", ["exec", "-i", name, "psql", "-U", "postgres", "-v", "ON_ERROR_STOP=1", "-qAt", "-c",
+    "select count(*) from unnest(array['content_clusters','content_opportunities','content_evidence','content_briefs','geo_observations','geo_proposals']) t where to_regclass('public.' || t) is not null;"], { encoding: "utf8" }).trim();
+  if (cg !== "6") throw new Error("Refused: Contenidos/GEO schema is incomplete on the selected stack");
+}
 const typeCommand = `npx --yes supabase@2.118.0 --workdir ${stackConfig.workdir} gen types typescript --local --schema public`;
 const typegen = process.platform === "win32"
   ? spawnSync(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", typeCommand], { cwd: root, encoding: "utf8" })
