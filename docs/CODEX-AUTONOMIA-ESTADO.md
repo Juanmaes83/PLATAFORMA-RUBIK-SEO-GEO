@@ -1,6 +1,12 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
-## Corte vigente · 17/10/2026 · N2-10 integrada
+## Corte vigente · 17/10/2026 · integración N2-12/13
+
+- #131 fusionada en `main@cf16aca1eb456b4b4af04c7ba06a787c21d1d8c6`; #116 y #117 cerradas sin merge por sustitución. Production READY; `/api/salud` 200 devuelve `yvdgmklgwlshizzgefpv`. En auditoría independiente, HEAD #131 `5fdbfdc`: verify 580 PASS/1 SKIP, lint/tipos/build PASS. Claude informó integración 145/145, pgTAP 870/870, E2E 170 PASS/58 SKIP/0 FAIL, rollback y recuperación v4 doble sobre código `6163c13`.
+- N2-12/13 fusionadas como código, aún apagadas y sin aplicación alojada de sus migraciones en esta ventana. No usar datos reales antes de decidir R1 y retención de las 11 FK de autoría, aplicar/validar SQL en el proyecto correcto con respaldo y activar de forma controlada. H1/H2 siguen bloqueados; Actions sin jobs por facturación.
+- Codex: continuar U02/U03 en #129, reconciliar con este main y nunca usar `yvdgmklgwlshizzgefpv` como Preview. Siguiente producto tras seguridad/activación: N2-14 funcional; #118 es solo diseño. No repetir pruebas ya acreditadas sin cambio de código o riesgo concreto.
+
+## Corte histórico · 17/10/2026 · N2-10 integrada
 
 - `main@46a6113fa4b6fd1ddc1614cfd99164ff55aaa656`: #119 fusionada. Production READY en `dpl_ug9sCBswRo7q8iB184s8ZdApfvcx`; `/api/salud` 200 devuelve `yvdgmklgwlshizzgefpv`. Verify combinado local 538 PASS/1 SKIP, lint/tipos/build PASS; TLS conservado. No cambió esquema alojado ni estado H1/H2.
 - Claude: rebasar `claude/n2-12-13-integration-20261017@78619bb` sobre ese `main`, repetir gates completos y abrir una PR conjunta para sustituir #116/#117. Codex: U02/U03 en #129 sin tocar la rama de Claude. Ref Preview `rhnnplewqsekrnaousyl` creado, todavía sin aislamiento alojado acreditado; no se habilitan sesiones por inferencia.
