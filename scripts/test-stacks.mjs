@@ -19,6 +19,9 @@ export const STACKS = {
   // Fresh stack for Claude audit resolutions; separate from every historical S1/S2/N1/N2 stack.
   n2Audit: { selector: "RUBIK_TEST_N2_AUDIT_STACK", apiPort: 61321, dbPort: 61322, projectId: "rubik-n2-audit-20261016" },
   fops2Combined: { selector: "RUBIK_TEST_FOPS2_COMBINED_STACK", apiPort: 63321, dbPort: 63322, projectId: "rubik-fops2-n2-combined-20261016" },
+  // Combined N2-12/N2-13 integration after #119; exclusive, disposable.
+  n2ContentGeo: { selector: "RUBIK_TEST_N2_CONTENT_GEO_STACK", apiPort: 52321, dbPort: 52322, projectId: "rubik-n2-final-20261017" },
+  // PR #119 Medición integration stack; distinct ports and project identity.
   pr119Integration: { selector: "RUBIK_TEST_PR119_STACK", apiPort: 62321, dbPort: 62322, projectId: "rubik-pr119-integration-20261016" },
 };
 

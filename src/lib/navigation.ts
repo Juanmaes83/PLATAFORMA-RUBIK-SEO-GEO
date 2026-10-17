@@ -54,7 +54,7 @@ export interface ProjectSection {
   nextStep: string;
 }
 
-/** Project sub-sections; the summary is the project page itself. Built: Importaciones (CORE-9.3), Auditoría técnica (ADR 0006), Search Console y GA4, Competidores (N2-11) and Personas (ADR 0020/0021). */
+/** Project sub-sections; the summary is the project page itself. Built: Importaciones (CORE-9.3), Auditoría técnica (ADR 0006), Search Console y GA4, Competidores (N2-11), Contenidos (N2-12), GEO e IA (N2-13) and Personas (ADR 0020/0021). */
 export const PROJECT_SECTIONS: readonly ProjectSection[] = [
   {
     slug: "seo", label: "Análisis SEO", stage: "N2-09", available: true,
@@ -84,6 +84,18 @@ export const PROJECT_SECTIONS: readonly ProjectSection[] = [
     description: "Competidores del proyecto y observaciones con fuente, fecha y método, comparadas solo cuando son comparables.",
     requires: [],
     nextStep: "Añadir un competidor y registrar la primera observación con su fuente y su fecha.",
+  },
+  {
+    slug: "contenidos", label: "Contenidos", stage: "N2-12", available: true,
+    description: "Oportunidades de contenido con evidencia, clústeres temáticos y briefs editoriales con revisión humana.",
+    requires: [],
+    nextStep: "Registrar una oportunidad con su justificación y su evidencia, agruparla en un clúster y preparar su brief.",
+  },
+  {
+    slug: "geo", label: "GEO e IA", stage: "N2-13", available: true,
+    description: "Observaciones manuales de respuestas de motores generativos, con evidencia, oportunidades explicables y revisión humana.",
+    requires: [],
+    nextStep: "Registrar una observación con la consulta exacta, el motor y la fecha, y revisar las oportunidades que sugiere.",
   },
   {
     slug: "mediciones", label: "Mediciones", stage: "CORE-9.3 a 9.5",

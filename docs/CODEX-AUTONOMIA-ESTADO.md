@@ -1,5 +1,12 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
+## Corte de integración N2 · 17/10/2026 · Contenidos + GEO
+
+- Rama/worktree propio `codex/n2-12-13-final-20261017` en `s2-consent/test-results/n2-12-13-final-20261017`, desde la rama fuente `claude/n2-12-13-integration-20261017@78619bb` y `main@1b2fa1dbed91280a0fce815eadfd219f236d26a9` (#119 y documentación #128 fusionadas). #116/#117 siguen fuentes Draft; no editar sus ramas.
+- Dos conflictos de scripts resueltos conservando `pr119Integration` y `n2ContentGeo`. TLS, Medición, barreras N2 y exportación/restauración v4 presentes. Stack local propio `rubik-n2-final-20261017` (52321/52322), 33 migraciones sin seed. Tipos CLI 2.118.0 coincidentes, pgTAP 870/870, integración inicial 145/145. E2E inicial 167 PASS/58 SKIP/3 FAIL por aserción anterior a #119; corregida y repetida 3/3. La ejecución completa definitiva y su SHA constan en la PR Draft, no en ese primer intento.
+- Ensayo v4 de exportación firmada y restauración doble en destino local separado, y rollback/reaplicación transaccional con huella ACL/RLS/triggers, ejecutados con datos ficticios. Destino descartado con `--no-backup`; origen con 0 usuarios, 0 organizaciones y 0 recibos pendientes tras los ensayos. Ningún SQL alojado, proveedor, bandera, dato Sarah, rama U02 o recurso FLOOR PLAN modificado. GitHub Actions no ejecuta jobs por facturación.
+- Siguiente acción: auditar el HEAD exacto de la PR Draft y fusionar solo tras supervisión; desplegar esquema N2 alojado y activar banderas únicamente en una ventana operativa distinta. H1/H2 mantienen sus gates alojados independientes.
+
 ## Corte vigente · 17/10/2026 · N2-10 integrada
 
 - `main@46a6113fa4b6fd1ddc1614cfd99164ff55aaa656`: #119 fusionada. Production READY en `dpl_ug9sCBswRo7q8iB184s8ZdApfvcx`; `/api/salud` 200 devuelve `yvdgmklgwlshizzgefpv`. Verify combinado local 538 PASS/1 SKIP, lint/tipos/build PASS; TLS conservado. No cambió esquema alojado ni estado H1/H2.

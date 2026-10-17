@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { PROJECT_SECTIONS } from "@/lib/navigation";
-import { n2SchemaAvailable } from "@/lib/n2/availability";
+import { contentGeoSchemaAvailable, n2SchemaAvailable } from "@/lib/n2/availability";
 
 /** Project sub-navigation; wraps on small screens (no horizontal scroll). */
 export function ProjectNav({ base, current }: { base: string; current: string | null }) {
@@ -9,6 +9,7 @@ export function ProjectNav({ base, current }: { base: string; current: string | 
     { href: `${base}/medicion`, label: "Medición orgánica", key: "medicion" },
     ...PROJECT_SECTIONS
       .filter((s) => s.slug !== "competidores" || n2SchemaAvailable())
+      .filter((s) => (s.slug !== "contenidos" && s.slug !== "geo") || contentGeoSchemaAvailable())
       .map((s) => ({ href: `${base}/${s.slug}`, label: s.label, key: s.slug })),
   ];
   return (

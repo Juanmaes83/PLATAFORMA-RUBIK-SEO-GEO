@@ -71,6 +71,156 @@ isOneToOne: false
       referencedColumns: ["id","organization_id"]
     }
                   ]
+                },"content_briefs": {
+                  Row: {
+                    "approved_at": string | null,"approved_by": string | null,"archived_at": string | null,"assignee": string | null,"audience": string | null,"created_at": string,"created_by": string,"cta": string | null,"id": string,"internal_links": NonNullable<Json>,"main_topic": string,"market_country": string | null,"market_language": string,"objective": string | null,"opportunity_id": string,"organization_id": string,"original_data": string | null,"outline": NonNullable<Json>,"project_id": string,"questions": NonNullable<Json>,"review_note": string | null,"reviewed_at": string | null,"reviewed_by": string | null,"risks": string | null,"search_intent": string,"sources_consulted": string | null,"status": string,"submitted_at": string | null,"submitted_by": string | null,"target_url": string | null,"updated_at": string,"version": number
+                  }
+                  Insert: {
+                    "approved_at"?: string | null,"approved_by"?: string | null,"archived_at"?: string | null,"assignee"?: string | null,"audience"?: string | null,"created_at"?: string,"created_by"?: string,"cta"?: string | null,"id"?: string,"internal_links"?: NonNullable<Json>,"main_topic": string,"market_country"?: string | null,"market_language": string,"objective"?: string | null,"opportunity_id": string,"organization_id": string,"original_data"?: string | null,"outline"?: NonNullable<Json>,"project_id": string,"questions"?: NonNullable<Json>,"review_note"?: string | null,"reviewed_at"?: string | null,"reviewed_by"?: string | null,"risks"?: string | null,"search_intent": string,"sources_consulted"?: string | null,"status"?: string,"submitted_at"?: string | null,"submitted_by"?: string | null,"target_url"?: string | null,"updated_at"?: string,"version"?: number
+                  }
+                  Update: {
+                    "approved_at"?: string | null,"approved_by"?: string | null,"archived_at"?: string | null,"assignee"?: string | null,"audience"?: string | null,"created_at"?: string,"created_by"?: string,"cta"?: string | null,"id"?: string,"internal_links"?: NonNullable<Json>,"main_topic"?: string,"market_country"?: string | null,"market_language"?: string,"objective"?: string | null,"opportunity_id"?: string,"organization_id"?: string,"original_data"?: string | null,"outline"?: NonNullable<Json>,"project_id"?: string,"questions"?: NonNullable<Json>,"review_note"?: string | null,"reviewed_at"?: string | null,"reviewed_by"?: string | null,"risks"?: string | null,"search_intent"?: string,"sources_consulted"?: string | null,"status"?: string,"submitted_at"?: string | null,"submitted_by"?: string | null,"target_url"?: string | null,"updated_at"?: string,"version"?: number
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "content_briefs_opportunity_id_project_id_fkey"
+      columns: ["opportunity_id","project_id"]
+isOneToOne: false
+      referencedRelation: "content_opportunities"
+      referencedColumns: ["id","project_id"]
+    },{
+      foreignKeyName: "content_briefs_project_id_organization_id_fkey"
+      columns: ["project_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "projects"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
+                },"content_clusters": {
+                  Row: {
+                    "created_at": string,"created_by": string,"description": string | null,"id": string,"main_topic": string,"name": string,"organization_id": string,"project_id": string,"updated_at": string
+                  }
+                  Insert: {
+                    "created_at"?: string,"created_by"?: string,"description"?: string | null,"id"?: string,"main_topic": string,"name": string,"organization_id": string,"project_id": string,"updated_at"?: string
+                  }
+                  Update: {
+                    "created_at"?: string,"created_by"?: string,"description"?: string | null,"id"?: string,"main_topic"?: string,"name"?: string,"organization_id"?: string,"project_id"?: string,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "content_clusters_project_id_organization_id_fkey"
+      columns: ["project_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "projects"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
+                },"content_evidence": {
+                  Row: {
+                    "created_at": string,"created_by": string,"detail": string | null,"id": string,"import_id": string | null,"kind": string,"opportunity_id": string,"organization_id": string,"project_id": string,"provider_result_id": string | null,"source_date": string | null,"source_url": string | null,"title": string
+                  }
+                  Insert: {
+                    "created_at"?: string,"created_by"?: string,"detail"?: string | null,"id"?: string,"import_id"?: string | null,"kind": string,"opportunity_id": string,"organization_id": string,"project_id": string,"provider_result_id"?: string | null,"source_date"?: string | null,"source_url"?: string | null,"title": string
+                  }
+                  Update: {
+                    "created_at"?: string,"created_by"?: string,"detail"?: string | null,"id"?: string,"import_id"?: string | null,"kind"?: string,"opportunity_id"?: string,"organization_id"?: string,"project_id"?: string,"provider_result_id"?: string | null,"source_date"?: string | null,"source_url"?: string | null,"title"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "content_evidence_import_id_fkey"
+      columns: ["import_id"]
+isOneToOne: false
+      referencedRelation: "imports"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "content_evidence_opportunity_id_project_id_fkey"
+      columns: ["opportunity_id","project_id"]
+isOneToOne: false
+      referencedRelation: "content_opportunities"
+      referencedColumns: ["id","project_id"]
+    },{
+      foreignKeyName: "content_evidence_project_id_organization_id_fkey"
+      columns: ["project_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "projects"
+      referencedColumns: ["id","organization_id"]
+    },{
+      foreignKeyName: "content_evidence_provider_result_id_fkey"
+      columns: ["provider_result_id"]
+isOneToOne: false
+      referencedRelation: "provider_results"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"content_opportunities": {
+                  Row: {
+                    "cluster_id": string | null,"cluster_role": string | null,"created_at": string,"created_by": string,"id": string,"market_country": string | null,"market_language": string,"opportunity_type": string,"organization_id": string,"page_kind": string,"page_url": string | null,"priority": string,"priority_reason": string | null,"project_id": string,"rationale": string,"search_intent": string,"status": string,"topic": string,"updated_at": string
+                  }
+                  Insert: {
+                    "cluster_id"?: string | null,"cluster_role"?: string | null,"created_at"?: string,"created_by"?: string,"id"?: string,"market_country"?: string | null,"market_language": string,"opportunity_type": string,"organization_id": string,"page_kind": string,"page_url"?: string | null,"priority"?: string,"priority_reason"?: string | null,"project_id": string,"rationale": string,"search_intent": string,"status"?: string,"topic": string,"updated_at"?: string
+                  }
+                  Update: {
+                    "cluster_id"?: string | null,"cluster_role"?: string | null,"created_at"?: string,"created_by"?: string,"id"?: string,"market_country"?: string | null,"market_language"?: string,"opportunity_type"?: string,"organization_id"?: string,"page_kind"?: string,"page_url"?: string | null,"priority"?: string,"priority_reason"?: string | null,"project_id"?: string,"rationale"?: string,"search_intent"?: string,"status"?: string,"topic"?: string,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "content_opportunities_cluster_id_project_id_fkey"
+      columns: ["cluster_id","project_id"]
+isOneToOne: false
+      referencedRelation: "content_clusters"
+      referencedColumns: ["id","project_id"]
+    },{
+      foreignKeyName: "content_opportunities_project_id_organization_id_fkey"
+      columns: ["project_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "projects"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
+                },"geo_observations": {
+                  Row: {
+                    "answer_excerpt": string | null,"cited_sources": NonNullable<Json>,"created_at": string,"created_by": string,"engine": string,"engine_detail": string | null,"entity_name": string,"evidence_reference": string | null,"id": string,"market_country": string | null,"market_language": string | null,"mentioned_entities": NonNullable<Json>,"method": string,"notes": string | null,"observed_on": string,"organization_id": string,"presence": string,"project_id": string,"query_text": string,"supersedes_id": string | null,"verification": string,"verified_at": string | null,"verified_by": string | null
+                  }
+                  Insert: {
+                    "answer_excerpt"?: string | null,"cited_sources"?: NonNullable<Json>,"created_at"?: string,"created_by"?: string,"engine": string,"engine_detail"?: string | null,"entity_name": string,"evidence_reference"?: string | null,"id"?: string,"market_country"?: string | null,"market_language"?: string | null,"mentioned_entities"?: NonNullable<Json>,"method": string,"notes"?: string | null,"observed_on": string,"organization_id": string,"presence": string,"project_id": string,"query_text": string,"supersedes_id"?: string | null,"verification"?: string,"verified_at"?: string | null,"verified_by"?: string | null
+                  }
+                  Update: {
+                    "answer_excerpt"?: string | null,"cited_sources"?: NonNullable<Json>,"created_at"?: string,"created_by"?: string,"engine"?: string,"engine_detail"?: string | null,"entity_name"?: string,"evidence_reference"?: string | null,"id"?: string,"market_country"?: string | null,"market_language"?: string | null,"mentioned_entities"?: NonNullable<Json>,"method"?: string,"notes"?: string | null,"observed_on"?: string,"organization_id"?: string,"presence"?: string,"project_id"?: string,"query_text"?: string,"supersedes_id"?: string | null,"verification"?: string,"verified_at"?: string | null,"verified_by"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "geo_observations_project_id_organization_id_fkey"
+      columns: ["project_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "projects"
+      referencedColumns: ["id","organization_id"]
+    },{
+      foreignKeyName: "geo_observations_supersedes_id_project_id_fkey"
+      columns: ["supersedes_id","project_id"]
+isOneToOne: false
+      referencedRelation: "geo_observations"
+      referencedColumns: ["id","project_id"]
+    }
+                  ]
+                },"geo_proposals": {
+                  Row: {
+                    "created_at": string,"created_by": string,"evidence_ids": (string)[],"hypothesis": string,"id": string,"limitations": string | null,"organization_id": string,"priority": string,"priority_reason": string,"problem": string,"project_id": string,"query_text": string,"review_note": string | null,"reviewed_at": string | null,"reviewed_by": string | null,"rule": string,"status": string,"suggested_action": string,"title": string,"updated_at": string
+                  }
+                  Insert: {
+                    "created_at"?: string,"created_by"?: string,"evidence_ids"?: (string)[],"hypothesis": string,"id"?: string,"limitations"?: string | null,"organization_id": string,"priority": string,"priority_reason": string,"problem": string,"project_id": string,"query_text": string,"review_note"?: string | null,"reviewed_at"?: string | null,"reviewed_by"?: string | null,"rule": string,"status"?: string,"suggested_action": string,"title": string,"updated_at"?: string
+                  }
+                  Update: {
+                    "created_at"?: string,"created_by"?: string,"evidence_ids"?: (string)[],"hypothesis"?: string,"id"?: string,"limitations"?: string | null,"organization_id"?: string,"priority"?: string,"priority_reason"?: string,"problem"?: string,"project_id"?: string,"query_text"?: string,"review_note"?: string | null,"reviewed_at"?: string | null,"reviewed_by"?: string | null,"rule"?: string,"status"?: string,"suggested_action"?: string,"title"?: string,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "geo_proposals_project_id_organization_id_fkey"
+      columns: ["project_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "projects"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
                 },"imports": {
                   Row: {
                     "captured_at": string,"created_at": string,"created_by": string,"error_count": number,"errors": NonNullable<Json>,"file_bytes": number,"file_sha256": string,"finding_count": number,"findings": NonNullable<Json>,"format": string,"id": string,"organization_id": string,"period_end": string | null,"period_start": string | null,"project_id": string,"source_kind": string,"source_label": string,"source_tool": string | null,"source_url": string | null,"status": string
