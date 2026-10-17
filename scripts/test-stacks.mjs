@@ -19,6 +19,8 @@ export const STACKS = {
   // Fresh stack for Claude audit resolutions; separate from every historical S1/S2/N1/N2 stack.
   n2Audit: { selector: "RUBIK_TEST_N2_AUDIT_STACK", apiPort: 61321, dbPort: 61322, projectId: "rubik-n2-audit-20261016" },
   fops2Combined: { selector: "RUBIK_TEST_FOPS2_COMBINED_STACK", apiPort: 63321, dbPort: 63322, projectId: "rubik-fops2-n2-combined-20261016" },
+  // Claude N2-12/N2-13 integration (Contenidos + GEO on the N2 schema); exclusive, disposable.
+  n2ContentGeo: { selector: "RUBIK_TEST_N2_CONTENT_GEO_STACK", apiPort: 64321, dbPort: 64322, projectId: "rubik-claude-n2-content-geo-20261017" },
 };
 
 /** The stack selected by the environment. More than one selector is refused, never resolved by precedence. */
