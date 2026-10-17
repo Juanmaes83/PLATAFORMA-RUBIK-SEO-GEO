@@ -217,3 +217,19 @@ declare module "@rubik/seo-geo-core/intelligence" {
   const api: Intelligence;
   export = api;
 }
+
+declare module "@rubik/seo-geo-core/authority" {
+  /** Release E AI Citation Monitoring record (only the part N2-13 uses). */
+  interface CitationObservation {
+    query: string; provider: string; model: string; subject: "own" | "competitor"; mentioned: boolean; cited: boolean; sourceUrl: string;
+    competitors: string[]; observedAt: string; status: "MEASURED" | "HEURISTIC" | "UNKNOWN";
+    provenance: { provider: string; sourceType: string; sourceUrl: string; capturedAt: string; externalId: string; method: string; status: string };
+  }
+  interface Authority {
+    OBSERVATION_STATUSES: readonly string[];
+    SOURCE_TYPES: readonly string[];
+    normalizeCitationObservation(input: Record<string, unknown>): CitationObservation;
+  }
+  const api: Authority;
+  export = api;
+}

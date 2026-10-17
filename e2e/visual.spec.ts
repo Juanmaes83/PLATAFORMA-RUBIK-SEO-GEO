@@ -183,12 +183,16 @@ test("projects page: the Core denial code is only secondary technical informatio
   await expect(code).toBeVisible();
 });
 
-test("project summary: the measurements empty state does not repeat the stages", async ({ page }) => {
+test("project summary links to measurement without duplicating its empty state", async ({ page }) => {
   await signIn(page, "analyst");
   await page.goto(P);
-  const empty = page.locator("section[aria-labelledby=s-estado]").locator(".empty");
-  await expect(empty.locator(".empty-body")).toHaveText(/^\s*Desconocido\s+Este proyecto aún no tiene observaciones\.\s*$/);
-  const text = await empty.innerText();
-  expect(text.match(/CORE-9\.3/g)?.length).toBe(1);
-  expect(text.match(/CORE-9\.4/g)?.length).toBe(1);
+  const section = page.locator("section[aria-labelledby=s-estado]");
+  await expect(section.getByRole("link", { name: "Abrir centro de medición" })).toHaveAttribute("href", `${P}/medicion`);
+  await expect(section).toContainText("Revisa las capturas guardadas de Google, su procedencia y cobertura");
+  await expect(section.getByText("Cómo se mostrarán los datos")).toBeVisible();
+  await expect(section.locator(".empty")).toHaveCount(0);
+  await expect(section).not.toContainText(/CORE-9\.3|CORE-9\.4/);
+  await section.getByRole("link", { name: "Abrir centro de medición" }).click();
+  await expect(page).toHaveURL(`${P}/medicion`);
+  await expect(page.getByRole("heading", { level: 1, name: "Medición orgánica" })).toBeVisible();
 });

@@ -16,9 +16,17 @@ import { sha256, type Keyring } from "./keyring";
 
 export const MANIFEST_VERSION = "rubik-export-manifest-v1";
 export const SEO_MANIFEST_VERSION = "rubik-export-manifest-v2";
+/** v4 exports (N2-12 Contenidos + N2-13 GEO on top of v3). v1/v2 manifests keep their meaning. */
+export const CONTENT_GEO_MANIFEST_VERSION = "rubik-export-manifest-v3";
+
+const V3 = "rubik-project-export-v3", V4 = "rubik-project-export-v4";
+/** Manifest version each export format must carry; any other pairing is malformed. */
+export const manifestVersionFor = (format: unknown) =>
+  format === V4 ? CONTENT_GEO_MANIFEST_VERSION : format === V3 ? SEO_MANIFEST_VERSION : MANIFEST_VERSION;
+type Section = { count: number; digest: string };
 
 export interface ExportManifest {
-  version: typeof MANIFEST_VERSION | typeof SEO_MANIFEST_VERSION;
+  version: typeof MANIFEST_VERSION | typeof SEO_MANIFEST_VERSION | typeof CONTENT_GEO_MANIFEST_VERSION;
   projectId: string;
   organizationId: string;
   scope: ProjectRef["scope"];
@@ -28,9 +36,11 @@ export interface ExportManifest {
   imports: { count: number; digest: string };
   /** Digest of `operations` (export v2), or null when the body has none. */
   operations: { digest: string | null };
-  /** Present only in v3 exports; binds declared SEO rows and their relationships. */
-  seo?: { projectDomain: string | null; keywords: { count: number; digest: string }; competitors: { count: number; digest: string };
-    observations: { count: number; digest: string } };
+  /** Present in v3 and v4 exports; binds declared SEO rows and their relationships. */
+  seo?: { projectDomain: string | null; keywords: Section; competitors: Section; observations: Section };
+  /** Present only in v4 exports: every Contenidos and GEO row (all stored columns). */
+  content?: { clusters: Section; opportunities: Section; evidence: Section; briefs: Section };
+  geo?: { observations: Section; proposals: Section };
   keyId: string;
   signature: string;
 }
@@ -41,7 +51,7 @@ export type Completeness =
   | { status: "INCOMPLETE"; reasons: string[] };
 
 type Body = { format?: unknown; exportedAt?: unknown; scope?: unknown; audit?: { rows?: unknown }; results?: unknown;
-  imports?: unknown; operations?: unknown; seo?: unknown };
+  imports?: unknown; operations?: unknown; seo?: unknown; content?: unknown; geo?: unknown };
 type Unsigned = Omit<ExportManifest, "keyId" | "signature">;
 
 const digest = (value: unknown) => sha256.hash(platform.canonicalJson(value));
@@ -55,9 +65,13 @@ function describe(body: Body, project: Pick<ProjectRef, "projectId" | "organizat
   const results = ((Array.isArray(body.results) ? body.results : []) as { row?: Record<string, unknown> }[]).map((r) => r?.row ?? {});
   const imports = (Array.isArray(body.imports) ? body.imports : []) as Record<string, unknown>[];
   const seo = body.seo as { projectDomain?: unknown; keywords?: unknown; competitors?: unknown; observations?: unknown } | undefined;
-  const seoRows = (value: unknown) => (Array.isArray(value) ? value : []) as Record<string, unknown>[];
+  const content = body.content as { clusters?: unknown; opportunities?: unknown; evidence?: unknown; briefs?: unknown } | undefined;
+  const geo = body.geo as { observations?: unknown; proposals?: unknown } | undefined;
+  const rowsOf = (value: unknown) => (Array.isArray(value) ? value : []) as Record<string, unknown>[];
+  const section = (value: unknown): Section => ({ count: rowsOf(value).length, digest: digest([...rowsOf(value)].sort(byId)) });
+  const hasSeo = body.format === V3 || body.format === V4;
   return {
-    version: body.format === "rubik-project-export-v3" ? SEO_MANIFEST_VERSION : MANIFEST_VERSION,
+    version: manifestVersionFor(body.format),
     projectId: project.projectId,
     organizationId: project.organizationId,
     scope: { tenantId: project.scope.tenantId, projectId: project.scope.projectId },
@@ -68,12 +82,15 @@ function describe(body: Body, project: Pick<ProjectRef, "projectId" | "organizat
     // Imports are not signed: the digest covers every stored column.
     imports: { count: imports.length, digest: digest([...imports].sort(byId)) },
     operations: { digest: body.operations === undefined ? null : digest(body.operations) },
-    ...(body.format === "rubik-project-export-v3" ? { seo: {
+    ...(hasSeo ? { seo: {
       projectDomain: typeof seo?.projectDomain === "string" ? seo.projectDomain : null,
-      keywords: { count: seoRows(seo?.keywords).length, digest: digest([...seoRows(seo?.keywords)].sort(byId)) },
-      competitors: { count: seoRows(seo?.competitors).length, digest: digest([...seoRows(seo?.competitors)].sort(byId)) },
-      observations: { count: seoRows(seo?.observations).length, digest: digest([...seoRows(seo?.observations)].sort(byId)) },
+      keywords: section(seo?.keywords), competitors: section(seo?.competitors), observations: section(seo?.observations),
     } } : {}),
+    ...(body.format === V4 ? {
+      content: { clusters: section(content?.clusters), opportunities: section(content?.opportunities),
+        evidence: section(content?.evidence), briefs: section(content?.briefs) },
+      geo: { observations: section(geo?.observations), proposals: section(geo?.proposals) },
+    } : {}),
   };
 }
 
@@ -91,7 +108,7 @@ export function signExportManifest(body: Body, project: ProjectRef, keyring: Key
 export function checkExportManifest(doc: Body & { manifest?: unknown }, project: Pick<ProjectRef, "projectId" | "organizationId" | "scope">, keyring: Keyring): Completeness {
   if (doc.manifest === undefined) return { status: "UNPROVEN" };
   const m = doc.manifest as Partial<ExportManifest> | null;
-  const expected = doc.format === "rubik-project-export-v3" ? SEO_MANIFEST_VERSION : MANIFEST_VERSION;
+  const expected = manifestVersionFor(doc.format);
   if (!m || typeof m !== "object" || m.version !== expected || typeof m.signature !== "string" || typeof m.keyId !== "string") {
     return { status: "INCOMPLETE", reasons: ["manifest.malformed"] };
   }
@@ -106,8 +123,10 @@ export function checkExportManifest(doc: Body & { manifest?: unknown }, project:
   if (!same(claimed.results, actual.results)) reasons.push("manifest.results");
   if (!same(claimed.imports, actual.imports)) reasons.push("manifest.imports");
   if (!same(claimed.operations, actual.operations)) reasons.push("manifest.operations");
-  if (claimed.seo !== undefined || actual.seo !== undefined) {
-    if (claimed.seo === undefined || actual.seo === undefined || !same(claimed.seo, actual.seo)) reasons.push("manifest.seo");
+  for (const part of ["seo", "content", "geo"] as const) {
+    if (claimed[part] !== undefined || actual[part] !== undefined) {
+      if (claimed[part] === undefined || actual[part] === undefined || !same(claimed[part], actual[part])) reasons.push(`manifest.${part}`);
+    }
   }
   return reasons.length ? { status: "INCOMPLETE", reasons } : { status: "COMPLETE" };
 }

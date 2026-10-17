@@ -1,5 +1,7 @@
 # Handoff
 
+> **N2-12 + N2-13 integración (Claude) — 17/10/2026:** rama `claude/n2-12-13-integration-20261017` actualizada con `main@1b2fa1d` (tras #119 y #128); PR Draft única hacia main. SHA funcional `6163c13`: verify 580 PASS/1 SKIP, 33 migraciones desde base limpia, tipos iguales, pgTAP 870/870, integración 145/145, E2E 170 PASS/58 SKIP (viewport)/0 FAIL con Chromium 153 fijado, rollback/reaplicación PASS, restauración v4 ×2 en destino separado PASS, contrato v2/v3/v4/unknown sobre catálogos reales. Corregidos: E2E del resumen roto en main tras N2-10 y fallo de hidratación de fechas en OpenSEO. Sin decidir: R1 (v4 no es instantánea) y borrado de cuentas con las 11 FK de autoría. Nada alojado; banderas sin activar. Detalle: [N2-12-13-INTEGRACION §9](N2-12-13-INTEGRACION-20261017.md).
+
 > **N2-11 (Claude) — 16/10/2026:** primer incremento de competidores en [PR Draft](N2-11-COMPETIDORES.md) desde `main@d12b80e`, rama `claude/n2-11-competitor-intelligence-v1`. Local: verify 499/499, integración 111/111, pgTAP 695/695, E2E 149/46/0. Migración `20261016100000` **no aplicada en alojado**; fuentes automáticas desactivadas ([Fase A](N2-11-COMPETIDORES-FASE-A-20261016.md)). No operativo. Checkpoint: [CLAUDE-N2-11-CHECKPOINT](CLAUDE-N2-11-CHECKPOINT.md).
 
 > **RELEVO S2 — 15/10/2026:** bloque local completo sobre `main@3eba9d0`,

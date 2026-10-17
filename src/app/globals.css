@@ -161,6 +161,12 @@ main:focus { outline: none; }
 .cards { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-3); }
 .card { background: var(--color-surface); border: 1px solid var(--color-line); border-radius: var(--radius); padding: var(--space-4); }
 .card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); margin-bottom: var(--space-2); }
+.measurement-cards { grid-template-columns: minmax(0, 1fr); }
+.measurement-cards > .card { min-width: 0; }
+.measurement-row-list { display: grid; gap: var(--space-2); margin-top: var(--space-3); }
+.measurement-row { min-width: 0; padding: var(--space-3); border: 1px solid var(--color-line); border-radius: var(--radius-sm); }
+.measurement-row h4 { margin: 0; font-size: 0.95rem; }
+.measurement-metrics { grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr)); }
 .facts { margin: var(--space-3) 0 0; display: grid; gap: var(--space-2); }
 .facts div { display: grid; gap: 0.1rem; }
 .facts dt { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-muted); }
@@ -186,11 +192,12 @@ main:focus { outline: none; }
 .field label { font-weight: 600; }
 .field p { margin: 0; }
 .field input[type=file] { padding: var(--space-2) var(--space-3); }
-.field input, .field select {
+.field input, .field select, .field textarea {
   width: 100%; min-height: var(--tap); padding: 0 var(--space-3);
   border: 1px solid var(--color-muted); border-radius: var(--radius-sm);
   background: var(--color-surface); color: var(--color-fg); font: inherit;
 }
+.field textarea { padding: var(--space-2) var(--space-3); line-height: 1.45; resize: vertical; }
 .checklist { padding-left: 1.2rem; margin: 0; }
 .checklist li { margin-bottom: var(--space-2); }
 
@@ -228,6 +235,7 @@ main:focus { outline: none; }
   h1 { font-size: 1.8rem; }
   .user-name { display: inline; }
   .cards { grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); }
+  .measurement-cards { grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); }
   .grid-2 { grid-template-columns: 1fr 1fr; }
   .rtable thead { position: static; width: auto; height: auto; overflow: visible; clip-path: none; white-space: normal; display: table-header-group; }
   .rtable tbody { display: table-row-group; }

@@ -1,5 +1,25 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
+## Corte vigente · 17/10/2026 · integración N2-12/13
+
+- #131 fusionada en `main@cf16aca1eb456b4b4af04c7ba06a787c21d1d8c6`; #116 y #117 cerradas sin merge por sustitución. Production READY; `/api/salud` 200 devuelve `yvdgmklgwlshizzgefpv`. En auditoría independiente, HEAD #131 `5fdbfdc`: verify 580 PASS/1 SKIP, lint/tipos/build PASS. Claude informó integración 145/145, pgTAP 870/870, E2E 170 PASS/58 SKIP/0 FAIL, rollback y recuperación v4 doble sobre código `6163c13`.
+- N2-12/13 fusionadas como código, aún apagadas y sin aplicación alojada de sus migraciones en esta ventana. No usar datos reales antes de decidir R1 y retención de las 11 FK de autoría, aplicar/validar SQL en el proyecto correcto con respaldo y activar de forma controlada. H1/H2 siguen bloqueados; Actions sin jobs por facturación.
+- Codex: continuar U02/U03 en #129, reconciliar con este main y nunca usar `yvdgmklgwlshizzgefpv` como Preview. Siguiente producto tras seguridad/activación: N2-14 funcional; #118 es solo diseño. No repetir pruebas ya acreditadas sin cambio de código o riesgo concreto.
+
+## Corte histórico · 17/10/2026 · N2-10 integrada
+
+- `main@46a6113fa4b6fd1ddc1614cfd99164ff55aaa656`: #119 fusionada. Production READY en `dpl_ug9sCBswRo7q8iB184s8ZdApfvcx`; `/api/salud` 200 devuelve `yvdgmklgwlshizzgefpv`. Verify combinado local 538 PASS/1 SKIP, lint/tipos/build PASS; TLS conservado. No cambió esquema alojado ni estado H1/H2.
+- Claude: rebasar `claude/n2-12-13-integration-20261017@78619bb` sobre ese `main`, repetir gates completos y abrir una PR conjunta para sustituir #116/#117. Codex: U02/U03 en #129 sin tocar la rama de Claude. Ref Preview `rhnnplewqsekrnaousyl` creado, todavía sin aislamiento alojado acreditado; no se habilitan sesiones por inferencia.
+- #128 aporta evidencia N1 del escritor PASS acotado; H1/H2 siguen bloqueados. Actions no ejecuta jobs por facturación.
+
+## Corte histórico · 17/10/2026 12:18 UTC · escritor N1 alojado
+
+- Código y Production `main@f5afc09833eee77ab605abda3a2ec9d4a1e80a92`; despliegue final `dpl_3UsSnD3hXnnHuNCtATK3i9BnFKB7` READY; `/api/salud` 200, ref `yvdgmklgwlshizzgefpv`. PR #127 fusionada; rama documental `docs/n1-writer-hosted-window-20261017` en el worktree propio `s2-consent/test-results/n1-hosted-gates-20261017`. Consultar el HEAD remoto de esa rama antes de continuar.
+- Antes de activar: 27 migraciones hasta `20261015210000`, NOLOGIN/NOBYPASSRLS/NOSUPERUSER, cero sesiones/outbox, variable ausente. Respaldo renovado `2026-10-17T11:57:45Z`: dos copias DPAPI SHA-256 `34DDD997C7F9CBEC180FF7140C5B37E4625042BB354B21516BF18E302A9CBA11`; descifrado y hashes de siete componentes verificados; restauración propia 38/38 filas, 27/27 versiones, cero restricciones sin validar. Stack detenido y SQL descifrado eliminado. DPAPI no es portable ni snapshot global; servicios Auth/Storage/Realtime fuera del ensayo.
+- Resultado: LOGIN solo para `rubik_audit_writer`, NOINHERIT/NOBYPASSRLS/NOSUPERUSER, sin grants nuevos. Credencial dedicada custodiada fuera de Git/chat/logs; `RUBIK_AUDIT_DATABASE_URL` Sensitive solo Vercel Production. TLS cliente con CA y hostname PASS; identidad/grants PASS. Vercel final registra el nombre de la variable, sin revelar valor. Banderas Google/OpenSEO fijadas en `false` solo Production, sin llamadas a proveedores ni migraciones N2.
+- Pruebas dirigidas **2/2 PASS / 0 SKIP / 0 FAIL** sobre código `f5afc098` contra el ref alojado: preflight, evento firmado y HMAC/cadena, reintento con mismo `operationId` sin duplicado, actor ajeno denegado; trigger de retirada crea outbox pendiente, firma/completado y reintento idempotente con vínculo `receiptId`. Las claves HMAC eran ficticias y efímeras; `getUser()` y el actor SQL fueron dobles controlados: faltan anillo Production, JWT real y endpoint HTTP. Limpieza verificada: cero fixtures/recibos propios; outbox global 0. El rol permanece LOGIN; una lectura final mostró una sesión idle del pooler, sin actividad. No repetir suites completas sin cambio de código. Actions bloqueada por facturación.
+- **Gate del escritor PASS acotado; H1 BLOQUEADO y H2 BLOQUEADO.** Siguiente acción exacta: U03, cuentas/organizaciones ficticias bajo custodia, matriz JWT/RLS A1/A2/B1 con controles positivos; después endpoint real de exportación firmada, restauración ficticia e idempotencia. Sarah solo con U04. Revalidar SHA/ref/rol y no usar Funding OS ni FLOOR PLAN. [Expediente](n1-cierre/N1-GATES-ALOJADOS-20261017.md). Sin reanudación automática.
+
 ## Corte vigente · 17/10/2026 08:58 UTC · ventana escritor N1
 
 - Rama/worktree `codex/n1-hosted-gates-20261017` en `s2-consent/test-results/n1-hosted-gates-20261017`; `main/Production@9aeef8d979e60fb33b2363888065383203acb6a5`; código TLS probado y commit `b9a8c47d7c32218963604635e8ad2c6e85cb7363`. [PR Draft #127](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/127) para revisión; no fusionar sin auditoría.
