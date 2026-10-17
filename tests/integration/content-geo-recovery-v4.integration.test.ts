@@ -1,5 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { writeFileSync } from "node:fs";
+import { resolve, sep } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { providers } from "@/lib/core";
 import { importFile } from "@/lib/imports/repository";
@@ -27,7 +29,8 @@ const contentGeoStack = process.env.RUBIK_TEST_N2_CONTENT_GEO_STACK === "1";
 const container = contentGeoStack ? localDatabaseContainer() : "";
 const org = `cgv4-${RUN}`, orphanOrg = `cgv4-autor-${RUN}`, foreignOrg = `cgv4-ajena-${RUN}`;
 const users: Record<string, string> = {};
-const loaded = loadKeyring({ PROVENANCE_SIGNING_KEYS: `k-v4:${randomBytes(32).toString("base64")}`, PROVENANCE_ACTIVE_KEY_ID: "k-v4" });
+const signingKey = randomBytes(32).toString("base64");
+const loaded = loadKeyring({ PROVENANCE_SIGNING_KEYS: `k-v4:${signingKey}`, PROVENANCE_ACTIVE_KEY_ID: "k-v4" });
 if (!loaded.ok) throw new Error(loaded.error);
 const keyring = loaded.keyring;
 const psql = (sql: string) => execFileSync("docker", ["exec", "-i", container, "psql", "-U", "postgres", "-v", "ON_ERROR_STOP=1", "-qAt"],
@@ -142,6 +145,12 @@ beforeAll(async () => {
   if (!cg.ok) throw new Error(cg.error);
   originalCG = cg;
   doc = await exportV4(owner, ref, "2026-10-17T06:00:00.000Z");
+  if (process.env.RUBIK_N2_V4_EXPORT_ARTIFACT) {
+    const root = resolve(import.meta.dirname, "..", "..");
+    const file = resolve(process.env.RUBIK_N2_V4_EXPORT_ARTIFACT);
+    if (!file.startsWith(resolve(root, "test-results") + sep)) throw new Error("Refused: v4 drill artifact outside this worktree");
+    writeFileSync(file, JSON.stringify({ document: doc, signingKey, userIds: Object.values(users) }), { flag: "wx", mode: 0o600 });
+  }
 
   // A project whose only content author is a person who will not exist in the destination.
   const orphanUser = await signedIn("cgv4-orphan");

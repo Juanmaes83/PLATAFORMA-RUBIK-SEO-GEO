@@ -1,5 +1,12 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
+## Corte de integración N2 · 17/10/2026 · Contenidos + GEO
+
+- Rama/worktree propio `codex/n2-12-13-final-20261017` en `s2-consent/test-results/n2-12-13-final-20261017`, desde la rama fuente `claude/n2-12-13-integration-20261017@78619bb` y `main@46a6113fa4b6fd1ddc1614cfd99164ff55aaa656` (#119 fusionada). #116/#117 siguen fuentes Draft; no editar sus ramas.
+- Dos conflictos de scripts resueltos conservando `pr119Integration` y `n2ContentGeo`. TLS, Medición, barreras N2 y exportación/restauración v4 presentes. Stack local propio `rubik-n2-final-20261017` (52321/52322), 33 migraciones sin seed. Tipos CLI 2.118.0 coincidentes, pgTAP 870/870, integración inicial 145/145. E2E inicial 167 PASS/58 SKIP/3 FAIL por aserción anterior a #119; corregida y repetida 3/3. La ejecución completa definitiva y su SHA constan en la PR Draft, no en ese primer intento.
+- Ensayo v4 de exportación firmada y restauración doble en destino local separado, y rollback/reaplicación transaccional con huella ACL/RLS/triggers, ejecutados con datos ficticios. Destino descartado con `--no-backup`; origen con 0 usuarios, 0 organizaciones y 0 recibos pendientes tras los ensayos. Ningún SQL alojado, proveedor, bandera, dato Sarah, rama U02 o recurso FLOOR PLAN modificado. GitHub Actions no ejecuta jobs por facturación.
+- Siguiente acción: auditar el HEAD exacto de la PR Draft, repetir los gates finales indicados en su cuerpo y fusionar solo tras supervisión; desplegar esquema N2 alojado y activar banderas únicamente en una ventana operativa distinta. H1/H2 mantienen sus gates alojados independientes.
+
 ## Corte vigente · 17/10/2026 08:58 UTC · ventana escritor N1
 
 - Rama/worktree `codex/n1-hosted-gates-20261017` en `s2-consent/test-results/n1-hosted-gates-20261017`; `main/Production@9aeef8d979e60fb33b2363888065383203acb6a5`; código TLS probado y commit `b9a8c47d7c32218963604635e8ad2c6e85cb7363`. [PR Draft #127](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/127) para revisión; no fusionar sin auditoría.
