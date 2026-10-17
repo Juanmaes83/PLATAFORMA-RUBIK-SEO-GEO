@@ -15,6 +15,7 @@ export type ConnectionPanelView =
   | { state: "none"; hostOptions: string[]; defaultHost: string | null }
   | { state: "active"; hosts: string[]; grantedAt: string; providerHint: string };
 
+// Server and browser ICU data can word the same date differently; see OpenSeoReconcilePanel.
 const dateFormat = new Intl.DateTimeFormat("es-ES", { dateStyle: "long", timeStyle: "short", timeZone: "Europe/Madrid" });
 
 function Outcome({ state }: { state: Awaited<ReturnType<typeof connectProjectAction>> }) {
@@ -86,7 +87,7 @@ export function OpenSeoConnectionPanel({ tenant, project, view, projectMode, rea
           <dl className="facts">
             <div><dt>Proyecto de OpenSEO</dt><dd>Termina en {view.providerHint}</dd></div>
             <div><dt>Hosts auditables</dt><dd>{view.hosts.join(", ")}</dd></div>
-            <div><dt>Consentimiento</dt><dd>{dateFormat.format(new Date(view.grantedAt))}</dd></div>
+            <div><dt>Consentimiento</dt><dd><time dateTime={view.grantedAt} suppressHydrationWarning>{dateFormat.format(new Date(view.grantedAt))}</time></dd></div>
             <div><dt>Credencial</dt><dd>Clave de la plataforma, guardada solo en el servidor</dd></div>
           </dl>
           <form action={revoke} className="form">

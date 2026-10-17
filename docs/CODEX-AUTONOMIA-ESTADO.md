@@ -1,13 +1,12 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
-## Corte de integración N2 · 17/10/2026 · Contenidos + GEO
+## Corte vigente · 17/10/2026 · integración N2-12/13
 
-- Rama/worktree propio `codex/n2-12-13-final-20261017` en `s2-consent/test-results/n2-12-13-final-20261017`, desde la rama fuente `claude/n2-12-13-integration-20261017@78619bb` y `main@1b2fa1dbed91280a0fce815eadfd219f236d26a9` (#119 y documentación #128 fusionadas). #116/#117 siguen fuentes Draft; no editar sus ramas.
-- Dos conflictos de scripts resueltos conservando `pr119Integration` y `n2ContentGeo`. TLS, Medición, barreras N2 y exportación/restauración v4 presentes. Stack local propio `rubik-n2-final-20261017` (52321/52322), 33 migraciones sin seed. Tipos CLI 2.118.0 coincidentes, pgTAP 870/870, integración inicial 145/145. E2E inicial 167 PASS/58 SKIP/3 FAIL por aserción anterior a #119; corregida y repetida 3/3. La ejecución completa definitiva y su SHA constan en la PR Draft, no en ese primer intento.
-- Ensayo v4 de exportación firmada y restauración doble en destino local separado, y rollback/reaplicación transaccional con huella ACL/RLS/triggers, ejecutados con datos ficticios. Destino descartado con `--no-backup`; origen con 0 usuarios, 0 organizaciones y 0 recibos pendientes tras los ensayos. Ningún SQL alojado, proveedor, bandera, dato Sarah, rama U02 o recurso FLOOR PLAN modificado. GitHub Actions no ejecuta jobs por facturación.
-- Siguiente acción: auditar el HEAD exacto de la PR Draft y fusionar solo tras supervisión; desplegar esquema N2 alojado y activar banderas únicamente en una ventana operativa distinta. H1/H2 mantienen sus gates alojados independientes.
+- #131 fusionada en `main@cf16aca1eb456b4b4af04c7ba06a787c21d1d8c6`; #116 y #117 cerradas sin merge por sustitución. Production READY; `/api/salud` 200 devuelve `yvdgmklgwlshizzgefpv`. En auditoría independiente, HEAD #131 `5fdbfdc`: verify 580 PASS/1 SKIP, lint/tipos/build PASS. Claude informó integración 145/145, pgTAP 870/870, E2E 170 PASS/58 SKIP/0 FAIL, rollback y recuperación v4 doble sobre código `6163c13`.
+- N2-12/13 fusionadas como código, aún apagadas y sin aplicación alojada de sus migraciones en esta ventana. No usar datos reales antes de decidir R1 y retención de las 11 FK de autoría, aplicar/validar SQL en el proyecto correcto con respaldo y activar de forma controlada. H1/H2 siguen bloqueados; Actions sin jobs por facturación.
+- Codex: continuar U02/U03 en #129, reconciliar con este main y nunca usar `yvdgmklgwlshizzgefpv` como Preview. Siguiente producto tras seguridad/activación: N2-14 funcional; #118 es solo diseño. No repetir pruebas ya acreditadas sin cambio de código o riesgo concreto.
 
-## Corte vigente · 17/10/2026 · N2-10 integrada
+## Corte histórico · 17/10/2026 · N2-10 integrada
 
 - `main@46a6113fa4b6fd1ddc1614cfd99164ff55aaa656`: #119 fusionada. Production READY en `dpl_ug9sCBswRo7q8iB184s8ZdApfvcx`; `/api/salud` 200 devuelve `yvdgmklgwlshizzgefpv`. Verify combinado local 538 PASS/1 SKIP, lint/tipos/build PASS; TLS conservado. No cambió esquema alojado ni estado H1/H2.
 - Claude: rebasar `claude/n2-12-13-integration-20261017@78619bb` sobre ese `main`, repetir gates completos y abrir una PR conjunta para sustituir #116/#117. Codex: U02/U03 en #129 sin tocar la rama de Claude. Ref Preview `rhnnplewqsekrnaousyl` creado, todavía sin aislamiento alojado acreditado; no se habilitan sesiones por inferencia.
