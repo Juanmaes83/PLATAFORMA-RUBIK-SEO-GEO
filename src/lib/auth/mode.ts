@@ -65,6 +65,16 @@ export function previewIdentityMatches(env: Env, approvedRef: string | null = AP
   }
 }
 
+/** A verified Preview session must be issued by the same approved Auth project. */
+export function previewJwtIssuerMatches(
+  issuer: unknown,
+  env: Env,
+  approvedRef: string | null = APPROVED_PREVIEW_SUPABASE_REF,
+): boolean {
+  return previewIdentityMatches(env, approvedRef)
+    && issuer === `https://${approvedRef}.supabase.co/auth/v1`;
+}
+
 /**
  * Vercel Previews share the production Supabase project until an isolated one exists
  * (docs/DECISIONES-ADR0010-Y-PREVIEW.md §2). No session is created on Preview even

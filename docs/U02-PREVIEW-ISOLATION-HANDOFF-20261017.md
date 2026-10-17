@@ -1,6 +1,20 @@
 # U02 Preview aislada · preparación verificable · 17/10/2026
 
-Estado: **BLOQUEADO antes de crear proyecto, cuentas o fixtures alojados**. Esta rama parte de `main@f5afc09833eee77ab605abda3a2ec9d4a1e80a92`; el SHA de la rama y de las pruebas se registra en la PR. No cambia Production ni aplica SQL alojado.
+## Corte vigente · 17/10/2026 · nuevo proyecto Preview
+
+**U02 BLOQUEADO antes de migraciones y variables; U03 no iniciado.** Juanma comunicó y autorizó el nuevo proyecto aislado `rubik-preview`, ref `rhnnplewqsekrnaousyl`, ACTIVE_HEALTHY en `eu-west-3`, con historial inicial vacío y cotización de USD 0/mes. Estos datos proceden del propietario; **la CLI autenticada en esta sesión no pudo acreditarlos de forma independiente**: `projects list` mostró Production pero no el nuevo ref, y `migration list --project-ref rhnnplewqsekrnaousyl` terminó en `DbConfigIpv6Error` antes de leer el historial. Por tanto, el supuesto historial vacío no es un resultado de la CLI. No se ejecutaron `db push`, dry run, SQL alojado, creación de usuarios, fixtures ni llamadas a proveedores. El ref aprobado en código permanece `null` y Preview sigue cerrado.
+
+GitHub: `main@f5afc09833eee77ab605abda3a2ec9d4a1e80a92`; #129 seguía OPEN/Draft con HEAD `313205976f0c59cd54e5200f0f2497c99c3b5871` al inicio de este corte. Los otros worktrees no se modificaron. El paquete local N1 exige 27 migraciones exactas hasta `20261015210000`, excluye cuatro posteriores y desactiva seed; **su dry run remoto sigue pendiente**. La CLI mostró `previewVisible=false`, `productionVisible=true` y siete proyectos visibles, sin consultar los otros refs. No se imprimieron secretos.
+
+**Siguiente acción ejecutable:** habilitar en la cuenta/perfil CLI de Rubik acceso de lectura y operación al ref exacto `rhnnplewqsekrnaousyl` (o autenticar esta terminal con la cuenta que lo creó), manteniendo Production y Funding OS fuera del destino. Después verificar que `projects list` incluye el ref, resolver la conexión IPv4/pooler para ese ref, ejecutar `migration list --project-ref rhnnplewqsekrnaousyl` y una lectura de catálogo sin filas de usuarios; solo si todo coincide, ejecutar el dry run del paquete N1 y aplicar exclusivamente las 27 migraciones. Hasta entonces no se puede separar con seguridad la clave publicable de Vercel ni crear cuentas A/B. Juanma debe confirmar además dos alias ficticios A/B bajo su control por un canal que no publique contraseñas; no se requieren esos alias para el inventario de migraciones.
+
+La comprobación de metadatos de Vercel desde este worktree sin vínculo creó inesperadamente un proyecto vacío `u02-preview-isolation-20261017`. Se eliminó inmediatamente por nombre exacto y se retiró el vínculo local `.vercel`; no era el proyecto Vercel de Rubik y no se cambiaron sus variables ni despliegues. No repetir `vercel project inspect` o `vercel env ls` desde un worktree sin vínculo explícito al proyecto Rubik. Este hecho no acredita ni afecta U02.
+
+Preparación de código en este corte: `currentUser()` comprueba que el `iss` de las claims ya verificadas por Supabase coincida exactamente con el Auth del ref aprobado cuando `VERCEL_ENV=preview`. El test dirigido rechaza emisor de Production, origen parecido y ausencia de issuer. Como el ref aprobado sigue `null`, esto **no abre sesiones** ni sustituye el centinela de base, la separación de variables o la prueba de JWT reales. `npm run verify` terminó con 539 PASS, 1 SKIP, lint, tipos y build PASS; las dos suites dirigidas sumaron 7 PASS. Estas pruebas son locales sobre el árbol de esta rama antes del commit de checkpoint, sin validación alojada. GitHub Actions sigue bloqueado por facturación.
+
+## Corte histórico previo a la creación del proyecto
+
+Estado al corte anterior: **BLOQUEADO antes de crear proyecto, cuentas o fixtures alojados**. Esta rama parte de `main@f5afc09833eee77ab605abda3a2ec9d4a1e80a92`; el SHA de la rama y de las pruebas se registra en la PR. No cambia Production ni aplica SQL alojado.
 
 ## Inventario observado, sin secretos
 
