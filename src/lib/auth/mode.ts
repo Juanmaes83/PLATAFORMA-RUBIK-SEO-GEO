@@ -42,6 +42,39 @@ export function isSecretKey(key: string): boolean {
 export const PREVIEW_LOCKED_NOTICE =
   "Preview de Vercel sin base de datos propia: el acceso está desactivado para no leer ni escribir datos reales desde código sin revisar.";
 
+// U02 remains closed until the isolated project's ref is approved in this reviewed file.
+// An environment flag cannot supply the allowlist or authorize access to Production.
+export const PRODUCTION_SUPABASE_REF = "yvdgmklgwlshizzgefpv";
+export const APPROVED_PREVIEW_SUPABASE_REF: string | null = null;
+
+export function previewIdentityMatches(env: Env, approvedRef: string | null = APPROVED_PREVIEW_SUPABASE_REF): boolean {
+  if (env.VERCEL_ENV !== "preview") return false;
+  if (!approvedRef || !/^[a-z0-9]{20}$/.test(approvedRef) || approvedRef === PRODUCTION_SUPABASE_REF) return false;
+  try {
+    const url = new URL((env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim());
+    return url.protocol === "https:"
+      && url.hostname === `${approvedRef}.supabase.co`
+      && url.port === ""
+      && url.username === ""
+      && url.password === ""
+      && url.pathname === "/"
+      && url.search === ""
+      && url.hash === "";
+  } catch {
+    return false;
+  }
+}
+
+/** A verified Preview session must be issued by the same approved Auth project. */
+export function previewJwtIssuerMatches(
+  issuer: unknown,
+  env: Env,
+  approvedRef: string | null = APPROVED_PREVIEW_SUPABASE_REF,
+): boolean {
+  return previewIdentityMatches(env, approvedRef)
+    && issuer === `https://${approvedRef}.supabase.co/auth/v1`;
+}
+
 /**
  * Vercel Previews share the production Supabase project until an isolated one exists
  * (docs/DECISIONES-ADR0010-Y-PREVIEW.md §2). No session is created on Preview even
@@ -52,7 +85,7 @@ export const PREVIEW_LOCKED_NOTICE =
  * Production and local development are unaffected.
  */
 export function previewLocked(env: Env): boolean {
-  return (env.VERCEL_ENV ?? "").trim() === "preview";
+  return (env.VERCEL_ENV ?? "").trim() === "preview" && !previewIdentityMatches(env);
 }
 
 /** The public Supabase settings, or null when they are missing, unusable or locked in a Preview. */
