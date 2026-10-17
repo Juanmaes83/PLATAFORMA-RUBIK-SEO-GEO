@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PermissionTable } from "@/components/PermissionTable";
 import { ProjectNav } from "@/components/ProjectNav";
-import { EmptyState, PageHead, StatusPill } from "@/components/ui";
+import { PageHead } from "@/components/ui";
 import { projectAccess } from "@/lib/access";
 import { requireSession } from "@/lib/auth/session";
 import { MEASUREMENT_STATES, roleLabel } from "@/lib/labels";
@@ -26,15 +26,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ tenant
 
       <section aria-labelledby="s-estado" className="section">
         <h2 id="s-estado">Estado de medición</h2>
-        <EmptyState
-          title="Sin mediciones"
-          requires={["Una importación manual con fuente, fecha y estado de revisión (CORE-9.3)", "O un conector de solo lectura que el cliente autorice (Search Console o Bing Webmaster, CORE-9.4 y 9.5)"]}
-          nextStep="Registrar la primera observación. A partir de ahí aparecerán aquí su fecha, su fuente y su estado de medición."
-        >
-          <p>
-            <StatusPill tone="neutral">Desconocido</StatusPill> Este proyecto aún no tiene observaciones.
-          </p>
-        </EmptyState>
+        <p>Revisa las capturas guardadas de Google, su procedencia y cobertura, y qué conexiones siguen pendientes.</p>
+        <p><Link className="btn" href={`${base}/medicion`}>Abrir centro de medición</Link></p>
         <details className="legend">
           <summary>Cómo se mostrarán los datos</summary>
           <dl>

@@ -6,6 +6,7 @@ import { n2SchemaAvailable } from "@/lib/n2/availability";
 export function ProjectNav({ base, current }: { base: string; current: string | null }) {
   const items = [
     { href: base, label: "Resumen", key: null as string | null },
+    { href: `${base}/medicion`, label: "Medición orgánica", key: "medicion" },
     ...PROJECT_SECTIONS
       .filter((s) => s.slug !== "competidores" || n2SchemaAvailable())
       .map((s) => ({ href: `${base}/${s.slug}`, label: s.label, key: s.slug })),
