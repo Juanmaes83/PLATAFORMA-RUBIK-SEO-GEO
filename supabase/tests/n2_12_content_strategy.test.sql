@@ -244,6 +244,7 @@ select results_eq($$select action, count(*)::int from private.audit_outbox where
   'one receipt per change; cascades and source erasure add none');
 select is((select actor_role || '/' || actor_id from private.audit_outbox where action = 'content.brief.approve'),
   'account-manager/00000000-0000-4000-8000-0000000d0a05', 'the approval receipt carries the live role and the actor');
+select throws_ok($$delete from auth.users where id = '00000000-0000-4000-8000-0000000d0a02'$$, '23503', null, 'an account with authored content rows cannot be deleted (authorship retention)');
 select throws_ok($$delete from public.projects where id = (select a1 from ids)$$, '55000', null, 'pending receipts block the project deletion (#106)');
 delete from private.audit_outbox where project_id = (select a1 from ids) and state = 'pending';
 select set_config('role', 'service_role', true);

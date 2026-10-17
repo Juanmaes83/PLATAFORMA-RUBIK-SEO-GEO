@@ -80,6 +80,12 @@ create table public.geo_proposals (
 create unique index geo_proposals_open on public.geo_proposals (project_id, rule, lower(btrim(query_text)))
   where status in ('proposed', 'accepted');
 
+-- ── Authorship retention (same rule as seo_keywords.created_by in main) ─────────────────
+alter table public.geo_observations add foreign key (created_by) references auth.users (id),
+  add foreign key (verified_by) references auth.users (id);
+alter table public.geo_proposals add foreign key (created_by) references auth.users (id),
+  add foreign key (reviewed_by) references auth.users (id);
+
 -- ── Integrity rules the grants cannot express ────────────────────────────────────────────
 
 create function private.geo_json_ok(sources jsonb, entities jsonb) returns boolean

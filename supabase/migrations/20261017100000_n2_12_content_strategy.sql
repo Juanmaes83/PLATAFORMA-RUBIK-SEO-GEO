@@ -128,6 +128,16 @@ create table public.content_briefs (
   check (status not in ('draft', 'in-review') or (approved_by is null and approved_at is null))
 );
 
+-- ── Authorship retention (same rule as seo_keywords.created_by in main) ─────────────────
+-- Every person recorded on a row must keep existing: deleting an account with authored rows
+-- fails, and a restore never replaces an author with the operator (src/lib/restore/plan.ts).
+alter table public.content_clusters add foreign key (created_by) references auth.users (id);
+alter table public.content_opportunities add foreign key (created_by) references auth.users (id);
+alter table public.content_evidence add foreign key (created_by) references auth.users (id);
+alter table public.content_briefs add foreign key (created_by) references auth.users (id),
+  add foreign key (submitted_by) references auth.users (id), add foreign key (reviewed_by) references auth.users (id),
+  add foreign key (approved_by) references auth.users (id);
+
 -- ── Integrity rules the grants cannot express ────────────────────────────────────────────
 
 create function private.content_touch() returns trigger
@@ -408,9 +418,11 @@ begin
     act := 'add';
   elsif kind = 'evidence' then
     return new; -- only the referential action clearing an erased source reaches here
-  elsif kind = 'brief' and new.status is distinct from old.status then
-    act := case when new.status = 'in-review' then 'submit' when new.status = 'approved' then 'approve'
-      when new.status = 'archived' then 'archive' when old.status = 'archived' then 'restore' else 'return' end;
+  -- to_jsonb: a record field that the row type lacks fails even inside a false AND (clusters,
+  -- opportunities and evidence have no status column in the same sense).
+  elsif kind = 'brief' and (to_jsonb(new)->>'status') is distinct from (to_jsonb(old)->>'status') then
+    act := case when to_jsonb(new)->>'status' = 'in-review' then 'submit' when to_jsonb(new)->>'status' = 'approved' then 'approve'
+      when to_jsonb(new)->>'status' = 'archived' then 'archive' when to_jsonb(old)->>'status' = 'archived' then 'restore' else 'return' end;
   else
     act := 'update';
     -- (separate IFs: a record field is resolved even inside a false AND)

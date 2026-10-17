@@ -64,6 +64,16 @@ select ok(not has_column_privilege('authenticated', 'public.geo_proposals', 'rev
   and not has_column_privilege('authenticated', 'public.geo_proposals', 'evidence_ids', 'update'), 'review attribution and evidence are not client columns');
 select ok((select pg_get_constraintdef(oid) from pg_constraint where conname = 'audit_outbox_action_check') like all
   (array['%member.withdraw%', '%openseo.audit.store%', '%geo.observation.verify%', '%geo.proposal.accept%']), 'S1 actions kept, geo actions added');
+-- Integration with main (#120 convention): one complete static allowlist, S1 → SEO → competitors →
+-- content → GEO; 6 + 3 + 8 + 16 + 10 = 43 actions, none lost whatever module wrote it last.
+select is((select count(*)::int from pg_constraint c, regexp_matches(pg_get_constraintdef(c.oid), '''([a-z0-9.-]+)''', 'g')
+  where c.conname = 'audit_outbox_action_check' and c.conrelid = 'private.audit_outbox'::regclass), 43,
+  'the audit allowlist holds exactly the 43 S1, SEO, competitor, content and GEO actions');
+select ok((select pg_get_constraintdef(oid) from pg_constraint where conname = 'audit_outbox_action_check') like all
+  (array['%seo.keyword.erase%', '%competitor.observation.erase%', '%content.brief.erase%', '%geo.proposal.erase%']),
+  'every module keeps its actions in the final allowlist');
+select ok(not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'private' and p.proname like '%audit_outbox_action%'), 'no executable helper rewrites the allowlist');
 
 -- ── Recording ───────────────────────────────────────────────────────────────────────────────
 select pg_temp.act_as('00000000-0000-4000-8000-0000000e0a02');
@@ -148,6 +158,7 @@ select results_eq($$select action, count(*)::int from private.audit_outbox where
   $$values ('geo.observation.add', 2), ('geo.observation.erase', 1), ('geo.observation.verify', 1), ('geo.proposal.accept', 1),
     ('geo.proposal.add', 1), ('geo.proposal.done', 1), ('geo.proposal.update', 1)$$, 'one receipt per change; the cleared link adds none');
 select is((select actor_role from private.audit_outbox where action = 'geo.observation.verify'), 'client-approver', 'the verification receipt carries the live role');
+select throws_ok($$delete from auth.users where id = '00000000-0000-4000-8000-0000000e0a02'$$, '23503', null, 'an account with authored GEO rows cannot be deleted (authorship retention)');
 select throws_ok($$delete from public.projects where id = (select a1 from ids)$$, '55000', null, 'pending receipts block the project deletion (#106)');
 delete from private.audit_outbox where project_id = (select a1 from ids) and state = 'pending';
 select set_config('role', 'service_role', true);
