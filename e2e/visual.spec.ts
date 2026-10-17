@@ -183,12 +183,13 @@ test("projects page: the Core denial code is only secondary technical informatio
   await expect(code).toBeVisible();
 });
 
-test("project summary: the measurements empty state does not repeat the stages", async ({ page }) => {
+test("project summary: the measurement section links to the measurement centre and does not repeat the stages", async ({ page }) => {
   await signIn(page, "analyst");
   await page.goto(P);
-  const empty = page.locator("section[aria-labelledby=s-estado]").locator(".empty");
-  await expect(empty.locator(".empty-body")).toHaveText(/^\s*Desconocido\s+Este proyecto aún no tiene observaciones\.\s*$/);
-  const text = await empty.innerText();
-  expect(text.match(/CORE-9\.3/g)?.length).toBe(1);
-  expect(text.match(/CORE-9\.4/g)?.length).toBe(1);
+  const section = page.locator("section[aria-labelledby=s-estado]");
+  await expect(section.locator(".empty")).toHaveCount(0);
+  expect((await section.innerText()).match(/CORE-9\.\d/g)).toBeNull();
+  await section.getByRole("link", { name: "Abrir centro de medición" }).click();
+  await expect(page).toHaveURL(`${P}/medicion`);
+  await expect(page.getByRole("heading", { level: 1, name: "Medición orgánica" })).toBeVisible();
 });

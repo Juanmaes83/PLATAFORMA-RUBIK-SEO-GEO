@@ -8,6 +8,8 @@ import { errorText } from "@/lib/openseo/labels";
 // platform cannot know whether OpenSEO created the crawl, so the owner checks OpenSEO and
 // either binds the audit id it shows or confirms nothing was created. No OpenSEO request.
 
+// Server and browser ICU data can word the same date differently ("…, 19:51" / "… a las 19:51");
+// the <time> keeps the server text instead of failing hydration and re-rendering the forms.
 const dateFormat = new Intl.DateTimeFormat("es-ES", { dateStyle: "long", timeStyle: "short", timeZone: "Europe/Madrid" });
 
 export function OpenSeoReconcilePanel({ tenant, project, createdAt }: { tenant: string; project: string; createdAt: string }) {
@@ -35,7 +37,7 @@ export function OpenSeoReconcilePanel({ tenant, project, createdAt }: { tenant: 
     <section aria-labelledby="o-reconciliar" className="section">
       <h2 id="o-reconciliar">Lanzamiento pendiente de confirmar</h2>
       <p className="notice">
-        El {dateFormat.format(new Date(createdAt))} se reservó un lanzamiento, pero no llegó la respuesta de OpenSEO. No sabemos si el rastreo
+        El <time dateTime={createdAt} suppressHydrationWarning>{dateFormat.format(new Date(createdAt))}</time> se reservó un lanzamiento, pero no llegó la respuesta de OpenSEO. No sabemos si el rastreo
         se creó. Para no duplicarlo ni gastar créditos dos veces, la plataforma no lanzará otro hasta que lo resuelvas.
       </p>
       <form action={bind} className="card form">
