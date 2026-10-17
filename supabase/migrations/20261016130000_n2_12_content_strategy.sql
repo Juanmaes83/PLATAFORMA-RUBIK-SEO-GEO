@@ -413,9 +413,14 @@ begin
     act := 'add';
   elsif kind = 'evidence' then
     return new; -- only the referential action clearing an erased source reaches here
-  elsif kind = 'brief' and new.status is distinct from old.status then
-    act := case when new.status = 'in-review' then 'submit' when new.status = 'approved' then 'approve'
-      when new.status = 'archived' then 'archive' when old.status = 'archived' then 'restore' else 'return' end;
+  elsif kind = 'brief' then
+    -- A cluster has no status field: keep the record-field access inside this branch.
+    if new.status is distinct from old.status then
+      act := case when new.status = 'in-review' then 'submit' when new.status = 'approved' then 'approve'
+        when new.status = 'archived' then 'archive' when old.status = 'archived' then 'restore' else 'return' end;
+    else
+      act := 'update';
+    end if;
   else
     act := 'update';
     -- (separate IFs: a record field is resolved even inside a false AND)

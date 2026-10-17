@@ -1,5 +1,12 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
+## Checkpoint de recuperación v4 · 17/10/2026, rama combinada
+
+- Worktree `s2-consent/test-results/n2-content-geo-integration`, rama `codex/n2-content-geo-integration-20261016`. Base publicada anterior `ca3e664bce1fcadbe01c3fd7a9708aca620626e7`; consultar el HEAD final de este checkpoint con `git rev-parse HEAD` y su espejo remoto. `origin/main@7ad4008456935824cbd76eb6432aa6a043411e03`; #119 sigue OPEN/Draft `b423b11c9f52db11a898a62c341241261985738d` al último contraste, sin fusión ni PR combinada.
+- v4 firmado incorpora las seis tablas de Contenidos/GEO a exportación, verificación offline y restauración transaccional idempotente. El esquema parcial falla con 503. Corregido trigger `content_after_write` de la migración local N2-12, que accedía a `status` de un clúster. Prueba de restauración con dos observaciones relacionadas, propuesta con lápida, conflicto de fila y aislamiento entre organizaciones. Detalle en [N2-CONTENIDOS-GEO-INTEGRACION-20261017.md](N2-CONTENIDOS-GEO-INTEGRACION-20261017.md).
+- Stack exclusivo `rubik-n2-content-geo-20261016` (65321/65322), solo datos ficticios: `npm run verify` final 570 PASS/1 SKIP, lint/tipos/build PASS; integración 140 PASS y una aserción histórica fallida de `unknown`, corregida y dirigida 1/1 PASS; v4 dirigida 2/2, compatibilidad v3/restauración 14/14; pgTAP 857/857; E2E Contenidos 4 PASS/2 SKIP, GEO 4 PASS/2 SKIP. Cinco usuarios y dos organizaciones propios limpios tras cada E2E. Actions bloqueada por facturación; no son checks de GitHub.
+- Pendiente: auditoría de #119 y fusión supervisada; luego rebase/merge semántico del incremento combinado contra el main nuevo y gates afectados. #116/#117 siguen Draft y no se modificaron. N2 alojado apagado y migraciones N1 alojadas fuera de este trabajo; H1 parcial, H2 bloqueado. No se usaron proveedores ni datos reales, ni se tocó Production/Supabase alojado/FLOOR PLAN. Reanudar manualmente: entrar al worktree, `git status -sb`, `git fetch origin main`, `gh pr view 119 --json state,headRefOid,baseRefOid`, leer el documento de integración y comparar HEAD remoto antes de editar.
+
 ## Checkpoint local N2-12/N2-13 · 17/10/2026
 
 - Integración local en `codex/n2-content-geo-integration-20261016` desde #119 `b423b11` y main `7ad4008`; sin PR de producto mientras #119 siga Draft. #116/#117 combinadas por merges semánticos, tipos regenerados desde el esquema local. Detalle y próxima acción exacta en [N2-CONTENIDOS-GEO-INTEGRACION-20261017.md](N2-CONTENIDOS-GEO-INTEGRACION-20261017.md).

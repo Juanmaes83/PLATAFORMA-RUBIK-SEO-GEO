@@ -30,7 +30,7 @@ const SLUG = /^[a-z0-9][a-z0-9-]{1,62}$/;
 
 export type RestoreRefusal =
   | "NOT_AN_EXPORT" | "UNSUPPORTED_FORMAT" | "MIXED_PROJECTS" | "EMPTY_SCOPE"
-  | "TAMPERED" | "AUDIT_CHAIN_INVALID" | "UNVERIFIED_RESULTS" | "INVALID_OPERATOR" | "INVALID_ROWS" | "GOOGLE_STATE_MISMATCH" | "INVALID_SEO";
+  | "TAMPERED" | "AUDIT_CHAIN_INVALID" | "UNVERIFIED_RESULTS" | "INVALID_OPERATOR" | "INVALID_ROWS" | "GOOGLE_STATE_MISMATCH" | "INVALID_SEO" | "INVALID_CONTENT_GEO";
 
 export interface RestorePlan {
   projectId: string;
@@ -38,6 +38,7 @@ export interface RestorePlan {
   scope: { tenantId: string; projectId: string };
   counts: { audit: number; results: number; imports: number; skippedUnverified: number;
     seo: { keywords: number; competitors: number; observations: number } | null;
+    contentGeo: Record<ContentGeoField, number> | null;
     /** Google state (operations.google): null when the export has none (older file) or could not read it. */
     google: { connections: number; bindings: number; captures: number; skippedCaptures: number } | null };
   /** One transaction: adds only what is missing, or changes nothing at all on a conflict. */
@@ -61,6 +62,12 @@ const AUDIT_COLS = ["organization_id", "at", "actor_role", "actor_id", "action",
 const RESULT_COLS = ["project_id", "organization_id", "provider", "operation", "status", "captured_at", "signed_payload", "data", "data_hash_alg", "data_hash", "key_id", "signature", "created_at"];
 const IMPORT_COLS = ["project_id", "organization_id", "format", "source_kind", "source_label", "source_url", "source_tool", "captured_at",
   "period_start", "period_end", "status", "finding_count", "error_count", "findings", "errors", "file_sha256", "file_bytes", "created_at"];
+const CONTENT_GEO_TABLES = {
+  clusters: "content_clusters", opportunities: "content_opportunities", evidence: "content_evidence",
+  briefs: "content_briefs", geoObservations: "geo_observations", geoProposals: "geo_proposals",
+} as const;
+type ContentGeoField = keyof typeof CONTENT_GEO_TABLES;
+const CONTENT_GEO_FIELDS = Object.keys(CONTENT_GEO_TABLES) as ContentGeoField[];
 const differs = (a: string, b: string, cols: string[]) => `(${cols.map((c) => `${a}.${c}`).join(", ")}) is distinct from (${cols.map((c) => `${b}.${c}`).join(", ")})`;
 const fail = (message: string, from: string) => `select pg_temp.rubik_restore_fail(${message}) ${from} limit 1;`;
 
@@ -79,7 +86,8 @@ export function planRestore(doc: unknown, keyring: Keyring, opts: { operatorId: 
   const d = doc as { format: string; scope: { tenantId: string; projectId: string }; audit: { rows: Record<string, unknown>[] };
     results: { row: Record<string, unknown> }[]; imports?: unknown; operations?: { google?: unknown };
     seo?: { projectDomain: string | null; keywords: Record<string, unknown>[];
-      competitors: Record<string, unknown>[]; observations: Record<string, unknown>[] } };
+      competitors: Record<string, unknown>[]; observations: Record<string, unknown>[] };
+    contentGeo?: Record<ContentGeoField, Record<string, unknown>[]> };
   const { projectId, organizationId } = check.project;
   const scope = { tenantId: d.scope.tenantId, projectId: d.scope.projectId };
   if (!SLUG.test(scope.tenantId) || !SLUG.test(scope.projectId)) return { ok: false, error: "EMPTY_SCOPE" };
@@ -100,10 +108,20 @@ export function planRestore(doc: unknown, keyring: Keyring, opts: { operatorId: 
   const skippedIds = new Set(d.results.filter((_, i) => failed.has(i)).map((r) => r.row?.id as string));
   const google = checkGoogleState(d.operations?.google, { projectId, organizationId }, results, skippedIds);
   if (!google.ok) return { ok: false, error: "GOOGLE_STATE_MISMATCH" };
-  const seo = d.format === "rubik-project-export-v3" ? d.seo! : null;
+  const seo = ["rubik-project-export-v3", "rubik-project-export-v4"].includes(d.format) ? d.seo! : null;
   if (seo && (seo.projectDomain !== null && !/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(seo.projectDomain)
     || [...seo.keywords, ...seo.competitors, ...seo.observations].some((row) => !inScope(row))))
     return { ok: false, error: "INVALID_SEO" };
+  const contentGeo = d.format === "rubik-project-export-v4" ? d.contentGeo! : null;
+  if (contentGeo && CONTENT_GEO_FIELDS.some((field) => contentGeo[field].some((row) => !inScope(row))))
+    return { ok: false, error: "INVALID_CONTENT_GEO" };
+  if (contentGeo) {
+    const actors = CONTENT_GEO_FIELDS.flatMap((field) => contentGeo[field].flatMap((row) =>
+      [row.created_by, ...(field === "briefs" ? [row.submitted_by, row.reviewed_by, row.approved_by] : []),
+        ...(field === "geoObservations" ? [row.verified_by] : []),
+        ...(field === "geoProposals" ? [row.reviewed_by] : [])].filter((id) => id !== null)));
+    if (actors.some((id) => typeof id !== "string" || !UUID.test(id))) return { ok: false, error: "INVALID_CONTENT_GEO" };
+  }
 
   const op = `'${opts.operatorId}'::uuid`;
   const org = `'${organizationId}'::uuid`, prj = `'${projectId}'::uuid`;
@@ -141,6 +159,38 @@ export function planRestore(doc: unknown, keyring: Keyring, opts: { operatorId: 
     "alter table public.competitor_observations enable trigger competitor_observations_before_write;",
     "alter table public.competitors enable trigger competitors_before_write;",
   ] : [];
+  const contentGeoLoad = contentGeo ? CONTENT_GEO_FIELDS.map((field) =>
+    `create temp table rubik_${CONTENT_GEO_TABLES[field]} on commit drop as select * from jsonb_populate_recordset(null::public.${CONTENT_GEO_TABLES[field]}, ${literal(contentGeo[field])});`) : [];
+  const contentGeoChecks = contentGeo ? [
+    ...CONTENT_GEO_FIELDS.map((field) => fail(msg(`un registro de ${CONTENT_GEO_TABLES[field]} ya existe con otro contenido.`),
+      `from rubik_${CONTENT_GEO_TABLES[field]} s join public.${CONTENT_GEO_TABLES[field]} t on t.id = s.id where to_jsonb(t) is distinct from to_jsonb(s)`)),
+    fail(msg("un autor de Contenidos o GEO no existe."),
+      `from (${CONTENT_GEO_FIELDS.map((field) => {
+        const table = `rubik_${CONTENT_GEO_TABLES[field]}`;
+        const cols = ["created_by", ...(field === "briefs" ? ["submitted_by", "reviewed_by", "approved_by"] : []),
+          ...(field === "geoObservations" ? ["verified_by"] : []), ...(field === "geoProposals" ? ["reviewed_by"] : [])];
+        return cols.map((col) => `select ${col} as uid from ${table}`).join(" union all ");
+      }).join(" union all ")}) actors where uid is not null and not exists (select 1 from auth.users u where u.id = actors.uid)`),
+  ] : [];
+  const beforeTriggers: Record<ContentGeoField, string> = {
+    clusters: "content_clusters_touch", opportunities: "content_opportunities_touch",
+    evidence: "content_evidence_before_write", briefs: "content_briefs_before_write",
+    geoObservations: "geo_observations_before_write", geoProposals: "geo_proposals_before_write",
+  };
+  const contentGeoInsert = contentGeo ? [
+    ...CONTENT_GEO_FIELDS.map((field) => `alter table public.${CONTENT_GEO_TABLES[field]} disable trigger ${beforeTriggers[field]};`),
+    ...CONTENT_GEO_FIELDS.filter((field) => field !== "geoObservations").map((field) => `insert into public.${CONTENT_GEO_TABLES[field]} select * from rubik_${CONTENT_GEO_TABLES[field]} s where not exists (select 1 from public.${CONTENT_GEO_TABLES[field]} t where t.id = s.id);`),
+    // The observation self-FK is immediate. Insert corrections only after their parent exists.
+    `do $rubik_geo$ declare added integer; begin loop
+      insert into public.geo_observations select s.* from rubik_geo_observations s
+        where not exists (select 1 from public.geo_observations t where t.id = s.id)
+          and (s.supersedes_id is null or exists (select 1 from public.geo_observations p where p.id = s.supersedes_id and p.project_id = s.project_id));
+      get diagnostics added = row_count;
+      exit when not exists (select 1 from rubik_geo_observations s where not exists (select 1 from public.geo_observations t where t.id = s.id));
+      if added = 0 then raise exception 'Restauración rechazada: ciclo de observaciones GEO' using errcode = 'P0001'; end if;
+    end loop; end $rubik_geo$;`,
+    ...CONTENT_GEO_FIELDS.toReversed().map((field) => `alter table public.${CONTENT_GEO_TABLES[field]} enable trigger ${beforeTriggers[field]};`),
+  ] : [];
   const lines = [
     "-- Rubik restore drill. Generated from a verified export; review before running with psql.",
     "-- Adds only what is missing. Any conflict aborts the whole transaction: nothing is written.",
@@ -163,6 +213,7 @@ export function planRestore(doc: unknown, keyring: Keyring, opts: { operatorId: 
     `create temp table rubik_results on commit drop as select * from jsonb_populate_recordset(null::public.provider_results, ${literal(results)});`,
     `create temp table rubik_imports on commit drop as select * from jsonb_populate_recordset(null::public.imports, ${literal(imports)});`,
     ...seoLoad,
+    ...contentGeoLoad,
     ...g.load,
 
     "-- 3 · Rows that already exist must be identical; otherwise nothing is restored.",
@@ -181,6 +232,7 @@ export function planRestore(doc: unknown, keyring: Keyring, opts: { operatorId: 
     fail(msg("falta una cuenta de autor original; no se sustituye por el operador."),
       "from (select actor_id as uid from rubik_audit union select created_by from rubik_results union select created_by from rubik_imports) actors where uid is not null and not exists (select 1 from auth.users u where u.id = actors.uid)"),
     ...seoChecks,
+    ...contentGeoChecks,
     ...g.checks,
 
     "-- 4 · Create only what is missing. Existing memberships and roles are never touched.",
@@ -201,6 +253,7 @@ export function planRestore(doc: unknown, keyring: Keyring, opts: { operatorId: 
     "insert into public.provider_results select * from rubik_results r where not exists (select 1 from public.provider_results p where p.id = r.id);",
     "insert into public.imports select * from rubik_imports s where not exists (select 1 from public.imports i where i.id = s.id);",
     ...seoInsert,
+    ...contentGeoInsert,
     // Capture records point at results, so they go last.
     ...g.captures,
     "commit;",
@@ -210,6 +263,7 @@ export function planRestore(doc: unknown, keyring: Keyring, opts: { operatorId: 
     skipped: check.results.failed,
     plan: { projectId, organizationId, scope, counts: { audit: audit.length, results: results.length, imports: imports.length, skippedUnverified: failed.size,
       seo: seo ? { keywords: seo.keywords.length, competitors: seo.competitors.length, observations: seo.observations.length } : null,
+      contentGeo: contentGeo ? Object.fromEntries(CONTENT_GEO_FIELDS.map((field) => [field, contentGeo[field].length])) as Record<ContentGeoField, number> : null,
       google: google.state ? { connections: google.state.connections.length, bindings: google.state.bindings.length, captures: google.state.captures.length, skippedCaptures: google.skippedCaptures } : null }, sql: lines.join("\n") + "\n" },
   };
 }

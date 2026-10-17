@@ -103,7 +103,7 @@ describe("restore plan", () => {
     (mixed.results[0].row as { project_id: string }).project_id = randomUUID();
     expect(planRestore(mixed, keyring, { operatorId })).toEqual({ ok: false, error: "MIXED_PROJECTS" });
     const foreignImport = { ...structuredClone(doc), imports: [{ id: randomUUID(), project_id: randomUUID(), organization_id: randomUUID() }] };
-    expect(planRestore(foreignImport, keyring, { operatorId })).toEqual({ ok: false, error: "TAMPERED" });
+    expect(planRestore(foreignImport, keyring, { operatorId })).toEqual({ ok: false, error: "MIXED_PROJECTS" });
     const imp = (id: string, sha: string) => ({ id, project_id: doc.results[0].row.project_id, organization_id: doc.results[0].row.organization_id, file_sha256: sha });
     const sha = "a".repeat(64);
     expect(planRestore({ ...structuredClone(doc), imports: {} }, keyring, { operatorId })).toEqual({ ok: false, error: "INVALID_ROWS" });

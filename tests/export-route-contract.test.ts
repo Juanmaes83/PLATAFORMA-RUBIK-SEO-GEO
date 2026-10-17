@@ -10,7 +10,7 @@ import { planRestore } from "@/lib/restore/plan";
 // database and outbox are controlled, so unavailable or changing states are deterministic.
 const mocked = vi.hoisted(() => ({
   schema: vi.fn(), user: vi.fn(), client: vi.fn(), membership: vi.fn(), access: vi.fn(), ref: vi.fn(),
-  keyring: vi.fn(), beforeAfter: vi.fn(), append: vi.fn(), export: vi.fn(), operations: vi.fn(), seo: vi.fn(),
+  keyring: vi.fn(), beforeAfter: vi.fn(), append: vi.fn(), export: vi.fn(), operations: vi.fn(), seo: vi.fn(), contentGeo: vi.fn(),
 }));
 vi.mock("@/lib/recovery/schema-contract", () => ({ recoverySchemaContract: mocked.schema }));
 vi.mock("@/lib/auth/session", () => ({ currentUser: mocked.user }));
@@ -23,6 +23,7 @@ vi.mock("@/lib/provenance/outbox", async (importOriginal) => ({ ...(await import
 vi.mock("@/lib/provenance/repository", async (importOriginal) => ({ ...(await importOriginal<object>()), appendAudit: mocked.append, exportProject: mocked.export }));
 vi.mock("@/lib/recovery/operations", async (importOriginal) => ({ ...(await importOriginal<object>()), readOperationalState: mocked.operations }));
 vi.mock("@/lib/recovery/seo-state", () => ({ readSeoRecoveryState: mocked.seo }));
+vi.mock("@/lib/recovery/content-geo-state", () => ({ readContentGeoRecoveryState: mocked.contentGeo }));
 
 const loaded = loadKeyring({ PROVENANCE_SIGNING_KEYS: `k-test:${randomBytes(32).toString("base64")}`, PROVENANCE_ACTIVE_KEY_ID: "k-test" });
 if (!loaded.ok) throw new Error(loaded.error);
@@ -39,6 +40,7 @@ const operations = {
   google: { ok: true, value: { connections: [], bindings: [], captures: [] } }, notIncluded: [],
 };
 const seo = { projectDomain: null, keywords: [], competitors: [], observations: [] };
+const contentGeo = { clusters: [], opportunities: [], evidence: [], briefs: [], geoObservations: [], geoProposals: [] };
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -61,6 +63,7 @@ beforeEach(() => {
     results: [], imports: [] } });
   mocked.operations.mockResolvedValue(operations);
   mocked.seo.mockResolvedValue({ ok: true, value: seo });
+  mocked.contentGeo.mockResolvedValue({ ok: true, value: contentGeo });
 });
 
 async function exported() {
@@ -127,6 +130,39 @@ describe("real export endpoint recovery contract", () => {
     expect(mocked.beforeAfter).toHaveBeenCalledTimes(2);
     expect(mocked.schema).toHaveBeenCalledTimes(2);
     vi.unstubAllEnvs();
+  });
+
+  it("complete Content/GEO schema returns signed and restorable v4", async () => {
+    mocked.schema.mockResolvedValue("n2-v4");
+    const response = await exported();
+    expect(response.status).toBe(200);
+    const doc = await response.json();
+    expect(doc.format).toBe("rubik-project-export-v4");
+    expect(doc.contentGeo).toEqual(contentGeo);
+    expect(verifyProjectExport(doc, keyring)).toMatchObject({ ok: true, completeness: { status: "COMPLETE" } });
+    expect(planRestore(doc, keyring, { operatorId: actor })).toMatchObject({ ok: true });
+    expect(mocked.contentGeo).toHaveBeenCalledTimes(2);
+  });
+
+  it("refuses v4 when a Content/GEO read fails or changes", async () => {
+    mocked.schema.mockResolvedValue("n2-v4");
+    mocked.contentGeo.mockResolvedValueOnce({ ok: false, error: "short page" });
+    expect((await exported()).status).toBe(503);
+    expect(mocked.beforeAfter).toHaveBeenCalledTimes(1);
+    mocked.contentGeo.mockReset().mockResolvedValueOnce({ ok: true, value: contentGeo })
+      .mockResolvedValueOnce({ ok: true, value: { ...contentGeo, clusters: [{ id: randomUUID() }] } });
+    expect((await exported()).status).toBe(503);
+  });
+
+  it("refuses a v4 evidence reference whose signed result is absent", async () => {
+    mocked.schema.mockResolvedValue("n2-v4");
+    const opportunityId = randomUUID();
+    mocked.contentGeo.mockResolvedValue({ ok: true, value: { ...contentGeo,
+      opportunities: [{ id: opportunityId, project_id: project.projectId, organization_id: project.organizationId, cluster_id: null }],
+      evidence: [{ id: randomUUID(), project_id: project.projectId, organization_id: project.organizationId,
+        opportunity_id: opportunityId, provider_result_id: randomUUID(), import_id: null }],
+    } });
+    expect((await exported()).status).toBe(503);
   });
 
   it("unknown schema or missing N2 function refuses without fallback", async () => {
