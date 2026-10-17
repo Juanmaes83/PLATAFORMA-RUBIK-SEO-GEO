@@ -25,12 +25,14 @@ import { checkGoogleState, googleSql } from "./google";
 // its organization, and the operator becomes its owner only if they already own that
 // organization, as in the app.
 
+type Rows = Record<string, unknown>[];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SLUG = /^[a-z0-9][a-z0-9-]{1,62}$/;
 
 export type RestoreRefusal =
   | "NOT_AN_EXPORT" | "UNSUPPORTED_FORMAT" | "MIXED_PROJECTS" | "EMPTY_SCOPE"
-  | "TAMPERED" | "AUDIT_CHAIN_INVALID" | "UNVERIFIED_RESULTS" | "INVALID_OPERATOR" | "INVALID_ROWS" | "GOOGLE_STATE_MISMATCH" | "INVALID_SEO";
+  | "TAMPERED" | "AUDIT_CHAIN_INVALID" | "UNVERIFIED_RESULTS" | "INVALID_OPERATOR" | "INVALID_ROWS" | "GOOGLE_STATE_MISMATCH" | "INVALID_SEO"
+  | "INVALID_CONTENT_GEO";
 
 export interface RestorePlan {
   projectId: string;
@@ -38,6 +40,8 @@ export interface RestorePlan {
   scope: { tenantId: string; projectId: string };
   counts: { audit: number; results: number; imports: number; skippedUnverified: number;
     seo: { keywords: number; competitors: number; observations: number } | null;
+    /** v4 only: Contenidos and GEO rows. */
+    contentGeo: { clusters: number; opportunities: number; evidence: number; briefs: number; observations: number; proposals: number } | null;
     /** Google state (operations.google): null when the export has none (older file) or could not read it. */
     google: { connections: number; bindings: number; captures: number; skippedCaptures: number } | null };
   /** One transaction: adds only what is missing, or changes nothing at all on a conflict. */
@@ -79,7 +83,9 @@ export function planRestore(doc: unknown, keyring: Keyring, opts: { operatorId: 
   const d = doc as { format: string; scope: { tenantId: string; projectId: string }; audit: { rows: Record<string, unknown>[] };
     results: { row: Record<string, unknown> }[]; imports?: unknown; operations?: { google?: unknown };
     seo?: { projectDomain: string | null; keywords: Record<string, unknown>[];
-      competitors: Record<string, unknown>[]; observations: Record<string, unknown>[] } };
+      competitors: Record<string, unknown>[]; observations: Record<string, unknown>[] };
+    content?: { clusters: Rows; opportunities: Rows; evidence: Rows; briefs: Rows };
+    geo?: { observations: Rows; proposals: Rows } };
   const { projectId, organizationId } = check.project;
   const scope = { tenantId: d.scope.tenantId, projectId: d.scope.projectId };
   if (!SLUG.test(scope.tenantId) || !SLUG.test(scope.projectId)) return { ok: false, error: "EMPTY_SCOPE" };
@@ -100,7 +106,16 @@ export function planRestore(doc: unknown, keyring: Keyring, opts: { operatorId: 
   const skippedIds = new Set(d.results.filter((_, i) => failed.has(i)).map((r) => r.row?.id as string));
   const google = checkGoogleState(d.operations?.google, { projectId, organizationId }, results, skippedIds);
   if (!google.ok) return { ok: false, error: "GOOGLE_STATE_MISMATCH" };
-  const seo = d.format === "rubik-project-export-v3" ? d.seo! : null;
+  const v4 = d.format === "rubik-project-export-v4";
+  const seo = d.format === "rubik-project-export-v3" || v4 ? d.seo! : null;
+  const content = v4 ? d.content! : null, geo = v4 ? d.geo! : null;
+  if (content && geo && [...content.clusters, ...content.opportunities, ...content.evidence, ...content.briefs,
+    ...geo.observations, ...geo.proposals].some((row) => !inScope(row)))
+    return { ok: false, error: "INVALID_CONTENT_GEO" };
+  // Evidence may cite a provider result; a result skipped as unverified is not restored, so the
+  // evidence citing it cannot be restored either: refuse instead of dropping it silently.
+  if (content?.evidence.some((row) => typeof row.provider_result_id === "string" && skippedIds.has(row.provider_result_id)))
+    return { ok: false, error: "INVALID_CONTENT_GEO" };
   if (seo && (seo.projectDomain !== null && !/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(seo.projectDomain)
     || [...seo.keywords, ...seo.competitors, ...seo.observations].some((row) => !inScope(row))))
     return { ok: false, error: "INVALID_SEO" };
@@ -141,6 +156,47 @@ export function planRestore(doc: unknown, keyring: Keyring, opts: { operatorId: 
     "alter table public.competitor_observations enable trigger competitor_observations_before_write;",
     "alter table public.competitors enable trigger competitors_before_write;",
   ] : [];
+  const cgLoad = content && geo ? [
+    `create temp table rubik_content_clusters on commit drop as select * from jsonb_populate_recordset(null::public.content_clusters, ${literal(content.clusters)});`,
+    `create temp table rubik_content_opportunities on commit drop as select * from jsonb_populate_recordset(null::public.content_opportunities, ${literal(content.opportunities)});`,
+    `create temp table rubik_content_evidence on commit drop as select * from jsonb_populate_recordset(null::public.content_evidence, ${literal(content.evidence)});`,
+    `create temp table rubik_content_briefs on commit drop as select * from jsonb_populate_recordset(null::public.content_briefs, ${literal(content.briefs)});`,
+    `create temp table rubik_geo_observations on commit drop as select * from jsonb_populate_recordset(null::public.geo_observations, ${literal(geo.observations)});`,
+    `create temp table rubik_geo_proposals on commit drop as select * from jsonb_populate_recordset(null::public.geo_proposals, ${literal(geo.proposals)});`,
+  ] : [];
+  const CG = [["rubik_content_clusters", "content_clusters", "un clúster"], ["rubik_content_opportunities", "content_opportunities", "una oportunidad"],
+    ["rubik_content_evidence", "content_evidence", "una evidencia"], ["rubik_content_briefs", "content_briefs", "un brief"],
+    ["rubik_geo_observations", "geo_observations", "una observación GEO"], ["rubik_geo_proposals", "geo_proposals", "una propuesta GEO"]] as const;
+  const cgChecks = content && geo ? [
+    ...CG.map(([tmp, table, label]) => fail(msg(`${label} existente (%s) tiene otro contenido o pertenece a otro proyecto.`, "t.id::text"),
+      `from ${tmp} s join public.${table} t on t.id = s.id where to_jsonb(t) is distinct from to_jsonb(s)`)),
+    fail(msg("ya existe otro clúster con el mismo nombre en el proyecto (%s).", "t.id::text"),
+      "from rubik_content_clusters s join public.content_clusters t on t.project_id = s.project_id and lower(btrim(t.name)) = lower(btrim(s.name)) where t.id <> s.id"),
+    fail(msg("una evidencia cita un resultado o una importación que no está en el destino ni en la exportación (%s).", "s.id::text"),
+      "from rubik_content_evidence s where (s.provider_result_id is not null and not exists (select 1 from rubik_results r where r.id = s.provider_result_id) "
+        + "and not exists (select 1 from public.provider_results r where r.id = s.provider_result_id and r.project_id = s.project_id)) "
+        + "or (s.import_id is not null and not exists (select 1 from rubik_imports i where i.id = s.import_id) "
+        + "and not exists (select 1 from public.imports i where i.id = s.import_id and i.project_id = s.project_id))"),
+    // Every person recorded on a row must exist: authors, reviewers, approvers and verifiers are never replaced by the operator.
+    fail(msg("falta una cuenta de autor, revisor o verificador de Contenidos/GEO; no se sustituye por el operador."),
+      "from (select created_by as uid from rubik_content_clusters union all select created_by from rubik_content_opportunities "
+        + "union all select created_by from rubik_content_evidence union all select created_by from rubik_content_briefs "
+        + "union all select submitted_by from rubik_content_briefs union all select reviewed_by from rubik_content_briefs "
+        + "union all select approved_by from rubik_content_briefs union all select created_by from rubik_geo_observations "
+        + "union all select verified_by from rubik_geo_observations union all select created_by from rubik_geo_proposals "
+        + "union all select reviewed_by from rubik_geo_proposals) actors where uid is not null and not exists (select 1 from auth.users u where u.id = actors.uid)"),
+  ] : [];
+  // Offline maintenance transaction only: these BEFORE triggers reset review states, approvals,
+  // verifications, versions and timestamps on INSERT. Disabled to keep the stored values exactly;
+  // ALTER TABLE holds its lock until COMMIT/ROLLBACK, and any error aborts with them re-enabled.
+  const CG_TRIGGERS = [["content_clusters", "content_clusters_touch"], ["content_opportunities", "content_opportunities_touch"],
+    ["content_evidence", "content_evidence_before_write"], ["content_briefs", "content_briefs_before_write"],
+    ["geo_observations", "geo_observations_before_write"], ["geo_proposals", "geo_proposals_before_write"]] as const;
+  const cgInsert = content && geo ? [
+    ...CG_TRIGGERS.map(([table, trigger]) => `alter table public.${table} disable trigger ${trigger};`),
+    ...CG.map(([tmp, table]) => `insert into public.${table} select * from ${tmp} s where not exists (select 1 from public.${table} t where t.id = s.id);`),
+    ...[...CG_TRIGGERS].reverse().map(([table, trigger]) => `alter table public.${table} enable trigger ${trigger};`),
+  ] : [];
   const lines = [
     "-- Rubik restore drill. Generated from a verified export; review before running with psql.",
     "-- Adds only what is missing. Any conflict aborts the whole transaction: nothing is written.",
@@ -163,6 +219,7 @@ export function planRestore(doc: unknown, keyring: Keyring, opts: { operatorId: 
     `create temp table rubik_results on commit drop as select * from jsonb_populate_recordset(null::public.provider_results, ${literal(results)});`,
     `create temp table rubik_imports on commit drop as select * from jsonb_populate_recordset(null::public.imports, ${literal(imports)});`,
     ...seoLoad,
+    ...cgLoad,
     ...g.load,
 
     "-- 3 · Rows that already exist must be identical; otherwise nothing is restored.",
@@ -181,6 +238,7 @@ export function planRestore(doc: unknown, keyring: Keyring, opts: { operatorId: 
     fail(msg("falta una cuenta de autor original; no se sustituye por el operador."),
       "from (select actor_id as uid from rubik_audit union select created_by from rubik_results union select created_by from rubik_imports) actors where uid is not null and not exists (select 1 from auth.users u where u.id = actors.uid)"),
     ...seoChecks,
+    ...cgChecks,
     ...g.checks,
 
     "-- 4 · Create only what is missing. Existing memberships and roles are never touched.",
@@ -201,6 +259,8 @@ export function planRestore(doc: unknown, keyring: Keyring, opts: { operatorId: 
     "insert into public.provider_results select * from rubik_results r where not exists (select 1 from public.provider_results p where p.id = r.id);",
     "insert into public.imports select * from rubik_imports s where not exists (select 1 from public.imports i where i.id = s.id);",
     ...seoInsert,
+    // After results and imports: content evidence may cite them.
+    ...cgInsert,
     // Capture records point at results, so they go last.
     ...g.captures,
     "commit;",
@@ -210,6 +270,8 @@ export function planRestore(doc: unknown, keyring: Keyring, opts: { operatorId: 
     skipped: check.results.failed,
     plan: { projectId, organizationId, scope, counts: { audit: audit.length, results: results.length, imports: imports.length, skippedUnverified: failed.size,
       seo: seo ? { keywords: seo.keywords.length, competitors: seo.competitors.length, observations: seo.observations.length } : null,
+      contentGeo: content && geo ? { clusters: content.clusters.length, opportunities: content.opportunities.length, evidence: content.evidence.length,
+        briefs: content.briefs.length, observations: geo.observations.length, proposals: geo.proposals.length } : null,
       google: google.state ? { connections: google.state.connections.length, bindings: google.state.bindings.length, captures: google.state.captures.length, skippedCaptures: google.skippedCaptures } : null }, sql: lines.join("\n") + "\n" },
   };
 }

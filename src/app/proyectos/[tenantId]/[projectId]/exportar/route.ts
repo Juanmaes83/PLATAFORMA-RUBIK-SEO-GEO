@@ -8,6 +8,7 @@ import { inspectProjectAuditOutbox, sameOutboxCheckpoint } from "@/lib/provenanc
 import { appendAudit, exportProject } from "@/lib/provenance/repository";
 import { operationalStateComplete, readOperationalState } from "@/lib/recovery/operations";
 import { readSeoRecoveryState } from "@/lib/recovery/seo-state";
+import { readContentGeoRecoveryState } from "@/lib/recovery/content-geo-state";
 import { recoverySchemaContract } from "@/lib/recovery/schema-contract";
 import { createClient } from "@/lib/supabase/server";
 import { myProjectMembership } from "@/lib/tenancy";
@@ -40,22 +41,33 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ten
     return new Response("Export unavailable: provenance verification failed", { status: 503 });
   const operations = await readOperationalState(supabase, ref, result.export.results.map((r) => r.row));
   if (!operationalStateComplete(operations)) return new Response("Export unavailable: recovery state could not be read", { status: 503 });
-  let seo;
-  if (schema === "n2-v3") {
+  let seo, contentGeo;
+  if (schema === "n2-v3" || schema === "n2-v4") {
     seo = await readSeoRecoveryState(supabase, ref);
     if (!seo.ok) return new Response("Export unavailable: SEO data could not be read completely", { status: 503 });
     const seoAgain = await readSeoRecoveryState(supabase, ref);
     if (!seoAgain.ok || JSON.stringify(seo.value) !== JSON.stringify(seoAgain.value))
       return new Response("Export unavailable: SEO data changed during read", { status: 503 });
   }
+  if (schema === "n2-v4") {
+    // Contenidos and GEO (v4): read in full twice; any missing table, partial page, broken link
+    // or change between both reads refuses the export instead of signing a partial file.
+    contentGeo = await readContentGeoRecoveryState(supabase, ref);
+    if (!contentGeo.ok) return new Response("Export unavailable: content and GEO data could not be read completely", { status: 503 });
+    const again = await readContentGeoRecoveryState(supabase, ref);
+    if (!again.ok || JSON.stringify(contentGeo) !== JSON.stringify(again))
+      return new Response("Export unavailable: content and GEO data changed during read", { status: 503 });
+  }
   if (await recoverySchemaContract() !== schema)
     return new Response("Export unavailable: recovery schema changed during read", { status: 503 });
   const after = await inspectProjectAuditOutbox(ref);
   if (!after.ok || !sameOutboxCheckpoint(before.checkpoint, after.checkpoint))
     return new Response("Export unavailable: audit receipts changed", { status: 503 });
-  const sealed = schema === "n2-v3"
-    ? { ...result.export, format: "rubik-project-export-v3", operations, seo: seo!.value }
-    : { ...result.export, format: "rubik-project-export-v2", operations };
+  const sealed = schema === "n2-v4" && contentGeo?.ok
+    ? { ...result.export, format: "rubik-project-export-v4", operations, seo: seo!.value, content: contentGeo.content, geo: contentGeo.geo }
+    : schema === "n2-v3"
+      ? { ...result.export, format: "rubik-project-export-v3", operations, seo: seo!.value }
+      : { ...result.export, format: "rubik-project-export-v2", operations };
   // Signed last, over the finished body: proves on the owner's machine that nothing was removed.
   const body = { ...sealed, manifest: signExportManifest(sealed, ref, keyring) };
   return new Response(JSON.stringify(body, null, 2), {
