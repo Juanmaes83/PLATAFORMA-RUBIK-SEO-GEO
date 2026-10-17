@@ -6,6 +6,7 @@ import { contentGeoSchemaAvailable, n2SchemaAvailable } from "@/lib/n2/availabil
 export function ProjectNav({ base, current }: { base: string; current: string | null }) {
   const items = [
     { href: base, label: "Resumen", key: null as string | null },
+    { href: `${base}/medicion`, label: "Medición orgánica", key: "medicion" },
     ...PROJECT_SECTIONS
       .filter((s) => s.slug !== "competidores" || n2SchemaAvailable())
       .filter((s) => (s.slug !== "contenidos" && s.slug !== "geo") || contentGeoSchemaAvailable())
