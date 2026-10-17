@@ -38,6 +38,12 @@ export default async function ProjectPage({ params }: { params: Promise<{ tenant
         </details>
       </section>
 
+      <section aria-labelledby="s-informe" className="section">
+        <h2 id="s-informe">Informe</h2>
+        <p>Reúne en una página imprimible lo que el proyecto tiene guardado, con su procedencia y qué falta.</p>
+        <p><Link href={`${base}/informe`}>Ver el informe del proyecto</Link></p>
+      </section>
+
       {role === "owner" && (
         <section aria-labelledby="s-consumo" className="section">
           <h2 id="s-consumo">Consumo</h2>
