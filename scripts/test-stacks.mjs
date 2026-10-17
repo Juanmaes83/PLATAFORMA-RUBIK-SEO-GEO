@@ -21,6 +21,8 @@ export const STACKS = {
   fops2Combined: { selector: "RUBIK_TEST_FOPS2_COMBINED_STACK", apiPort: 63321, dbPort: 63322, projectId: "rubik-fops2-n2-combined-20261016" },
   // Claude N2-12/N2-13 integration (Contenidos + GEO on the N2 schema); exclusive, disposable.
   n2ContentGeo: { selector: "RUBIK_TEST_N2_CONTENT_GEO_STACK", apiPort: 64321, dbPort: 64322, projectId: "rubik-claude-n2-content-geo-20261017" },
+  // PR #119 Medición integration stack; distinct ports and project identity.
+  pr119Integration: { selector: "RUBIK_TEST_PR119_STACK", apiPort: 62321, dbPort: 62322, projectId: "rubik-pr119-integration-20261016" },
 };
 
 /** The stack selected by the environment. More than one selector is refused, never resolved by precedence. */
