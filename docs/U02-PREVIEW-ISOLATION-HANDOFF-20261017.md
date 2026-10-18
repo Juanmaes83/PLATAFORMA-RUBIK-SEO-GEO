@@ -1,5 +1,15 @@
 # U02 Preview aislada · preparación verificable · 17/10/2026
 
+## Revalidación U03 · 2026-10-18T10:42:17Z · bloqueado antes de fixtures
+
+La rama de #129 está en `35f54cfdc8c702f94b2e71973ea370b02c144cea`, OPEN/Draft, sobre `main@b99893e8fbc59f265ce61f40dbdc2baab071f69a`; el árbol Windows está limpio. El despliegue Preview funcional documentado sigue siendo `e4ca611`/`dpl_Hgc4kffcgixek8KNRiX4jS1N1DGx`, con `/api/salud` previamente acreditado como `auth=preview-isolated` y ref `rhnnplewqsekrnaousyl`. La inspección Vercel read-only de esta sesión encontró despliegues Preview más recientes, pero el endpoint protegido no pudo revalidarse sin bypass; no se ha usado ningún bypass ni se ha cambiado protección.
+
+Lectura actual, solo catálogo/conteos, mediante el conector autorizado de `rhnnplewqsekrnaousyl`: `migration_count=27`, máximo `20261015210000`, centinela `private.environment_identity` presente, función `public.preview_environment_identity()` presente, `rubik_audit_writer` y `private.audit_outbox` presentes, `auth.users=0`, `organizations=0`, `projects=0`, `audit_outbox=0`. `list_migrations` devuelve las 27 versiones N1 en orden. Esto acredita esquema y ausencia de fixtures en el instante de lectura, no una matriz de actores ni registro Auth cerrado.
+
+La sesión Windows no tiene variables de entorno ni credenciales locales identificables para una clave Admin/Auth limitada a Preview o para Vercel Protection Bypass. El Credential Manager solo muestra entradas genéricas, sin exponer valores; no se intentó extraerlas. El registro público cerrado fue confirmado previamente por el propietario, pero no se ha reabierto. U03 queda **BLOCKED antes de crear fixtures**: no se puede crear/borrar Auth Admin, obtener JWT reales ni ejecutar Playwright protegido de forma legítima. No se usó `service_role` en navegador, no se insertó en `auth.users`, no se consultó Production/Funding OS y no se crearon residuos.
+
+Acción única necesaria para reanudar: cargar en esta máquina, mediante el gestor seguro local y sin pegar valores en chat, una credencial Admin/Auth exclusiva de `rhnnplewqsekrnaousyl` (o crear manualmente los alias ficticios documentados y entregar sus secretos solo al arnés local) y, si se exige la revisión visual, el secreto de Vercel Protection Bypass para automatización. Después comprobar presencia booleana, ejecutar U03 con ledger y limpiar por IDs. Si no se proporciona bypass, los casos Playwright siguen BLOCKED aunque la matriz Data API/RPC pueda ejecutarse.
+
 ## U03 · intento 18/10/2026 10:25 UTC (Claude) · **BLOQUEADO antes de crear fixtures**
 
 **Estado de partida comprobado:**
