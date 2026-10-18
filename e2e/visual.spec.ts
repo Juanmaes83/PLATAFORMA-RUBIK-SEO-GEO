@@ -35,6 +35,8 @@ const PAGES: { name: string; path: string; user?: UserKey; form?: boolean; statu
   { name: "25-consumo-analista", path: `${P}/consumo`, user: "analyst" },
   { name: "26-seo-analista", path: `${P}/seo`, user: "analyst", form: true },
   { name: "27-seo-cliente", path: `${P}/seo`, user: "client", form: true },
+  { name: "60-informe-analista", path: `${P}/informe`, user: "analyst" },
+  { name: "61-informe-cliente", path: `${P}/informe`, user: "client" },
 ];
 
 const horizontalOverflow = (page: Page) =>
@@ -62,12 +64,13 @@ for (const p of PAGES) {
     const overflow = await horizontalOverflow(page);
     expect(overflow.scroll, `horizontal overflow at ${info.project.name}`).toBeLessThanOrEqual(overflow.width);
 
-    // No dead controls: every button submits a form with a server action and every link-button
+    // No dead controls: every button submits a form with a server action (or declares a client
+    // action that its own spec exercises, e.g. the report's print button) and every link-button
     // has a destination. Only form pages have visible inputs. Scoped to the app shell (header,
     // navigation, main): excludes the Next.js dev overlay.
     const dead = await page.$$eval(".topbar button, .topbar a.btn, nav button, main button, main a.btn", (els) =>
       els
-        .filter((el) => (el.tagName === "BUTTON" ? !el.closest("form[action]") : !(el as HTMLAnchorElement).getAttribute("href")))
+        .filter((el) => (el.tagName === "BUTTON" ? !el.closest("form[action]") && !el.hasAttribute("data-client-action") : !(el as HTMLAnchorElement).getAttribute("href")))
         .map((el) => (el.textContent ?? "").trim()),
     );
     expect(dead, "controls without a working action").toEqual([]);

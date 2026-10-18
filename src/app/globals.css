@@ -264,3 +264,17 @@ fieldset.field > legend { font-weight: 600; padding: 0; margin-bottom: var(--spa
 .break { overflow-wrap: anywhere; }
 /* Owner notice stays readable on narrow screens. */
 .ownership-footer { padding: 1rem; font-size: .8rem; line-height: 1.6; overflow-wrap: anywhere; }
+/* N2-14 manual report: index, evidence tags and a print view without the app chrome. */
+.report-index ol { margin: var(--space-2) 0 0; padding-left: 1.25rem; }
+.report-natures { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-2) 0; }
+.report-meta { margin-bottom: var(--space-3); }
+@media print {
+  .topbar, .banner, .side-nav, .mobile-nav, .skip-link, .no-print { display: none !important; }
+  body { background: #fff; color: #000; }
+  /* The desktop grid would put main in the hidden menu's 15.5rem column. */
+  .shell { display: block !important; min-height: 0; }
+  main { max-width: none; padding: 0; }
+  .report-section, .report-limits { break-inside: avoid; }
+  .report a { color: inherit; text-decoration: none; }
+  .pill { border: 1px solid currentColor; }
+}

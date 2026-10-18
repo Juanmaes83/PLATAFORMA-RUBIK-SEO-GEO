@@ -14,8 +14,8 @@ export function fixtureScope(run = process.env.RUBIK_E2E_RUN_ID) {
     run, prefix,
     tenant: `${prefix}-a`, otherTenant: `${prefix}-b`,
     project: "restaurante-ejemplo", otherProject: "despacho-ejemplo",
-    users: Object.fromEntries(["owner", "analyst", "client", "outsider", "newcomer"]
-      .map((role) => [role, `${prefix}-${role}@ejemplo.test`])) as Record<"owner" | "analyst" | "client" | "outsider" | "newcomer", string>,
+    users: Object.fromEntries(["owner", "analyst", "client", "outsider", "newcomer", "reporter", "report-guest"]
+      .map((role) => [role, `${prefix}-${role}@ejemplo.test`])) as Record<"owner" | "analyst" | "client" | "outsider" | "newcomer" | "reporter" | "report-guest", string>,
   };
 }
 
