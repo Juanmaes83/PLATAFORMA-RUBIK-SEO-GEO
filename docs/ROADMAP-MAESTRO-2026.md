@@ -1,5 +1,7 @@
 # ROADMAP MAESTRO · Rubik SEO/GEO
 
+**Gate de aceptación integral incorporado el 18/10/2026:** [protocolo de dos pasadas para H1 y H2](GATE-ACEPTACION-INTEGRAL-H1-H2-20261018.md). Primero, tras #129 y U03 esencial, un único recorrido ficticio alojado desde login hasta exportación/verificación/restauración y limpieza; después, U04 con Sarah y aceptación humana. Esta prueba de producto completa faltaba como criterio ejecutable explícito. Sigue PENDIENTE: los PASS locales y parciales alojados no cierran H1/H2. La exportación firmada se realiza solo en el entorno expresamente autorizado, sin habilitar escritor en Preview por conveniencia.
+
 **Estado vigente, 18/10/2026:** [Estado de los tres niveles y plan de cierre](ESTADO-TRES-NIVELES-Y-CIERRE-20261018.md). main@b99893e incorpora el checkpoint documental #134 después del merge de #133 en 42e8bcf. #129 sigue Draft en b68244f: U02 aislada en alcance verificado, U03 Data API parcial (12/12 reportados para tres actores), navegador y roles restantes pendientes. H1/H2 abiertos; N2 primeros incrementos en main sin acreditación alojada. La tabla de bloques más abajo conserva el plan original y cortes históricos; usar el estado vigente enlazado para decidir trabajo y responsables.
 
 
@@ -90,8 +92,6 @@ Construir Rubik SEO/GEO como plataforma segura, multicliente, verificable y oper
 **Por capacidad:** DISEÑO / CONTRATO / IMPLEMENTADO / PROBADO LOCAL / PROBADO REAL / OPERATIVO. Un mismo bloque puede incluir componentes en estados distintos; registrar el más restrictivo relevante para su aceptación.
 
 **Estado de referencia del 15/10/2026:** #87 (manifiesto firmado), #88 (protección Preview), #85 (matriz Grupo 3 local), #86 (reintentos de Sarah y selección OpenSEO), #97 (fixtures Playwright seguros) y #98 (checkpoint documental) están **fusionadas**. Codex reportó, en la rama #97 y Supabase **local**, verify 397/397, integración 78/78, pgTAP 532/532 y dos ejecuciones Playwright de 145 PASS / 44 SKIP / 0 FAIL cada una. Los fixtures preexistentes se preservaron. CI sigue bloqueada por facturación; S1 y S2 no están mitigados; la matriz alojada de dos cuentas no está acreditada. La migración Google recovery alojada sigue pendiente y OpenSEO Production continúa en modo legacy según el corte documentado.
-
-**Gate de aceptación integral incorporado el 18/10/2026:** [protocolo de dos pasadas para H1 y H2](GATE-ACEPTACION-INTEGRAL-H1-H2-20261018.md). Primero, tras #129 y U03 esencial, un único recorrido ficticio alojado desde login hasta exportación/verificación/restauración y limpieza; después, U04 con Sarah y aceptación humana. Esta prueba de producto completa faltaba como criterio ejecutable explícito. Sigue PENDIENTE: los PASS locales y parciales alojados no cierran H1/H2. La exportación firmada se realiza solo en el entorno expresamente autorizado, sin habilitar escritor en Preview por conveniencia.
 
 ## 4. NIVEL 1 · Seguridad, piloto y primera versión multicliente (P0/P1)
 
