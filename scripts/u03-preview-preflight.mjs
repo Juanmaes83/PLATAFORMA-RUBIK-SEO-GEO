@@ -1,6 +1,7 @@
 import { mkdir, appendFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { EMPTY_TABLE_SELECT, emptyTableUrl } from './u03-preview-queries.mjs';
 
 const ref = 'rhnnplewqsekrnaousyl';
 const deployment = 'plataforma-rubik-seo-7v2wmueoy-juanma-espinosas-projects.vercel.app';
@@ -43,8 +44,8 @@ try {
   const noUsers = adminOk && admin.body.users.length === 0;
   await record('auth-users-empty', noUsers ? 'PASS' : 'BLOCKED');
   if (!noUsers) failed = true;
-  for (const table of ['organizations', 'projects', 'project_members', 'audit_events']) {
-    const rows = await request(`${base}/rest/v1/${table}?select=id&limit=1`, {
+  for (const table of Object.keys(EMPTY_TABLE_SELECT)) {
+    const rows = await request(emptyTableUrl(base, table), {
       apikey: adminKey, Authorization: `Bearer ${adminKey}`,
     });
     const empty = rows.status === 200 && Array.isArray(rows.body) && rows.body.length === 0;
