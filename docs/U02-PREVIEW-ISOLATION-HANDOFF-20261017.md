@@ -1,5 +1,9 @@
 # U02 Preview aislada · preparación verificable · 17/10/2026
 
+## Último corte · 18/10/2026 · main N2-14 incorporado
+
+`main@b99893e8fbc59f265ce61f40dbdc2baab071f69a` integró N2-14 mientras se cerraba esta PR. Se fusionó en #129 sin conflictos ni cambios de diseño U02; merge local `3598eeb929c9e1f6fd24ce2dbaccb755dcd31370`. `npm run verify` sobre ese código combinado: **597 PASS, 1 SKIP**, secret scan, lint, TypeScript y build PASS. Los ensayos específicos U02 previos (13/13 unitarias, 121/121 pgTAP y Data API/RPC local) siguen asociados a la misma implementación de U02, que no cambió en la fusión. El SHA final publicado y la base efectiva deben comprobarse en GitHub antes de cualquier despliegue. U02 continúa **BLOQUEADO antes del SQL alojado** por la ruta CLI de dry run; U03 **NO INICIADO**. El stack Docker propio se detuvo sin backup y ningún fixture remoto fue creado.
+
 ## Corte vigente · 18/10/2026 · #129 reconciliada con main
 
 **U02 PARCIAL/BLOQUEADO antes del SQL alojado; U03 NO INICIADO.** La rama de #129 se reconcilió con `main@a1aebb55a682c4b140dfc7bb77a3cf9b3324ec43` sin conflictos. Production READY (`dpl_A9oqTQKqrX3s7wAaxQ8cTALkUtdW`) publica ese SHA y `/api/salud` declara `yvdgmklgwlshizzgefpv`. Esta prueba solo acredita el despliegue y su ref, no los gates funcionales H1/H2.
