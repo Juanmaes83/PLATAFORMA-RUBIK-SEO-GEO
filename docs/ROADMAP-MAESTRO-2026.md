@@ -91,6 +91,8 @@ Construir Rubik SEO/GEO como plataforma segura, multicliente, verificable y oper
 
 **Estado de referencia del 15/10/2026:** #87 (manifiesto firmado), #88 (protección Preview), #85 (matriz Grupo 3 local), #86 (reintentos de Sarah y selección OpenSEO), #97 (fixtures Playwright seguros) y #98 (checkpoint documental) están **fusionadas**. Codex reportó, en la rama #97 y Supabase **local**, verify 397/397, integración 78/78, pgTAP 532/532 y dos ejecuciones Playwright de 145 PASS / 44 SKIP / 0 FAIL cada una. Los fixtures preexistentes se preservaron. CI sigue bloqueada por facturación; S1 y S2 no están mitigados; la matriz alojada de dos cuentas no está acreditada. La migración Google recovery alojada sigue pendiente y OpenSEO Production continúa en modo legacy según el corte documentado.
 
+**Gate de aceptación integral incorporado el 18/10/2026:** [protocolo de dos pasadas para H1 y H2](GATE-ACEPTACION-INTEGRAL-H1-H2-20261018.md). Primero, tras #129 y U03 esencial, un único recorrido ficticio alojado desde login hasta exportación/verificación/restauración y limpieza; después, U04 con Sarah y aceptación humana. Esta prueba de producto completa faltaba como criterio ejecutable explícito. Sigue PENDIENTE: los PASS locales y parciales alojados no cierran H1/H2. La exportación firmada se realiza solo en el entorno expresamente autorizado, sin habilitar escritor en Preview por conveniencia.
+
 ## 4. NIVEL 1 · Seguridad, piloto y primera versión multicliente (P0/P1)
 
 **Definición de terminado de N1:** H1 y H2 acreditados, no solo PRs fusionadas. El orden indica dependencia técnica; algunas decisiones humanas pueden prepararse antes.
