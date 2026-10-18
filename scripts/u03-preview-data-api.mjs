@@ -5,6 +5,7 @@ import { mkdir, appendFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { ownerInventoryAccepted } from './u03-preview-inventory-check.mjs';
 import { createPreviewAdminClient } from './u03-preview-api-key.mjs';
+import { cleanupTrackedIds, createScopedFixture, reconcileByScope, sanitizeDiagnostic } from './u03-preview-fixtures.mjs';
 
 const ref = 'rhnnplewqsekrnaousyl';
 const sha = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
@@ -31,6 +32,8 @@ const assert = async (caseId, condition) => {
 const users = [];
 const orgs = [];
 const projects = [];
+const plannedOrganizations = [];
+const plannedProjects = [];
 const accounts = {};
 const actors = ['ownerA', 'ownerB', 'outsider'];
 const ownEmails = new Set(actors.map(actor => `${actor}-${namespace}@ejemplo.test`));
@@ -69,23 +72,25 @@ async function createUser(actor) {
 }
 
 async function createOrganization(actor, slug) {
-  const id = randomUUID();
-  await ledger(`fixture-org-${actor}`, 'PLANNED', { id });
-  orgs.push(id);
-  const inserted = await accounts[actor].api.from('organizations').insert({ id, slug, name: `U03 ${actor}` }).select('id').single();
-  if (inserted.error || inserted.data?.id !== id) throw new Error(`Alta organización ambigua: ${actor}`);
-  await ledger(`fixture-org-${actor}`, 'CREATED', { id });
-  return id;
+  plannedOrganizations.push(slug);
+  return createScopedFixture({
+    caseId: `fixture-org-${actor}`, scope: slug, ledger,
+    // N1 grants INSERT only on slug/name; the database generates id and created_by.
+    insert: () => accounts[actor].api.from('organizations').insert({ slug, name: `U03 ${actor}` }),
+    lookup: () => admin.from('organizations').select('id').eq('slug', slug),
+    track: id => { if (!orgs.includes(id)) orgs.push(id); },
+  });
 }
 
 async function createProject(actor, orgId, slug) {
-  const id = randomUUID();
-  await ledger(`fixture-project-${slug}`, 'PLANNED', { id, organizationId: orgId });
-  projects.push(id);
-  const inserted = await accounts[actor].api.from('projects').insert({ id, organization_id: orgId, slug, name: `U03 ${slug}` }).select('id').single();
-  if (inserted.error || inserted.data?.id !== id) throw new Error(`Alta proyecto ambigua: ${slug}`);
-  await ledger(`fixture-project-${slug}`, 'CREATED', { id });
-  return id;
+  plannedProjects.push({ orgId, slug });
+  return createScopedFixture({
+    caseId: `fixture-project-${slug}`, scope: `${namespace}/${slug}`, ledger,
+    // The N1 column grant likewise excludes projects.id.
+    insert: () => accounts[actor].api.from('projects').insert({ organization_id: orgId, slug, name: `U03 ${slug}` }),
+    lookup: () => admin.from('projects').select('id').eq('organization_id', orgId).eq('slug', slug),
+    track: id => { if (!projects.includes(id)) projects.push(id); },
+  });
 }
 
 try {
@@ -136,7 +141,7 @@ try {
   await assert('invalid-bearer-rejected', bearer.status === 401);
 } catch (error) {
   failed = true;
-  await ledger('matrix-run', 'FAIL', { kind: error?.name || 'Error', reason: String(error?.message || '').slice(0, 120) });
+  await ledger('matrix-run', 'FAIL', { kind: error?.name || 'Error', reason: sanitizeDiagnostic(error?.message) });
 } finally {
   try {
     for (const id of await findOwnAuthUsers()) {
@@ -147,22 +152,22 @@ try {
     }
     await ledger('auth-id-reconciliation', 'PASS');
   } catch { failed = true; await ledger('auth-id-reconciliation', 'FAIL'); }
-  for (const id of projects.reverse()) {
+  // A response can be lost after commit. Recover only rows in this run's exact
+  // organization slug or project (organization ID, slug) scopes before cleanup.
+  for (const slug of plannedOrganizations) {
     try {
-      const deleted = await admin.from('projects').delete().eq('id', id).select('id');
-      const ok = !deleted.error && deleted.data?.length <= 1 && deleted.data.every(row => row.id === id);
-      await ledger('cleanup-project', ok ? 'PASS' : 'FAIL', { id, removed: deleted.data?.length ?? null });
-      if (!ok) failed = true;
-    } catch { failed = true; await ledger('cleanup-project', 'FAIL', { id }); }
+      await reconcileByScope(() => admin.from('organizations').select('id').eq('slug', slug),
+        id => { if (!orgs.includes(id)) orgs.push(id); }, ledger, 'reconcile-organization');
+    } catch { failed = true; }
   }
-  for (const id of orgs.reverse()) {
+  for (const { orgId, slug } of plannedProjects) {
     try {
-      const deleted = await admin.from('organizations').delete().eq('id', id).select('id');
-      const ok = !deleted.error && deleted.data?.length <= 1 && deleted.data.every(row => row.id === id);
-      await ledger('cleanup-organization', ok ? 'PASS' : 'FAIL', { id, removed: deleted.data?.length ?? null });
-      if (!ok) failed = true;
-    } catch { failed = true; await ledger('cleanup-organization', 'FAIL', { id }); }
+      await reconcileByScope(() => admin.from('projects').select('id').eq('organization_id', orgId).eq('slug', slug),
+        id => { if (!projects.includes(id)) projects.push(id); }, ledger, 'reconcile-project');
+    } catch { failed = true; }
   }
+  if (!await cleanupTrackedIds(projects, id => admin.from('projects').delete().eq('id', id).select('id'), ledger, 'cleanup-project')) failed = true;
+  if (!await cleanupTrackedIds(orgs, id => admin.from('organizations').delete().eq('id', id).select('id'), ledger, 'cleanup-organization')) failed = true;
   for (const id of users.reverse()) {
     try {
       const deleted = await admin.auth.admin.deleteUser(id);
@@ -175,7 +180,10 @@ try {
     const projectRows = projects.length ? await admin.from('projects').select('id').in('id', projects) : { data: [], error: null };
     const orgRows = orgs.length ? await admin.from('organizations').select('id').in('id', orgs) : { data: [], error: null };
     const authRows = await findOwnAuthUsers();
-    const clear = !projectRows.error && !orgRows.error && projectRows.data?.length === 0 && orgRows.data?.length === 0 && authRows.length === 0;
+    const slugChecks = await Promise.all(plannedOrganizations.map(slug => admin.from('organizations').select('id').eq('slug', slug)));
+    const projectScopeChecks = await Promise.all(plannedProjects.map(({ orgId, slug }) => admin.from('projects').select('id').eq('organization_id', orgId).eq('slug', slug)));
+    const scopesClear = [...slugChecks, ...projectScopeChecks].every(result => !result.error && result.data?.length === 0);
+    const clear = !projectRows.error && !orgRows.error && projectRows.data?.length === 0 && orgRows.data?.length === 0 && authRows.length === 0 && scopesClear;
     await ledger('cleanup-ids-verified', clear ? 'PASS' : 'FAIL');
     if (!clear) failed = true;
   } catch { failed = true; await ledger('cleanup-ids-verified', 'FAIL'); }
