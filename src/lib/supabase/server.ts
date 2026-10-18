@@ -2,7 +2,7 @@ import "server-only";
 
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import { supabasePublicConfig } from "@/lib/auth/mode";
+import { previewDatabaseIdentityMatches, supabasePublicConfig } from "@/lib/auth/mode";
 import type { Database } from "./database.types";
 
 // Supabase client for Server Components, Server Actions and Route Handlers, following the
@@ -13,6 +13,7 @@ import type { Database } from "./database.types";
 export async function createClient() {
   const config = supabasePublicConfig(process.env);
   if (!config) return null;
+  if (process.env.VERCEL_ENV === "preview" && !await previewDatabaseIdentityMatches(process.env)) return null;
   const cookieStore = await cookies();
   return createServerClient<Database>(config.url, config.publishableKey, {
     cookies: {

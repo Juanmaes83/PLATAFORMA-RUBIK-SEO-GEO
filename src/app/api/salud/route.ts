@@ -20,7 +20,7 @@ export async function GET() {
     auth: auth.mode,
     core: { repository: corePin.repository, commit: corePin.commit, roles: platform.ROLES.length },
     integrations: platform.CONNECTORS.map((c) => ({ id: c.id, status: c.status })),
-    persistence: auth.mode === "supabase" ? "supabase" : "none",
+    persistence: auth.canSignIn ? "supabase" : "none",
     supabaseProjectRef,
     deployment: "none",
   });

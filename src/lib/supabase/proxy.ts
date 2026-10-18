@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { supabasePublicConfig } from "@/lib/auth/mode";
+import { previewDatabaseIdentityMatches, supabasePublicConfig } from "@/lib/auth/mode";
 
 // Session refresh for every request (Supabase's recommended Proxy for Next.js 16). It only
 // keeps the auth cookies fresh; it does not authorize anything. Each page verifies the user
@@ -9,6 +9,7 @@ export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
   const config = supabasePublicConfig(process.env);
   if (!config) return response;
+  if (process.env.VERCEL_ENV === "preview" && !await previewDatabaseIdentityMatches(process.env)) return response;
 
   const supabase = createServerClient(config.url, config.publishableKey, {
     cookies: {
