@@ -24,6 +24,15 @@ describe("trusted audit writer in Vercel Preview", () => {
     expect(pg.Pool).not.toHaveBeenCalled();
   });
 
+  it("never creates a pool in a Preview whose isolated identity is approved (U02 keeps SQL transport off)", () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://rhnnplewqsekrnaousyl.supabase.co");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", ["sb", "publishable", "x".repeat(20)].join("_"));
+    vi.stubEnv("RUBIK_AUDIT_DATABASE_URL", WRITER);
+    expect(writerPool()).toBeNull();
+    expect(pg.Pool).not.toHaveBeenCalled();
+  });
+
   it("keeps the local/production writer path", () => {
     vi.stubEnv("VERCEL_ENV", "production");
     vi.stubEnv("RUBIK_AUDIT_DATABASE_URL", WRITER);

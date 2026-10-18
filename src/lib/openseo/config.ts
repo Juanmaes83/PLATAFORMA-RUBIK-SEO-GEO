@@ -65,10 +65,18 @@ export function publicOpenSeoLeak(env: Env): string | null {
   return null;
 }
 
+/**
+ * U02: a Vercel Preview never calls a provider, whatever variables it inherits and even with
+ * an approved isolated database. Enabling providers there needs its own reviewed decision.
+ */
+export const PREVIEW_PROVIDER_LOCK = "Vercel Preview no usa OpenSEO ni Google: los proveedores están desactivados en Preview (U02).";
+const previewEnvironment = (env: Env) => (env.VERCEL_ENV ?? "").trim() === "preview";
+
 /** Google reads resolve the OpenSEO project from an ACTIVE per-project association. */
 export function readOpenSeoMcpConfig(env: Env = process.env):
   | { state: "configured"; mcpUrl: string; apiKey: string }
   | { state: "not-configured" | "invalid" } {
+  if (previewEnvironment(env)) return { state: "not-configured" };
   if (publicOpenSeoLeak(env)) return { state: "invalid" };
   const endpointRaw = (env.OPENSEO_ENDPOINT ?? "").trim();
   const apiKey = (env.OPENSEO_API_KEY ?? "").trim();
@@ -82,6 +90,7 @@ export function readOpenSeoMcpConfig(env: Env = process.env):
 }
 
 export function readOpenSeoConfig(env: Env = process.env): OpenSeoConfigState {
+  if (previewEnvironment(env)) return { state: "invalid", problems: [PREVIEW_PROVIDER_LOCK] };
   const leak = publicOpenSeoLeak(env);
   if (leak) return { state: "invalid", problems: [`${leak} no puede contener datos de OpenSEO: las variables NEXT_PUBLIC_* llegan al navegador.`] };
 
