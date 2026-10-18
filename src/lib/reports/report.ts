@@ -18,7 +18,7 @@ export const STATE_LABEL: Record<SectionState, string> = {
   available: "Disponible", partial: "Parcial", empty: "Sin datos", unavailable: "No disponible",
 };
 export const NATURE_LABEL: Record<Nature, string> = {
-  observed: "Dato observado (resultado firmado de una fuente)",
+  observed: "Resultado firmado de una fuente u observación manual verificada por una persona; consulta la procedencia de cada sección",
   declared: "Dato declarado por una persona",
   hypothesis: "Hipótesis o propuesta, no un resultado",
 };
@@ -84,7 +84,7 @@ export type TechnicalInput =
 const SEVERITY_LABEL = { ERROR: "Errores", WARNING: "Avisos", OPPORTUNITY: "Oportunidades", UNKNOWN: "Sin clasificar" } as const;
 
 export function technicalSection(input: TechnicalInput, base: Base): ReportSection {
-  const notes = ["Auditoría lanzada a mano con OpenSEO. Solo se usa el resultado más reciente cuya firma se verifica para este proyecto.",
+  const notes = ["Auditoría lanzada a mano con OpenSEO. Se comprueba la firma del resultado más reciente guardado para este proyecto; si no verifica, sus hallazgos se ocultan.",
     "Sin Lighthouse ni datos de tráfico en esta sección."];
   if (input.kind === "unavailable") return unavailable(base, input.reason, notes);
   if (input.kind === "none") {
