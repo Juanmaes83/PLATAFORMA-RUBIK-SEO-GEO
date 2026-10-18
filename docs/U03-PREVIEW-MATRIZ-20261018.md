@@ -1,5 +1,23 @@
 # U03 · matriz alojada de Preview · 18/10/2026
 
+## B-4 · arnés local · 18/10/2026
+
+HEAD de #129 comprobado al iniciar este trabajo: `b68244f752bbfc38993c5b0d8b8f95b085a73872`; base efectiva `main@b99893e8fbc59f265ce61f40dbdc2baab071f69a`. `b99893e` es el checkpoint documental posterior a `42e8bcf`; no hay discrepancia de base. #129 sigue OPEN/Draft.
+
+La lectura de Vercel confirma que `dpl_FBKLAT2rYQeHVEs735eNhPR6RnQt` sigue READY en `ac5a5ff6d92f1ebd5304ad7fea9b91a8fa617138`, host `plataforma-rubik-seo-7v2wmueoy-juanma-espinosas-projects.vercel.app`, proyecto `prj_HgnTtNtisi9Kt1A4Dq2pxoCQBook`. SSO/Deployment Protection está habilitado (`all_except_custom_domains`). La metadata no expone Trusted Sources ni permite afirmar que esté configurado; la aceptación de OIDC solo quedaría demostrada por `/api/salud` protegido con el token válido.
+
+Se añadió un arnés separado de la E2E local que inspecciona el ID de deployment por la API Vercel y exige ID, proyecto, host, SHA, rama y estado exactos antes de navegador. El pin está explícito en `scripts/u03-preview-b4-runner.mjs`. El preflight compara la identidad Preview (`auth=preview-isolated`, ref exacto) antes de lanzar Chromium. El navegador envía OIDC únicamente desde un interceptor del request al origen exacto. Playwright `route.fetch({ maxRedirects: 0 })` permite inspeccionar el `Location`: redirects HTTP fuera del origen se sustituyen por 502; navegaciones externas directas se bloquean. Requests a Supabase y otros hosts siguen sin el encabezado. No hay `extraHTTPHeaders` global.
+
+La prueba local descubrió y corrigió una fuga real del primer diseño: Chromium conservó el encabezado personalizado al seguir un 302 externo, y el callback de ruta no vio ese segundo request. El diseño actual evita que Chromium siga el redirect: obtiene el response sin seguir redirects y lo bloquea antes de entregarlo al navegador. Test de Chromium local fijado por Playwright `1.63.0`: **13/13 PASS**, incluyendo host permitido/parecido, alias y Production, SHA incorrecto, token ausente, OIDC rechazado antes de abrir navegador, redirect externo, encabezado en destino externo, errores/ledger sin token y ausencia de trazas/capturas. Comando: `npm run test:u03-b4`. Esto prueba el arnés con servidores locales; no es Playwright alojado.
+
+En el mismo árbol: `npm run verify` **PASS** — core pin, secret scan (688 archivos), ESLint sin warnings, TypeScript, Vitest **607 PASS / 1 SKIP** y build Next.js PASS. `git diff --check` y parse de PowerShell PASS. `npm ci` no se necesitó; dependencias fijadas existentes (`@playwright/test`/Chromium 1.63.0). GitHub Actions sigue sin ejecutar jobs por facturación; no se cuenta como CI verde.
+
+El wrapper de propietario es `scripts/u03-preview-b4-owner.ps1`; comando único previsto desde la raíz del worktree: `vercel env run -e preview -- powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/u03-preview-b4-owner.ps1`. Comprueba vínculo de proyecto/branch, inspecciona deployment y `/api/salud` (anónimo protegido + OIDC autorizado), y solo entonces pide credenciales ficticias existentes y rutas. No pide claves Supabase, bypass, ni crea fixtures. Limpia del entorno hijo las variables Preview ajenas antes de iniciar Node; el token permanece en memoria y no se registra.
+
+**Bloqueo concreto del comando:** la documentación oficial describe `vercel env run` como inyección de variables de entorno de proyecto en el comando hijo; no dice que emita `VERCEL_OIDC_TOKEN`. Describe que `vercel env pull` obtiene el token OIDC local, pero lo escribe a un archivo. No se usará ese archivo porque el requisito exige token solo en memoria. El wrapper aborta con `VERCEL_ENV_RUN_DID_NOT_PROVIDE_OIDC_TOKEN` si no está presente, sin fallback ni bypass. Este entorno tampoco tiene CLI ni vínculo local. Trusted Sources no se confirmó. La suite alojada **NO EJECUTADA**.
+
+El último conteo aportado por el propietario fue cero usuarios, organizaciones y proyectos tras la limpieza de la matriz previa; no se recrearon. Por ello no se verificaron cuentas/proyectos A1/A2/B1 en esta tarea. El wrapper solo acepta las cuentas ficticias ya custodiadas que ingrese el propietario; la cuenta opcional con membresía retirada solo prueba denegación posterior y no demuestra retirada en vivo con JWT aún válido. Esa revocación sigue pendiente porque no se autoriza modificar membresías ni habilitar escritor. Escritor, firmas, proveedores y demás filas de outbox no se tocaron.
+
 Destino único: `rhnnplewqsekrnaousyl`. PR #129, rama `codex/u02-preview-isolation-20261017`. Despliegue protegido consultado en Vercel: `dpl_FBKLAT2rYQeHVEs735eNhPR6RnQt`, SHA desplegado `ac5a5ff6d92f1ebd5304ad7fea9b91a8fa617138`, host `plataforma-rubik-seo-7v2wmueoy-juanma-espinosas-projects.vercel.app`, READY. No usar otro despliegue por alias implícito.
 
 ## Actualización · matriz Data API parcial · 18/10/2026
@@ -35,11 +53,11 @@ El propietario informa que el arnés recuperó y limpió los IDs de tres proyect
 | Eventos y escritor | Evento/HMAC falsificado, cadena, recibos/outbox, drenaje, exportación y restauración dependientes del escritor siguen `BLOCKED_BY_PREVIEW_WRITER`. El rol, pool, anillo y claves de firma permanecen vetados en Preview. |
 | Navegador protegido B-4 | `BLOCKED`: el bypass/credencial de automatización no está disponible en esta sesión. El control B-4 cubre login/cookies, navegación A1/A2/B1, logout, revocación y escritorio/móvil. El handoff permite un cierre acotado solo a Data API/RPC si se excluye B-4; no existe una decisión de alcance que autorice omitirlo para declarar cerrado el U03 completo. |
 
-### Acceso protegido investigado
+### Acceso protegido investigado · estado histórico, actualizado arriba
 
 Vercel confirmó que el despliegue exacto sigue READY en el SHA antiguo `ac5a5ff`; esto no prueba el flujo de navegador de la cabeza de #129. En este entorno no hay Vercel CLI, `.vercel/project.json` ni `VERCEL_OIDC_TOKEN` en el proceso. El arnés actual (`scripts/u03-preview-preflight.mjs`) solo consume `U03_VERCEL_BYPASS`; no implementa el encabezado OIDC de navegador ni una suite Playwright alojada dedicada.
 
-La ruta preferida de Vercel para automatización local es un `VERCEL_OIDC_TOKEN` efímero proporcionado por la CLI vinculada al proyecto, enviado como `x-vercel-trusted-oidc-idp-token` únicamente al host de despliegue fijado. No requiere publicar el Preview ni crear un enlace permanente. Antes de usarla, Codex debe añadir y probar soporte explícito en el arnés y limitar el encabezado al host exacto. Después, el propietario puede ejecutar esa suite desde su PowerShell autenticado y vinculado al proyecto mediante `vercel env run -- ...`; el token permanece en el entorno del proceso y no se copia a chat, ledger o Git. No ejecutar ese paso hasta que el arnés acepte OIDC de forma acotada.
+La recomendación anterior sobre `vercel env run` como fuente de OIDC quedó corregida por la documentación vigente. Consultar el bloqueo y el wrapper en la actualización B-4 superior. El bypass de automatización sigue excluido.
 
 **Estado:** U03 Data API **PARTIAL_PASS (12/12 reportados por el propietario)**; U03 global **BLOCKED** por roles/rutas pendientes y por el B-4 aún no ejecutado dentro del alcance completo. La opción de cerrar solo Data API/RPC está descrita en el handoff, pero no se ha elegido como cierre del gate completo. H1 y H2 siguen bloqueados.
 
