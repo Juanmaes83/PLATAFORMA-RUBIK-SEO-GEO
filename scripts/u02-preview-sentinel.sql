@@ -17,18 +17,22 @@ begin
   end if;
 end $$;
 
-create table public.environment_identity (
+create table private.environment_identity (
   identity_id smallint primary key default 1 check (identity_id = 1),
   environment text not null check (environment = 'preview'),
   project_ref text not null check (project_ref = 'rhnnplewqsekrnaousyl')
 );
-alter table public.environment_identity enable row level security;
-alter table public.environment_identity force row level security;
-revoke all on public.environment_identity from public, anon, authenticated;
-grant select on public.environment_identity to anon, authenticated;
-create policy preview_identity_read on public.environment_identity
-  for select to anon, authenticated
-  using (identity_id = 1 and environment = 'preview' and project_ref = 'rhnnplewqsekrnaousyl');
-insert into public.environment_identity (identity_id, environment, project_ref)
+alter table private.environment_identity enable row level security;
+revoke all on private.environment_identity from public, anon, authenticated;
+insert into private.environment_identity (identity_id, environment, project_ref)
 values (1, 'preview', 'rhnnplewqsekrnaousyl');
+create function public.preview_environment_identity()
+returns table (environment text, project_ref text)
+language sql stable security definer set search_path = ''
+as $$
+  select environment, project_ref from private.environment_identity
+  where identity_id = 1 and environment = 'preview' and project_ref = 'rhnnplewqsekrnaousyl'
+$$;
+revoke all on function public.preview_environment_identity() from public;
+grant execute on function public.preview_environment_identity() to anon, authenticated;
 commit;

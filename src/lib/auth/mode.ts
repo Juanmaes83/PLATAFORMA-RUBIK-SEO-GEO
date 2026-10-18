@@ -85,7 +85,7 @@ export async function previewDatabaseIdentityMatches(
   const key = (env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "").trim();
   if (!key || isSecretKey(key)) return false;
   try {
-    const response = await fetcher(`https://${approvedRef}.supabase.co/rest/v1/environment_identity?select=environment,project_ref&environment=eq.preview`, {
+    const response = await fetcher(`https://${approvedRef}.supabase.co/rest/v1/rpc/preview_environment_identity`, {
       headers: { apikey: key }, cache: "no-store", signal: AbortSignal.timeout(3000),
     });
     if (!response.ok) return false;

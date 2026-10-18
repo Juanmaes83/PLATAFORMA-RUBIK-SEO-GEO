@@ -34,9 +34,8 @@ if (!await previewDatabaseIdentityMatches(previewEnv, localFetcher) || calls !==
   throw new Error("Preview Data API sentinel rejected the local isolated schema");
 if (await previewDatabaseIdentityMatches({ ...previewEnv, NEXT_PUBLIC_SUPABASE_URL: "https://yvdgmklgwlshizzgefpv.supabase.co" }, localFetcher)
   || calls !== 1) throw new Error("Production URL reached the Preview Data API");
-const denied = await fetch(`${env.API_URL}/rest/v1/environment_identity`, {
-  method: "POST", headers: { apikey: env.PUBLISHABLE_KEY, "Content-Type": "application/json" },
-  body: JSON.stringify({ environment: "preview", project_ref: ref }),
-});
-if (denied.ok) throw new Error("Anonymous write to Preview sentinel was accepted");
-console.log("PASS: 27 N1, local Data API sentinel, Production URL rejected before fetch, anonymous write denied");
+const privileges = execFileSync("docker", ["exec", "-i", container, "psql", "-U", "postgres", "-qAt", "-c",
+  "select has_table_privilege('anon','private.environment_identity','insert') || '|' || has_table_privilege('anon','private.environment_identity','select') || '|' || has_function_privilege('anon','public.preview_environment_identity()','execute')"], { encoding: "utf8" }).trim();
+if (privileges !== "false|false|true" && privileges !== "f|f|t")
+  throw new Error("Anonymous sentinel privileges are broader than the read-only RPC");
+console.log("PASS: 27 N1, local Data API RPC sentinel, Production URL rejected before fetch, private table denied to anon");
