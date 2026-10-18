@@ -1,17 +1,19 @@
 import { createClient } from '@supabase/supabase-js';
 import { randomBytes, randomUUID } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { mkdir, appendFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { ownerInventoryAccepted } from './u03-preview-inventory-check.mjs';
+import { createPreviewAdminClient } from './u03-preview-api-key.mjs';
 
 const ref = 'rhnnplewqsekrnaousyl';
-const sha = 'ac5a5ff6d92f1ebd5304ad7fea9b91a8fa617138';
+const sha = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
 const url = `https://${ref}.supabase.co`;
 const adminKey = process.env.U03_PREVIEW_ADMIN_KEY;
 const publicKey = process.env.U03_PREVIEW_PUBLIC_KEY;
 if (!adminKey || !publicKey) throw new Error('Faltan claves de Preview.');
 const options = { auth: { persistSession: false, autoRefreshToken: false } };
-const admin = createClient(url, adminKey, options);
+const admin = createPreviewAdminClient(url, adminKey);
 const client = () => createClient(url, publicKey, options);
 const runId = randomUUID();
 const namespace = `u03-${runId.slice(0, 12)}`;

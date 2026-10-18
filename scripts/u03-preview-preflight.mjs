@@ -1,11 +1,13 @@
 import { mkdir, appendFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { EMPTY_TABLE_SELECT, emptyTableUrl } from './u03-preview-queries.mjs';
+import { apiKeyHeaders, createPreviewAdminClient } from './u03-preview-api-key.mjs';
 
 const ref = 'rhnnplewqsekrnaousyl';
 const deployment = 'plataforma-rubik-seo-7v2wmueoy-juanma-espinosas-projects.vercel.app';
-const sha = 'ac5a5ff6d92f1ebd5304ad7fea9b91a8fa617138';
+const sha = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
 const base = `https://${ref}.supabase.co`;
 const adminKey = process.env.U03_PREVIEW_ADMIN_KEY;
 const publicKey = process.env.U03_PREVIEW_PUBLIC_KEY;
@@ -15,6 +17,7 @@ const dir = join(process.cwd(), 'test-results', 'u03-hosted');
 const file = join(dir, `${runId}.jsonl`);
 
 if (!adminKey || !publicKey) throw new Error('Faltan claves de Preview.');
+const authAdmin = createPreviewAdminClient(base, adminKey);
 await mkdir(dir, { recursive: true });
 const record = async (check, status, detail = {}) => {
   const row = { utc: new Date().toISOString(), runId, sha, ref, deployment, check, status, ...detail };
@@ -35,18 +38,16 @@ try {
   await record('auth-registration-closed', closed ? 'PASS' : 'BLOCKED', { http: settings.status });
   if (!closed) failed = true;
 
-  const admin = await request(`${base}/auth/v1/admin/users?page=1&per_page=1`, {
-    apikey: adminKey, Authorization: `Bearer ${adminKey}`,
-  });
-  const adminOk = admin.status === 200 && Array.isArray(admin.body?.users);
-  await record('preview-admin-auth', adminOk ? 'PASS' : 'BLOCKED', { http: admin.status });
+  const admin = await authAdmin.auth.admin.listUsers({ page: 1, perPage: 1 });
+  const adminOk = !admin.error && Array.isArray(admin.data?.users);
+  await record('preview-admin-auth', adminOk ? 'PASS' : 'BLOCKED', { http: adminOk ? 200 : admin.error?.status || null });
   if (!adminOk) failed = true;
-  const noUsers = adminOk && admin.body.users.length === 0;
+  const noUsers = adminOk && admin.data.users.length === 0;
   await record('auth-users-empty', noUsers ? 'PASS' : 'BLOCKED');
   if (!noUsers) failed = true;
   for (const table of Object.keys(EMPTY_TABLE_SELECT)) {
     const rows = await request(emptyTableUrl(base, table), {
-      apikey: adminKey, Authorization: `Bearer ${adminKey}`,
+      ...apiKeyHeaders(adminKey),
     });
     const empty = rows.status === 200 && Array.isArray(rows.body) && rows.body.length === 0;
     await record(`${table}-empty`, empty ? 'PASS' : 'BLOCKED', { http: rows.status });
