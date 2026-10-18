@@ -20,10 +20,18 @@ $link = Get-Content -LiteralPath $linkFile -Raw | ConvertFrom-Json
 if ($link.projectId -ne 'prj_HgnTtNtisi9Kt1A4Dq2pxoCQBook' -or $link.orgId -ne 'team_hLhdb3M9MviTIysXD9whFF2c') { Stop-B4 'VERCEL_LINK_MISMATCH' }
 $oidc = $env:VERCEL_OIDC_TOKEN
 if ([string]::IsNullOrWhiteSpace($oidc)) { Stop-B4 'VERCEL_ENV_RUN_DID_NOT_PROVIDE_OIDC_TOKEN' }
+$vercelCommand = Get-Command vercel.cmd -ErrorAction SilentlyContinue
+if (-not $vercelCommand) { $vercelCommand = Get-Command vercel -ErrorAction SilentlyContinue }
+if ($vercelCommand) { $env:U03_VERCEL_CLI = $vercelCommand.Source }
+else {
+  $fallbackCli = Join-Path $env:APPDATA 'npm\vercel.cmd'
+  if (-not (Test-Path -LiteralPath $fallbackCli)) { Stop-B4 'VERCEL_CLI_NOT_FOUND' }
+  $env:U03_VERCEL_CLI = $fallbackCli
+}
 
 # Keep the child environment to OS runtime values, the ephemeral OIDC token and the
 # explicitly entered test accounts. Preview project secrets are not forwarded to Node/Chromium.
-$keep = @('PATH','SystemRoot','WINDIR','TEMP','TMP','USERPROFILE','LOCALAPPDATA','APPDATA','HOMEDRIVE','HOMEPATH','COMSPEC','PATHEXT','PROCESSOR_ARCHITECTURE','NUMBER_OF_PROCESSORS','OS')
+$keep = @('PATH','SystemRoot','WINDIR','TEMP','TMP','USERPROFILE','LOCALAPPDATA','APPDATA','HOMEDRIVE','HOMEPATH','COMSPEC','PATHEXT','PROCESSOR_ARCHITECTURE','NUMBER_OF_PROCESSORS','OS','U03_VERCEL_CLI')
 Get-ChildItem Env: | Where-Object { $_.Name -notin $keep -and $_.Name -ne 'VERCEL_OIDC_TOKEN' } | ForEach-Object { Remove-Item -LiteralPath "Env:$($_.Name)" -ErrorAction SilentlyContinue }
 $env:VERCEL_OIDC_TOKEN = $oidc
 Remove-Variable oidc
@@ -51,5 +59,5 @@ try {
   if ($LASTEXITCODE -ne 0) { Stop-B4 'BROWSER_SUITE_FAILED' }
 } finally {
   Pop-Location
-  Get-ChildItem Env: | Where-Object { $_.Name -like 'U03_B4_*' -or $_.Name -eq 'VERCEL_OIDC_TOKEN' } | ForEach-Object { Remove-Item -LiteralPath "Env:$($_.Name)" -ErrorAction SilentlyContinue }
+  Get-ChildItem Env: | Where-Object { $_.Name -like 'U03_B4_*' -or $_.Name -in @('VERCEL_OIDC_TOKEN','U03_VERCEL_CLI') } | ForEach-Object { Remove-Item -LiteralPath "Env:$($_.Name)" -ErrorAction SilentlyContinue }
 }

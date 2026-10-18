@@ -121,9 +121,10 @@ export function assertInputs(env) {
 export async function inspectPinnedDeployment() {
   let stdout;
   try {
-    ({ stdout } = await execFileAsync(process.env.U03_VERCEL_CLI || "vercel", [
+    const cli = process.env.U03_VERCEL_CLI || (process.platform === "win32" ? "vercel.cmd" : "vercel");
+    ({ stdout } = await execFileAsync(cli, [
       "api", `/v13/deployments/${PIN.deploymentId}?teamId=${PIN.teamId}`,
-    ], { windowsHide: true, maxBuffer: 1024 * 1024 }));
+    ], { windowsHide: true, maxBuffer: 1024 * 1024, shell: process.platform === "win32" }));
   } catch { throw new GateError("VERCEL_DEPLOYMENT_INSPECTION_FAILED"); }
   try {
     const result = JSON.parse(stdout);
