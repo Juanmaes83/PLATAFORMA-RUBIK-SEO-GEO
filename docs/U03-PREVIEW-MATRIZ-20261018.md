@@ -2,9 +2,9 @@
 
 ## B-4 · arnés local · 18/10/2026
 
-HEAD de #129 comprobado al iniciar este trabajo: `b68244f752bbfc38993c5b0d8b8f95b085a73872`; base efectiva `main@b99893e8fbc59f265ce61f40dbdc2baab071f69a`. `b99893e` es el checkpoint documental posterior a `42e8bcf`; no hay discrepancia de base. #129 sigue OPEN/Draft.
+HEAD de #129 comprobado al iniciar este trabajo: `b68244f752bbfc38993c5b0d8b8f95b085a73872`; base efectiva `main@b99893e8fbc59f265ce61f40dbdc2baab071f69a`. `b99893e` es el checkpoint documental posterior a `42e8bcf`; no hay discrepancia de base. #129 sigue OPEN/Draft. El código funcional del arnés se publicó en `06c2b4270fc74d88ef3e3560bb5d07d8aeb948e2`; el commit posterior de pin/documentación conserva el mismo código de aplicación.
 
-La lectura de Vercel confirma que `dpl_FBKLAT2rYQeHVEs735eNhPR6RnQt` sigue READY en `ac5a5ff6d92f1ebd5304ad7fea9b91a8fa617138`, host `plataforma-rubik-seo-7v2wmueoy-juanma-espinosas-projects.vercel.app`, proyecto `prj_HgnTtNtisi9Kt1A4Dq2pxoCQBook`. SSO/Deployment Protection está habilitado (`all_except_custom_domains`). La metadata no expone Trusted Sources ni permite afirmar que esté configurado; la aceptación de OIDC solo quedaría demostrada por `/api/salud` protegido con el token válido.
+El deployment B-4 observado en Vercel está READY: `dpl_6fqataMxfkGFSZJKVGk5xJe8snXq`, SHA `06c2b4270fc74d88ef3e3560bb5d07d8aeb948e2`, host `plataforma-rubik-seo-bdzqlpg6z-juanma-espinosas-projects.vercel.app`, proyecto `prj_HgnTtNtisi9Kt1A4Dq2pxoCQBook`. SSO/Deployment Protection está habilitado (`all_except_custom_domains`). La metadata no expone Trusted Sources ni permite afirmar que esté configurado; la aceptación de OIDC solo quedaría demostrada por `/api/salud` protegido con el token válido.
 
 Se añadió un arnés separado de la E2E local que inspecciona el ID de deployment por la API Vercel y exige ID, proyecto, host, SHA, rama y estado exactos antes de navegador. El pin está explícito en `scripts/u03-preview-b4-runner.mjs`. El preflight compara la identidad Preview (`auth=preview-isolated`, ref exacto) antes de lanzar Chromium. El navegador envía OIDC únicamente desde un interceptor del request al origen exacto. Playwright `route.fetch({ maxRedirects: 0 })` permite inspeccionar el `Location`: redirects HTTP fuera del origen se sustituyen por 502; navegaciones externas directas se bloquean. Requests a Supabase y otros hosts siguen sin el encabezado. No hay `extraHTTPHeaders` global.
 
@@ -18,7 +18,7 @@ El wrapper de propietario es `scripts/u03-preview-b4-owner.ps1`; comando único 
 
 El último conteo aportado por el propietario fue cero usuarios, organizaciones y proyectos tras la limpieza de la matriz previa; no se recrearon. Por ello no se verificaron cuentas/proyectos A1/A2/B1 en esta tarea. El wrapper solo acepta las cuentas ficticias ya custodiadas que ingrese el propietario; la cuenta opcional con membresía retirada solo prueba denegación posterior y no demuestra retirada en vivo con JWT aún válido. Esa revocación sigue pendiente porque no se autoriza modificar membresías ni habilitar escritor. Escritor, firmas, proveedores y demás filas de outbox no se tocaron.
 
-Destino único: `rhnnplewqsekrnaousyl`. PR #129, rama `codex/u02-preview-isolation-20261017`. Despliegue protegido consultado en Vercel: `dpl_FBKLAT2rYQeHVEs735eNhPR6RnQt`, SHA desplegado `ac5a5ff6d92f1ebd5304ad7fea9b91a8fa617138`, host `plataforma-rubik-seo-7v2wmueoy-juanma-espinosas-projects.vercel.app`, READY. No usar otro despliegue por alias implícito.
+Destino único: `rhnnplewqsekrnaousyl`. PR #129, rama `codex/u02-preview-isolation-20261017`. Deployment fijado: `dpl_6fqataMxfkGFSZJKVGk5xJe8snXq`, SHA desplegado `06c2b4270fc74d88ef3e3560bb5d07d8aeb948e2`, host `plataforma-rubik-seo-bdzqlpg6z-juanma-espinosas-projects.vercel.app`, READY. No usar otro despliegue por alias implícito.
 
 ## Actualización · matriz Data API parcial · 18/10/2026
 

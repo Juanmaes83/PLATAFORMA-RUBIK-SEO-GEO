@@ -9,10 +9,10 @@ const execFileAsync = promisify(execFile);
 export const PIN = Object.freeze({
   projectId: "prj_HgnTtNtisi9Kt1A4Dq2pxoCQBook",
   teamId: "team_hLhdb3M9MviTIysXD9whFF2c",
-  deploymentId: "dpl_FBKLAT2rYQeHVEs735eNhPR6RnQt",
-  sha: "ac5a5ff6d92f1ebd5304ad7fea9b91a8fa617138",
+  deploymentId: "dpl_6fqataMxfkGFSZJKVGk5xJe8snXq",
+  sha: "06c2b4270fc74d88ef3e3560bb5d07d8aeb948e2",
   branch: "codex/u02-preview-isolation-20261017",
-  host: "plataforma-rubik-seo-7v2wmueoy-juanma-espinosas-projects.vercel.app",
+  host: "plataforma-rubik-seo-bdzqlpg6z-juanma-espinosas-projects.vercel.app",
   supabaseRef: "rhnnplewqsekrnaousyl",
 });
 
