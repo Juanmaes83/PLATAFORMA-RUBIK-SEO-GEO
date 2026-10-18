@@ -1,5 +1,14 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
+## Corte U03 · 18/10/2026 20:15 UTC · diagnóstico local tras primera submatriz
+
+- Repo y rama #129 limpios al inicio en `2b5b7ca`; #129 OPEN/Draft. `main@b99893e` sigue siendo el HEAD remoto y ya es ancestro exacto de la rama: no hizo falta merge/rebase ni se tocó otra rama. Código corregido y probado en `7132806a46b17a78f30a9f59deb6ab524b94ad88`; consultar HEAD remoto después del checkpoint documental.
+- El run anterior creó tres usuarios ficticios y falló al crear `ownerA`; el arnés eliminó los tres. Una consulta SQL posterior aportada por el propietario confirmó 27 migraciones N1 y cero usuarios, organizaciones, proyectos, membresías, eventos y recibos pendientes en `rhnnplewqsekrnaousyl`. No se repitió acceso alojado en este ciclo.
+- Diagnóstico local concreto: N1 concede INSERT de `organizations` solo en `(slug,name)` y de `projects` solo en `(organization_id,slug,name,domain,vertical)`; el arnés enviaba `id` en ambas tablas. Ese desajuste es causa plausible del rechazo, pero **el código exacto del error alojado anterior sigue sin identificarse** porque se descartó. Se corrigieron los payloads sin cambiar RLS, trigger, grants ni migraciones.
+- El arnés distingue rechazo PostgREST definitivo, fallo de transporte y respuesta incierta. El ledger guarda solo categoría, código, HTTP y mensaje normalizado/truncado con UUID, email y credenciales redactados; los UUID de fixtures propios permanecen como campos separados para limpieza. Una alta sin ID de respuesta se reconcilia por slug/ámbito exacto, se limpia solo por ID recuperado y se comprueba ausencia por ID y namespace. Cualquier reconciliación incompleta deja la submatriz BLOCKED.
+- Pruebas locales dirigidas **16/16 PASS**. `npm run verify` sobre el árbol funcional: pin, secretos, lint, TypeScript, 607 PASS/1 SKIP y build PASS. Primer intento de verify se detuvo en secret scan por un literal ficticio de test; se corrigió antes de la pasada completa. GitHub Actions sigue sin jobs por facturación; no es CI verde.
+- No se ejecutó de nuevo U03 alojada ni se crearon fixtures en este ciclo. Tras publicar y actualizar #129, el único paso será que el propietario ejecute **una vez** el script interactivo con sus credenciales ya custodiadas, revise ledger y verifique limpieza/recibos propios. Sin bypass, Playwright alojado continúa BLOCKED. U03 global, H1 y H2 permanecen BLOCKED.
+
 ## Corte U03 · 18/10/2026 15:02 UTC · preflight y submatriz preparados, sin fixtures
 
 - #129 OPEN/Draft; rama propia `codex/u02-preview-isolation-20261017` avanzada linealmente de `47ba939` al HEAD remoto `ac5a5ff`, árbol limpio antes de esta preparación. `main@b99893e`. Despliegue Preview de `ac5a5ff`: `dpl_FBKLAT2rYQeHVEs735eNhPR6RnQt`, READY, host exacto documentado en [matriz U03](U03-PREVIEW-MATRIZ-20261018.md).
