@@ -1,12 +1,15 @@
 # Identidad de Supabase · Rubik SEO/GEO
 
+> **Actualización 18/10/2026:** Production `yvdgmklgwlshizzgefpv`; Preview Rubik SEO/GEO `rhnnplewqsekrnaousyl`; Funding OS `jlrppmpopaodpxtqtwmn` excluido. U02 tiene aislamiento acreditado en alcance limitado y #129 sigue Draft. La evidencia inicial de esta página, incluida la frase «Preview sin referencia», es histórica. Ver [estado de tres niveles](ESTADO-TRES-NIVELES-Y-CIERRE-20261018.md) y [matriz U03 de #129](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/blob/codex/u02-preview-isolation-20261017/docs/U03-PREVIEW-MATRIZ-20261018.md). Antes de cualquier operación, verificar SHA/despliegue y ref exactos; no inferirlos por el nombre del proyecto.
+
+
 **Regla de operación vigente desde el 17/10/2026.** Esta página es obligatoria para cualquier agente o persona que consulte o modifique un proyecto Supabase en nombre de `Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO`. No contiene credenciales.
 
 | Uso | Proyecto y referencia | Decisión |
 |---|---|---|
 | Vercel Production, aplicación Rubik SEO/GEO | Proyecto Vercel `prj_HgnTtNtisi9Kt1A4Dq2pxoCQBook` → Supabase `yvdgmklgwlshizzgefpv`, mostrado por la CLI como `plataforma-rubik-seo-geo-dev` | Único destino alojado Production de SEO/GEO identificado a este corte. El nombre «dev» no cambia su uso efectivo. |
 | Otro producto | Supabase `jlrppmpopaodpxtqtwmn`, `rubik-funding-os-preview` | **Excluido:** no consultar ni migrar para SEO/GEO. |
-| Preview aislada de SEO/GEO | Sin referencia acreditada (U02 pendiente) | No asumir que usa cualquiera de los dos proyectos anteriores ni habilitar sesiones en Preview. |
+| Preview aislada de SEO/GEO | Supabase `rhnnplewqsekrnaousyl`, `rubik-preview` | Ref distinto de Production y Funding OS; 27 migraciones N1 y centinela acreditados en el alcance documentado de #129. U03 global sigue parcial y la PR continúa Draft. |
 
 ## Evidencia y límites
 
@@ -25,4 +28,4 @@
 
 ## Estado siguiente
 
-La aplicación de N1 en la base identificada ya ocurrió. Quedan sin acreditar el acceso operativo del escritor, la matriz negativa alojada N1-05 (U03), el ensayo de recuperación del piloto Sarah (U04/R1), Preview aislada (U02) y las migraciones N2 posteriores. H1 sigue parcial y H2 bloqueado. Una migración aplicada no es un gate de seguridad ni de recuperación superado.
+La aplicación de N1 en Production y la activación controlada del escritor ocurrieron después de la evidencia histórica anterior (PASS funcional acotado). Preview aislada ya está identificada y probada en alcance limitado. U03 sigue parcial, Sarah U04/R1 y la exportación HTTP/restauración ficticia continúan sin cerrar; las migraciones N2 alojadas no están acreditadas. H1/H2 siguen abiertos. Ver el estado de tres niveles enlazado arriba.

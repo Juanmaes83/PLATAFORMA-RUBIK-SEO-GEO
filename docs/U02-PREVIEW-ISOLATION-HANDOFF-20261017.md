@@ -1,5 +1,13 @@
 # U02 Preview aislada · preparación verificable · 17/10/2026
 
+## Actualización de estado · reconciliación de #129 · 19/10/2026
+
+- #129 comenzó en `74bbba7de6d3ca15c3ffda44ad4e17777d19354d` sobre `main@b99893e8fbc59f265ce61f40dbdc2baab071f69a`; main observado es `f39620e347756e980192aac8fe93b9a2e8db6376`. Se integra main en la rama existente. El único conflicto detectado es documental en continuidad; el gate H1/H2 y el estado de tres niveles de #136 se preservan.
+- Deployment B-4 exacto sigue READY: `dpl_6fqataMxfkGFSZJKVGk5xJe8snXq`, SHA aplicación `06c2b4270fc74d88ef3e3560bb5d07d8aeb948e2`, host `plataforma-rubik-seo-bdzqlpg6z-juanma-espinosas-projects.vercel.app`, proyecto `prj_HgnTtNtisi9Kt1A4Dq2pxoCQBook`. Cambios de main son documentales, por lo que el pin funcional no se infiere a otro deployment.
+- Lectura de solo lectura en Supabase `rhnnplewqsekrnaousyl`: ACTIVE_HEALTHY, centinela `preview` con ref exacto, 27 migraciones N1 hasta `20261015210000`, rol escritor sin LOGIN/SUPERUSER/BYPASSRLS; conteos de Auth, organizaciones, proyectos, membresías, audit_events y outbox en cero al 19/10. Sin altas ni borrados. Registro público cerrado y flags proveedor no revalidados.
+- Vercel CLI no ejecutable en PowerShell y no hay vínculo `.vercel` en este worktree. `vercel env run` no se lanzó; token OIDC en hijo **DESCONOCIDO**. Trusted Sources no aparece en metadata. La petición HTTP con OIDC y `/api/salud` protegido no se hicieron. B-4 alojado **NO EJECUTADO**; fixtures **NO EJECUTADOS**. La CLI debe estar disponible y el proyecto se debe enlazar de forma explícita antes de repetir el preflight; informar solo resultado booleano del token y HTTP sanitizado.
+- Gate integral H1/H2 de #136: dos pasadas obligatorias, ensayo ficticio alojado y aceptación U04/Sarah. U03 esencial va antes; no se reejecuta la matriz Data API previa 12/12 salvo que el cambio afecte esos controles. No activar escritor/firma en Preview para conseguir una pasada continua.
+
 ## Continuación B-4 · 18/10/2026 · arnés local preparado, ejecución alojada pendiente
 
 - #129 OPEN/Draft, rama `codex/u02-preview-isolation-20261017`. HEAD publicado al iniciar: `b68244f752bbfc38993c5b0d8b8f95b085a73872`; base `main@b99893e8fbc59f265ce61f40dbdc2baab071f69a`. `b99893e` es el checkpoint documental posterior a `42e8bcf`, no una discrepancia.
