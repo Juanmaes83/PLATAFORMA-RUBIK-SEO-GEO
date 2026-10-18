@@ -1,5 +1,51 @@
 # U02 Preview aislada · preparación verificable · 17/10/2026
 
+## Corte Preview desplegada · 18/10/2026 (Claude)
+
+**Base:** HEAD inicial de #129 `47ba939`, comprobado en remoto antes de cambiar nada; `main@b99893e`, ya integrado en la rama. **SHA funcional y desplegado:** `e4ca611e88b67570166c3e3a6a79a0aeb2bd5c93`.
+
+**Código:**
+- El ref aprobado ya era `rhnnplewqsekrnaousyl`; se audita y se mantiene.
+- `previewIdentityMatches` acepta solo `https://rhnnplewqsekrnaousyl.supabase.co`, con origen exacto. Rechaza el ref de Production aunque se pase como aprobado, y cualquier otro ref.
+- El proxy, el cliente SSR, `requestAuthMode` y `currentUser` exigen la lectura real de `public.preview_environment_identity()` con la clave publicable, con exactamente una fila `preview`/`rhnnplewqsekrnaousyl`. Además, el emisor del JWT debe ser `https://rhnnplewqsekrnaousyl.supabase.co/auth/v1`.
+- **Nuevo en este corte:**
+  - `readOpenSeoConfig` y `readOpenSeoMcpConfig` devuelven no disponible en `VERCEL_ENV=preview`. OpenSEO y Google quedan apagados aunque Preview herede variables, también con la identidad aprobada.
+  - El escritor SQL sigue sin pool en Preview con la identidad aprobada (prueba añadida).
+
+**Pruebas locales en `e4ca611`:**
+- `npm run verify`: 607 PASS, 1 SKIP (prueba legacy preexistente); build limpio sin caché, lint, tipos y secretos PASS.
+- Suites dirigidas de identidad (`preview-approved-identity`, `preview-identity`, `audit-writer-preview`, `preview-providers-off`, `preview-session-boundary`, `preview-fail-closed`, `preview-data-paths`): **39/39 PASS**. Cubren:
+  - ref aprobado: sesión abierta solo con el centinela exacto; fetch solo a la RPC con `apikey` publicable;
+  - JWT emitido por Production: no es usuario;
+  - centinela ausente (PostgREST 404 `PGRST202`): todo cerrado;
+  - errores de lectura (500, 401, JSON inválido, red, timeout) y respuestas inesperadas: todo cerrado;
+  - ref de Production y refs parecidos (`…ousym`, `…ousy`, `…ousyl1`, `x…`, `…ous-l`): cerrados **sin ninguna petición de red**;
+  - clave secreta en la variable pública: rechazada.
+- **Comprobación de mutación:** quitar el control del centinela en el proxy hace fallar 3 pruebas; quitar el bloqueo de OpenSEO hace fallar 1. Restaurados.
+
+**Vercel:**
+- Despliegue Git automático de la rama de #129: `dpl_Hgc4kffcgixek8KNRiX4jS1N1DGx` (`plataforma-rubik-seo-pfk2ibcs5-juanma-espinosas-projects.vercel.app`), READY, `target` Preview, `githubCommitSha=e4ca611`. No se promocionó a Production.
+- Protección: `ssoProtection.deploymentType=all_except_custom_domains` (Vercel Authentication) sigue activa. Desde este contenedor la política de red no permite `vercel.app`, así que el acceso anónimo no se pudo comprobar aquí; la lectura se hizo con el enlace temporal autenticado de Vercel.
+- Variables en el ámbito Preview: **solo** `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (Sensitive, comentario U02). Sin escritor, OpenSEO ni claves de firma en Preview. No se leyeron valores.
+
+**`/api/salud` del despliegue:** HTTP 200, `auth: "preview-isolated"`, `persistence: "supabase"`, `supabaseProjectRef: "rhnnplewqsekrnaousyl"`, Core `2aaf127`. Ninguna referencia a `yvdgmklgwlshizzgefpv` ni a `jlrppmpopaodpxtqtwmn`.
+- `preview-isolated` solo se concede si el servidor leyó por la Data API real de Preview, con su clave publicable, exactamente `[{"environment":"preview","project_ref":"rhnnplewqsekrnaousyl"}]`.
+- El ref publicado sale de la URL configurada; si apuntara a Production o a un ref parecido, la configuración quedaría bloqueada y el campo sería `null`.
+- **Límite:** este contenedor no alcanza `*.supabase.co`, así que la llamada a la Data API no se repitió desde aquí. La evidencia es la del servidor desplegado, sin exponer la clave. No se usó service-role ni SQL.
+
+**Navegación:** `/panel` sin sesión responde con `/acceso` (`x-matched-path: /acceso`), con el aviso «Acceso con Supabase Auth de Preview aislada». No se crearon usuarios ni fixtures; U03 no se ejecutó.
+
+**Rechazo de Production y centinela ausente en el entorno desplegado:** probarlos ahí exigiría cambiar variables Preview o el SQL del centinela, y esta tarea lo excluye. Quedan acreditados por las pruebas locales anteriores sobre el mismo SHA, no por el despliegue.
+
+**Riesgo nuevo antes de U03:** con la identidad acreditada, el formulario de **registro público** de Preview está activo. Cualquier persona que pase la protección de Vercel podría crear cuentas en el Auth de Preview. Antes de U03 hay que cerrar el registro público en el Auth de Preview (configuración del propietario) o confirmar que Vercel Authentication basta. No se cambió ninguna configuración.
+
+**Más límites:**
+- Cada petición en Preview hace varias lecturas del centinela (proxy, cliente y modo), con un timeout de 3 s. Si fallan, la sesión se cierra (fail-closed). El coste de latencia queda pendiente de medir.
+- No se aplicó SQL ni se ejecutaron migraciones. Production, Sarah, Google/OpenSEO y Funding OS no se tocaron.
+- GitHub Actions no arranca jobs por facturación.
+
+**Siguiente gate:** decidir el registro público de Preview; después, U03 con los alias A/B del propietario y JWT reales cruzados (Preview frente a Production).
+
 ## Corte de acceso CLI · 18/10/2026 08:35 UTC
 
 Rama `codex/u02-preview-isolation-20261017`, HEAD inicial `c41ecea88318bb99ed5ee987ba1a0d2348fe3ff5`; `main@b99893e8fbc59f265ce61f40dbdc2baab071f69a`, #129 OPEN/Draft. CLI fijada: `supabase@2.118.0`. `projects list` y `whoami` muestran autenticación, pero el perfil actual ve Production y **no** `rhnnplewqsekrnaousyl`; no es una identidad operativa válida para el dry run de Preview. El conector autorizado «RUBIK SOTA — Supabase nuevo» confirmó de nuevo el ref exacto, historial `[]` y ausencia de `supabase_migrations.schema_migrations` y `public.organizations` por SQL solo lectura. Esa lectura no sustituye una conexión PostgreSQL autenticada para la CLI. No se consultaron Production ni Funding OS por SQL y **no se ejecutó `db push --dry-run`** con credenciales ambiguas.
