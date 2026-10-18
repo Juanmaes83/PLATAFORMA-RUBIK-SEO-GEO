@@ -8,8 +8,8 @@ Rubik SEO/GEO debe servir como plataforma segura y multicliente operable comerci
 
 | Hito | Qué acredita | Estado |
 |---|---|---|
-| **H1 · Piloto Sarah técnicamente comprobado** | Sesión y permisos alojados, flujo autorizado, evidencia auténtica, reintento, exportación HTTP firmada y verificación fuera de línea, restauración/idempotencia y aceptación del ensayo del piloto | **ABIERTO**. Escritor N1 alojado PASS acotado; faltan los flujos funcionales completos y U04 para Sarah |
-| **H2 · Primera versión multicliente comercial** | H1 más S1/S2 alojados con negativos de actores, Preview aislada, operación, seguridad, soporte, hosting, retención, gasto y aceptación humana | **ABIERTO**. U02 aislada en alcance comprobado; U03 parcial; operación comercial pendiente |
+| **H1 · Piloto Sarah técnicamente comprobado** | Sesión y permisos alojados, flujo autorizado, evidencia auténtica, reintento, exportación HTTP firmada y verificación fuera de línea, restauración/idempotencia, [ensayo integral ficticio y aceptación del piloto Sarah](GATE-ACEPTACION-INTEGRAL-H1-H2-20261018.md) | **ABIERTO**. Escritor N1 alojado PASS acotado; faltan los flujos funcionales completos y U04 para Sarah |
+| **H2 · Primera versión multicliente comercial** | H1 y sus dos pasadas de aceptación más S1/S2 alojados con negativos de actores, Preview aislada, operación, seguridad, soporte, hosting, retención, gasto y aceptación humana del release | **ABIERTO**. U02 aislada en alcance comprobado; U03 parcial; operación comercial pendiente |
 | **H3 · Expansión** | Entregas N2 acreditadas por módulo y evaluación N3 según demanda y economía | **PARCIAL COMO CÓDIGO**. Primeros incrementos N2 en main; sin acreditación N2 alojada ni compromiso N3 |
 
 ## Evidencia y versión
@@ -34,6 +34,10 @@ Rubik SEO/GEO debe servir como plataforma segura y multicliente operable comerci
 | **N1-08 operación comercial (U06)** | Despliegue Production y procedimientos iniciales documentados; E2E local móvil y escritorio | Registro/invitaciones y SMTP, protección de contraseñas, política de retención y borrado de cuentas con autoría, respaldo portable y restauración de servicios, alertas/soporte/incidentes, plan de hosting apto, dominio, UX y aceptación de release | **Codex** prepara runbooks y pruebas; **yo** audito checklist y release; **Juanma** decide políticas, plan y acepta H1/H2 |
 
 **Secuencia de cierre N1:** (1) auditar y fusionar el aislamiento #129 sin presentarlo como U03 completa; (2) completar la matriz de actores y B-4 en Preview protegido; (3) ensayo alojado ficticio de exportación HTTP/restauración en el entorno expresamente autorizado; (4) decisión R1 y U04, piloto Sarah controlado; (5) N1-07/08 y aceptación comercial H2. Los casos que exigen escritor en Preview permanecen fuera mientras allí esté vetado; no desbloquearlo para simplificar U03.
+
+## Gate explícito de aceptación integral
+
+El [protocolo H1/H2](GATE-ACEPTACION-INTEGRAL-H1-H2-20261018.md) exige dos pasadas: **A**, recorrido ficticio alojado desde login, organización/proyecto y permisos hasta datos, medición/informe, exportación HTTP, verificación offline, restauración, logout y limpieza; **B**, piloto Sarah U04 con tareas reales pactadas, incidencias y aceptación humana. La matriz U03 y los tests locales son prerrequisitos y evidencias complementarias, no sustituyen este recorrido. Tras #129 y U03 esencial se ejecuta una sola campaña A, se corrigen fallos concretos y se repiten sus dependencias; después R1 y U04 permiten B. H1 y H2 siguen **ABIERTOS** hasta sus criterios respectivos.
 
 ## Nivel 2 · Funciones integradas frente a funciones operativas
 
