@@ -1,5 +1,45 @@
 # U02 Preview aislada · preparación verificable · 17/10/2026
 
+## Corte de acceso CLI · 18/10/2026 08:35 UTC
+
+Rama `codex/u02-preview-isolation-20261017`, HEAD inicial `c41ecea88318bb99ed5ee987ba1a0d2348fe3ff5`; `main@b99893e8fbc59f265ce61f40dbdc2baab071f69a`, #129 OPEN/Draft. CLI fijada: `supabase@2.118.0`. `projects list` y `whoami` muestran autenticación, pero el perfil actual ve Production y **no** `rhnnplewqsekrnaousyl`; no es una identidad operativa válida para el dry run de Preview. El conector autorizado «RUBIK SOTA — Supabase nuevo» confirmó de nuevo el ref exacto, historial `[]` y ausencia de `supabase_migrations.schema_migrations` y `public.organizations` por SQL solo lectura. Esa lectura no sustituye una conexión PostgreSQL autenticada para la CLI. No se consultaron Production ni Funding OS por SQL y **no se ejecutó `db push --dry-run`** con credenciales ambiguas.
+
+El paquete regenerado desde este checkout cotejó las 27 N1 por nombre y SHA-256 contra Git `f5afc09833eee77ab605abda3a2ec9d4a1e80a92`; hash SHA-256 del `manifest.json`: `B6DE026068083AE1CAC06B3F6D86D16F67386E6DE043DE6DBDF6A63BC87DD169`. Comprobación independiente: 27 hashes de archivos coincidentes, cero migraciones extra, `[db.seed] enabled = false`, sin archivos seed/Vault/roles. Las seis migraciones posteriores quedan excluidas. La CLI 2.118.0 admite `migration list --db-url` y `db push --db-url --dry-run --skip-vault`; la URL deberá venir del Session pooler oficial de Preview, puerto 5432 y usuario con el ref Preview, custodiada fuera de Git/chat/logs. La documentación Supabase recomienda obtener host y usuario del botón Connect, sin construir el host por región.
+
+| Versión esperada | Archivo canónico | SHA-256 (prefijo) | Observado por dry run |
+|---|---|---|---|
++| `20260928120000` | `20260928120000_core_9_1_tenancy.sql` | `29c5d22eaf36…` | Sin dry run |
+| `20260928150000` | `20260928150000_rls_auto_enable_privileges.sql` | `595da99feeab…` | Sin dry run |
+| `20261007120000` | `20261007120000_core_9_2_audit_and_provenance.sql` | `d27393868d69…` | Sin dry run |
+| `20261007150000` | `20261007150000_core_9_3_manual_imports.sql` | `aa4982c79dd8…` | Sin dry run |
+| `20261009071705` | `20261009071705_openseo_project_jobs.sql` | `3d40d8d7b5c1…` | Sin dry run |
+| `20261009120000` | `20261009120000_openseo_project_connections.sql` | `14318d446a67…` | Sin dry run |
+| `20261009150000` | `20261009150000_openseo_job_connection.sql` | `e6af173c5439…` | Sin dry run |
+| `20261009170000` | `20261009170000_openseo_active_job.sql` | `41be589e6769…` | Sin dry run |
+| `20261009180000` | `20261009180000_webmaster_properties.sql` | `e460642848f2…` | Sin dry run |
+| `20261010090000` | `20261010090000_provider_budget_ledger.sql` | `aab9235ac569…` | Sin dry run |
+| `20261010150000` | `20261010150000_provider_spend_controls.sql` | `63864b4875ae…` | Sin dry run |
+| `20261010160000` | `20261010160000_openseo_google_properties.sql` | `503608c046e7…` | Sin dry run |
+| `20261012090000` | `20261012090000_project_invitations.sql` | `fdab674359fa…` | Sin dry run |
+| `20261012100000` | `20261012100000_project_people_and_inventory.sql` | `5dda46774638…` | Sin dry run |
+| `20261012110000` | `20261012110000_inventory_google_properties.sql` | `aaabc51f3264…` | Sin dry run |
+| `20261012120000` | `20261012120000_google_captures.sql` | `f951be234cf7…` | Sin dry run |
+| `20261012130000` | `20261012130000_google_recovery_state.sql` | `f8a8b3382f09…` | Sin dry run |
+| `20261015115750` | `20261015115750_membership_consent.sql` | `dd8702856747…` | Sin dry run |
+| `20261015145025` | `20261015145025_s1_trusted_audit_writer.sql` | `cb792e2b403b…` | Sin dry run |
+| `20261015170000` | `20261015170000_s1_import_audit_outbox.sql` | `732016f4190e…` | Sin dry run |
+| `20261015171000` | `20261015171000_s1_import_restore_boundary.sql` | `2748b42ab1e6…` | Sin dry run |
+| `20261015172000` | `20261015172000_s1_import_receipt_identity.sql` | `a627c075704a…` | Sin dry run |
+| `20261015180000` | `20261015180000_s1_trusted_provider_results.sql` | `e53857168b09…` | Sin dry run |
+| `20261015183000` | `20261015183000_s1_provider_erase_outbox.sql` | `4a0e25d7fd26…` | Sin dry run |
+| `20261015190000` | `20261015190000_s1_provider_rpc_boundary.sql` | `878df3d4a158…` | Sin dry run |
+| `20261015201500` | `20261015201500_s1_pending_receipt_delete_guard.sql` | `9853e3b6749b…` | Sin dry run |
+| `20261015210000` | `20261015210000_s1_provider_capture_receipts.sql` | `98270b2d46bc…` | Sin dry run |
+
+**Resultado:** paquete local 27/27; historial remoto observado por conector 0; dry run **BLOQUEADO**, sin salida ni código de salida de `db push`; comparación esperadas/observadas pendiente. Acción única del propietario: autenticar esta CLI con la cuenta que administra `rhnnplewqsekrnaousyl` y facilitar en su terminal/gestor, sin publicarlos, el host/usuario/contraseña del Session pooler oficial de ese ref. Revalidar cuenta/ref/catálogo antes del primer intento; detener antes de aplicar cualquier SQL y presentar la salida saneada a Juanma y ChatGPT.
+
+Ruta de reanudación: usar el perfil CLI Rubik Sota que liste el ref Preview, copiar el host del botón **Connect → Session pooler** del proyecto exacto y comprobar puerto `5432` y usuario `postgres.rhnnplewqsekrnaousyl`. Cargar la contraseña exclusivamente como `SUPABASE_DB_PASSWORD` temporal en la terminal, sin ponerla en `--db-url`; [Supabase documenta esa variable](https://supabase.com/docs/guides/troubleshooting/supabase-cli-failed-sasl-auth-or-invalid-scram-server-final-message) y la [ruta IPv4 de Session pooler](https://supabase.com/docs/guides/database/connecting-to-postgres). Desde `test-results/u02-n1-preview-package`, ejecutar primero `migration list --db-url <URL_SIN_PASSWORD>` y después `db push --dry-run --skip-vault --db-url <MISMA_URL_SIN_PASSWORD>`, ambos con CLI `2.118.0` y el perfil correcto. La URL se arma con **el host oficial**, `postgres.rhnnplewqsekrnaousyl`, puerto `5432`, base `postgres` y TLS; nunca con un host calculado por región. Comparar línea por línea con la tabla anterior y repetir `migration list`; borrar la variable de entorno al terminar. No ejecutar `db push` sin `--dry-run` en esta tanda.
+
 ## Último corte · 18/10/2026 · main N2-14 incorporado
 
 `main@b99893e8fbc59f265ce61f40dbdc2baab071f69a` integró N2-14 mientras se cerraba esta PR. Se fusionó en #129 sin conflictos ni cambios de diseño U02; merge local `3598eeb929c9e1f6fd24ce2dbaccb755dcd31370`. `npm run verify` sobre ese código combinado: **597 PASS, 1 SKIP**, secret scan, lint, TypeScript y build PASS. Los ensayos específicos U02 previos (13/13 unitarias, 121/121 pgTAP y Data API/RPC local) siguen asociados a la misma implementación de U02, que no cambió en la fusión. El SHA final publicado y la base efectiva deben comprobarse en GitHub antes de cualquier despliegue. U02 continúa **BLOQUEADO antes del SQL alojado** por la ruta CLI de dry run; U03 **NO INICIADO**. El stack Docker propio se detuvo sin backup y ningún fixture remoto fue creado.
