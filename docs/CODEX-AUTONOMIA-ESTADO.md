@@ -1,6 +1,14 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
-## Corte vigente · 17/10/2026 · integración N2-12/13
+## Corte vigente · 18/10/2026 · tres niveles y U03
+
+- main@b99893e; #129 OPEN/Draft@b68244f con base b99893e. 42e8bcf es el merge de #133 anterior al checkpoint documental #134. Consultar [Estado de los tres niveles y plan de cierre](ESTADO-TRES-NIVELES-Y-CIERRE-20261018.md) antes de iniciar otro bloque.
+- U02 Preview rhnnplewqsekrnaousyl aislada en el alcance verificado. U03 Data API parcial: propietario reportó 12/12 para dos owners y outsider y limpieza; ledger local no publicado. Falta B-4 Playwright protegido, roles restantes, consentimiento y negativos JWT auténticos. El despliegue Preview documentado sirve ac5a5ff, SHA anterior a HEAD. Escritor, firma y proveedores siguen vetados en Preview.
+- H1 y H2 abiertos. Primeros incrementos N2-09 a N2-14 fusionados como código, sin acreditación de migraciones/flags N2 alojadas. Prioridad: Codex completa arnés B-4 y matriz en #129; ChatGPT audita HEAD exacto y supervisa fusión; Juanma ejecuta protegido desde PowerShell y decide U04/R1, retención y condiciones comerciales. No repetir el run Data API parcial sin cambio que lo afecte.
+- GitHub Actions sigue bloqueada por facturación. Este checkpoint documental no acredita nuevas pruebas ni operaciones alojadas.
+
+
+## Corte histórico · 17/10/2026 · integración N2-12/13
 
 - #131 fusionada en `main@cf16aca1eb456b4b4af04c7ba06a787c21d1d8c6`; #116 y #117 cerradas sin merge por sustitución. Production READY; `/api/salud` 200 devuelve `yvdgmklgwlshizzgefpv`. En auditoría independiente, HEAD #131 `5fdbfdc`: verify 580 PASS/1 SKIP, lint/tipos/build PASS. Claude informó integración 145/145, pgTAP 870/870, E2E 170 PASS/58 SKIP/0 FAIL, rollback y recuperación v4 doble sobre código `6163c13`.
 - N2-12/13 fusionadas como código, aún apagadas y sin aplicación alojada de sus migraciones en esta ventana. No usar datos reales antes de decidir R1 y retención de las 11 FK de autoría, aplicar/validar SQL en el proyecto correcto con respaldo y activar de forma controlada. H1/H2 siguen bloqueados; Actions sin jobs por facturación.
