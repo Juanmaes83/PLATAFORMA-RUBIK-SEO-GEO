@@ -1,5 +1,17 @@
 # U02 Preview aislada · preparación verificable · 17/10/2026
 
+## Corte U03 · 18/10/2026 · actualización posterior a matriz Data API
+
+La API viva de GitHub confirma #129 OPEN/Draft, HEAD `661f47d20bb90c95fac058aeec4bdc32cf07029f` y base `main@b99893e8fbc59f265ce61f40dbdc2baab071f69a`. El `origin/main` local estaba atrasado; no se usó como autoridad. El encabezado del Roadmap en este checkout cita `42e8bcf`, en discrepancia con la rama `main` viva y la base de la PR. Resolver la diferencia de documentación antes de la siguiente actualización de base.
+
+El propietario reporta que ejecutó la matriz Data API en `661f47d`: **12 controles RLS/RPC/JWT PASS** para owner A, owner B y usuario sin membresía; limpieza de tres proyectos, dos organizaciones y tres usuarios; verificación de solo lectura final sin esos datos y con 27 migraciones N1. El ledger `test-results/u03-hosted/c21cbbf5-e50a-4bb3-9500-41c8ded8c51f.jsonl` fue citado, pero no está presente en los worktrees accesibles. Se conserva como evidencia aportada por el propietario, sin reproducir UUID. El detalle está en [matriz U03](U03-PREVIEW-MATRIZ-20261018.md); esto sustituye las notas históricas que decían U03 no iniciado.
+
+**U03 sigue parcial.** Faltan account-manager, analyst, viewer, client-approver, viewer A2, invitación/consentimiento/retirada y JWT caducado/revocado o de otro emisor. Escritor, firma, HMAC, outbox, exportación y recuperación permanecen vetados en Preview. B-4 de navegador está pendiente. El protocolo contempla un cierre limitado a Data API/RPC si se excluye B-4, pero el propietario no ha elegido ese alcance para declarar U03 completo. H1/H2 siguen bloqueados por exportación/restauración y operación.
+
+Vercel confirmó READY para el deployment protegido documentado `dpl_FBKLAT2rYQeHVEs735eNhPR6RnQt`, aún en el SHA desplegado antiguo `ac5a5ff6d92f1ebd5304ad7fea9b91a8fa617138`. No hay Vercel CLI, vínculo `.vercel` ni token OIDC disponible en esta sesión. El arnés todavía consume `U03_VERCEL_BYPASS` y no tiene suite Playwright protegida. No se creó bypass ni se modificó Vercel. La vía preferida es la CLI local del propietario y su token OIDC efímero, limitado al host fijado, después de que Codex adapte y pruebe el arnés. No solicitar el token por chat.
+
+En `661f47d` se ejecutaron localmente los tests U03 dirigidos (**16/16 PASS**) y `npm run verify` (**607 PASS / 1 SKIP**, pin/secrets/lint/tipos/build PASS). `git diff --check` PASS. No se ejecutó Playwright local porque no cambió ese flujo; tampoco se repitieron pruebas alojadas ni se crearon fixtures. GitHub Actions no ejecutó jobs por el bloqueo de facturación.
+
 ## Continuación U03 · 18/10/2026 15:02 UTC · sin fixtures
 
 La copia local se avanzó linealmente de `47ba939` al HEAD remoto `ac5a5ff` de #129, sin trabajo ajeno sobrescrito. #129 continúa OPEN/Draft; `main@b99893e`. El despliegue seleccionado para ese HEAD es `dpl_FBKLAT2rYQeHVEs735eNhPR6RnQt`, READY, host `plataforma-rubik-seo-7v2wmueoy-juanma-espinosas-projects.vercel.app`. PowerShell recibió `401` de Auth Supabase sin clave y `302` de Vercel Authentication en ese host: conectividad acreditada, sin `CONNECT 403` del proxy. El endpoint protegido no se leyó sin bypass.
