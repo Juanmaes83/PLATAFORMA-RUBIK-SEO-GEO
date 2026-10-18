@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { mkdir, appendFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { ownerInventoryAccepted } from './u03-preview-inventory-check.mjs';
 
 const ref = 'rhnnplewqsekrnaousyl';
 const sha = 'ac5a5ff6d92f1ebd5304ad7fea9b91a8fa617138';
@@ -29,14 +30,33 @@ const users = [];
 const orgs = [];
 const projects = [];
 const accounts = {};
+const actors = ['ownerA', 'ownerB', 'outsider'];
+const ownEmails = new Set(actors.map(actor => `${actor}-${namespace}@ejemplo.test`));
 let failed = false;
+
+async function findOwnAuthUsers() {
+  const found = [];
+  for (let page = 1; page <= 20; page++) {
+    const listed = await admin.auth.admin.listUsers({ page, perPage: 100 });
+    if (listed.error || !Array.isArray(listed.data?.users)) throw new Error('Inventario Auth indisponible');
+    const pageUsers = listed.data.users;
+    found.push(...pageUsers.filter(user => ownEmails.has(user.email)).map(user => user.id));
+    if (pageUsers.length < 100) return found;
+  }
+  throw new Error('Inventario Auth excede el límite seguro');
+}
 
 async function createUser(actor) {
   const email = `${actor}-${namespace}@ejemplo.test`;
   const password = randomBytes(32).toString('base64url');
-  await ledger(`fixture-user-${actor}`, 'PLANNED');
-  const created = await admin.auth.admin.createUser({ email, password, email_confirm: true });
-  if (created.error || !created.data.user?.id) throw new Error(`Alta Auth ambigua: ${actor}`);
+  await ledger(`fixture-user-${actor}`, 'PLANNED', { namespace, actor });
+  let created;
+  try { created = await admin.auth.admin.createUser({ email, password, email_confirm: true }); }
+  catch { await ledger(`fixture-user-${actor}`, 'AMBIGUOUS'); throw new Error(`Alta Auth ambigua: ${actor}`); }
+  if (created.error || !created.data.user?.id) {
+    await ledger(`fixture-user-${actor}`, 'AMBIGUOUS');
+    throw new Error(`Alta Auth ambigua: ${actor}`);
+  }
   users.push(created.data.user.id);
   await ledger(`fixture-user-${actor}`, 'CREATED', { id: created.data.user.id });
   const signed = client();
@@ -72,7 +92,7 @@ try {
     Array.isArray(identity.data) && identity.data.length === 1 &&
     identity.data[0]?.environment === 'preview' && identity.data[0]?.project_ref === ref);
 
-  for (const actor of ['ownerA', 'ownerB', 'outsider']) await createUser(actor);
+  for (const actor of actors) await createUser(actor);
   const orgA = await createOrganization('ownerA', `${namespace}-a`);
   const orgB = await createOrganization('ownerB', `${namespace}-b`);
   const a1 = await createProject('ownerA', orgA, 'a1');
@@ -105,7 +125,7 @@ try {
   const foreignRpc = await b.rpc('project_data_inventory', { p_project_id: a1 });
   const ownRpc = await a.rpc('project_data_inventory', { p_project_id: a1 });
   await assert('rpc-cross-tenant-denied', foreignRpc.error?.code === '42501');
-  await assert('rpc-owner-authorized', ownRpc.error?.code !== '42501');
+  await assert('rpc-owner-authorized', ownerInventoryAccepted(ownRpc, a1, aRows.data));
 
   const bearer = await fetch(`${url}/rest/v1/projects?select=id`, {
     headers: { apikey: publicKey, Authorization: 'Bearer invalid-u03-token' },
@@ -116,6 +136,15 @@ try {
   failed = true;
   await ledger('matrix-run', 'FAIL', { kind: error?.name || 'Error', reason: String(error?.message || '').slice(0, 120) });
 } finally {
+  try {
+    for (const id of await findOwnAuthUsers()) {
+      if (!users.includes(id)) {
+        users.push(id);
+        await ledger('fixture-user-recovered', 'RECOVERED', { id });
+      }
+    }
+    await ledger('auth-id-reconciliation', 'PASS');
+  } catch { failed = true; await ledger('auth-id-reconciliation', 'FAIL'); }
   for (const id of projects.reverse()) {
     try {
       const deleted = await admin.from('projects').delete().eq('id', id).select('id');
@@ -143,10 +172,12 @@ try {
   try {
     const projectRows = projects.length ? await admin.from('projects').select('id').in('id', projects) : { data: [], error: null };
     const orgRows = orgs.length ? await admin.from('organizations').select('id').in('id', orgs) : { data: [], error: null };
-    const clear = !projectRows.error && !orgRows.error && projectRows.data?.length === 0 && orgRows.data?.length === 0;
+    const authRows = await findOwnAuthUsers();
+    const clear = !projectRows.error && !orgRows.error && projectRows.data?.length === 0 && orgRows.data?.length === 0 && authRows.length === 0;
     await ledger('cleanup-ids-verified', clear ? 'PASS' : 'FAIL');
     if (!clear) failed = true;
   } catch { failed = true; await ledger('cleanup-ids-verified', 'FAIL'); }
+  await ledger('pending-receipts', 'REQUIRES_SQL_VERIFICATION', { projectIds: projects });
   await ledger('matrix-global', failed ? 'BLOCKED' : 'PARTIAL_PASS', { cases: 'Auth/Data API subset; Playwright and writer cases pending' });
   console.log(`Ledger: ${ledgerPath}`);
   if (failed) process.exitCode = 1;
