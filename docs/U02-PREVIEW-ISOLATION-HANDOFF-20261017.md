@@ -1,5 +1,46 @@
 # U02 Preview aislada · preparación verificable · 17/10/2026
 
+## U03 · intento 18/10/2026 10:25 UTC (Claude) · **BLOQUEADO antes de crear fixtures**
+
+**Estado de partida comprobado:**
+- #129 OPEN/Draft, HEAD `3ec989b`; `main@b99893e`.
+- SHA funcional desplegado: `e4ca611` (`dpl_Hgc4kffcgixek8KNRiX4jS1N1DGx`, READY, Preview). El último despliegue Preview de la rama (`dpl_E5tG8RW3XZLcQBgCkKoS7Db22PDm`) corresponde al commit documental `3ec989b`, con el mismo código.
+
+**Precomprobaciones (PASS):**
+- `/api/salud` por la Vercel Authentication del conector: 200, `auth: "preview-isolated"`, `supabaseProjectRef: "rhnnplewqsekrnaousyl"`. Ninguna referencia a Production ni a Funding OS.
+- `ssoProtection` sigue siendo `all_except_custom_domains`.
+- El ámbito Preview conserva solo `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: sin escritor ni proveedores.
+- **Registro público de Preview desactivado** («Allow new users to sign up» apagado), según confirmación del propietario. No se reactivó ni se probó a abrir.
+
+**Bloqueos (U03 = BLOCKED; ningún caso se marca PASS):**
+
+| # | Bloqueo | Evidencia | Qué necesita U03 |
+|---|---|---|---|
+| B-1 | Red del entorno Claude | `curl` a `https://rhnnplewqsekrnaousyl.supabase.co/auth/v1/health` y al despliegue `*.vercel.app` termina en `CONNECT tunnel failed, response 403` (proxy de egress) | Iniciar sesión con las cuentas ficticias, llamar a Data API y RPC con JWT reales y ejecutar Playwright |
+| B-2 | No hay una vía administrativa segura para dar de alta y retirar usuarios | El conector Supabase de esta sesión responde `You do not have permission` para `rhnnplewqsekrnaousyl`. No hay clave administrativa de Preview en el entorno. El registro público está cerrado. Insertar en `auth.users` está prohibido | Alta y baja de los usuarios ficticios A/B |
+| B-3 | Sin lectura de verificación de Preview desde esta sesión | El mismo permiso denegado impide revisar las 27 migraciones, los usuarios Auth y los recibos antes y después | Acreditar «sin cambios inesperados» y la limpieza a cero |
+| B-4 | Navegador protegido | Playwright no puede pasar Vercel Authentication sin sesión de Vercel. Se excluyen los enlaces públicos de bypass | Sesión, navegación y rechazo tras revocación en el navegador |
+
+**Nada escrito en Preview:** 0 usuarios, 0 organizaciones, 0 proyectos y 0 recibos creados por este intento. Ledger vacío; no hay limpieza que hacer. No se usó Production, Funding OS, Sarah ni proveedores.
+
+**Acción manual mínima del propietario para desbloquear:**
+1. **Red (B-1):** en *Network access* del entorno, añadir a *Allowed domains* `rhnnplewqsekrnaousyl.supabase.co` y el host del despliegue Preview (o `*.vercel.app`). Pasos: https://code.claude.com/docs/en/cloud-environments#network-access
+2. **Usuarios (B-2), una de dos:**
+   - (a) Guardar la clave secreta **solo de Preview** como secreto del entorno, nunca en chat ni en Git, autorizando expresamente el alta y la baja por la API de administración de Auth y solo de usuarios del namespace del run.
+   - (b) Crear a mano en el Dashboard de `rubik-preview` (Authentication → Add user, confirmado) los 8 usuarios ficticios: ownerA, ownerB, account-manager, analyst, viewer, client-approver, a2-viewer y sin-membresía. Guardar sus contraseñas como secretos del entorno y borrarlos al terminar.
+3. **Verificación (B-3):** dar al conector Supabase de esta sesión acceso de solo lectura al ref, o que el propietario repita la consulta de solo lectura antes y después. Con (a), los recuentos de Auth se pueden leer por la API de administración.
+4. **Navegador (B-4):** decidir si se permite un *Protection Bypass for Automation* guardado como secreto del entorno (no es un enlace público). Si no, las pruebas de navegador quedan BLOCKED y U03 se cierra solo con Data API y RPC.
+
+**Matriz U03 preparada (sin ejecutar en Preview).** Corresponde a las suites locales ya existentes:
+- `isolation-matrix`: anónimo; propietarios; account-manager, analyst, viewer y client-approver de A1; viewer de A2; sin membresía; RPC expuestas; A1/A2/B1 cruzados; metadata falsificada; bearer falsificado o caducado; GraphQL; esquema privado.
+- `membership-consent`: altas ilegítimas; consentimiento; retirada.
+- `s1-writer-negatives`: actor falsificado; JWT aún válido tras la retirada.
+- `tenancy`.
+
+Para Preview hace falta ejecutarlas con el ref fijo `rhnnplewqsekrnaousyl` y guardas que rechacen `yvdgmklgwlshizzgefpv` y `jlrppmpopaodpxtqtwmn`. Quedan fuera los casos que usan `docker exec`/psql locales, el escritor o el token caducado firmado localmente. El rechazo de un JWT de otro proyecto necesita un token auténtico de un proyecto ajeno no sensible, no de Production.
+
+**H1/H2:** siguen abiertos. U03 no sustituye la exportación HTTP, la restauración ficticia ni las obligaciones comerciales y operativas.
+
 ## Corte Preview desplegada · 18/10/2026 (Claude)
 
 **Base:** HEAD inicial de #129 `47ba939`, comprobado en remoto antes de cambiar nada; `main@b99893e`, ya integrado en la rama. **SHA funcional y desplegado:** `e4ca611e88b67570166c3e3a6a79a0aeb2bd5c93`.
@@ -37,7 +78,7 @@
 
 **Rechazo de Production y centinela ausente en el entorno desplegado:** probarlos ahí exigiría cambiar variables Preview o el SQL del centinela, y esta tarea lo excluye. Quedan acreditados por las pruebas locales anteriores sobre el mismo SHA, no por el despliegue.
 
-**Riesgo nuevo antes de U03:** con la identidad acreditada, el formulario de **registro público** de Preview está activo. Cualquier persona que pase la protección de Vercel podría crear cuentas en el Auth de Preview. Antes de U03 hay que cerrar el registro público en el Auth de Preview (configuración del propietario) o confirmar que Vercel Authentication basta. No se cambió ninguna configuración.
+**Riesgo antes de U03 (resuelto el 18/10/2026 por el propietario: registro público de Preview desactivado):** con la identidad acreditada, el formulario de **registro público** de Preview estaba activo. Cualquier persona que pase la protección de Vercel podría crear cuentas en el Auth de Preview. Antes de U03 hay que cerrar el registro público en el Auth de Preview (configuración del propietario) o confirmar que Vercel Authentication basta. No se cambió ninguna configuración.
 
 **Más límites:**
 - Cada petición en Preview hace varias lecturas del centinela (proxy, cliente y modo), con un timeout de 3 s. Si fallan, la sesión se cierra (fail-closed). El coste de latencia queda pendiente de medir.
