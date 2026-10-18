@@ -1,5 +1,11 @@
 # U02 Preview aislada · preparación verificable · 17/10/2026
 
+## Continuación U03 · 18/10/2026 15:02 UTC · sin fixtures
+
+La copia local se avanzó linealmente de `47ba939` al HEAD remoto `ac5a5ff` de #129, sin trabajo ajeno sobrescrito. #129 continúa OPEN/Draft; `main@b99893e`. El despliegue seleccionado para ese HEAD es `dpl_FBKLAT2rYQeHVEs735eNhPR6RnQt`, READY, host `plataforma-rubik-seo-7v2wmueoy-juanma-espinosas-projects.vercel.app`. PowerShell recibió `401` de Auth Supabase sin clave y `302` de Vercel Authentication en ese host: conectividad acreditada, sin `CONNECT 403` del proxy. El endpoint protegido no se leyó sin bypass.
+
+El conector autorizado del ref Preview listó 27 migraciones N1 hasta `20261015210000`; catálogo: centinela y RPC presentes, fila `preview`/`rhnnplewqsekrnaousyl`, y conteos 0 para Auth, organizaciones, proyectos, membresías, auditoría y outbox. Escritor `NOLOGIN`/`NOBYPASSRLS`. El registro público cerrado sigue basado en la confirmación previa del propietario; la lectura actual queda en el preflight con clave publicable. Se preparó una entrada PowerShell sin eco ni persistencia de claves y un ledger de preflight sin secretos en `scripts/u03-preview-credential-entry.ps1`; no se introdujeron claves en chat ni se crearon fixtures. La separación de casos y bloqueos está en [U03-PREVIEW-MATRIZ-20261018.md](U03-PREVIEW-MATRIZ-20261018.md). U03 global sigue **BLOCKED**.
+
 ## Revalidación U03 · 2026-10-18T10:42:17Z · bloqueado antes de fixtures
 
 La rama de #129 está en `35f54cfdc8c702f94b2e71973ea370b02c144cea`, OPEN/Draft, sobre `main@b99893e8fbc59f265ce61f40dbdc2baab071f69a`; el árbol Windows está limpio. El despliegue Preview funcional documentado sigue siendo `e4ca611`/`dpl_Hgc4kffcgixek8KNRiX4jS1N1DGx`, con `/api/salud` previamente acreditado como `auth=preview-isolated` y ref `rhnnplewqsekrnaousyl`. La inspección Vercel read-only de esta sesión encontró despliegues Preview más recientes, pero el endpoint protegido no pudo revalidarse sin bypass; no se ha usado ningún bypass ni se ha cambiado protección.

@@ -1,5 +1,13 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
+## Corte U03 · 18/10/2026 15:02 UTC · preflight y submatriz preparados, sin fixtures
+
+- #129 OPEN/Draft; rama propia `codex/u02-preview-isolation-20261017` avanzada linealmente de `47ba939` al HEAD remoto `ac5a5ff`, árbol limpio antes de esta preparación. `main@b99893e`. Despliegue Preview de `ac5a5ff`: `dpl_FBKLAT2rYQeHVEs735eNhPR6RnQt`, READY, host exacto documentado en [matriz U03](U03-PREVIEW-MATRIZ-20261018.md).
+- PowerShell: Supabase Preview respondió `401` de Auth sin clave y Vercel Preview `302` de autenticación; ambos destinos alcanzables, sin bloqueo `CONNECT 403` del proxy. No se consultó ningún otro host de aplicación o base.
+- Conector autorizado **solo** `rhnnplewqsekrnaousyl`: 27 migraciones N1 hasta `20261015210000`, centinela `preview`/ref exacto, 0 usuarios Auth, organizaciones, proyectos, membresías, auditoría y outbox. Rol escritor `NOLOGIN`/`NOBYPASSRLS`. Registro público cerrado confirmado antes por el propietario, pero no revalidado en esta sesión sin clave publicable.
+- Entrada PowerShell segura y submatriz Auth/Data API preparadas en `scripts/u03-preview-credential-entry.ps1` y `scripts/u03-preview-data-api.mjs`. Aún **no ejecutadas**: no hay credenciales entregadas por vía local ni fixtures. El preflight exige registro cerrado y Admin/Auth del ref exacto; bypass ausente bloquea únicamente Preview protegido/Playwright. Ledgers locales ignorados por Git y limpieza planificada por IDs.
+- U03 global **BLOCKED**: faltan preflight con credenciales, matriz completa A1/A2/B1, consentimiento/retirada y Playwright; escritor/firmas continúan vetados. H1/H2 bloqueados. Siguiente acción: ejecutar la entrada local sin exponer valores y revisar ledger/conteos propios; luego ampliar la matriz por casos pendientes sin activar escritor.
+
 ## Corte vigente · 17/10/2026 · integración N2-12/13
 
 - #131 fusionada en `main@cf16aca1eb456b4b4af04c7ba06a787c21d1d8c6`; #116 y #117 cerradas sin merge por sustitución. Production READY; `/api/salud` 200 devuelve `yvdgmklgwlshizzgefpv`. En auditoría independiente, HEAD #131 `5fdbfdc`: verify 580 PASS/1 SKIP, lint/tipos/build PASS. Claude informó integración 145/145, pgTAP 870/870, E2E 170 PASS/58 SKIP/0 FAIL, rollback y recuperación v4 doble sobre código `6163c13`.
