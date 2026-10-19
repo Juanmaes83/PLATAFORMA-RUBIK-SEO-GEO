@@ -85,9 +85,15 @@ export interface OpenSeoMcpClient {
   close(): Promise<void>;
 }
 
-export const googleReadsEnabled = (env: Record<string, string | undefined> = process.env) => env.OPENSEO_GOOGLE_READS_ENABLED === "true";
+const isVercelPreview = (env: Record<string, string | undefined>) => (env.VERCEL_ENV ?? "").trim() === "preview";
+
+// Preview must present Google as disabled as well as refusing provider configuration. This
+// keeps inherited deployment flags from exposing an enabled-looking control in the UI.
+export const googleReadsEnabled = (env: Record<string, string | undefined> = process.env) =>
+  !isVercelPreview(env) && env.OPENSEO_GOOGLE_READS_ENABLED === "true";
 /** Catalog inspection is a separate, explicit hosted-network gate. It never enables Google reads. */
-export const googleCatalogCheckEnabled = (env: Record<string, string | undefined> = process.env) => env.OPENSEO_GOOGLE_CATALOG_CHECK_ENABLED === "true";
+export const googleCatalogCheckEnabled = (env: Record<string, string | undefined> = process.env) =>
+  !isVercelPreview(env) && env.OPENSEO_GOOGLE_CATALOG_CHECK_ENABLED === "true";
 
 function guardArgs(name: string, args: Record<string, unknown>, maxPages: number, googleReads = false) {
   const google = googleReads && (GOOGLE_READ_TOOLS as readonly string[]).includes(name);
