@@ -16,6 +16,7 @@ const ROOT = process.cwd();
 const SQL_DIR = join(dirname(fileURLToPath(import.meta.url)));
 const RUN_MARKER_PREFIX = 'u03-v4-run:';
 const N1_LATEST = '20261015210000';
+const PREVIEW_POOLER_HOST = 'aws-1-eu-west-3.pooler.supabase.com';
 const SQL_PATHS = Object.freeze({
   install: join(SQL_DIR, 'u03-preview-v4-role.sql'),
   activate: join(SQL_DIR, 'u03-preview-v4-activate.sql'),
@@ -29,10 +30,9 @@ export function validatePreviewAdminPoolerUrl(raw, { allowLocal = false } = {}) 
   const username = decodeURIComponent(url.username);
   const password = decodeURIComponent(url.password);
   const local = allowLocal && ['127.0.0.1', 'localhost'].includes(url.hostname);
-  const poolerHost = /^aws-[0-9]+-[a-z0-9-]+\.pooler\.supabase\.com$/i.test(url.hostname);
   if (url.protocol !== 'postgresql:' || url.pathname !== '/postgres' || url.port !== (local ? '62322' : '5432') ||
       !password || url.hash || [...url.searchParams.keys()].length ||
-      (!local && (!poolerHost || username !== `postgres.${PREVIEW_REF}`)) ||
+      (!local && (url.hostname !== PREVIEW_POOLER_HOST || username !== `postgres.${PREVIEW_REF}`)) ||
       (local && username !== 'postgres')) throw new Error('V4_ADMIN_DATABASE_URL_INVALID');
   return { url, local };
 }

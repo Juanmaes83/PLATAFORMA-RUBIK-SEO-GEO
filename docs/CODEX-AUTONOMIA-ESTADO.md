@@ -4,7 +4,7 @@
 
 #129 sigue OPEN/Draft en `codex/u02-preview-isolation-20261017`, base `main@f39620e347756e980192aac8fe93b9a2e8db6376`; HEAD previo a este cambio `6381e751ca7ca1a156bf8fb4f8dc48bd3fce56bf`. Se añadió un único operador Windows de V-4 con destino Preview fijo, conexión Session pooler TLS verificada, entrada oculta de una sola vez, rol temporal NOLOGIN, activación breve y contención/rollback condicionado a inventario/outbox cero. Ensayo de stack aislado recién creado con 27 migraciones N1 pasó; dirigidas 59/59; verify 607 PASS/1 SKIP y gates de lint, tipos, build y secretos PASS. No hubo escritura alojada, ni campaña Production.
 
-Estado: U02 continúa con evidencia anterior; U03 Data API 12/12 y B-4 PASS por evidencia anterior; V-4 alojado no ejecutado, así que U03 permanece BLOCKED. H1 integral y su aceptación U04 no están ejecutadas; H1 BLOCKED. H2 BLOCKED por sus prerrequisitos y gates operativos/comerciales. Siguiente acción única para V-4: que Juanma ejecute el comando señalado en el expediente V-4, con la conexión administrativa Preview introducida solo en el prompt oculto.
+Estado: U02 continúa con evidencia anterior; U03 Data API 12/12 y B-4 PASS por evidencia anterior; V-4 alojado no ejecutado, así que U03 permanece BLOCKED. H1 integral y su aceptación U04 no están ejecutadas; H1 BLOCKED. H2 BLOCKED por sus prerrequisitos y gates operativos/comerciales. El wrapper Windows pide solo la Database password Preview como `SecureString` y compone en memoria el endpoint Session pooler fijado; contraseña y URL no se imprimen ni se guardan. Siguiente acción única para V-4: que Juanma ejecute el comando señalado en el expediente V-4.
 
 ## Corte vigente · 19/10/2026 · V-4 Preview preparado, no ejecutado
 

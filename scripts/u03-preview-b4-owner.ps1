@@ -12,9 +12,11 @@ $ErrorActionPreference = 'Stop'
 $repo = (Get-Location).Path
 $runner = Join-Path $repo 'scripts\u03-preview-b4-orchestrator.mjs'
 $v4Operator = Join-Path $repo 'scripts\u03-preview-v4-operator.mjs'
+$v4PoolerModule = Join-Path $PSScriptRoot 'u03-preview-v4-pooler.psm1'
 $linkFile = Join-Path $repo '.vercel\project.json'
 $clipboardModule = Join-Path $PSScriptRoot 'u03-preview-b4-clipboard.psm1'
 Import-Module -Name $clipboardModule -Force -ErrorAction Stop
+Import-Module -Name $v4PoolerModule -Force -ErrorAction Stop
 
 function Stop-B4([string]$Code) { throw "U03 B-4 BLOCKED: $Code. No fixtures will be created unless every preflight passes." }
 
@@ -72,6 +74,8 @@ $publicKey = $null
 $clipboardSessionActive = $false
 $operatorRunId = $null
 $operatorContainFailed = $false
+$secureDatabasePassword = $null
+$adminDatabaseUrl = $null
 try {
   # Preserve the machine's authorized proxy route for Node fetch and CLI reads.
   # Never print these values; they may contain proxy authentication material.
@@ -132,12 +136,13 @@ try {
 
   if ($MembershipRevocationOnly) {
     if (-not (Test-Path -LiteralPath $v4Operator)) { Stop-B4 'V4_OPERATOR_MISSING' }
-    # One hidden entry for the exact Session pooler URL copied from Dashboard.
-    # The child validates Preview ref, session port, IPv4 pooler hostname and TLS.
-    $secureReceiptUrl = Read-Host -Prompt 'Session pooler IPv4 URL de PostgreSQL (Preview rhnnplewqsekrnaousyl, entrada oculta)' -AsSecureString
+    # Ask only for the existing Preview database password. The endpoint is fixed
+    # here and revalidated by both this helper and the Node operator.
+    $secureDatabasePassword = Read-Host -Prompt 'Database password de Supabase Preview rhnnplewqsekrnaousyl (entrada oculta)' -AsSecureString
     try {
-      $env:U03_PREVIEW_ADMIN_DATABASE_URL = [System.Net.NetworkCredential]::new('', $secureReceiptUrl).Password
-    } finally { $secureReceiptUrl.Dispose() }
+      $adminDatabaseUrl = New-U03PreviewAdminPoolerUrl -DatabasePassword $secureDatabasePassword
+      $env:U03_PREVIEW_ADMIN_DATABASE_URL = $adminDatabaseUrl
+    } finally { $secureDatabasePassword.Dispose(); $secureDatabasePassword = $null }
     $operatorRunId = [guid]::NewGuid().ToString()
     & node $v4Operator --run --run-id $operatorRunId
     if ($LASTEXITCODE -ne 0) { Stop-B4 'V4_OPERATOR_CAMPAIGN_OR_CLEANUP_FAILED' }
@@ -160,8 +165,10 @@ try {
   if ($clipboardSessionActive) { Clear-B4Clipboard }
   $adminKey = $null
   $publicKey = $null
+  $adminDatabaseUrl = $null
+  $secureDatabasePassword = $null
   if ($previewCredentials) { $previewCredentials.AdminKey = $null; $previewCredentials.PublicKey = $null }
   $previewCredentials = $null
-  Remove-Variable -Name previewCredentials, clipboardSessionActive, adminKey, publicKey, clipboardValue, confirmation -ErrorAction SilentlyContinue
+  Remove-Variable -Name previewCredentials, clipboardSessionActive, adminKey, publicKey, clipboardValue, confirmation, secureDatabasePassword, adminDatabaseUrl -ErrorAction SilentlyContinue
 }
 if ($operatorContainFailed) { Stop-B4 'V4_OPERATOR_CONTAINMENT_FAILED_PRESERVE_LEDGER' }
