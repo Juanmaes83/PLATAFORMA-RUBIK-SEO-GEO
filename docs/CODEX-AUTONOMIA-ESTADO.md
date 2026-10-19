@@ -1,5 +1,13 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
+## Corte vigente · 19/10/2026 · B-4 solo Playwright en #129
+
+- Rama existente `codex/u02-preview-isolation-20261017`, PR #129 OPEN/Draft, base `main@f39620e347756e980192aac8fe93b9a2e8db6376`. El SHA publicado de este cambio y los resultados locales constan en el cuerpo de #129; el punto de partida fue `7b64e97e968e3b808d4d2af0ca37b62d203c84f8`.
+- El modo `-PlaywrightOnly` reutiliza preflight, fixtures y limpieza por IDs; omite los 12 casos `runMatrix` y registra `SKIP_PRIOR_EVIDENCE` con el run `2c72f352-fd79-4360-8c9b-3c619715c574`. Solo el login y recorrido protegido de escritorio/móvil son nuevos en la campaña pendiente. Las capturas de éxito y fallo se sanean antes de escribirse; fallo de saneamiento bloquea el gate.
+- Deployment fijado `dpl_6fqataMxfkGFSZJKVGk5xJe8snXq`, app SHA `06c2b4270fc74d88ef3e3560bb5d07d8aeb948e2`, host `plataforma-rubik-seo-bdzqlpg6z-juanma-espinosas-projects.vercel.app`, Supabase Preview `rhnnplewqsekrnaousyl`. OIDC solo hacia ese origen por CDP. Vercel Authentication permanece activa; no se cambió Supabase ni se ejecutó campaña alojada en este corte.
+- El run anterior `2c72f352-fd79-4360-8c9b-3c619715c574` acreditó 12/12 Data API y limpieza por IDs con inventario/outbox cero, pero el navegador no superó Vercel Authentication. La campaña nueva aún no tiene resultado alojado. U03 global, H1 y H2 siguen abiertos; Actions sigue sin jobs por facturación.
+- Expediente y comando de handoff: [U03-PREVIEW-MATRIZ-20261018.md](U03-PREVIEW-MATRIZ-20261018.md). Juanma ejecuta una sola vez el comando Windows documentado allí tras publicar el HEAD; no enviar claves por chat.
+
 ## Corte vigente · 19/10/2026 · reconciliación de #129 con main
 
 - Repo `Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO`; rama `codex/u02-preview-isolation-20261017`. #129 se inició en `74bbba7de6d3ca15c3ffda44ad4e17777d19354d`, base `main@b99893e8fbc59f265ce61f40dbdc2baab071f69a`; se integró `origin/main@f39620e347756e980192aac8fe93b9a2e8db6376` en merge `d62704a98f9ab487fdd898285dae4e39dbabf9c2`. Se resolvió el único conflicto documental en este archivo; main aportaba seis archivos documentales, incluido el gate #136.

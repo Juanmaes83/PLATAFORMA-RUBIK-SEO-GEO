@@ -1,5 +1,6 @@
 param(
   [switch]$ReadOnlyPreflightOnly,
+  [switch]$PlaywrightOnly,
   [switch]$ProvisionPreviewKeys,
   [switch]$CheckPreviewKeys,
   [switch]$ReplacePreviewKeys,
@@ -19,7 +20,7 @@ $credentialOperations = 0
 foreach ($requested in @($ProvisionPreviewKeys.IsPresent, $CheckPreviewKeys.IsPresent, $ReplacePreviewKeys.IsPresent, $DeletePreviewKeys.IsPresent)) {
   if ($requested) { $credentialOperations++ }
 }
-if ($credentialOperations -gt 1 -or ($credentialOperations -gt 0 -and $ReadOnlyPreflightOnly)) { Stop-B4 'CREDENTIAL_OPERATION_ARGUMENTS_INVALID' }
+if ($credentialOperations -gt 1 -or ($credentialOperations -gt 0 -and ($ReadOnlyPreflightOnly -or $PlaywrightOnly)) -or ($ReadOnlyPreflightOnly -and $PlaywrightOnly)) { Stop-B4 'CREDENTIAL_OPERATION_ARGUMENTS_INVALID' }
 if ($CheckPreviewKeys) {
   try {
     if (Test-B4PreviewCredentials) { Write-Output 'PREVIEW_CREDENTIALS_PRESENT' }
@@ -124,7 +125,8 @@ try {
   $env:U03_PREVIEW_PUBLIC_KEY = $previewCredentials.PublicKey
   if ([string]::IsNullOrWhiteSpace($env:U03_PREVIEW_ADMIN_KEY) -or [string]::IsNullOrWhiteSpace($env:U03_PREVIEW_PUBLIC_KEY)) { Stop-B4 'PREVIEW_KEYS_REQUIRED' }
 
-  & node $runner
+  if ($PlaywrightOnly) { & node $runner --playwright-only }
+  else { & node $runner }
   if ($LASTEXITCODE -ne 0) { Stop-B4 'U03_B4_CAMPAIGN_FAILED_OR_CLEANUP_UNVERIFIED' }
 } finally {
   if ($pushed) { Pop-Location }

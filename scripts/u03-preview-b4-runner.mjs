@@ -264,6 +264,20 @@ function totalConsoleErrors(diagnostics) {
   return Object.entries(diagnostics.console).filter(([key]) => key.startsWith("error:")).reduce((sum, [, count]) => sum + count, 0);
 }
 
+async function saveSanitizedCapture(page, capturePath) {
+  try {
+    await page.evaluate(() => {
+      document.querySelectorAll('input[type="password"], input[type="email"]').forEach(input => { input.value = ""; input.setAttribute("value", ""); });
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      while (walker.nextNode()) walker.currentNode.textContent = walker.currentNode.textContent
+        .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[redacted]")
+        .replace(/(?:eyJ[a-zA-Z0-9_-]{10,}\.){2}[a-zA-Z0-9_-]+/g, "[redacted]");
+    });
+    await page.screenshot({ path: capturePath, fullPage: true, animations: "disabled" });
+    return true;
+  } catch { return false; }
+}
+
 async function appendSafeLedger(runId, control, status, viewport = null) {
   const dir = "test-results/u03-b4";
   await mkdir(dir, { recursive: true });
@@ -292,26 +306,15 @@ export async function auditAndCapture(page, { runId, viewport, screen, captureRo
   const horizontalOverflow = Math.max(dom.documentWidth, dom.bodyWidth) > dom.viewportWidth + 1;
   const visualPass = !horizontalOverflow && dom.visibleErrors === 0 && consoleErrorCount === 0 && phasePageErrors === 0;
   const capturePath = join(captureRoot, `${runId}-${viewport}-${screen}.png`);
-  let captureSaved = false;
-  if (!visualPass) {
-    await page.evaluate(() => {
-      document.querySelectorAll('input[type="password"], input[type="email"]').forEach(input => { input.value = ""; input.setAttribute("value", ""); });
-      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-      while (walker.nextNode()) walker.currentNode.textContent = walker.currentNode.textContent
-        .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[redacted]")
-        .replace(/(?:eyJ[a-zA-Z0-9_-]{10,}\.){2}[a-zA-Z0-9_-]+/g, "[redacted]");
-    }).catch(() => {});
-    try { await page.screenshot({ path: capturePath, fullPage: true, animations: "disabled" }); captureSaved = true; }
-    catch { /* diagnostic ledger still records the failed capture */ }
-  }
-  await ledger(`visual-${screen}`, visualPass ? "PASS" : "FAIL", {
+  const captureSaved = await saveSanitizedCapture(page, capturePath);
+  await ledger(`visual-${screen}`, visualPass && captureSaved ? "PASS" : "FAIL", {
     viewport, ...(captureSaved ? { path: relative(process.cwd(), capturePath) } : {}),
     viewportWidth: dom.viewportWidth, documentWidth: dom.documentWidth, bodyWidth: dom.bodyWidth,
     visibleErrorCount: dom.visibleErrors, consoleErrorCount, pageErrorCount: phasePageErrors,
     diagnostics: phaseDiagnostics,
   });
   if (!visualPass) throw new GateError("VISUAL_AUDIT_FAILED");
-  await page.screenshot({ path: capturePath, fullPage: true, animations: "disabled" });
+  if (!captureSaved) throw new GateError("CAPTURE_SANITIZATION_FAILED");
   await ledger(`capture-${screen}`, "SAVED", { viewport, path: relative(process.cwd(), capturePath) });
   return capturePath;
 }
@@ -332,11 +335,7 @@ async function recordLoginFailure({ page, context, origin, runId, viewport, capt
   const routeSummary = [...new Set(routeEvents)].filter(event => /^(auth-action-post|auth-action-http-\d{3}|pinned-navigation|pinned-request|external-navigation-blocked|external-redirect-blocked|pinned-origin-request-failed)$/.test(event)).slice(-20);
   const actionHttpStatus = actionStatuses.at(-1) ?? routeSummary.map(event => /^auth-action-http-(\d{3})$/.exec(event)?.[1]).filter(Boolean).map(Number).at(-1) ?? null;
   const capturePath = join(captureRoot, `${runId}-${viewport}-login-failure.png`);
-  await page.locator("#email").fill("").catch(() => {});
-  await page.locator("#password").fill("").catch(() => {});
-  let captureSaved = false;
-  try { await page.screenshot({ path: capturePath, fullPage: true, animations: "disabled" }); captureSaved = true; }
-  catch { /* sanitized diagnostic remains useful if the browser cannot capture */ }
+  const captureSaved = await saveSanitizedCapture(page, capturePath);
   await ledger("login-diagnostic", "FAIL", {
     viewport, pathname, errorCode, actionHttpStatus, sessionCookiePresent,
     routeEvents: routeSummary, ...(captureSaved ? { capturePath: relative(process.cwd(), capturePath) } : {}),

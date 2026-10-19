@@ -300,6 +300,68 @@ test("login records a local capture when the Preview auth mode exposes no sign-i
   }
 });
 
+test("successful visual capture redacts rendered credentials before writing the screenshot", async () => {
+  const root = await mkdtemp(join(tmpdir(), "u03-safe-capture-"));
+  const email = "fixture-owner@example.test";
+  const jwt = `eyJ${"a".repeat(12)}.eyJ${"b".repeat(12)}.${"c".repeat(12)}`;
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await page.setContent(`<main>${email} ${jwt}<input type="email" value="${email}"><input type="password" value="fictional-secret"></main>`);
+    const diagnostics = createPageDiagnostics(page);
+    const events = [];
+    const path = await auditAndCapture(page, {
+      runId: "safe-local", viewport: "desktop", screen: "panel", captureRoot: root, diagnostics,
+      ledger: async (caseId, status, detail) => events.push({ caseId, status, ...detail }),
+    });
+    assert.ok((await readFile(path)).length > 0);
+    const rendered = await page.locator("main").innerText();
+    assert.equal(rendered.includes(email), false);
+    assert.equal(rendered.includes(jwt), false);
+    assert.deepEqual(await page.locator("input").evaluateAll(inputs => inputs.map(input => [input.value, input.getAttribute("value")])), [["", ""], ["", ""]]);
+    assert.equal(events.find(event => event.caseId === "capture-panel")?.status, "SAVED");
+    assert.equal(JSON.stringify(events).includes(email), false);
+    assert.equal(JSON.stringify(events).includes(jwt), false);
+    diagnostics.dispose();
+    await context.close();
+  } finally {
+    if (browser) await browser.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("failed capture sanitization writes no screenshot or capture record", async () => {
+  const root = await mkdtemp(join(tmpdir(), "u03-safe-capture-failure-"));
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await page.setContent("<main>fictional-owner@example.test</main>");
+    const diagnostics = createPageDiagnostics(page);
+    const evaluate = page.evaluate.bind(page);
+    let evaluations = 0;
+    page.evaluate = (...args) => ++evaluations === 2 ? Promise.reject(new Error("synthetic sanitization failure")) : evaluate(...args);
+    let screenshots = 0;
+    page.screenshot = async () => { screenshots++; };
+    const events = [];
+    await assert.rejects(auditAndCapture(page, {
+      runId: "unsafe-local", viewport: "mobile", screen: "panel", captureRoot: root, diagnostics,
+      ledger: async (caseId, status, detail) => events.push({ caseId, status, ...detail }),
+    }), error => error.code === "CAPTURE_SANITIZATION_FAILED");
+    assert.equal(screenshots, 0);
+    assert.equal(events.find(event => event.caseId === "visual-panel")?.status, "FAIL");
+    assert.equal(events.some(event => event.caseId === "capture-panel"), false);
+    diagnostics.dispose();
+    await context.close();
+  } finally {
+    if (browser) await browser.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("Chromium sends scoped OIDC on the GET after a login POST 303 and blocks an external 303", async () => {
   const token = "fictional-oidc-token-not-real";
   const requests = [];

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { chromiumEnvironment, networkEnvironment, PIN } from './u03-preview-b4-runner.mjs';
-import { parseCliJson, readPreviewAuthSettings, runHostedU03Campaign, runPreviewReadOnlySql, runReadOnlyPreflight, safeLedgerDetail, verifyFinalPreviewState, verifyInitialPreviewState, verifyReadOnlyPreviewState } from './u03-preview-b4-orchestrator.mjs';
+import { PRIOR_DATA_API_RUN_ID, parseCliJson, readPreviewAuthSettings, runHostedU03Campaign, runPreviewReadOnlySql, runReadOnlyPreflight, safeLedgerDetail, verifyFinalPreviewState, verifyInitialPreviewState, verifyReadOnlyPreviewState } from './u03-preview-b4-orchestrator.mjs';
 
 const runId = 'u03-orchestrator-test-run';
 const sha = 'a'.repeat(40);
@@ -117,6 +117,70 @@ test('B-4 failure still cleans fixtures; runId is shared with browser and ledger
   assert.equal(browserInput.env.VERCEL_OIDC_TOKEN, secrets.VERCEL_OIDC_TOKEN);
   const ledger = await readFile(result.ledgerPath, 'utf8');
   for (const secret of [...Object.values(secrets), 'fictional-password', 'fictional@example.test']) assert.equal(ledger.includes(secret), false);
+}));
+
+test('Playwright-only campaign reuses fixtures and cleanup, records prior Data API evidence, and verifies zero inventory/outbox', async () => withRoot(async root => {
+  const calls = [];
+  const result = await runHostedU03Campaign({
+    root, sha, runId, mode: 'playwright-only', env: secrets, preflightFn: passingPreflight,
+    fixtureFactory: () => fakeFixture('matrix', calls), finalCheckFn: passingFinal,
+    browserFn: async ({ runId: browserRunId, env, captureRoot }) => {
+      calls.push('browser');
+      assert.equal(browserRunId, runId);
+      assert.equal(env.VERCEL_OIDC_TOKEN, secrets.VERCEL_OIDC_TOKEN);
+      assert.ok(captureRoot.endsWith(runId));
+      return { captures: ['desktop-local.png', 'mobile-local.png'] };
+    },
+  });
+  assert.equal(result.status, 'AWAITING_VISUAL_REVIEW');
+  assert.equal(result.mode, 'playwright-only');
+  assert.deepEqual(calls, ['users', 'organizations', 'projects', 'browser', 'cleanup']);
+  const ledger = (await readFile(result.ledgerPath, 'utf8')).trim().split('\n').map(JSON.parse);
+  const matrix = ledger.filter(row => row.caseId === 'data-api-matrix');
+  assert.equal(matrix.length, 1);
+  assert.deepEqual({ status: matrix[0].status, cases: matrix[0].cases, reason: matrix[0].reason, evidenceRunId: matrix[0].evidenceRunId },
+    { status: 'SKIP_PRIOR_EVIDENCE', cases: 12, reason: 'PRIOR_RUN_PASS', evidenceRunId: PRIOR_DATA_API_RUN_ID });
+  assert.equal(ledger.some(row => row.caseId === 'data-api-matrix' && row.status === 'PASS'), false);
+  assert.equal(ledger.find(row => row.caseId === 'fixture-cleanup')?.status, 'PASS');
+  assert.equal(ledger.find(row => row.caseId === 'final-inventory')?.status, 'PASS');
+  assert.equal(ledger.find(row => row.caseId === 'outbox-final')?.status, 'PASS');
+  assert.equal(ledger.find(row => row.caseId === 'browser-b4')?.captures, 2);
+  for (const secret of Object.values(secrets)) assert.equal(JSON.stringify(ledger).includes(secret), false);
+}));
+
+test('Playwright-only browser failure still cleans fixtures and checks the final outbox', async () => withRoot(async root => {
+  const calls = [];
+  const result = await runHostedU03Campaign({
+    root, sha, runId, mode: 'playwright-only', env: secrets, preflightFn: passingPreflight,
+    fixtureFactory: () => fakeFixture('matrix', calls),
+    browserFn: async () => { calls.push('browser'); throw new Error('synthetic browser failure'); },
+    finalCheckFn: passingFinal,
+  });
+  assert.equal(result.status, 'FAIL_CLEANED');
+  assert.deepEqual(calls, ['users', 'organizations', 'projects', 'browser', 'cleanup']);
+  const ledger = await readFile(result.ledgerPath, 'utf8');
+  assert.match(ledger, /"caseId":"data-api-matrix","status":"SKIP_PRIOR_EVIDENCE"/);
+  assert.match(ledger, /"caseId":"fixture-cleanup","status":"PASS"/);
+  assert.match(ledger, /"caseId":"outbox-final","status":"PASS"/);
+  for (const secret of Object.values(secrets)) assert.equal(ledger.includes(secret), false);
+}));
+
+test('Playwright-only cannot complete when final outbox is nonzero', async () => withRoot(async root => {
+  const calls = [];
+  const result = await runHostedU03Campaign({
+    root, sha, runId, mode: 'playwright-only', env: secrets, preflightFn: passingPreflight,
+    fixtureFactory: () => fakeFixture('matrix', calls),
+    browserFn: async () => { calls.push('browser'); return { captures: [] }; },
+    finalCheckFn: async () => {
+      const final = await passingFinal();
+      return { ...final, outboxClear: false, state: { ...final.state, outbox_total: 1, pending_outbox: 1 } };
+    },
+  });
+  assert.equal(result.status, 'BLOCKED');
+  assert.deepEqual(calls, ['users', 'organizations', 'projects', 'browser', 'cleanup']);
+  const ledger = await readFile(result.ledgerPath, 'utf8');
+  assert.match(ledger, /"caseId":"outbox-final","status":"FAIL"/);
+  assert.match(ledger, /"caseId":"campaign-global","status":"BLOCKED"/);
 }));
 
 test('filtered child environment omits Preview keys, credentials and OIDC', () => {
@@ -369,6 +433,8 @@ test('owner wrapper runs no-key preflight before DPAPI load and never prompts du
   assert.ok(preflight < credentialPreflight && credentialPreflight < credentialSave);
   assert.match(script, /if \(\$ProvisionPreviewKeys -or \$ReplacePreviewKeys\)[\s\S]*--credential-preflight-only[\s\S]*Save-B4PreviewCredentials/);
   assert.match(script, /\[switch\]\$ProvisionPreviewKeys[\s\S]*\[switch\]\$CheckPreviewKeys[\s\S]*\[switch\]\$ReplacePreviewKeys[\s\S]*\[switch\]\$DeletePreviewKeys/);
+  assert.match(script, /\[switch\]\$PlaywrightOnly/);
+  assert.match(campaignPath, /if \(\$PlaywrightOnly\) \{ & node \$runner --playwright-only \}\s*else \{ & node \$runner \}/);
   assert.match(script, /-ExpectedPrefix 'sb_secret_'[\s\S]*-ExpectedPrefix 'sb_publishable_'/);
   assert.doesNotMatch(script, /Read-Host\s+-AsSecureString|Read-B4Secret/);
   assert.doesNotMatch(script, /'U03_PREVIEW_ADMIN_KEY','U03_PREVIEW_PUBLIC_KEY'/);

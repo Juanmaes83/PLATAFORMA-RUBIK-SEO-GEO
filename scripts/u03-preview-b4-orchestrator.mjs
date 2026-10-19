@@ -12,6 +12,7 @@ import { PIN, networkEnvironment, preflight, runB4 } from './u03-preview-b4-runn
 
 const execFileAsync = promisify(execFile);
 const SUPABASE_URL = `https://${U03_PREVIEW_REF}.supabase.co`;
+export const PRIOR_DATA_API_RUN_ID = '2c72f352-fd79-4360-8c9b-3c619715c574';
 export const EXPECTED_N1_MIGRATIONS = Object.freeze([
   '20260928120000', '20260928150000', '20261007120000', '20261007150000', '20261009071705',
   '20261009120000', '20261009150000', '20261009170000', '20261009180000', '20261010090000',
@@ -58,6 +59,7 @@ const LEDGER_KEYS = new Set([
   'adminKeyFormat', 'publicKeyFormat',
   'pathname', 'errorCode', 'actionHttpStatus', 'sessionCookiePresent', 'routeEvents', 'capturePath',
   'phase', 'diagnostics',
+  'mode', 'evidenceRunId',
 ]);
 
 const ORIGIN_CLASSES = '(?:preview|preview-supabase|external|inline|unknown)';
@@ -86,6 +88,8 @@ export function safeLedgerDetail(input = {}) {
       continue;
     }
     if (key === 'phase' && !['login', 'login-B', 'login-revoked', '/panel-A', '/panel-B', '/A1', '/A2', '/B1', 'deny-B1', 'deny-A1-A2', 'logout-A', 'logout-B', 'revoked-access'].includes(value)) continue;
+    if (key === 'mode' && !['full', 'playwright-only'].includes(value)) continue;
+    if (key === 'evidenceRunId' && value !== PRIOR_DATA_API_RUN_ID) continue;
     if (typeof value === 'string') result[key] = value.slice(0, 240);
     else if (typeof value === 'number' || typeof value === 'boolean' || value === null) result[key] = value;
     else if (Array.isArray(value) && value.length <= 100 && value.every(item => typeof item === 'string')) result[key] = value.map(item => item.slice(0, 240));
@@ -286,9 +290,10 @@ export async function verifyFinalPreviewState({ sql = runPreviewReadOnlySql } = 
 export async function runHostedU03Campaign({
   env = process.env, sha, runId = randomUUID(), ledger = null, preflightFn = verifyInitialPreviewState,
   fixtureFactory = createDataApiFixtureRun, browserFn = runB4, finalCheckFn = verifyFinalPreviewState,
-  root = process.cwd(),
+  root = process.cwd(), mode = 'full',
 } = {}) {
   if (!sha) throw new Error('CAMPAIGN_SHA_REQUIRED');
+  if (!['full', 'playwright-only'].includes(mode)) throw new Error('CAMPAIGN_MODE_INVALID');
   const ledgerDir = join(root, 'test-results', 'u03-hosted');
   const ledgerPath = join(ledgerDir, `${runId}.jsonl`);
   const captureRoot = join(ledgerDir, runId);
@@ -308,7 +313,7 @@ export async function runHostedU03Campaign({
   let failure = null;
   let cleanupResult = null;
   let finalCheck = null;
-  await ledger('campaign-start', 'STARTED', { deploymentId: PIN.deploymentId, sha: PIN.sha, host: PIN.host, projectRef: U03_PREVIEW_REF });
+  await ledger('campaign-start', 'STARTED', { deploymentId: PIN.deploymentId, sha: PIN.sha, host: PIN.host, projectRef: U03_PREVIEW_REF, mode });
   try {
     if (!env.U03_PREVIEW_ADMIN_KEY || !env.U03_PREVIEW_PUBLIC_KEY) throw new Error('PREVIEW_KEYS_REQUIRED');
     const keyFormats = assertPreviewKeyFormats(env.U03_PREVIEW_ADMIN_KEY, env.U03_PREVIEW_PUBLIC_KEY);
@@ -322,8 +327,12 @@ export async function runHostedU03Campaign({
     await ledger('fixture-organizations', 'CREATED', { count: 2, namespace: fixtures.namespace });
     const projects = await fixtures.createProjects(organizations);
     await ledger('fixture-projects', 'CREATED', { count: 3, namespace: fixtures.namespace });
-    await fixtures.runMatrix({ ...organizations, ...projects });
-    await ledger('data-api-matrix', 'PASS', { cases: 12 });
+    if (mode === 'playwright-only') {
+      await ledger('data-api-matrix', 'SKIP_PRIOR_EVIDENCE', { cases: 12, reason: 'PRIOR_RUN_PASS', evidenceRunId: PRIOR_DATA_API_RUN_ID });
+    } else {
+      await fixtures.runMatrix({ ...organizations, ...projects });
+      await ledger('data-api-matrix', 'PASS', { cases: 12 });
+    }
     const b4Env = { VERCEL_OIDC_TOKEN: env.VERCEL_OIDC_TOKEN, ...fixtures.browserInputs() };
     browserResult = await browserFn({ env: b4Env, runId, preflightResult: verified.vercel, ledger, captureRoot });
     await ledger('browser-b4', 'PASS', { captures: browserResult?.captures?.length ?? 0, visualReview: 'PENDING_MANUAL_REVIEW' });
@@ -387,11 +396,16 @@ export async function runHostedU03Campaign({
     });
   } catch { /* the persistent ledger is already marked incomplete by absence of this footer */ }
   console.log(`U03 B-4 run ${runId}: ${status}; ledger ${relative(root, ledgerPath)}; captures ${browserResult?.captures?.length ?? 0}`);
-  return { runId, sha, status, failure, verified, browserResult, cleanupResult, finalCheck, ledgerPath, captureRoot };
+  return { runId, sha, mode, status, failure, verified, browserResult, cleanupResult, finalCheck, ledgerPath, captureRoot };
 }
 
 async function main() {
   const sha = (await execFileAsync('git', ['rev-parse', 'HEAD'], { windowsHide: true })).stdout.trim();
+  if (process.argv.includes('--playwright-only') && process.argv.some(arg => ['--readonly-preflight', '--credential-preflight-only'].includes(arg))) {
+    console.error('U03 B-4 BLOCKED: CAMPAIGN_MODE_INVALID; no fixtures were created.');
+    process.exitCode = 1;
+    return;
+  }
   if (process.argv.includes('--readonly-preflight')) {
     try {
       const { initial } = await runReadOnlyPreflight();
@@ -421,7 +435,7 @@ async function main() {
     process.exitCode = 1;
     return;
   }
-  const result = await runHostedU03Campaign({ sha, env: process.env });
+  const result = await runHostedU03Campaign({ sha, env: process.env, mode: process.argv.includes('--playwright-only') ? 'playwright-only' : 'full' });
   if (!['AWAITING_VISUAL_REVIEW'].includes(result.status)) process.exitCode = 1;
 }
 

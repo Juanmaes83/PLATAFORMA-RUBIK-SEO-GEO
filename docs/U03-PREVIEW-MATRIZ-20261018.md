@@ -1,5 +1,21 @@
 # U03 · matriz alojada de Preview · 18/10/2026
 
+## B-4 solo Playwright · preparación del 19/10/2026
+
+La siguiente campaña alojada de #129 usa `-PlaywrightOnly`. Crea sus propios tres usuarios Auth ficticios, dos organizaciones y A1/A2/B1 después del preflight completo; ejecuta únicamente el login protegido y la navegación Playwright de escritorio y móvil. El transporte OIDC por CDP añade el encabezado solo al host exacto `plataforma-rubik-seo-bdzqlpg6z-juanma-espinosas-projects.vercel.app` y bloquea redirecciones externas. El pin sigue siendo el deployment `dpl_6fqataMxfkGFSZJKVGk5xJe8snXq`, app SHA `06c2b4270fc74d88ef3e3560bb5d07d8aeb948e2`, proyecto `prj_HgnTtNtisi9Kt1A4Dq2pxoCQBook` y Supabase Preview `rhnnplewqsekrnaousyl`. Vercel Authentication permanece activa; no se modifica Supabase.
+
+El modo **omite `runMatrix`**. El ledger escribe `data-api-matrix: SKIP_PRIOR_EVIDENCE`, `cases: 12` y `evidenceRunId: 2c72f352-fd79-4360-8c9b-3c619715c574`. Ese run anterior acreditó 12/12 casos Data API y limpieza; el nuevo ledger no contará esos casos como ejecutados de nuevo. El `finally` reutiliza la limpieza atribuible por IDs/namespace y exige después inventario Auth, organizaciones, proyectos, membresías y auditoría a cero, outbox total/pendiente a cero y escritor bloqueado. Si no se acredita, el resultado no puede ser `AWAITING_VISUAL_REVIEW`.
+
+Todas las capturas, tanto de éxito como de fallo, vacían los campos de correo y contraseña y sustituyen correos/JWT visibles antes de escribir PNG. Si falla el saneamiento, no se guarda la captura y la auditoría visual falla cerrada. Los PNG y el ledger quedan solo en `test-results/u03-hosted/<runId>/` y `test-results/u03-hosted/<runId>.jsonl`, ignorados por Git; toda captura requiere revisión manual.
+
+**Verificación local de este cambio:** `npm.cmd run test:u03-b4` 46/46 PASS, incluida una prueba real de Chromium que sanea la captura de éxito y otra que cierra el gate sin escribir PNG cuando falla el saneamiento. El wrapper PowerShell pasó su prueba Windows de parser, DPAPI y limpieza. `npm.cmd run verify` pasó core pin, escaneo de secretos de 696 archivos, lint, tipos, Vitest 607 PASS/1 SKIP y build; `git diff --check` PASS. GitHub Actions sigue sin jobs por facturación y no equivale a CI verde. Esta campaña alojada **no se ha ejecutado**. El último run `2c72f352-fd79-4360-8c9b-3c619715c574` acabó con cleanup por IDs PASS, inventario y outbox a cero, según el ledger aportado. El siguiente comando es la única ejecución solicitada a Juanma desde la raíz del worktree, después de recibir el HEAD publicado:
+
+```powershell
+vercel.cmd env run -e preview -- powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/u03-preview-b4-owner.ps1 -PlaywrightOnly
+```
+
+El wrapper reutiliza las claves Preview custodiadas con DPAPI; no solicita ni imprime valores por chat. U03 global, H1 y H2 siguen abiertos por los casos y gates restantes. GitHub Actions no ejecuta jobs por facturación.
+
 ## Campaña B-4 unificada · estado 19/10/2026
 
 El cambio de arnés une en una ejecución y un único `runId` el preflight, tres usuarios ficticios Auth, dos organizaciones, los proyectos A1/A2/B1, los 12 controles Data API, Playwright escritorio/móvil, limpieza en `finally` y verificación SQL de solo lectura del inventario y outbox. El antiguo requisito de que Juanma crease cuentas, proyectos o rutas manualmente queda retirado: el wrapper genera fixtures dentro del namespace propio de la campaña y nunca los reutiliza fuera de Preview.
