@@ -8,10 +8,30 @@ function Stop-B4Credential([string]$Code) {
 
 function Clear-B4Clipboard {
   [CmdletBinding()]
-  param([scriptblock]$Clearer = { Set-Clipboard -Value '' -ErrorAction Stop })
+  param(
+    [scriptblock]$Clearer = {
+      Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
+      [System.Windows.Forms.Clipboard]::Clear()
+    },
+    [scriptblock]$Verifier = { [string]::IsNullOrEmpty((Get-Clipboard -Raw -ErrorAction Stop)) }
+  )
 
-  try { & $Clearer }
-  catch { Stop-B4Credential 'CLIPBOARD_CLEAR_FAILED' }
+  for ($attempt = 1; $attempt -le 4; $attempt++) {
+    try {
+      & $Clearer | Out-Null
+      if (& $Verifier) { return }
+      Write-Warning 'CLIPBOARD_CLEAR_UNVERIFIED: clipboard is not empty.'
+    }
+    catch {
+      # Exception messages may contain clipboard data. Record only the type and
+      # machine-readable error code, including failures recovered by a retry.
+      $exceptionClass = $_.Exception.GetType().FullName
+      $errorCode = ('0x{0:X8}' -f ($_.Exception.HResult -band 0xffffffffL))
+      Write-Warning "CLIPBOARD_CLEAR_EXCEPTION: class=$exceptionClass code=$errorCode"
+    }
+    if ($attempt -lt 4) { Start-Sleep -Milliseconds (25 * $attempt) }
+  }
+  Stop-B4Credential 'CLIPBOARD_CLEAR_FAILED'
 }
 
 function Read-B4ClipboardSecret {
@@ -20,21 +40,25 @@ function Read-B4ClipboardSecret {
     [Parameter(Mandatory)][string]$Prompt,
     [Parameter(Mandatory)][ValidateSet('sb_secret_', 'sb_publishable_')][string]$ExpectedPrefix,
     [scriptblock]$Reader = { Get-Clipboard -Raw -ErrorAction Stop },
-    [scriptblock]$Clearer = { Set-Clipboard -Value '' -ErrorAction Stop },
+    [scriptblock]$Clearer = {
+      Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
+      [System.Windows.Forms.Clipboard]::Clear()
+    },
+    [scriptblock]$Verifier = { [string]::IsNullOrEmpty((Get-Clipboard -Raw -ErrorAction Stop)) },
     [scriptblock]$ConfirmationReader = { param($Text) Read-Host -Prompt $Text }
   )
 
   $clipboardValue = $null
   $confirmation = $null
   try {
-    Clear-B4Clipboard -Clearer $Clearer
+    Clear-B4Clipboard -Clearer $Clearer -Verifier $Verifier
     Write-Host $Prompt
     $confirmation = & $ConfirmationReader 'Escribe LISTO para leer la clave copiada; no pegues la clave aquí'
     if ($confirmation -cne 'LISTO') { Stop-B4Credential 'CLIPBOARD_CONFIRMATION_REQUIRED' }
 
     try { $clipboardValue = & $Reader }
     catch { Stop-B4Credential 'CLIPBOARD_READ_FAILED' }
-    finally { Clear-B4Clipboard -Clearer $Clearer }
+    finally { Clear-B4Clipboard -Clearer $Clearer -Verifier $Verifier }
 
     if ($clipboardValue -isnot [string] -or $clipboardValue -match '[\r\n]' -or
         $clipboardValue -cnotmatch ('^' + [regex]::Escape($ExpectedPrefix) + '[A-Za-z0-9_-]+$')) {
@@ -46,7 +70,7 @@ function Read-B4ClipboardSecret {
   finally {
     $clipboardValue = $null
     $confirmation = $null
-    Clear-B4Clipboard -Clearer $Clearer
+    Clear-B4Clipboard -Clearer $Clearer -Verifier $Verifier
     Remove-Variable -Name clipboardValue, confirmation -ErrorAction SilentlyContinue
   }
 }

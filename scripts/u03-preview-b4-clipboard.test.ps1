@@ -14,6 +14,7 @@ $profileProvider = { $testProfileRoot }.GetNewClosure()
 $state = [pscustomobject]@{ Value = ''; Reads = 0; Clears = 0; Pending = [System.Collections.Generic.Queue[string]]::new(); Confirmations = 0 }
 $reader = { $state.Reads++; return $state.Value }.GetNewClosure()
 $clearer = { $state.Value = ''; $state.Clears++ }.GetNewClosure()
+$verifier = { $state.Value -eq '' }.GetNewClosure()
 $confirm = {
   param($Text)
   if ($Text -notmatch 'no pegues') { throw 'Unexpected confirmation prompt.' }
@@ -41,15 +42,15 @@ try {
   $state.Pending.Enqueue(('sb_' + 'secret_' + 'synthetic-one' + "`n" + 'sb_' + 'secret_' + 'synthetic-two'))
   $rejected = $false
   try {
-    Read-B4ClipboardSecret -Prompt 'Test multiline' -ExpectedPrefix 'sb_secret_' -Reader $reader -Clearer $clearer -ConfirmationReader $confirm | Out-Null
+    Read-B4ClipboardSecret -Prompt 'Test multiline' -ExpectedPrefix 'sb_secret_' -Reader $reader -Clearer $clearer -Verifier $verifier -ConfirmationReader $confirm | Out-Null
   } catch { $rejected = $_.Exception.Message -match 'CLIPBOARD_VALUE_INVALID' }
   if (-not $rejected -or $state.Value -ne '') { throw 'Two-line clipboard regression test failed.' }
 
   # Initial provisioning consumes one clipboard value for each ordered prefix.
   $state.Pending.Enqueue($adminSynthetic)
-  $firstAdmin = Read-B4ClipboardSecret -Prompt 'Test admin provisioning' -ExpectedPrefix 'sb_secret_' -Reader $reader -Clearer $clearer -ConfirmationReader $confirm
+  $firstAdmin = Read-B4ClipboardSecret -Prompt 'Test admin provisioning' -ExpectedPrefix 'sb_secret_' -Reader $reader -Clearer $clearer -Verifier $verifier -ConfirmationReader $confirm
   $state.Pending.Enqueue($publicSynthetic)
-  $firstPublic = Read-B4ClipboardSecret -Prompt 'Test publishable provisioning' -ExpectedPrefix 'sb_publishable_' -Reader $reader -Clearer $clearer -ConfirmationReader $confirm
+  $firstPublic = Read-B4ClipboardSecret -Prompt 'Test publishable provisioning' -ExpectedPrefix 'sb_publishable_' -Reader $reader -Clearer $clearer -Verifier $verifier -ConfirmationReader $confirm
   Save-B4PreviewCredentials -AdminKey $firstAdmin -PublicKey $firstPublic -ProfilePathProvider $profileProvider
   if (-not (Test-Path -LiteralPath $storePath -PathType Leaf)) { throw 'Initial credential provision did not create the local record.' }
   $encryptedRecord = Get-Content -LiteralPath $storePath -Raw | ConvertFrom-Json
