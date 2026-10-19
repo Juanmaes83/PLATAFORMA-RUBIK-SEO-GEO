@@ -55,6 +55,7 @@ const LEDGER_KEYS = new Set([
   'userIds', 'authUsers', 'organizations', 'projects', 'organizationMembers', 'projectMembers', 'auditEvents',
   'outboxTotal', 'pendingOutbox', 'writerLocked', 'migrationCount', 'latestMigration', 'environment',
   'projectRef', 'deploymentId', 'sha', 'host', 'result', 'visualReview',
+  'adminKeyFormat', 'publicKeyFormat',
 ]);
 
 function safeLedgerDetail(input = {}) {
@@ -149,28 +150,53 @@ function authSettingsFailureCategory(error) {
   return 'HTTP';
 }
 
+export function classifySupabaseKeyFormat(value) {
+  if (typeof value !== 'string' || !value) return 'inválido';
+  if (value.startsWith('sb_secret_')) return /^sb_secret_[A-Za-z0-9_-]+$/.test(value) ? 'sb_secret_' : 'inválido';
+  if (value.startsWith('sb_publishable_')) return /^sb_publishable_[A-Za-z0-9_-]+$/.test(value) ? 'sb_publishable_' : 'inválido';
+  if (/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(value)) return 'legado';
+  return 'inválido';
+}
+
+function assertPreviewKeyFormats(adminKey, publicKey) {
+  const adminKeyFormat = classifySupabaseKeyFormat(adminKey);
+  const publicKeyFormat = classifySupabaseKeyFormat(publicKey);
+  const adminCompatible = adminKeyFormat === 'sb_secret_' || adminKeyFormat === 'legado';
+  const publicCompatible = publicKeyFormat === 'sb_publishable_' || publicKeyFormat === 'legado';
+  if (!adminCompatible || !publicCompatible) {
+    throw Object.assign(new Error('SUPABASE_KEY_FORMAT_REJECTED'), { adminKeyFormat, publicKeyFormat, httpStatus: null });
+  }
+  return { adminKeyFormat, publicKeyFormat };
+}
+
+function authSettingsError(code, httpStatus = null) {
+  return Object.assign(new Error(code), { httpStatus });
+}
+
 export async function readPreviewAuthSettings({ fetchImpl = fetch, apiKey } = {}) {
-  if (typeof apiKey !== 'string' || !apiKey) throw new Error('AUTH_SETTINGS_HTTP');
+  const keyFormat = classifySupabaseKeyFormat(apiKey);
+  if (keyFormat !== 'sb_publishable_' && keyFormat !== 'legado') throw authSettingsError('AUTH_SETTINGS_KEY_FORMAT');
   let response;
   try {
     response = await fetchImpl(`${SUPABASE_URL}/auth/v1/settings`, {
       headers: { apikey: apiKey }, redirect: 'manual', signal: AbortSignal.timeout(15000),
     });
   } catch (error) {
-    throw new Error(`AUTH_SETTINGS_${authSettingsFailureCategory(error)}`);
+    throw authSettingsError(`AUTH_SETTINGS_${authSettingsFailureCategory(error)}`);
   }
-  if (response.status !== 200) throw new Error('AUTH_SETTINGS_HTTP');
-  try { return await response.json(); }
-  catch { throw new Error('AUTH_SETTINGS_JSON'); }
+  if (response.status !== 200) throw authSettingsError('AUTH_SETTINGS_HTTP', response.status);
+  try { return { settings: await response.json(), httpStatus: response.status }; }
+  catch { throw authSettingsError('AUTH_SETTINGS_JSON', response.status); }
 }
 
 export async function verifyInitialPreviewState({ env = process.env, fetchImpl = fetch, admin = null, publicClient = null, sql = runPreviewReadOnlySql, inspect, preflightFn = preflight } = {}) {
   const adminKey = env.U03_PREVIEW_ADMIN_KEY;
   const publicKey = env.U03_PREVIEW_PUBLIC_KEY;
   if (!adminKey || !publicKey) throw new Error('PREVIEW_KEYS_REQUIRED');
+  assertPreviewKeyFormats(adminKey, publicKey);
   const vercel = await preflightFn({ token: env.VERCEL_OIDC_TOKEN, fetchImpl, ...(inspect ? { inspect } : {}) });
 
-  const settings = await readPreviewAuthSettings({ fetchImpl, apiKey: publicKey });
+  const { settings, httpStatus: authSettingsHttpStatus } = await readPreviewAuthSettings({ fetchImpl, apiKey: publicKey });
   if (settings?.disable_signup !== true) throw new Error('PUBLIC_SIGNUP_NOT_CONFIRMED_CLOSED');
 
   const identityClient = publicClient ?? createClient(SUPABASE_URL, publicKey, { auth: { persistSession: false, autoRefreshToken: false } });
@@ -194,6 +220,7 @@ export async function verifyInitialPreviewState({ env = process.env, fetchImpl =
       auditEvents: state.auditEvents, outboxTotal: state.outboxTotal, pendingOutbox: state.pendingOutbox,
       migrationCount: state.migrationCount, latestMigration: state.latestMigration,
       writerLocked: state.writerLocked, environment: state.environment, projectRef: state.projectRef,
+      authSettingsHttpStatus,
     },
   };
 }
@@ -260,8 +287,10 @@ export async function runHostedU03Campaign({
   await ledger('campaign-start', 'STARTED', { deploymentId: PIN.deploymentId, sha: PIN.sha, host: PIN.host, projectRef: U03_PREVIEW_REF });
   try {
     if (!env.U03_PREVIEW_ADMIN_KEY || !env.U03_PREVIEW_PUBLIC_KEY) throw new Error('PREVIEW_KEYS_REQUIRED');
+    const keyFormats = assertPreviewKeyFormats(env.U03_PREVIEW_ADMIN_KEY, env.U03_PREVIEW_PUBLIC_KEY);
+    await ledger('key-format', 'CLASSIFIED', keyFormats);
     verified = await preflightFn({ env });
-    await ledger('preflight', 'PASS', { ...verified.initial, deploymentId: verified.vercel?.deploymentId, sha: verified.vercel?.sha, host: verified.vercel?.host, projectRef: U03_PREVIEW_REF });
+    await ledger('preflight', 'PASS', { ...verified.initial, http: verified.initial?.authSettingsHttpStatus ?? null, deploymentId: verified.vercel?.deploymentId, sha: verified.vercel?.sha, host: verified.vercel?.host, projectRef: U03_PREVIEW_REF });
     fixtures = fixtureFactory({ runId, sha, admin: verified.admin, publicKey: env.U03_PREVIEW_PUBLIC_KEY, ledger, ref: U03_PREVIEW_REF });
     await fixtures.createUsers();
     await ledger('fixture-users', 'CREATED', { count: 3, namespace: fixtures.namespace });
@@ -276,7 +305,13 @@ export async function runHostedU03Campaign({
     await ledger('browser-b4', 'PASS', { captures: browserResult?.captures?.length ?? 0, visualReview: 'PENDING_MANUAL_REVIEW' });
   } catch (error) {
     failure = typeof error?.message === 'string' && /^[A-Z0-9_]{3,80}$/.test(error.message) ? error.message : 'CAMPAIGN_STEP_FAILED';
-    try { await ledger('campaign-error', 'FAIL', { code: failure }); } catch { /* cleanup still proceeds */ }
+    try {
+      const keyFormats = {
+        adminKeyFormat: classifySupabaseKeyFormat(env.U03_PREVIEW_ADMIN_KEY),
+        publicKeyFormat: classifySupabaseKeyFormat(env.U03_PREVIEW_PUBLIC_KEY),
+      };
+      await ledger('campaign-error', 'FAIL', { code: failure, http: Number.isInteger(error?.httpStatus) ? error.httpStatus : null, ...keyFormats });
+    } catch { /* cleanup still proceeds */ }
   } finally {
     if (fixtures) {
       try {

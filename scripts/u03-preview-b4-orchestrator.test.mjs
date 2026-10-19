@@ -9,8 +9,8 @@ import { parseCliJson, readPreviewAuthSettings, runHostedU03Campaign, runPreview
 const runId = 'u03-orchestrator-test-run';
 const sha = 'a'.repeat(40);
 const secrets = {
-  U03_PREVIEW_ADMIN_KEY: 'fictional-admin-key-do-not-log',
-  U03_PREVIEW_PUBLIC_KEY: 'fictional-public-key-do-not-log',
+  U03_PREVIEW_ADMIN_KEY: ['sb_secret_', 'fictional-admin-key-do-not-log'].join(''),
+  U03_PREVIEW_PUBLIC_KEY: ['sb_publishable_', 'fictional-public-key-do-not-log'].join(''),
   VERCEL_OIDC_TOKEN: 'fictional-oidc-secret-do-not-log',
 };
 
@@ -113,7 +113,7 @@ test('network child environment retains authorized proxy routing without passing
 });
 
 test('Auth settings failures are classified without retaining response or transport text', async () => {
-  const fakeKey = 'fictional-publishable-key-never-log';
+  const fakeKey = secrets.U03_PREVIEW_PUBLIC_KEY;
   const failure = async error => {
     await assert.rejects(readPreviewAuthSettings({ apiKey: fakeKey, fetchImpl: async () => { throw error; } }), safeCode => {
       assert.match(safeCode.message, /^AUTH_SETTINGS_(DNS|TLS|TIMEOUT|HTTP)$/);
@@ -127,9 +127,91 @@ test('Auth settings failures are classified without retaining response or transp
   await failure(Object.assign(new TypeError('private timeout detail'), { cause: { code: 'UND_ERR_CONNECT_TIMEOUT' } }));
   await failure(Object.assign(new TypeError('private transport detail'), { cause: { code: 'ECONNRESET' } }));
 
-  await assert.rejects(readPreviewAuthSettings({ apiKey: fakeKey, fetchImpl: async () => new Response('private body', { status: 401 }) }), error => error.message === 'AUTH_SETTINGS_HTTP');
+  for (const status of [401, 403]) {
+    await assert.rejects(readPreviewAuthSettings({ apiKey: fakeKey, fetchImpl: async () => new Response('private body', { status }) }), error => {
+      assert.equal(error.message, 'AUTH_SETTINGS_HTTP');
+      assert.equal(error.httpStatus, status);
+      return true;
+    });
+  }
   await assert.rejects(readPreviewAuthSettings({ apiKey: fakeKey, fetchImpl: async () => new Response('private not-json', { status: 200, headers: { 'content-type': 'application/json' } }) }), error => error.message === 'AUTH_SETTINGS_JSON');
 });
+
+test('Auth settings accepts HTTP 200 and keeps only status plus parsed settings', async () => {
+  let calls = 0;
+  const result = await readPreviewAuthSettings({ apiKey: secrets.U03_PREVIEW_PUBLIC_KEY, fetchImpl: async (_url, init) => {
+    calls++;
+    assert.equal(init.headers.apikey, secrets.U03_PREVIEW_PUBLIC_KEY);
+    return new Response(JSON.stringify({ disable_signup: true }), { status: 200 });
+  } });
+  assert.deepEqual(result, { settings: { disable_signup: true }, httpStatus: 200 });
+  assert.equal(calls, 1);
+});
+
+test('incompatible key formats are rejected before deployment or Auth requests', async () => {
+  let deploymentCalls = 0, fetchCalls = 0;
+  await assert.rejects(verifyInitialPreviewState({
+    env: { ...secrets, U03_PREVIEW_ADMIN_KEY: secrets.U03_PREVIEW_PUBLIC_KEY },
+    preflightFn: async () => { deploymentCalls++; return {}; },
+    fetchImpl: async () => { fetchCalls++; return new Response('{}', { status: 200 }); },
+  }), error => error.message === 'SUPABASE_KEY_FORMAT_REJECTED' &&
+    error.adminKeyFormat === 'sb_publishable_' && error.publicKeyFormat === 'sb_publishable_');
+  assert.deepEqual([deploymentCalls, fetchCalls], [0, 0]);
+});
+
+for (const [label, responseFor, http] of [
+  ['401', async () => new Response('private body', { status: 401 }), 401],
+  ['403', async () => new Response('private body', { status: 403 }), 403],
+  ['transport', async () => { throw Object.assign(new TypeError('private transport credentials'), { cause: { code: 'ECONNRESET' } }); }, null],
+]) {
+  test(`Auth settings ${label} failure records safe diagnosis and creates no fixtures`, async () => withRoot(async root => {
+    let fixtureCalls = 0, authCalls = 0;
+    const result = await runHostedU03Campaign({
+      root, sha, runId, env: secrets,
+      preflightFn: ({ env }) => verifyInitialPreviewState({
+        env, preflightFn: async () => ({ deploymentId: PIN.deploymentId }),
+        fetchImpl: async () => { authCalls++; return responseFor(); },
+      }),
+      fixtureFactory: () => { fixtureCalls++; throw new Error('fixture must not be created'); },
+    });
+    assert.equal(result.status, 'BLOCKED_NO_WRITES');
+    assert.equal(authCalls, 1);
+    assert.equal(fixtureCalls, 0);
+    const ledger = await readFile(result.ledgerPath, 'utf8');
+    const errorRow = JSON.parse(ledger.split('\n').find(line => line.includes('"caseId":"campaign-error"')));
+    assert.equal(errorRow.http, http);
+    assert.equal(errorRow.adminKeyFormat, 'sb_secret_');
+    assert.equal(errorRow.publicKeyFormat, 'sb_publishable_');
+    for (const key of Object.values(secrets)) assert.equal(ledger.includes(key), false);
+    assert.equal(ledger.includes('private body'), false);
+    assert.equal(ledger.includes('private transport credentials'), false);
+  }));
+}
+
+test('HTTP 200 and key-format categories reach the ledger after a successful preflight', async () => withRoot(async root => {
+  const events = [];
+  const fixture = {
+    namespace: 'u03-local-only', createUsers: async () => {},
+    createOrganizations: async () => ({ orgA: 'org-a', orgB: 'org-b' }),
+    createProjects: async () => ({ a1: 'a1', a2: 'a2', b1: 'b1' }),
+    runMatrix: async () => {}, browserInputs: () => ({}), cleanup: async () => ({ ok: true }),
+  };
+  const result = await runHostedU03Campaign({
+    root, sha, runId, env: secrets,
+    ledger: async (caseId, status, detail = {}) => events.push({ caseId, status, ...detail }),
+    preflightFn: async () => {
+      const verified = await passingPreflight();
+      return { ...verified, initial: { ...verified.initial, authSettingsHttpStatus: 200 } };
+    },
+    fixtureFactory: () => fixture,
+    browserFn: async () => ({ captures: [] }), finalCheckFn: passingFinal,
+  });
+  assert.equal(result.status, 'AWAITING_VISUAL_REVIEW');
+  assert.deepEqual(events.find(event => event.caseId === 'key-format'), {
+    caseId: 'key-format', status: 'CLASSIFIED', adminKeyFormat: 'sb_secret_', publicKeyFormat: 'sb_publishable_',
+  });
+  assert.equal(events.find(event => event.caseId === 'preflight').http, 200);
+}));
 
 test('Supabase CLI parser accepts observed envelope and row-array shapes, ignoring startup text', () => {
   const row = { environment: 'preview', project_ref: PIN.supabaseRef };
@@ -219,6 +301,7 @@ test('initial preflight completes with the mapped read-only state and reports mi
     authUsers: 0, organizations: 0, projects: 0, organizationMembers: 0, projectMembers: 0,
     auditEvents: 0, outboxTotal: 0, pendingOutbox: 0, migrationCount: 27,
     latestMigration: '20261015210000', writerLocked: true, environment: 'preview', projectRef: PIN.supabaseRef,
+    authSettingsHttpStatus: 200,
   });
   assert.deepEqual([settingsRead, identityRead, usersRead, sqlRead], [1, 1, 1, 1]);
 });
