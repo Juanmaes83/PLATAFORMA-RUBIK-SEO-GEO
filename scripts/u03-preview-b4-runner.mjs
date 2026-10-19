@@ -3,6 +3,7 @@ import { execFile } from "node:child_process";
 import { mkdir, appendFile } from "node:fs/promises";
 import { promisify } from "node:util";
 import { pathToFileURL } from "node:url";
+import { join, relative } from "node:path";
 import { chromium } from "playwright";
 
 const execFileAsync = promisify(execFile);
@@ -18,6 +19,11 @@ export const PIN = Object.freeze({
 
 const OIDC_HEADER = "x-vercel-trusted-oidc-idp-token";
 const ORIGIN = `https://${PIN.host}`;
+const CHILD_ENV_KEYS = ["PATH", "SystemRoot", "WINDIR", "TEMP", "TMP", "USERPROFILE", "LOCALAPPDATA", "APPDATA", "HOMEDRIVE", "HOMEPATH", "COMSPEC", "PATHEXT", "PROCESSOR_ARCHITECTURE", "NUMBER_OF_PROCESSORS", "OS"];
+
+export function chromiumEnvironment(source = process.env) {
+  return Object.fromEntries(Object.entries(source).filter(([name]) => CHILD_ENV_KEYS.includes(name)));
+}
 
 export class GateError extends Error {
   constructor(code) { super(code); this.name = "GateError"; this.code = code; }
@@ -124,7 +130,7 @@ export async function inspectPinnedDeployment() {
     const cli = process.env.U03_VERCEL_CLI || (process.platform === "win32" ? "vercel.cmd" : "vercel");
     ({ stdout } = await execFileAsync(cli, [
       "api", `/v13/deployments/${PIN.deploymentId}?teamId=${PIN.teamId}`,
-    ], { windowsHide: true, maxBuffer: 1024 * 1024, shell: process.platform === "win32" }));
+    ], { windowsHide: true, maxBuffer: 1024 * 1024, shell: process.platform === "win32", env: chromiumEnvironment() }));
   } catch { throw new GateError("VERCEL_DEPLOYMENT_INSPECTION_FAILED"); }
   try {
     const result = JSON.parse(stdout);
@@ -179,6 +185,38 @@ async function appendSafeLedger(runId, control, status, viewport = null) {
   await appendFile(`${dir}/${runId}.jsonl`, `${JSON.stringify(safeLedgerRow(runId, control, status, viewport))}\n`, { mode: 0o600 });
 }
 
+async function auditAndCapture(page, { runId, viewport, screen, captureRoot, ledger, consoleErrors, pageErrors }) {
+  await page.waitForTimeout(300);
+  const dom = await page.evaluate(() => {
+    const visible = element => {
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+    };
+    return {
+      viewportWidth: window.innerWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      bodyWidth: document.body?.scrollWidth ?? 0,
+      visibleErrors: [...document.querySelectorAll('[role="alert"], [data-error], [aria-invalid="true"]')].filter(visible).length,
+    };
+  });
+  const hydrationErrors = consoleErrors.filter(message => /hydration|hydrating|did not match|server html/i.test(message)).length;
+  const horizontalOverflow = Math.max(dom.documentWidth, dom.bodyWidth) > dom.viewportWidth + 1;
+  const visualPass = !horizontalOverflow && dom.visibleErrors === 0 && consoleErrors.length === 0 && pageErrors === 0 && hydrationErrors === 0;
+  const capturePath = join(captureRoot, `${runId}-${viewport}-${screen}.png`);
+  await ledger(`visual-${screen}`, visualPass ? "PASS" : "FAIL", {
+    viewport, path: relative(process.cwd(), capturePath),
+    conclusion: visualPass ? "sin overflow ni errores visibles, de consola o hidratación" : "fallo de layout o error de página",
+    viewportWidth: dom.viewportWidth, documentWidth: dom.documentWidth, bodyWidth: dom.bodyWidth,
+    visibleErrorCount: dom.visibleErrors, consoleErrorCount: consoleErrors.length, pageErrorCount: pageErrors,
+    hydrationErrorCount: hydrationErrors,
+  });
+  if (!visualPass) throw new GateError("VISUAL_AUDIT_FAILED");
+  await page.screenshot({ path: capturePath, fullPage: true, animations: "disabled" });
+  await ledger(`capture-${screen}`, "SAVED", { viewport, path: relative(process.cwd(), capturePath) });
+  return capturePath;
+}
+
 function assertAuthCookie(cookies) {
   return cookies.some((cookie) => cookie.name.startsWith(`sb-${PIN.supabaseRef}-auth-token`) && cookie.domain.replace(/^\./, "") === PIN.host);
 }
@@ -211,7 +249,7 @@ async function logout(page, context, deniedPath) {
   if (!response || new URL(page.url()).pathname !== "/acceso") throw new GateError("SESSION_REUSE_AFTER_LOGOUT");
 }
 
-async function runViewport(browser, token, env, viewport, runId) {
+async function runViewport(browser, token, env, viewport, runId, { ledger, captureRoot, captures }) {
   const mobile = viewport === "mobile";
   const context = await browser.newContext({
     viewport: mobile ? { width: 390, height: 844 } : { width: 1280, height: 800 },
@@ -228,39 +266,49 @@ async function runViewport(browser, token, env, viewport, runId) {
 
   try {
     const page = await context.newPage();
+    const consoleErrors = [];
+    let pageErrors = 0;
+    page.on("console", message => { if (message.type() === "error") consoleErrors.push(message.text()); });
+    page.on("pageerror", () => { pageErrors++; });
     await login(page, context, env.U03_B4_A_EMAIL, env.U03_B4_A_PASSWORD);
-    await appendSafeLedger(runId, "login-cookie-A", "PASS", viewport);
+    await ledger("login-cookie-A", "PASS", { viewport });
     await visit(page, "/panel", 200);
+    captures.push(await auditAndCapture(page, { runId, viewport, screen: "a-panel", captureRoot, ledger, consoleErrors, pageErrors }));
     const links = await page.locator("a[href]").evaluateAll((anchors) => anchors.map((anchor) => anchor.getAttribute("href")));
     if (![env.U03_B4_A1_PATH, env.U03_B4_A2_PATH].every((path) => links.includes(path))) throw new GateError("A_PROJECTS_NOT_LISTED");
     await visit(page, env.U03_B4_A1_PATH, 200);
+    captures.push(await auditAndCapture(page, { runId, viewport, screen: "a1", captureRoot, ledger, consoleErrors, pageErrors }));
     await visit(page, env.U03_B4_A2_PATH, 200);
+    captures.push(await auditAndCapture(page, { runId, viewport, screen: "a2", captureRoot, ledger, consoleErrors, pageErrors }));
     await visit(page, env.U03_B4_B1_PATH, 404);
-    await appendSafeLedger(runId, "navigation-A1-A2-deny-B1", "PASS", viewport);
+    await ledger("navigation-A1-A2-deny-B1", "PASS", { viewport });
     await logout(page, context, env.U03_B4_A1_PATH);
-    await appendSafeLedger(runId, "logout-cookie-revocation-A", "PASS", viewport);
+    await ledger("logout-cookie-revocation-A", "PASS", { viewport });
 
     await login(page, context, env.U03_B4_B_EMAIL, env.U03_B4_B_PASSWORD);
-    await appendSafeLedger(runId, "login-cookie-B", "PASS", viewport);
+    await ledger("login-cookie-B", "PASS", { viewport });
+    await visit(page, "/panel", 200);
+    captures.push(await auditAndCapture(page, { runId, viewport, screen: "b-panel", captureRoot, ledger, consoleErrors, pageErrors }));
     await visit(page, env.U03_B4_B1_PATH, 200);
+    captures.push(await auditAndCapture(page, { runId, viewport, screen: "b1", captureRoot, ledger, consoleErrors, pageErrors }));
     await visit(page, env.U03_B4_A1_PATH, 404);
     await visit(page, env.U03_B4_A2_PATH, 404);
-    await appendSafeLedger(runId, "navigation-B1-deny-A1-A2", "PASS", viewport);
+    await ledger("navigation-B1-deny-A1-A2", "PASS", { viewport });
     await logout(page, context, env.U03_B4_B1_PATH);
-    await appendSafeLedger(runId, "logout-cookie-revocation-B", "PASS", viewport);
+    await ledger("logout-cookie-revocation-B", "PASS", { viewport });
 
     if (env.U03_B4_REVOKED_EMAIL) {
       await login(page, context, env.U03_B4_REVOKED_EMAIL, env.U03_B4_REVOKED_PASSWORD);
       await visit(page, env.U03_B4_REVOKED_PATH, 404);
-      await appendSafeLedger(runId, "pre-revoked-membership-denial", "PASS", viewport);
+      await ledger("pre-revoked-membership-denial", "PASS", { viewport });
       await logout(page, context, env.U03_B4_REVOKED_PATH);
     } else {
-      await appendSafeLedger(runId, "membership-revocation-after-withdrawal", "SKIP", viewport);
+      await ledger("membership-revocation-after-withdrawal", "SKIP", { viewport });
     }
     if (securityEvents.length) throw new GateError("EXTERNAL_NAVIGATION_OR_REQUEST_BLOCKED");
-    await appendSafeLedger(runId, "oidc-host-scope-and-redirect-guard", "PASS", viewport);
+    await ledger("oidc-host-scope-and-redirect-guard", "PASS", { viewport });
   } catch (error) {
-    await appendSafeLedger(runId, "browser-suite", "FAIL", viewport);
+    await ledger("browser-suite", "FAIL", { viewport });
     if (error instanceof GateError) throw error;
     throw new GateError("BROWSER_AUTH_OR_NAVIGATION_FAILED");
   } finally {
@@ -268,19 +316,24 @@ async function runViewport(browser, token, env, viewport, runId) {
   }
 }
 
-export async function runB4({ env = process.env, inspect = inspectPinnedDeployment, fetchImpl = fetch, launch = () => chromium.launch({ headless: true }) } = {}) {
-  const verified = await preflight({ token: env.VERCEL_OIDC_TOKEN, inspect, fetchImpl });
+export async function runB4({ env = process.env, inspect = inspectPinnedDeployment, fetchImpl = fetch, preflightResult = null,
+  runId = randomUUID(), ledger = (control, status, detail = {}) => appendSafeLedger(runId, control, status, detail.viewport ?? null),
+  captureRoot = join(process.cwd(), "test-results", "u03-b4", runId), launch = () => chromium.launch({ headless: true, env: chromiumEnvironment() }) } = {}) {
+  const verified = preflightResult ?? await preflight({ token: env.VERCEL_OIDC_TOKEN, inspect, fetchImpl });
   assertInputs(env);
-  const runId = randomUUID();
   let browser;
+  const captures = [];
+  await mkdir(captureRoot, { recursive: true });
   try {
     browser = await launch();
-    for (const viewport of ["desktop", "mobile"]) await runViewport(browser, env.VERCEL_OIDC_TOKEN, env, viewport, runId);
-    await appendSafeLedger(runId, "b4-suite", "PASS");
+    await ledger("chromium-version", "INFO", { version: browser.version() });
+    for (const viewport of ["desktop", "mobile"]) await runViewport(browser, env.VERCEL_OIDC_TOKEN, env, viewport, runId, { ledger, captureRoot, captures });
+    await ledger("visual-review", "PENDING_MANUAL_REVIEW", { captures: captures.map(path => relative(process.cwd(), path)) });
+    await ledger("b4-suite", "PASS", { captures: captures.length });
     console.log(`U03 B-4 ${runId}: PASS · ${verified.deploymentId} · ${verified.sha} · ${verified.host}`);
-    return { runId, verified };
+    return { runId, verified, captures };
   } catch (error) {
-    await appendSafeLedger(runId, "b4-suite", "FAIL");
+    await ledger("b4-suite", "FAIL");
     const code = error instanceof GateError ? error.code : "B4_FAILED";
     console.error(`U03 B-4 ${runId}: FAIL · ${code}`);
     throw new GateError(code);

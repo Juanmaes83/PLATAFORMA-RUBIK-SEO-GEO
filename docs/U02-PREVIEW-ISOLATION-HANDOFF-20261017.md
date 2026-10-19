@@ -1,5 +1,13 @@
 # U02 Preview aislada · preparación verificable · 17/10/2026
 
+## Continuidad B-4 · 19/10/2026
+
+La rama #129 incorpora un wrapper de campaña: `scripts/u03-preview-b4-owner.ps1`. Con `vercel env run -e preview`, pide solo Admin/Auth y publishable key por prompts sin eco. Crea usuarios y ámbitos ficticios bajo un runId, ejecuta Data API y Playwright en el deployment fijado, limpia en `finally` y verifica inventario/outbox con SQL de solo lectura. No requiere cuentas, contraseñas o rutas precreadas. No usa Production, Funding OS, Sarah, proveedores, escritor ni migraciones.
+
+Comando único desde la raíz del worktree: `vercel.cmd env run -e preview -- powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/u03-preview-b4-owner.ps1`. En Windows se debe invocar `vercel.cmd`: el shim `vercel` de PowerShell consumía/interpretaba `--` y no entregaba el comando. El `.cmd` real ya se probó con `node -v` y un comando PowerShell inocuo. Antes de escrituras exige rama/repositorio/enlace Vercel exactos, `VERCEL_OIDC_TOKEN`, deployment `dpl_6fqataMxfkGFSZJKVGk5xJe8snXq`, aplicación SHA `06c2b4270fc74d88ef3e3560bb5d07d8aeb948e2`, host/protección, signup cerrado, centinela/ref Preview, 27 migraciones N1, escritor bloqueado y cero inventario inicial. Falla el preflight: `BLOCKED_NO_WRITES`.
+
+Campaña alojada de esta iteración: **pendiente/no ejecutada** hasta introducir las dos claves en terminal seguro. Las capturas requieren revisión manual antes de un PASS visual. Los artefactos locales ignorados quedan en `test-results/u03-hosted/<runId>/`. U03, H1 y H2 siguen abiertos.
+
 ## Actualización de estado · reconciliación de #129 · 19/10/2026
 
 - #129 comenzó en `74bbba7de6d3ca15c3ffda44ad4e17777d19354d` sobre `main@b99893e8fbc59f265ce61f40dbdc2baab071f69a`; main `f39620e347756e980192aac8fe93b9a2e8db6376` quedó integrado en merge `d62704a98f9ab487fdd898285dae4e39dbabf9c2`. El conflicto documental en continuidad está resuelto y el gate H1/H2 de #136 preservado.

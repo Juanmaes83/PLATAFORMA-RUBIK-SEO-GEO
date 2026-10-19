@@ -1,5 +1,27 @@
 # U03 · matriz alojada de Preview · 18/10/2026
 
+## Campaña B-4 unificada · estado 19/10/2026
+
+El cambio de arnés une en una ejecución y un único `runId` el preflight, tres usuarios ficticios Auth, dos organizaciones, los proyectos A1/A2/B1, los 12 controles Data API, Playwright escritorio/móvil, limpieza en `finally` y verificación SQL de solo lectura del inventario y outbox. El antiguo requisito de que Juanma crease cuentas, proyectos o rutas manualmente queda retirado: el wrapper genera fixtures dentro del namespace propio de la campaña y nunca los reutiliza fuera de Preview.
+
+Antes de cualquier escritura, el preflight exige: OIDC presente y aceptado por el deployment exacto; ID/proyecto/host/SHA/rama/READY fijados; Auth `disable_signup=true`; RPC de identidad Preview con ref exacto; exactamente 27 migraciones N1 hasta `20261015210000`; escritor bloqueado; Auth, organizaciones, proyectos, membresías, eventos y outbox a cero. Si cualquiera falla, el estado es `BLOCKED_NO_WRITES`.
+
+Los procesos de Vercel CLI, Supabase CLI y Chromium reciben solo variables del sistema operativo permitidas; el runner principal conserva las claves solo en memoria. El encabezado OIDC se aplica al origen fijado y se elimina de solicitudes ajenas; cualquier fallo de autenticación detiene la ejecución. El ledger usa una lista permitida de campos y nunca contiene claves, credenciales, cookies, JWT ni encabezados. Las capturas locales quedan bajo `test-results/u03-hosted/<runId>/`, ignoradas por Git. La suite registra una revisión manual pendiente y no da por aprobado el aspecto visual hasta abrir y revisar cada captura.
+
+**Pruebas locales del arnés (HEAD funcional de esta actualización: pendiente de commit):** 20/20 PASS en `npm run test:u03-b4`; Chromium Playwright `1.63.0`, Chrome for Testing `153.0.8010.12`. Incluye simulaciones sin escrituras para preflight fallido y fallos después de usuarios, organizaciones, proyectos, matriz y B-4; valida `finally`, inventario/outbox final simulado, `runId` común y ausencia de secretos en ledger/proceso de navegador. `npm run verify` PASS: core pin, escaneo de 692 archivos, ESLint sin avisos, TypeScript, Vitest 607 PASS/1 SKIP y build Next. `git diff --check` PASS. La campaña alojada permanece **NO EJECUTADA**: el wrapper llegó al prompt Admin/Auth por TTY, pero el terminal interactivo no pudo abrirse en esta ventana; se canceló antes de leer claves o ejecutar el preflight. No se crearon fixtures. Data API alojada nueva, Playwright, capturas, revisión visual, cleanup y SQL final están **PENDIENTES**; no se atribuyen PASS.
+
+Comando único desde la raíz del worktree:
+
+```powershell
+vercel.cmd env run -e preview -- powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/u03-preview-b4-owner.ps1
+```
+
+Juanma escribe únicamente en los dos prompts sin eco la clave Admin/Auth de `rhnnplewqsekrnaousyl` y su clave publicable. El OIDC lo entrega `vercel.cmd env run` al proceso; el wrapper no acepta bypass ni cuentas/rutas. Ledger y capturas están en `test-results/u03-hosted/`; todos los IDs del run se anotan localmente y la limpieza solo busca sus scopes exactos. No aplica migraciones ni usa escritor, proveedor, registro público o datos Sarah.
+
+Se comprobó que localmente hay seis migraciones posteriores a las 27 de N1; no se aplican ni deben confundirse con parte del deployment B-4. El estado inicial alojado leído en esta sesión fue cero para las tablas/recibos enumerados, pero la campaña volverá a comprobarlo justo antes de crear fixtures.
+
+H1/H2 y U03 permanecen abiertos hasta completar también los gates del protocolo integral, incluida la revisión visual real y los requisitos de exportación/restauración y Sarah/U04 donde corresponda.
+
 ## Reconciliación de #129 con main · 19/10/2026
 
 - Inicio comprobado en #129 `74bbba7de6d3ca15c3ffda44ad4e17777d19354d`, base `main@b99893e8fbc59f265ce61f40dbdc2baab071f69a`; main `f39620e347756e980192aac8fe93b9a2e8db6376` integrado en merge `d62704a98f9ab487fdd898285dae4e39dbabf9c2`. Se resolvió el único conflicto documental en `docs/CODEX-AUTONOMIA-ESTADO.md`. Los seis cambios de main eran documentales e incluyen el gate #136.
