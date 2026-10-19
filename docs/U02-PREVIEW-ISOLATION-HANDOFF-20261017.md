@@ -2,11 +2,21 @@
 
 ## Continuidad B-4 · 19/10/2026
 
-La rama #129 incorpora un wrapper de campaña: `scripts/u03-preview-b4-owner.ps1`. Con `vercel env run -e preview`, pide solo Admin/Auth y publishable key por prompts sin eco. Crea usuarios y ámbitos ficticios bajo un runId, ejecuta Data API y Playwright en el deployment fijado, limpia en `finally` y verifica inventario/outbox con SQL de solo lectura. No requiere cuentas, contraseñas o rutas precreadas. No usa Production, Funding OS, Sarah, proveedores, escritor ni migraciones.
+La rama #129 incorpora un wrapper de campaña: `scripts/u03-preview-b4-owner.ps1`. Con `vercel.cmd env run -e preview`, pide solo Admin/Auth y publishable key por prompts sin eco. Crea usuarios y ámbitos ficticios bajo un runId, ejecuta Data API y Playwright en el deployment fijado, limpia en `finally` y verifica inventario/outbox con SQL de solo lectura. No requiere cuentas, contraseñas o rutas precreadas. No usa Production, Funding OS, Sarah, proveedores, escritor ni migraciones.
 
 Comando único desde la raíz del worktree: `vercel.cmd env run -e preview -- powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/u03-preview-b4-owner.ps1`. En Windows se debe invocar `vercel.cmd`: el shim `vercel` de PowerShell consumía/interpretaba `--` y no entregaba el comando. El `.cmd` real ya se probó con `node -v` y un comando PowerShell inocuo. Antes de escrituras exige rama/repositorio/enlace Vercel exactos, `VERCEL_OIDC_TOKEN`, deployment `dpl_6fqataMxfkGFSZJKVGk5xJe8snXq`, aplicación SHA `06c2b4270fc74d88ef3e3560bb5d07d8aeb948e2`, host/protección, signup cerrado, centinela/ref Preview, 27 migraciones N1, escritor bloqueado y cero inventario inicial. Falla el preflight: `BLOCKED_NO_WRITES`.
 
 Campaña alojada de esta iteración: **pendiente/no ejecutada** hasta introducir las dos claves en terminal seguro. Las capturas requieren revisión manual antes de un PASS visual. Los artefactos locales ignorados quedan en `test-results/u03-hosted/<runId>/`. U03, H1 y H2 siguen abiertos.
+
+Checkpoint publicado: SHA funcional `af54488bb74f32078ad5765ba086ee1472b00347`; HEAD documental `61116fc2dfa180fdbbf9bf66e94378b644527ae8`. `npm run test:u03-b4` 20/20 PASS con Chromium Playwright 1.63.0/Chrome for Testing 153.0.8010.12; `npm run verify` 607 PASS/1 SKIP, secret scan 692 archivos, lint sin avisos y build PASS. El único intento de campaña llegó al prompt Admin/Auth, pero no se pudo mostrar su terminal interactivo; se canceló antes de introducir una clave. Una consulta SQL read-only posterior confirmó cero Auth, organizaciones, proyectos, membresías, auditoría y outbox. El preflight alojado no llegó a ejecutarse.
+
+Preparación del comando del propietario: el checkout `C:\Users\temp123\Documents\ChatGPT\rubik-u02-preview` estaba limpio, pero atrasado en `661f47d` y sin vínculo Vercel. Se adelantó por fast-forward y se añadió el archivo local ignorado `.vercel/project.json`, fijado al proyecto/equipo Rubik correctos. Tras el checkpoint final, verifica que esa carpeta quede en el HEAD requerido que se indique en la entrega. Ejecutar desde esa carpeta en el PowerShell visible del mismo usuario Windows:
+
+```powershell
+vercel.cmd env run -e preview -- powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/u03-preview-b4-owner.ps1
+```
+
+El propietario debe introducir solo las claves Admin/Auth y publishable de `rhnnplewqsekrnaousyl` en los dos prompts sin eco y compartir luego la salida sanitizada. No mandar claves por chat. Esperar esa salida antes de atribuir resultados alojados.
 
 ## Actualización de estado · reconciliación de #129 · 19/10/2026
 
