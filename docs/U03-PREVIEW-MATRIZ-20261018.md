@@ -1,5 +1,11 @@
 # U03 · matriz alojada de Preview · 18/10/2026
 
+## Reversión V-4 preparada · 19/10/2026
+
+La instalación, la activación corta, el bloqueo inmediato `NOLOGIN` y el rollback idempotente del rol `rubik_preview_receipt_writer` se ensayaron en un **stack local nuevo y aislado** con exactamente 27 migraciones N1. El ensayo comprobó grants y cuatro políticas efectivos, la denegación de acceso tras retirada por RPC con el mismo JWT aún válido, firma auténtica y retry del recibo, limpieza por IDs e inventario/outbox a cero. Un rollback con residuos se detuvo tras confirmar `NOLOGIN`; uno sin residuos retiró rol y políticas, y su repetición fue inocua. Se corrigió en el SQL de instalación la referencia de la política a `audit_events.details`, que inicialmente se resolvía como `outbox.details`. [Procedimiento y comandos del propietario](U03-V4-RECIBO-PREVIEW-20261019.md).
+
+El wrapper no tiene credencial administrativa y **no puede bloquear automáticamente el rol**. Juanma debe ejecutar el SQL de bloqueo en su terminal administrativa en `finally`, incluso si la campaña falla; el rollback vuelve a bloquear antes de comprobar residuos. El SQL no se ha ejecutado en Preview, no se han creado fixtures alojados y V-4 permanece pendiente. Data API 12/12 y B-4 aprobado son evidencia previa, sin repetición. U03, H1 y H2 siguen abiertos; #129 permanece Draft.
+
 ## Preparación vigente V-4 · 19/10/2026
 
 La incompatibilidad entre retirada y limpieza tiene una vía técnica preparada en [U03-V4-RECIBO-PREVIEW-20261019](U03-V4-RECIBO-PREVIEW-20261019.md): rol SQL independiente y temporal solo para `rhnnplewqsekrnaousyl`, clave HMAC de prueba en memoria y reutilización de `processAuditOutbox` para firmar el recibo auténtico de `project_people(remove)`. El escritor general de la aplicación sigue bloqueado en Preview. El modo `-MembershipRevocationOnly` ahora hace preflight del rol **antes** de crear los dos usuarios propios; luego prueba denegación con el mismo JWT, firma por ID propio, reconcilia en `finally` si se perdió la respuesta, limpia y exige inventario/outbox a cero. El SQL de preparación no es una migración y permanece sin aplicar; no hay credencial activada ni V-4 alojado ejecutado. La explicación histórica de bloqueo de abajo describe el estado anterior a este diseño.

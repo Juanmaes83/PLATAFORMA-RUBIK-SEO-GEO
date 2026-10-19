@@ -1,6 +1,48 @@
 # U03 V-4 · procesador acotado de recibos en Preview
 
-**Estado:** código y procedimiento para revisión; sin instalación ni ejecución alojada. Destino exclusivo `rhnnplewqsekrnaousyl`. No cambia las 27 migraciones N1, Vercel Authentication ni la guarda `writerPool()` que bloquea Preview en la aplicación.
+**Estado:** instalación, contención y rollback ensayados en un stack N1 local aislado desde cero; sin instalación ni ejecución alojada. Destino exclusivo `rhnnplewqsekrnaousyl`. No cambia las 27 migraciones N1, Vercel Authentication ni la guarda `writerPool()` que bloquea Preview en la aplicación.
+
+## Reversión operativa obligatoria
+
+El wrapper V-4 **no dispone de credencial administrativa PostgreSQL**. Por ello no puede ejecutar `ALTER ROLE ... NOLOGIN` automáticamente. Emite un aviso al salir, incluso si la campaña falla; el propietario debe ejecutar el bloqueo desde otra terminal administrativa inmediatamente después. La caducidad de 30 minutos limita un cierre abrupto, pero no sustituye el bloqueo. `NOLOGIN` impide sesiones nuevas; antes del rollback hay que dejar terminar la sesión del arnés.
+
+Estos comandos se ejecutan **solo por Juanma** desde la raíz del checkout revisado, con `psql` instalado y la CA del proyecto Preview descargada desde su Dashboard a `%APPDATA%\postgresql\root.crt`. El password administrativo se introduce en el prompt de `psql`, nunca en la línea de comandos, un archivo de entorno o Git. La conexión directa exige conectividad IPv6 o el complemento IPv4; si no existe, detenerse y revisar una conexión de sesión del mismo ref en el Dashboard antes de adaptar el procedimiento. No sustituir el host por un alias implícito.
+
+```powershell
+$env:PGSSLROOTCERT = Join-Path $env:APPDATA 'postgresql\root.crt'
+if (-not (Test-Path -LiteralPath $env:PGSSLROOTCERT)) { throw 'PREVIEW_CA_MISSING' }
+$adminDb = 'host=db.rhnnplewqsekrnaousyl.supabase.co port=5432 dbname=postgres user=postgres sslmode=verify-full'
+psql -X -v ON_ERROR_STOP=1 -d $adminDb -f scripts/u03-preview-v4-role.sql
+if ($LASTEXITCODE -ne 0) { throw 'V4_ROLE_INSTALL_FAILED' }
+psql -X -v ON_ERROR_STOP=1 -d $adminDb
+```
+
+Dentro de la sesión interactiva de `psql`, introducir `\password rubik_preview_receipt_writer` y después `\q`. `\password` pide la contraseña exclusiva de este Preview sin dejarla en el historial SQL. A continuación, con el preflight de 27 migraciones, centinela y cero inventario/outbox acreditado, activar la ventana corta:
+
+```powershell
+psql -X -v ON_ERROR_STOP=1 -d $adminDb -f scripts/u03-preview-v4-activate.sql
+if ($LASTEXITCODE -ne 0) { throw 'V4_ROLE_ACTIVATION_FAILED' }
+```
+
+Ejecutar la campaña dirigida una sola vez. **Bloquear LOGIN en un `finally` de la terminal del propietario**, también ante error. Si la terminal se cierra abruptamente, ejecutar inmediatamente el comando de bloqueo por separado en otra terminal. No asumir que el `finally` del wrapper lo hace. Después del bloqueo, comprobar el ledger y lanzar el rollback; este SQL vuelve a bloquear LOGIN en su primera sentencia autocommit y rechaza la retirada si hay cualquier residuo de inventario o outbox:
+
+```powershell
+$campaignExit = 1
+try {
+  vercel.cmd env run -e preview -- powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/u03-preview-b4-owner.ps1 -MembershipRevocationOnly
+  $campaignExit = $LASTEXITCODE
+} finally {
+  psql -X -v ON_ERROR_STOP=1 -d $adminDb -f scripts/u03-preview-v4-block.sql
+  if ($LASTEXITCODE -ne 0) { throw 'V4_NOLOGIN_NOT_CONFIRMED' }
+}
+psql -X -v ON_ERROR_STOP=1 -d $adminDb -f scripts/u03-preview-v4-rollback.sql
+if ($LASTEXITCODE -ne 0) { throw 'V4_ROLLBACK_BLOCKED_KEEP_LEDGER' }
+if ($campaignExit -ne 0) { throw 'V4_CAMPAIGN_FAILED_REVIEW_LEDGER' }
+```
+
+Ejecutar los archivos con `-f` y **sin** `--single-transaction`: la primera sentencia de rollback debe confirmar `NOLOGIN` antes de la transacción que revisa residuos. Si el rollback falla, el rol queda sin LOGIN, se conservan grants/políticas y el ledger/UUIDs del run para reconciliar solo sus fixtures y recibo pendiente; no forzar un borrado. Repetir rollback tras acreditar inventario/outbox a cero es seguro. La contraseña del rol y la clave HMAC de prueba son distintas de Production; el rol general `rubik_audit_writer` sigue `NOLOGIN`.
+
+Prueba local real: 27 migraciones N1 nuevas, centinela, instalación del rol y cuatro políticas; privilegios efectivos mínimos, denegación tras retirada por RPC con el mismo JWT aún vigente, recibo pendiente, bloqueo inmediato y rechazo de login, rollback fallido que conserva `NOLOGIN`, firma y reintento idempotente, limpieza por IDs, inventario/outbox cero, rollback repetido y rechazo sin centinela. El ensayo descubrió y corrigió una referencia SQL ambigua: la política de INSERT debe leer `audit_events.details`, no el `details` del outbox. No se aplicó SQL alojado.
 
 ## Motivo y vía existente
 
@@ -24,4 +66,4 @@ El comando usa las claves Admin/Auth Preview ya custodiadas por DPAPI, ejecuta p
 
 ## Gates y límites
 
-Pruebas locales dirigidas: destino Production/otro ref rechazados, credencial ausente, rol/URL no acotados, preflight sin capacidad, firma inválida, reintento idempotente, respuesta de retirada perdida y reconciliación antes de limpieza. El ensayo usa dobles de PostgreSQL; todavía falta acreditar en Preview la instalación del rol, TLS/privilegios reales, V-4 y limpieza final. GitHub Actions no ejecuta jobs por facturación. Aunque V-4 pase, los casos alojados restantes de U03 y la pasada integral H1/H2 siguen pendientes.
+Pruebas locales dirigidas: destino Production/otro ref rechazados, credencial ausente, rol/URL no acotados, preflight sin capacidad, firma inválida, reintento idempotente, respuesta de retirada perdida y reconciliación antes de limpieza. La suite de unidad usa dobles de PostgreSQL; el ensayo aislado descrito arriba acredita instalación, privilegios y firma reales **solo localmente**. En Preview faltan TLS/privilegios del rol, V-4 y limpieza final. GitHub Actions no ejecuta jobs por facturación. Aunque V-4 pase, los casos alojados restantes de U03 y la pasada integral H1/H2 siguen pendientes.

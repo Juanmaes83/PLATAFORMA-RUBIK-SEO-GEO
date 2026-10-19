@@ -146,6 +146,9 @@ try {
   else { & node $runner }
   if ($LASTEXITCODE -ne 0) { Stop-B4 'U03_B4_CAMPAIGN_FAILED_OR_CLEANUP_UNVERIFIED' }
 } finally {
+  if ($MembershipRevocationOnly) {
+    Write-Warning 'V4_OPERATOR_NOLOGIN_REQUIRED: Run scripts/u03-preview-v4-block.sql with the separate Preview administrator connection now, even after a failed campaign. This wrapper has no administrator credential and cannot block the role itself.'
+  }
   if ($pushed) { Pop-Location }
   Get-ChildItem Env: | Where-Object { $_.Name -like 'U03_*' -or $_.Name -eq 'VERCEL_OIDC_TOKEN' } | ForEach-Object { Remove-Item -LiteralPath "Env:$($_.Name)" -ErrorAction SilentlyContinue }
   if ($clipboardSessionActive) { Clear-B4Clipboard }
