@@ -56,6 +56,7 @@ const LEDGER_KEYS = new Set([
   'outboxTotal', 'pendingOutbox', 'writerLocked', 'migrationCount', 'latestMigration', 'environment',
   'projectRef', 'deploymentId', 'sha', 'host', 'result', 'visualReview',
   'adminKeyFormat', 'publicKeyFormat',
+  'pathname', 'errorCode', 'actionHttpStatus', 'sessionCookiePresent', 'routeEvents', 'capturePath',
 ]);
 
 function safeLedgerDetail(input = {}) {

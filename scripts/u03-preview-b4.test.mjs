@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import { chromium } from "playwright";
 import {
   PIN, deploymentMatches, scopedHeaders, isExternalRedirect,
   sanitizeDiagnostic, safePath, preflight, runB4, installScopedRoutes,
-  safeLedgerRow,
+  safeLedgerRow, login,
 } from "./u03-preview-b4-runner.mjs";
 
 const validDeployment = () => ({
@@ -122,6 +125,133 @@ test("token is redacted from errors and persisted diagnostics", () => {
   assert.equal(error.includes(token), false);
   assert.equal(ledger.includes(token), false);
   assert.equal(JSON.stringify({ trace: null, screenshot: null, capture: null, error }).includes(token), false);
+});
+
+test("login diagnoses a form rejection locally without persisting credentials, cookies, or tokens", async () => {
+  const root = await mkdtemp(join(tmpdir(), "u03-login-diagnostic-"));
+  const behavior = "reject";
+  const server = createServer((req, res) => {
+    if (req.method === "POST" && req.url === "/acceso") {
+      if (behavior === "reject") {
+        res.writeHead(200, { "content-type": "text/plain", "x-action-redirect": "/acceso?error=credenciales" }).end();
+        return;
+      }
+      res.writeHead(200, { "content-type": "text/plain", "x-action-redirect": "/panel", "set-cookie": `sb-${PIN.supabaseRef}-auth-token=fake-session; Path=/; HttpOnly; SameSite=Lax` }).end();
+      return;
+    }
+    if (req.url.startsWith("/acceso")) {
+      res.writeHead(200, { "content-type": "text/html" }).end(`<!doctype html><form><label for="email">Correo</label><input id="email" type="email"><label for="password">Contraseña</label><input id="password" type="password"><button>Entrar</button></form><script>document.querySelector('form').addEventListener('submit',async e=>{e.preventDefault();await fetch('/acceso',{method:'POST'});if(location.search==='')location.assign('/acceso?error=credenciales')})</script>`);
+      return;
+    }
+    if (req.url === "/panel") { res.writeHead(200, { "content-type": "text/html" }).end("<main>panel</main>"); return; }
+    res.writeHead(404).end();
+  });
+  const port = await new Promise(resolve => server.listen(0, "127.0.0.1", () => resolve(server.address().port)));
+  const origin = `http://127.0.0.1:${port}`;
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext();
+    context.setDefaultTimeout(2000);
+    context.setDefaultNavigationTimeout(2000);
+    const routeEvents = [];
+    const events = [];
+    const page = await context.newPage();
+    const fakeEmail = "fictional-owner@example.test", fakePassword = "fictional-password-not-for-ledger";
+    await assert.rejects(login(page, context, fakeEmail, fakePassword, {
+      origin, runId: "diagnostic-local-only", viewport: "desktop", captureRoot: root, routeEvents,
+      timeoutMs: 50, cookieCheck: cookies => cookies.some(cookie => cookie.name.startsWith(`sb-${PIN.supabaseRef}-auth-token`)),
+      ledger: async (caseId, status, detail) => events.push({ caseId, status, ...detail }),
+    }), error => error.code === "LOGIN_REJECTED");
+    const diagnostic = events.find(event => event.caseId === "login-diagnostic");
+    assert.ok(diagnostic);
+    assert.equal(diagnostic.pathname, "/acceso");
+    assert.equal(diagnostic.errorCode, "credenciales");
+    assert.equal(diagnostic.actionHttpStatus, 200);
+    assert.equal(diagnostic.sessionCookiePresent, false);
+    assert.ok(diagnostic.routeEvents.includes("auth-action-post"));
+    assert.ok(diagnostic.routeEvents.includes("auth-action-http-200"));
+    assert.equal((await readFile(join(root, "diagnostic-local-only-desktop-login-failure.png"))).length > 0, true);
+    assert.equal(await page.locator("#email").inputValue(), "");
+    assert.equal(await page.locator("#password").inputValue(), "");
+    const serialized = JSON.stringify(events);
+    for (const value of [fakeEmail, fakePassword, "fake-session", "fictional-oidc-token-not-real"]) assert.equal(serialized.includes(value), false);
+    await context.close();
+  } finally {
+    if (browser) await browser.close();
+    server.closeAllConnections?.();
+    await new Promise(resolve => server.close(resolve));
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("login recovers only when a session cookie proves the action succeeded but navigation did not", async () => {
+  const root = await mkdtemp(join(tmpdir(), "u03-login-redirect-recovery-"));
+  const server = createServer((req, res) => {
+    if (req.method === "POST" && req.url === "/acceso") {
+      res.writeHead(200, { "content-type": "text/plain", "x-action-redirect": "/panel", "set-cookie": `sb-${PIN.supabaseRef}-auth-token=fake-session; Path=/; HttpOnly; SameSite=Lax` }).end();
+    } else if (req.url.startsWith("/acceso")) {
+      res.writeHead(200, { "content-type": "text/html" }).end(`<!doctype html><form><label for="email">Correo</label><input id="email" type="email"><label for="password">Contraseña</label><input id="password" type="password"><button>Entrar</button></form><script>document.querySelector('form').addEventListener('submit',async e=>{e.preventDefault();await fetch('/acceso',{method:'POST'})})</script>`);
+    } else if (req.url === "/panel") res.writeHead(200, { "content-type": "text/html" }).end("<main>panel</main>");
+    else res.writeHead(404).end();
+  });
+  const port = await new Promise(resolve => server.listen(0, "127.0.0.1", () => resolve(server.address().port)));
+  const origin = `http://127.0.0.1:${port}`;
+  let browser;
+  const events = [];
+  const routeEvents = [];
+  try {
+    browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext();
+    context.setDefaultTimeout(2000);
+    context.setDefaultNavigationTimeout(2000);
+    await installScopedRoutes(context, "", origin, () => {}, event => routeEvents.push(event));
+    const page = await context.newPage();
+    await login(page, context, "fictional-owner@example.test", "fictional-password", {
+      origin, captureRoot: root, timeoutMs: 50, routeEvents,
+      cookieCheck: cookies => cookies.some(cookie => cookie.name.startsWith(`sb-${PIN.supabaseRef}-auth-token`)),
+      ledger: async (caseId, status, detail) => events.push({ caseId, status, ...detail }),
+    });
+    assert.equal(new URL(page.url()).pathname, "/panel");
+    assert.equal(events.find(event => event.caseId === "login-redirect-recovered")?.sessionCookiePresent, true);
+    assert.equal(events.find(event => event.caseId === "login-redirect-recovered")?.actionHttpStatus, 200);
+    assert.ok(events.find(event => event.caseId === "login-redirect-recovered")?.routeEvents.includes("auth-action-http-200"));
+    await context.close();
+  } finally {
+    if (browser) await browser.close();
+    server.closeAllConnections?.();
+    await new Promise(resolve => server.close(resolve));
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("login records a local capture when the Preview auth mode exposes no sign-in form", async () => {
+  const root = await mkdtemp(join(tmpdir(), "u03-login-closed-mode-"));
+  const server = createServer((_req, res) => res.writeHead(200, { "content-type": "text/html" }).end("<main>Inicio de sesión no disponible</main>"));
+  const port = await new Promise(resolve => server.listen(0, "127.0.0.1", () => resolve(server.address().port)));
+  const origin = `http://127.0.0.1:${port}`;
+  const events = [];
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext();
+    context.setDefaultTimeout(2000);
+    const page = await context.newPage();
+    await assert.rejects(login(page, context, "", "", {
+      origin, runId: "closed-mode-local", captureRoot: root, ledger: async (caseId, status, detail) => events.push({ caseId, status, ...detail }),
+    }), error => error.code === "LOGIN_FORM_UNAVAILABLE");
+    const diagnostic = events.find(event => event.caseId === "login-diagnostic");
+    assert.equal(diagnostic.pathname, "/acceso");
+    assert.equal(diagnostic.errorCode, null);
+    assert.equal(diagnostic.actionHttpStatus, null);
+    assert.equal(diagnostic.sessionCookiePresent, false);
+    assert.equal((await readFile(join(root, "closed-mode-local-desktop-login-failure.png"))).length > 0, true);
+  } finally {
+    if (browser) await browser.close();
+    server.closeAllConnections?.();
+    await new Promise(resolve => server.close(resolve));
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 test("pinned Playwright Chromium strips OIDC off-origin and blocks external navigation redirects", async (t) => {

@@ -66,18 +66,24 @@ export function isExternalRedirect(requestUrl, redirectedFromUrl, allowedOrigin 
   catch { return true; }
 }
 
-export async function installScopedRoutes(context, token, allowedOrigin = ORIGIN, onEvent = () => {}) {
+export async function installScopedRoutes(context, token, allowedOrigin = ORIGIN, onEvent = () => {}, onRouteEvent = () => {}) {
   await context.route("**/*", async (route) => {
     const request = route.request();
     const url = request.url();
     let origin = "";
     try { origin = new URL(url).origin; } catch { await route.abort("blockedbyclient"); return; }
     const headers = await request.allHeaders();
+    const parsedUrl = new URL(url);
+    const authAction = request.method() === "POST" && (parsedUrl.pathname === "/acceso" || Boolean(headers["next-action"]));
+    if (authAction) onRouteEvent("auth-action-post");
+    else if (origin === allowedOrigin && request.isNavigationRequest()) onRouteEvent("pinned-navigation");
+    else if (origin === allowedOrigin) onRouteEvent("pinned-request");
 
     // Never let top-level navigation leave the approved deployment. The browser itself
     // follows HTTP 3xx without exposing a redirect request to Playwright's route callback.
     if (request.isNavigationRequest() && origin !== allowedOrigin) {
       onEvent("external-navigation-blocked");
+      onRouteEvent("external-navigation-blocked");
       await route.abort("blockedbyclient");
       return;
     }
@@ -92,15 +98,18 @@ export async function installScopedRoutes(context, token, allowedOrigin = ORIGIN
       upstream = await route.fetch({ headers: scopedHeaders(url, headers, token, allowedOrigin), maxRedirects: 0 });
     } catch {
       onEvent("pinned-origin-request-failed");
+      onRouteEvent("pinned-origin-request-failed");
       await route.fulfill({ status: 502, contentType: "text/plain", body: "Protected Preview request failed closed." });
       return;
     }
+    if (authAction && Number.isInteger(upstream.status())) onRouteEvent(`auth-action-http-${upstream.status()}`);
     const location = upstream.headers()["location"];
     if (upstream.status() >= 300 && upstream.status() < 400 && location) {
       let destination;
       try { destination = new URL(location, url); } catch { destination = null; }
       if (!destination || destination.origin !== allowedOrigin) {
         onEvent("external-redirect-blocked");
+        onRouteEvent("external-redirect-blocked");
         await route.fulfill({ status: 502, contentType: "text/plain", body: "Cross-origin redirect blocked." });
         return;
       }
@@ -223,20 +232,98 @@ async function auditAndCapture(page, { runId, viewport, screen, captureRoot, led
   return capturePath;
 }
 
-function assertAuthCookie(cookies) {
-  return cookies.some((cookie) => cookie.name.startsWith(`sb-${PIN.supabaseRef}-auth-token`) && cookie.domain.replace(/^\./, "") === PIN.host);
+function assertAuthCookie(cookies, expectedHost = PIN.host) {
+  return cookies.some((cookie) => cookie.name.startsWith(`sb-${PIN.supabaseRef}-auth-token`) && cookie.domain.replace(/^\./, "") === expectedHost);
 }
 
-async function login(page, context, email, password) {
-  const response = await page.goto(`${ORIGIN}/acceso`, { waitUntil: "domcontentloaded" });
+const LOGIN_ERROR_CODES = new Set(["datos", "credenciales", "sin-confirmar"]);
+
+async function recordLoginFailure({ page, context, origin, runId, viewport, captureRoot, ledger, routeEvents, actionStatuses, cookieCheck }) {
+  const settledCookies = await context.cookies(origin);
+  const sessionCookiePresent = cookieCheck(settledCookies);
+  const settledUrl = (() => { try { return new URL(page.url()); } catch { return null; } })();
+  const pathname = settledUrl?.origin === origin ? settledUrl.pathname : "off-origin";
+  const rawError = settledUrl?.origin === origin ? settledUrl.searchParams.get("error") : null;
+  const errorCode = rawError ? (LOGIN_ERROR_CODES.has(rawError) ? rawError : "unknown") : null;
+  const routeSummary = [...new Set(routeEvents)].filter(event => /^(auth-action-post|auth-action-http-\d{3}|pinned-navigation|pinned-request|external-navigation-blocked|external-redirect-blocked|pinned-origin-request-failed)$/.test(event)).slice(-20);
+  const actionHttpStatus = actionStatuses.at(-1) ?? routeSummary.map(event => /^auth-action-http-(\d{3})$/.exec(event)?.[1]).filter(Boolean).map(Number).at(-1) ?? null;
+  const capturePath = join(captureRoot, `${runId}-${viewport}-login-failure.png`);
+  await page.locator("#email").fill("").catch(() => {});
+  await page.locator("#password").fill("").catch(() => {});
+  let captureSaved = false;
+  try { await page.screenshot({ path: capturePath, fullPage: true, animations: "disabled" }); captureSaved = true; }
+  catch { /* sanitized diagnostic remains useful if the browser cannot capture */ }
+  await ledger("login-diagnostic", "FAIL", {
+    viewport, pathname, errorCode, actionHttpStatus, sessionCookiePresent,
+    routeEvents: routeSummary, ...(captureSaved ? { capturePath: relative(process.cwd(), capturePath) } : {}),
+  });
+  return { pathname, errorCode, actionHttpStatus, sessionCookiePresent, routeEvents: routeSummary };
+}
+
+export async function login(page, context, email, password, {
+  origin = ORIGIN, runId = "u03-login", viewport = "desktop", captureRoot = join(process.cwd(), "test-results", "u03-b4", runId),
+  ledger = async () => {}, routeEvents = [], timeoutMs = 20000, cookieCheck = (cookies) => assertAuthCookie(cookies),
+} = {}) {
+  const response = await page.goto(`${origin}/acceso`, { waitUntil: "domcontentloaded" });
   if (response?.status() !== 200) throw new GateError("LOGIN_PAGE_UNAVAILABLE");
-  await page.getByLabel("Correo").fill(email);
-  await page.getByLabel("Contraseña").fill(password);
+  if (await page.locator("#email").count() === 0 || await page.locator("#password").count() === 0) {
+    await recordLoginFailure({ page, context, origin, runId, viewport, captureRoot, ledger, routeEvents, actionStatuses: [], cookieCheck });
+    throw new GateError("LOGIN_FORM_UNAVAILABLE");
+  }
+  await page.locator("#email").fill(email);
+  await page.locator("#password").fill(password);
+  const actionStatuses = [];
+  const observeActionRequest = (actionRequest) => {
+    try {
+      const actionUrl = new URL(actionRequest.url());
+      if (actionRequest.method() === "POST" && actionUrl.origin === origin && actionUrl.pathname === "/acceso") routeEvents.push("auth-action-post");
+    } catch { /* do not retain malformed or off-origin request data */ }
+  };
+  const observeActionResponse = (actionResponse) => {
+    const request = actionResponse.request();
+    try {
+      if (request.method() === "POST" && new URL(request.url()).origin === origin && new URL(request.url()).pathname === "/acceso") {
+        actionStatuses.push(actionResponse.status());
+        routeEvents.push(`auth-action-http-${actionResponse.status()}`);
+      }
+    } catch { /* do not retain malformed or off-origin request data */ }
+  };
+  page.on("request", observeActionRequest);
+  page.on("response", observeActionResponse);
   await page.getByRole("button", { name: "Entrar" }).click();
-  try { await page.waitForURL(`${ORIGIN}/panel`, { timeout: 20000 }); }
-  catch { throw new GateError("LOGIN_REJECTED"); }
-  const cookies = await context.cookies(ORIGIN);
-  if (!assertAuthCookie(cookies)) throw new GateError("AUTH_COOKIE_MISSING");
+  try {
+    await page.waitForURL(url => url.origin === origin && url.pathname === "/panel", { timeout: timeoutMs });
+  } catch {
+    const cookies = await context.cookies(origin);
+    const authCookiePresent = cookieCheck(cookies);
+    let finalUrl;
+    try { finalUrl = new URL(page.url()); } catch { finalUrl = null; }
+    const routeSummary = [...new Set(routeEvents)].filter(event => /^(auth-action-post|auth-action-http-\d{3}|pinned-navigation|pinned-request|external-navigation-blocked|external-redirect-blocked|pinned-origin-request-failed)$/.test(event)).slice(-20);
+    const actionHttpStatus = actionStatuses.at(-1) ?? routeSummary.map(event => /^auth-action-http-(\d{3})$/.exec(event)?.[1]).filter(Boolean).map(Number).at(-1) ?? null;
+    // A Server Action can set the verified session cookie while a protected proxy
+    // response prevents the browser from committing its redirect. Only recover when
+    // the cookie is present, then require /panel itself to return successfully.
+    if (authCookiePresent && finalUrl?.origin === origin) {
+      const panel = await page.goto(`${origin}/panel`, { waitUntil: "domcontentloaded" }).catch(() => null);
+      if (panel?.status() === 200 && new URL(page.url()).origin === origin && new URL(page.url()).pathname === "/panel") {
+        await ledger("login-redirect-recovered", "PASS", {
+          viewport, pathname: "/panel", actionHttpStatus, sessionCookiePresent: true, routeEvents: routeSummary,
+        });
+        page.off("request", observeActionRequest);
+        page.off("response", observeActionResponse);
+        return;
+      }
+    }
+
+    await recordLoginFailure({ page, context, origin, runId, viewport, captureRoot, ledger, routeEvents, actionStatuses, cookieCheck });
+    page.off("request", observeActionRequest);
+    page.off("response", observeActionResponse);
+    throw new GateError("LOGIN_REJECTED");
+  }
+  page.off("request", observeActionRequest);
+  page.off("response", observeActionResponse);
+  const cookies = await context.cookies(origin);
+  if (!cookieCheck(cookies)) throw new GateError("AUTH_COOKIE_MISSING");
 }
 
 async function visit(page, path, expectedStatus) {
@@ -268,7 +355,8 @@ async function runViewport(browser, token, env, viewport, runId, { ledger, captu
   context.setDefaultTimeout(15000);
   context.setDefaultNavigationTimeout(20000);
   const securityEvents = [];
-  await installScopedRoutes(context, token, ORIGIN, (event) => securityEvents.push(event));
+  const routeEvents = [];
+  await installScopedRoutes(context, token, ORIGIN, (event) => securityEvents.push(event), event => routeEvents.push(event));
 
   try {
     const page = await context.newPage();
@@ -276,7 +364,7 @@ async function runViewport(browser, token, env, viewport, runId, { ledger, captu
     let pageErrors = 0;
     page.on("console", message => { if (message.type() === "error") consoleErrors.push(message.text()); });
     page.on("pageerror", () => { pageErrors++; });
-    await login(page, context, env.U03_B4_A_EMAIL, env.U03_B4_A_PASSWORD);
+    await login(page, context, env.U03_B4_A_EMAIL, env.U03_B4_A_PASSWORD, { runId, viewport, captureRoot, ledger, routeEvents });
     await ledger("login-cookie-A", "PASS", { viewport });
     await visit(page, "/panel", 200);
     captures.push(await auditAndCapture(page, { runId, viewport, screen: "a-panel", captureRoot, ledger, consoleErrors, pageErrors }));
@@ -291,7 +379,7 @@ async function runViewport(browser, token, env, viewport, runId, { ledger, captu
     await logout(page, context, env.U03_B4_A1_PATH);
     await ledger("logout-cookie-revocation-A", "PASS", { viewport });
 
-    await login(page, context, env.U03_B4_B_EMAIL, env.U03_B4_B_PASSWORD);
+    await login(page, context, env.U03_B4_B_EMAIL, env.U03_B4_B_PASSWORD, { runId, viewport, captureRoot, ledger, routeEvents });
     await ledger("login-cookie-B", "PASS", { viewport });
     await visit(page, "/panel", 200);
     captures.push(await auditAndCapture(page, { runId, viewport, screen: "b-panel", captureRoot, ledger, consoleErrors, pageErrors }));
@@ -304,7 +392,7 @@ async function runViewport(browser, token, env, viewport, runId, { ledger, captu
     await ledger("logout-cookie-revocation-B", "PASS", { viewport });
 
     if (env.U03_B4_REVOKED_EMAIL) {
-      await login(page, context, env.U03_B4_REVOKED_EMAIL, env.U03_B4_REVOKED_PASSWORD);
+      await login(page, context, env.U03_B4_REVOKED_EMAIL, env.U03_B4_REVOKED_PASSWORD, { runId, viewport, captureRoot, ledger, routeEvents });
       await visit(page, env.U03_B4_REVOKED_PATH, 404);
       await ledger("pre-revoked-membership-denial", "PASS", { viewport });
       await logout(page, context, env.U03_B4_REVOKED_PATH);
