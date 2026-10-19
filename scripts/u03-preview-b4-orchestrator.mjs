@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { createPreviewAdminClient } from './u03-preview-api-key.mjs';
 import { createDataApiFixtureRun, U03_PREVIEW_REF } from './u03-preview-data-api.mjs';
-import { PIN, chromiumEnvironment, preflight, runB4 } from './u03-preview-b4-runner.mjs';
+import { PIN, networkEnvironment, preflight, runB4 } from './u03-preview-b4-runner.mjs';
 
 const execFileAsync = promisify(execFile);
 const SUPABASE_URL = `https://${U03_PREVIEW_REF}.supabase.co`;
@@ -85,9 +85,32 @@ export async function runPreviewReadOnlySql(query, { cli = process.env.U03_SUPAB
     ({ stdout } = await execFileAsync(cli, [
       '--yes', 'supabase@2.118.0', 'db', 'query', '--linked', '--project-ref', ref,
       '--output-format', 'json', query,
-    ], { windowsHide: true, maxBuffer: 2 * 1024 * 1024, shell: process.platform === 'win32', env: chromiumEnvironment() }));
+    ], { windowsHide: true, maxBuffer: 2 * 1024 * 1024, shell: process.platform === 'win32', env: networkEnvironment() }));
   } catch { throw new Error('SUPABASE_READ_ONLY_QUERY_FAILED'); }
   return parseCliJson(stdout);
+}
+
+function authSettingsFailureCategory(error) {
+  const codes = [error?.code, error?.cause?.code].filter(value => typeof value === 'string').join(' ').toUpperCase();
+  if (/ENOTFOUND|EAI_AGAIN|EAI_FAIL|DNS/.test(codes)) return 'DNS';
+  if (/TLS|SSL|CERT|ERR_TLS|ERR_SSL/.test(codes)) return 'TLS';
+  if (/TIMEOUT|ETIMEDOUT|ABORT/.test(codes) || ['AbortError', 'TimeoutError'].includes(error?.name)) return 'TIMEOUT';
+  return 'HTTP';
+}
+
+export async function readPreviewAuthSettings({ fetchImpl = fetch, apiKey } = {}) {
+  if (typeof apiKey !== 'string' || !apiKey) throw new Error('AUTH_SETTINGS_HTTP');
+  let response;
+  try {
+    response = await fetchImpl(`${SUPABASE_URL}/auth/v1/settings`, {
+      headers: { apikey: apiKey }, redirect: 'manual', signal: AbortSignal.timeout(15000),
+    });
+  } catch (error) {
+    throw new Error(`AUTH_SETTINGS_${authSettingsFailureCategory(error)}`);
+  }
+  if (response.status !== 200) throw new Error('AUTH_SETTINGS_HTTP');
+  try { return await response.json(); }
+  catch { throw new Error('AUTH_SETTINGS_JSON'); }
 }
 
 export async function verifyInitialPreviewState({ env = process.env, fetchImpl = fetch, admin = null, sql = runPreviewReadOnlySql, inspect } = {}) {
@@ -96,13 +119,7 @@ export async function verifyInitialPreviewState({ env = process.env, fetchImpl =
   if (!adminKey || !publicKey) throw new Error('PREVIEW_KEYS_REQUIRED');
   const vercel = await preflight({ token: env.VERCEL_OIDC_TOKEN, fetchImpl, ...(inspect ? { inspect } : {}) });
 
-  let settings;
-  try {
-    const response = await fetchImpl(`${SUPABASE_URL}/auth/v1/settings`, {
-      headers: { apikey: publicKey }, redirect: 'manual', signal: AbortSignal.timeout(15000),
-    });
-    settings = response.status === 200 ? await response.json() : null;
-  } catch { throw new Error('AUTH_SETTINGS_READ_FAILED'); }
+  const settings = await readPreviewAuthSettings({ fetchImpl, apiKey: publicKey });
   if (settings?.disable_signup !== true) throw new Error('PUBLIC_SIGNUP_NOT_CONFIRMED_CLOSED');
 
   const publicClient = createClient(SUPABASE_URL, publicKey, { auth: { persistSession: false, autoRefreshToken: false } });

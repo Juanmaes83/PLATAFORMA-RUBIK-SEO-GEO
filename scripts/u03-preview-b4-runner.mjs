@@ -20,9 +20,15 @@ export const PIN = Object.freeze({
 const OIDC_HEADER = "x-vercel-trusted-oidc-idp-token";
 const ORIGIN = `https://${PIN.host}`;
 const CHILD_ENV_KEYS = ["PATH", "SystemRoot", "WINDIR", "TEMP", "TMP", "USERPROFILE", "LOCALAPPDATA", "APPDATA", "HOMEDRIVE", "HOMEPATH", "COMSPEC", "PATHEXT", "PROCESSOR_ARCHITECTURE", "NUMBER_OF_PROCESSORS", "OS"];
+const NETWORK_ENV_KEYS = ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "all_proxy", "no_proxy", "NODE_USE_ENV_PROXY", "NODE_USE_SYSTEM_CA", "NODE_EXTRA_CA_CERTS", "SSL_CERT_FILE", "SSL_CERT_DIR"];
 
 export function chromiumEnvironment(source = process.env) {
   return Object.fromEntries(Object.entries(source).filter(([name]) => CHILD_ENV_KEYS.includes(name)));
+}
+
+export function networkEnvironment(source = process.env) {
+  const allowed = new Set([...CHILD_ENV_KEYS, ...NETWORK_ENV_KEYS]);
+  return Object.fromEntries(Object.entries(source).filter(([name]) => allowed.has(name)));
 }
 
 export class GateError extends Error {
@@ -130,7 +136,7 @@ export async function inspectPinnedDeployment() {
     const cli = process.env.U03_VERCEL_CLI || (process.platform === "win32" ? "vercel.cmd" : "vercel");
     ({ stdout } = await execFileAsync(cli, [
       "api", `/v13/deployments/${PIN.deploymentId}?teamId=${PIN.teamId}`,
-    ], { windowsHide: true, maxBuffer: 1024 * 1024, shell: process.platform === "win32", env: chromiumEnvironment() }));
+    ], { windowsHide: true, maxBuffer: 1024 * 1024, shell: process.platform === "win32", env: networkEnvironment() }));
   } catch { throw new GateError("VERCEL_DEPLOYMENT_INSPECTION_FAILED"); }
   try {
     const result = JSON.parse(stdout);

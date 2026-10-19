@@ -3,8 +3,8 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { chromiumEnvironment, PIN } from './u03-preview-b4-runner.mjs';
-import { runHostedU03Campaign } from './u03-preview-b4-orchestrator.mjs';
+import { chromiumEnvironment, networkEnvironment, PIN } from './u03-preview-b4-runner.mjs';
+import { readPreviewAuthSettings, runHostedU03Campaign } from './u03-preview-b4-orchestrator.mjs';
 
 const runId = 'u03-orchestrator-test-run';
 const sha = 'a'.repeat(40);
@@ -96,4 +96,37 @@ test('B-4 failure still cleans fixtures; runId is shared with browser and ledger
 test('filtered child environment omits Preview keys, credentials and OIDC', () => {
   const filtered = chromiumEnvironment({ PATH: 'C:\\Windows', VERCEL_OIDC_TOKEN: secrets.VERCEL_OIDC_TOKEN, U03_PREVIEW_ADMIN_KEY: secrets.U03_PREVIEW_ADMIN_KEY, U03_B4_A_PASSWORD: 'fictional-password' });
   assert.deepEqual(filtered, { PATH: 'C:\\Windows' });
+});
+
+test('network child environment retains authorized proxy routing without passing credentials to Chromium', () => {
+  const fakeProxy = 'http://proxy-user:proxy-password@127.0.0.1:8899';
+  const source = { PATH: 'C:\\Windows', HTTPS_PROXY: fakeProxy, NO_PROXY: 'localhost', NODE_USE_ENV_PROXY: '1', NODE_USE_SYSTEM_CA: '1', VERCEL_OIDC_TOKEN: secrets.VERCEL_OIDC_TOKEN, U03_PREVIEW_ADMIN_KEY: secrets.U03_PREVIEW_ADMIN_KEY };
+  const network = networkEnvironment(source);
+  assert.equal(network.HTTPS_PROXY, fakeProxy);
+  assert.equal(network.NO_PROXY, 'localhost');
+  assert.equal(network.NODE_USE_ENV_PROXY, '1');
+  assert.equal(network.NODE_USE_SYSTEM_CA, '1');
+  assert.equal(network.VERCEL_OIDC_TOKEN, undefined);
+  assert.equal(network.U03_PREVIEW_ADMIN_KEY, undefined);
+  assert.equal(chromiumEnvironment(source).HTTPS_PROXY, undefined);
+  assert.equal(JSON.stringify({ networkKeys: Object.keys(network), browserKeys: Object.keys(chromiumEnvironment(source)) }).includes('proxy-password'), false);
+});
+
+test('Auth settings failures are classified without retaining response or transport text', async () => {
+  const fakeKey = 'fictional-publishable-key-never-log';
+  const failure = async error => {
+    await assert.rejects(readPreviewAuthSettings({ apiKey: fakeKey, fetchImpl: async () => { throw error; } }), safeCode => {
+      assert.match(safeCode.message, /^AUTH_SETTINGS_(DNS|TLS|TIMEOUT|HTTP)$/);
+      assert.equal(safeCode.message.includes(fakeKey), false);
+      assert.equal(safeCode.message.includes('proxy-user'), false);
+      return true;
+    });
+  };
+  await failure(Object.assign(new TypeError('private proxy URL and credentials'), { cause: { code: 'ENOTFOUND' } }));
+  await failure(Object.assign(new TypeError('private TLS detail'), { cause: { code: 'ERR_TLS_CERT_ALTNAME_INVALID' } }));
+  await failure(Object.assign(new TypeError('private timeout detail'), { cause: { code: 'UND_ERR_CONNECT_TIMEOUT' } }));
+  await failure(Object.assign(new TypeError('private transport detail'), { cause: { code: 'ECONNRESET' } }));
+
+  await assert.rejects(readPreviewAuthSettings({ apiKey: fakeKey, fetchImpl: async () => new Response('private body', { status: 401 }) }), error => error.message === 'AUTH_SETTINGS_HTTP');
+  await assert.rejects(readPreviewAuthSettings({ apiKey: fakeKey, fetchImpl: async () => new Response('private not-json', { status: 200, headers: { 'content-type': 'application/json' } }) }), error => error.message === 'AUTH_SETTINGS_JSON');
 });

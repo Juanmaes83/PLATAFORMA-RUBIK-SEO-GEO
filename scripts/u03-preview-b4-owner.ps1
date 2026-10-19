@@ -45,9 +45,24 @@ try {
   $env:U03_PREVIEW_PUBLIC_KEY = Read-B4Secret 'Supabase Preview publishable key (solo rhnnplewqsekrnaousyl)'
   if ([string]::IsNullOrWhiteSpace($env:U03_PREVIEW_ADMIN_KEY) -or [string]::IsNullOrWhiteSpace($env:U03_PREVIEW_PUBLIC_KEY)) { Stop-B4 'PREVIEW_KEYS_REQUIRED' }
 
+  # Preserve the machine's authorized proxy route for Node fetch and CLI reads.
+  # Never print these values; they may contain proxy authentication material.
+  $proxyNames = @('HTTP_PROXY','HTTPS_PROXY','ALL_PROXY','NO_PROXY','http_proxy','https_proxy','all_proxy','no_proxy')
+  $proxyRouteNames = @('HTTP_PROXY','HTTPS_PROXY','ALL_PROXY','http_proxy','https_proxy','all_proxy')
+  $hasProxy = @($proxyRouteNames | Where-Object { -not [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($_)) }).Count -gt 0
+  if ([string]::IsNullOrWhiteSpace($env:HTTPS_PROXY) -and [string]::IsNullOrWhiteSpace($env:https_proxy)) {
+    if (-not [string]::IsNullOrWhiteSpace($env:ALL_PROXY)) { $env:HTTPS_PROXY = $env:ALL_PROXY }
+    elseif (-not [string]::IsNullOrWhiteSpace($env:all_proxy)) { $env:HTTPS_PROXY = $env:all_proxy }
+  }
+  if ($hasProxy) {
+    # Node 24/22.21+ uses these startup switches to honor HTTP(S)_PROXY.
+    $env:NODE_USE_ENV_PROXY = '1'
+    $env:NODE_USE_SYSTEM_CA = '1'
+  }
+
   # Strip unrelated Vercel project values and inherited credentials before Node.
-  # Keep only the OIDC token in process memory plus CLI paths and OS runtime values.
-  $keep = @('PATH','SystemRoot','WINDIR','TEMP','TMP','USERPROFILE','LOCALAPPDATA','APPDATA','ProgramFiles','HOMEDRIVE','HOMEPATH','COMSPEC','PATHEXT','PROCESSOR_ARCHITECTURE','NUMBER_OF_PROCESSORS','OS','VERCEL_OIDC_TOKEN','U03_VERCEL_CLI','U03_SUPABASE_CLI','U03_PREVIEW_ADMIN_KEY','U03_PREVIEW_PUBLIC_KEY')
+  # Keep the isolated OIDC token, OS runtime and network route only.
+  $keep = @('PATH','SystemRoot','WINDIR','TEMP','TMP','USERPROFILE','LOCALAPPDATA','APPDATA','ProgramFiles','HOMEDRIVE','HOMEPATH','COMSPEC','PATHEXT','PROCESSOR_ARCHITECTURE','NUMBER_OF_PROCESSORS','OS','VERCEL_OIDC_TOKEN','U03_VERCEL_CLI','U03_SUPABASE_CLI','U03_PREVIEW_ADMIN_KEY','U03_PREVIEW_PUBLIC_KEY','NODE_USE_ENV_PROXY','NODE_USE_SYSTEM_CA','NODE_EXTRA_CA_CERTS','SSL_CERT_FILE','SSL_CERT_DIR') + $proxyNames
   Get-ChildItem Env: | Where-Object { $_.Name -notin $keep } | ForEach-Object { Remove-Item -LiteralPath "Env:$($_.Name)" -ErrorAction SilentlyContinue }
 
   Push-Location -LiteralPath $repo

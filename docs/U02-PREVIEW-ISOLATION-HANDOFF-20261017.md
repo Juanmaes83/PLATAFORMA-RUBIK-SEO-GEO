@@ -261,3 +261,11 @@ Limpieza: las cuentas propietarias eliminan solo sus objetos mediante rutas sopo
 U02 **BLOQUEADO** por capacidad/coste de Supabase no aprobados y ausencia de proyecto/ref/identidades. U03 **SKIP**, cero fixtures creados. H1 sigue parcial por exportación HTTP, restauración ficticia y U04/R1; H2 sigue bloqueado por U02/U03 y aceptación operativa/comercial. GitHub Actions no se declara verde; la evidencia de esta rama es local por SHA.
 
 Decisión concreta del propietario: aprobar **un segundo proyecto aislado de Rubik Sota** y confirmar el plan/cargo mostrado en su facturación (estimación pública condicional: Pro total ~USD 35/mes para dos Micro si Free no admite otra plaza), junto con dos alias A/B bajo su control; o mantener U02/U03 alojados bloqueados sin gasto. Ninguna operación de pago o reutilización de otro proyecto se inicia por inferencia.
+
+## Incidencia AUTH_SETTINGS_READ_FAILED · 19/10/2026
+
+El propietario reportó el intento `BLOCKED_NO_WRITES`, previo a fixtures, con ledger `ed1a8f3b-77bf-4305-9959-f5510c060b6b.jsonl` y código `AUTH_SETTINGS_READ_FAILED`. La evidencia guardada no permite saber si falló DNS, TLS, timeout, HTTP o JSON. Un 401 de `curl.exe` sin clave confirma que esa petición de curl alcanzó Auth; no prueba la respuesta autenticada de Node.
+
+Causa probable: el wrapper eliminaba las variables de proxy del entorno antes de iniciar Node; `curl.exe` y Node `fetch` podían, por tanto, usar rutas distintas. Ahora preserva proxies y `NO_PROXY` para el proceso de red, habilita `NODE_USE_ENV_PROXY=1` si existe proxy y activa la CA del sistema para respetar el almacén Windows. No deshabilita la validación TLS y no pasa proxy ni sus credenciales a Chromium. El error de Auth Settings queda clasificado con códigos seguros DNS/TLS/TIMEOUT/HTTP/JSON, sin guardar mensajes, URL, cabeceras, cuerpos o secretos. La categoría concreta del fallo anterior sigue desconocida.
+
+Verificación local: `npm run test:u03-b4` 22/22 PASS, parse PowerShell PASS, `git diff --check` PASS; `npm run verify` PASS en este HEAD funcional (607 PASS, 1 SKIP, secret scan 692 archivos, lint, tipos y build). No se volvió a ejecutar la campaña alojada ni se crearon fixtures. Esperar el resultado sanitizado del comando del propietario para confirmar la categoría real. Mantener #129 OPEN/Draft y U03/H1/H2 abiertos.
