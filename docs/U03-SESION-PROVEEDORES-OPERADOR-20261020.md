@@ -20,3 +20,9 @@ Un resultado alojado requiere `campaign-global: AWAITING_VISUAL_REVIEW`, `fixtur
 - No se prueban S-5, I-2 ni aislamiento de filas firmadas pobladas I-5. No se usan Production, Funding OS, Sarah ni proveedores.
 
 Pruebas locales: helpers de JWT/cookies/espera y orquestador de campaña con limpieza simulada, más `npm run verify`. La descarga del navegador Playwright está restringida en el entorno Linux de preparación; Chromium alojado se ejecuta desde Windows.
+
+## Primer intento alojado
+
+Run `beee6110-fc88-43db-bdd9-9eb274373746` sobre el primer SHA de #142: preflight, fixture y estado OpenSEO apagado PASS. `visual-openseo-disabled` FAIL con 134 errores de consola agregados, sin error visible, excepción de página ni desbordamiento horizontal. El collector había empezado **antes del login** y no se vaciaba al entrar en la primera página; ese contador no permite atribuir los 134 eventos a OpenSEO. La campaña se detuvo antes de Google y de S-2/S-3/S-4. Limpieza por IDs, inventario, outbox y capacidades finales PASS. El ledger original se conserva.
+
+Corrección posterior: registrar la fase login y vaciar sus contadores antes de visitar OpenSEO, igual que B-4; también contar excepciones de página por fase. La regresión local verifica la separación. Si aparece un error de consola en la página tras esta corrección, se mantendrá el FAIL y su diagnóstico estará atribuido a esa fase. No se repiten las matrices anteriores.

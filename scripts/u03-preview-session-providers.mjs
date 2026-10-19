@@ -64,6 +64,8 @@ async function guardedPage(browser, token, width) {
   const page = await context.newPage();
   const securityEvents = [];
   const diagnostics = createPageDiagnostics(page);
+  const pageErrors = { count: 0 };
+  page.on('pageerror', () => { pageErrors.count++; });
   const session = await installScopedRoutes(context, page, token, origin, event => securityEvents.push(event), event => diagnostics.addRouteEvent(event));
   page.on('request', request => {
     try {
@@ -71,16 +73,25 @@ async function guardedPage(browser, token, width) {
         securityEvents.push('external-browser-fetch');
     } catch { securityEvents.push('unclassifiable-browser-fetch'); }
   });
-  return { context, page, session, diagnostics, securityEvents };
+  return { context, page, session, diagnostics, pageErrors, securityEvents };
 }
 
-async function visitP1({ page, diagnostics, ledger, runId, captureRoot, viewport, path, screen, expected }) {
+export async function finishLoginPhase({ diagnostics, pageErrors, ledger, viewport }) {
+  const phaseDiagnostics = diagnostics.take();
+  await ledger('browser-phase-diagnostics', 'INFO', {
+    viewport, phase: 'login', pathname: '/acceso', diagnostics: phaseDiagnostics,
+    pageErrorCount: pageErrors.count,
+  });
+  pageErrors.count = 0;
+}
+
+async function visitP1({ page, diagnostics, pageErrors, ledger, runId, captureRoot, viewport, path, screen, expected }) {
   const response = await page.goto(`${origin}${path}`, { waitUntil: 'domcontentloaded' });
   const text = await page.locator('body').innerText();
   const okay = response?.status() === 200 && new URL(page.url()).origin === origin && expected.test(text);
   await ledger(`p1-${screen}-state`, okay ? 'PASS' : 'FAIL', { viewport, http: response?.status() ?? null });
   if (!okay) throw new GateError('PROVIDER_DISABLED_STATE_UNCONFIRMED');
-  const capture = await auditAndCapture(page, { runId, viewport, screen, captureRoot, ledger, diagnostics });
+  const capture = await auditAndCapture(page, { runId, viewport, screen, captureRoot, ledger, diagnostics, pageErrors });
   return capture;
 }
 
@@ -101,6 +112,7 @@ export async function runSessionProviders({ env, account, path, ledger, runId, c
       try {
         await login(current.page, current.context, account.email, account.password,
           { origin, runId, viewport, captureRoot, ledger });
+        await finishLoginPhase({ ...current, ledger, viewport });
         const audit = await visitP1({ ...current, ledger, runId, captureRoot, viewport,
           path: `${path}/auditoria-tecnica`, screen: 'openseo-disabled', expected: /No conectada|OpenSEO no está configurado|no tiene una conexión de OpenSEO activa/i });
         captures.push(audit);

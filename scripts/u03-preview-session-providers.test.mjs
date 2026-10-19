@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { PIN, GateError } from './u03-preview-b4-runner.mjs';
-import { jwtTiming, sessionFromCookies, tamperSessionCookies, waitForExpiry } from './u03-preview-session-providers.mjs';
+import { finishLoginPhase, jwtTiming, sessionFromCookies, tamperSessionCookies, waitForExpiry } from './u03-preview-session-providers.mjs';
 
 const claim = (iss = `https://${PIN.supabaseRef}.supabase.co/auth/v1`) =>
   `x.${Buffer.from(JSON.stringify({ iat: 1000, exp: 4600, iss })).toString('base64url')}.sig`;
@@ -42,4 +42,17 @@ test('expiry wait is bounded and can be driven without a real hour delay', async
   await waitForExpiry(4600, { now: () => clock, sleep: async ms => { pauses.push(ms); clock += ms; } });
   assert.deepEqual(pauses, [3000]);
   await assert.rejects(waitForExpiry(10, { now: () => 10_000_000 }), /SESSION_EXPIRY_OUT_OF_RANGE/);
+});
+
+test('login console and page errors are recorded separately from the first provider page', async () => {
+  let bucket = { console: { 'error:preview': 134 }, http: { '303:preview': 1 }, requestFailures: {}, routeEvents: {} };
+  const diagnostics = { take() { const prior = bucket; bucket = { console: {}, http: {}, requestFailures: {}, routeEvents: {} }; return prior; } };
+  const pageErrors = { count: 2 };
+  const rows = [];
+  await finishLoginPhase({ diagnostics, pageErrors, ledger: async (...entry) => rows.push(entry), viewport: 'desktop' });
+  assert.equal(rows[0][0], 'browser-phase-diagnostics');
+  assert.equal(rows[0][2].diagnostics.console['error:preview'], 134);
+  assert.equal(rows[0][2].pageErrorCount, 2);
+  assert.deepEqual(diagnostics.take().console, {});
+  assert.equal(pageErrors.count, 0);
 });
