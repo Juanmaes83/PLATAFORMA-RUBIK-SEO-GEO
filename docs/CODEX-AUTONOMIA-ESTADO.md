@@ -1,5 +1,11 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
+## Corte vigente · 19/10/2026 · aceptación B-4 y V-4 dirigido
+
+- PR #129 OPEN/Draft en la rama existente. Run B-4 `5847ce5a-43b9-4dde-9931-61bd8113b27e` ejecutado con `3bc9d85098f3d6536bc28abb7079b8400bd061cf`: ledger original `AWAITING_VISUAL_REVIEW`, diez capturas, navegación escritorio/móvil PASS, limpieza e inventario/outbox final a cero. Juanma aprobó después manualmente `desktop-b-panel`: ownerB ve solo U03 b1, no A1/A2. Registrar esa aceptación en matriz/handoff/PR, sin editar el ledger original.
+- Roadmap N1-05 y protocolo V-4 obligan a probar retirada de acceso en la siguiente petición con JWT aún válido. La prueba local dirigida prepara fixtures mínimos y la ruta RPC; el modo alojado se detiene antes de fixtures porque la retirada crea un recibo `pending` (`20261015145025`) y el guard de borrado (`20261015201500`) impide limpiar A1 mientras esté pendiente. El escritor Preview sigue bloqueado. No activar escritor ni borrar recibos para forzar el gate. El preflight/final verifican cero invitaciones privadas, inventario y outbox. V-4 permanece `BLOCKED_BY_PREVIEW_WRITER`; registrar SHA/resultado en #129.
+- U03 global, H1 y H2 siguen abiertos por los demás casos y gates. No activar escritor, firma, proveedores ni cambiar Supabase/Vercel; GitHub Actions continúa sin jobs por facturación.
+
 ## Corte vigente · 19/10/2026 · B-4 solo Playwright en #129
 
 - Rama existente `codex/u02-preview-isolation-20261017`, PR #129 OPEN/Draft, base `main@f39620e347756e980192aac8fe93b9a2e8db6376`. El SHA publicado de este cambio y los resultados locales constan en el cuerpo de #129; el punto de partida fue `7b64e97e968e3b808d4d2af0ca37b62d203c84f8`.

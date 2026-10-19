@@ -104,6 +104,54 @@ export function createDataApiFixtureRun({ runId, sha, admin, publicKey, ledger, 
     return { a1, a2, b1 };
   }
 
+  async function createRevocationFixtures() {
+    await createUser('ownerA');
+    await createUser('outsider');
+    const orgA = await createOrganization('ownerA', `${namespace}-a`);
+    const a1 = await createProject('ownerA', orgA, 'a1');
+    return { orgA, a1 };
+  }
+
+  async function runMembershipRevocation({ a1 }) {
+    if (!a1 || !accounts.ownerA || !accounts.outsider) throw new Error('REVOCATION_FIXTURES_INVALID');
+    const owner = accounts.ownerA.api;
+    const member = accounts.outsider.api;
+    const priorSession = await member.auth.getSession();
+    const accessToken = priorSession.data?.session?.access_token;
+    if (priorSession.error || !accessToken) throw new Error('REVOCATION_JWT_UNAVAILABLE');
+
+    // The invitation token stays in memory. The accepted membership is created through
+    // the same consent RPC as the product, never by a privileged table INSERT.
+    const invited = await owner.rpc('project_invitations', {
+      p_project_id: a1, p_command: 'create', p_payload: { email: accounts.outsider.email, role: 'viewer' },
+    });
+    if (invited.error || !/^[0-9a-f]{64}$/.test(invited.data?.token ?? '')) throw new Error('REVOCATION_INVITATION_FAILED');
+    const accepted = await member.rpc('accept_project_invitation', { p_token: invited.data.token });
+    const before = await member.from('projects').select('id').eq('id', a1);
+    const granted = !accepted.error && accepted.data?.role === 'viewer' && !before.error &&
+      before.data?.length === 1 && before.data[0]?.id === a1;
+    await ledger('membership-grant-before-withdrawal', granted ? 'PASS' : 'FAIL');
+    if (!granted) throw new Error('REVOCATION_GRANT_NOT_CONFIRMED');
+
+    const removed = await owner.rpc('project_people', {
+      p_project_id: a1, p_command: 'remove', p_payload: { userId: accounts.outsider.id },
+    });
+    const currentSession = await member.auth.getSession();
+    const currentUser = await member.auth.getUser();
+    const after = await member.from('projects').select('id').eq('id', a1);
+    const ownerMembership = await owner.from('project_members').select('user_id')
+      .eq('project_id', a1).eq('user_id', accounts.outsider.id);
+    const validJwt = !currentSession.error && currentSession.data?.session?.access_token === accessToken &&
+      currentSession.data.session.expires_at > Date.now() / 1000 &&
+      !currentUser.error && currentUser.data?.user?.id === accounts.outsider.id;
+    const denied = !removed.error && removed.data?.removed === true && removed.data?.leftOrganization === true &&
+      validJwt && !after.error && after.data?.length === 0 &&
+      !ownerMembership.error && ownerMembership.data?.length === 0;
+    await ledger('membership-revocation-after-withdrawal', denied ? 'PASS' : 'FAIL', { actor: 'outsider' });
+    if (!denied) throw new Error('REVOCATION_ACCESS_NOT_DENIED');
+    return { passed: true, cases: 1 };
+  }
+
   async function runMatrix({ orgA, a1, a2, b1 }) {
     const assert = async (caseId, condition) => {
       await ledger(caseId, condition ? 'PASS' : 'FAIL');
@@ -227,7 +275,8 @@ export function createDataApiFixtureRun({ runId, sha, admin, publicKey, ledger, 
     return { namespace, userIds: [...new Set(users)], organizationIds: [...new Set(organizations)], projectIds: [...new Set(projects)] };
   }
 
-  return { runId, ref, namespace, createUsers, createOrganizations, createProjects, runMatrix, cleanup, verifyOwnedAbsent, browserInputs, snapshot };
+  return { runId, ref, namespace, createUsers, createOrganizations, createProjects, createRevocationFixtures,
+    runMatrix, runMembershipRevocation, cleanup, verifyOwnedAbsent, browserInputs, snapshot };
 }
 
 async function main() {

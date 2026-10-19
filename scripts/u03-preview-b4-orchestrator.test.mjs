@@ -60,7 +60,7 @@ const passingPreflight = async () => ({
 });
 const passingFinal = async () => ({
   inventoriesClear: true, outboxClear: true, capabilitiesSafe: true,
-  state: { auth_users: 0, organizations: 0, projects: 0, organization_members: 0, project_members: 0, audit_events: 0, outbox_total: 0, pending_outbox: 0, writer_locked: true, environment: 'preview', project_ref: PIN.supabaseRef },
+  state: { auth_users: 0, organizations: 0, projects: 0, organization_members: 0, project_members: 0, invitations: 0, audit_events: 0, outbox_total: 0, pending_outbox: 0, writer_locked: true, environment: 'preview', project_ref: PIN.supabaseRef },
 });
 
 async function withRoot(fn) {
@@ -181,6 +181,23 @@ test('Playwright-only cannot complete when final outbox is nonzero', async () =>
   const ledger = await readFile(result.ledgerPath, 'utf8');
   assert.match(ledger, /"caseId":"outbox-final","status":"FAIL"/);
   assert.match(ledger, /"caseId":"campaign-global","status":"BLOCKED"/);
+}));
+
+test('directed withdrawal blocks before fixtures when Preview cannot drain its audit receipt', async () => withRoot(async root => {
+  let fixtureCalls = 0;
+  const result = await runHostedU03Campaign({
+    root, sha, runId, mode: 'membership-revocation', env: secrets, preflightFn: passingPreflight,
+    fixtureFactory: () => { fixtureCalls++; throw new Error('fixture must remain uncreated'); }, finalCheckFn: passingFinal,
+    browserFn: async () => { throw new Error('browser must remain skipped'); },
+  });
+  assert.equal(result.status, 'BLOCKED_NO_WRITES');
+  assert.equal(fixtureCalls, 0);
+  const ledger = (await readFile(result.ledgerPath, 'utf8')).trim().split('\n').map(JSON.parse);
+  assert.equal(ledger.find(row => row.caseId === 'membership-revocation-after-withdrawal')?.status, 'BLOCKED_BY_PREVIEW_WRITER');
+  assert.equal(ledger.some(row => row.caseId.startsWith('fixture-')), false);
+  assert.equal(ledger.find(row => row.caseId === 'final-inventory')?.invitations, 0);
+  assert.equal(ledger.find(row => row.caseId === 'outbox-final')?.status, 'PASS');
+  for (const secret of Object.values(secrets)) assert.equal(JSON.stringify(ledger).includes(secret), false);
 }));
 
 test('filtered child environment omits Preview keys, credentials and OIDC', () => {
@@ -363,7 +380,7 @@ test('read-only SQL uses pinned ref, --output json and --file, then removes its 
 test('no-key read-only preflight verifies identity, 27 migrations, empty counts and final inventory', async () => {
   const state = {
     auth_users: 0, organizations: 0, projects: 0, organization_members: 0, project_members: 0,
-    audit_events: 0, outbox_total: 0, pending_outbox: 0, writer_locked: true,
+    invitations: 0, audit_events: 0, outbox_total: 0, pending_outbox: 0, writer_locked: true,
     environment: 'preview', project_ref: PIN.supabaseRef,
     migrations: [
       '20260928120000', '20260928150000', '20261007120000', '20261007150000', '20261009071705',
@@ -407,13 +424,13 @@ test('initial preflight completes with the mapped read-only state and reports mi
       assert.equal(ref, PIN.supabaseRef);
       return {
         auth_users: 0, organizations: 0, projects: 0, organization_members: 0, project_members: 0,
-        audit_events: 0, outbox_total: 0, pending_outbox: 0, writer_locked: true,
+        invitations: 0, audit_events: 0, outbox_total: 0, pending_outbox: 0, writer_locked: true,
         environment: 'preview', project_ref: PIN.supabaseRef, migrations: migrationVersions,
       };
     },
   });
   assert.deepEqual(result.initial, {
-    authUsers: 0, organizations: 0, projects: 0, organizationMembers: 0, projectMembers: 0,
+    authUsers: 0, organizations: 0, projects: 0, organizationMembers: 0, projectMembers: 0, invitations: 0,
     auditEvents: 0, outboxTotal: 0, pendingOutbox: 0, migrationCount: 27,
     latestMigration: '20261015210000', writerLocked: true, environment: 'preview', projectRef: PIN.supabaseRef,
     authSettingsHttpStatus: 200,
@@ -434,7 +451,8 @@ test('owner wrapper runs no-key preflight before DPAPI load and never prompts du
   assert.match(script, /if \(\$ProvisionPreviewKeys -or \$ReplacePreviewKeys\)[\s\S]*--credential-preflight-only[\s\S]*Save-B4PreviewCredentials/);
   assert.match(script, /\[switch\]\$ProvisionPreviewKeys[\s\S]*\[switch\]\$CheckPreviewKeys[\s\S]*\[switch\]\$ReplacePreviewKeys[\s\S]*\[switch\]\$DeletePreviewKeys/);
   assert.match(script, /\[switch\]\$PlaywrightOnly/);
-  assert.match(campaignPath, /if \(\$PlaywrightOnly\) \{ & node \$runner --playwright-only \}\s*else \{ & node \$runner \}/);
+  assert.match(script, /\[switch\]\$MembershipRevocationOnly/);
+  assert.match(campaignPath, /if \(\$MembershipRevocationOnly\) \{ & node \$runner --membership-revocation-only \}\s*elseif \(\$PlaywrightOnly\) \{ & node \$runner --playwright-only \}\s*else \{ & node \$runner \}/);
   assert.match(script, /-ExpectedPrefix 'sb_secret_'[\s\S]*-ExpectedPrefix 'sb_publishable_'/);
   assert.doesNotMatch(script, /Read-Host\s+-AsSecureString|Read-B4Secret/);
   assert.doesNotMatch(script, /'U03_PREVIEW_ADMIN_KEY','U03_PREVIEW_PUBLIC_KEY'/);

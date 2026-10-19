@@ -8,6 +8,7 @@ function controlledBackend() {
   const rows = { organizations: [], projects: [], project_members: [], audit_events: [] };
   const authUsers = new Map();
   const orgOwners = new Map();
+  const invitations = [];
   let currentId = null;
 
   const result = (data, error = null, status = error ? 403 : 200) => ({ data, error, status });
@@ -26,7 +27,9 @@ function controlledBackend() {
       if (adminMode) return true;
       if (!actorId) return false;
       if (table === 'organizations') return row.created_by === actorId;
-      if (table === 'projects') return orgOwners.get(row.organization_id) === actorId;
+      if (table === 'projects') return orgOwners.get(row.organization_id) === actorId ||
+        rows.project_members.some(member => member.project_id === row.id && member.user_id === actorId);
+      if (table === 'project_members') return orgOwners.get(row.organization_id) === actorId || row.user_id === actorId;
       return false;
     }
     function execute() {
@@ -44,7 +47,13 @@ function controlledBackend() {
       const selected = tableRows.filter(row => (adminMode || visible(row)) && filters.every(filter => filter(row)));
       if (operation === 'delete') {
         if (!adminMode) return result(null, { code: '42501' }, 403);
-        for (const row of selected) tableRows.splice(tableRows.indexOf(row), 1);
+        for (const row of selected) {
+          tableRows.splice(tableRows.indexOf(row), 1);
+          if (table === 'projects') {
+            for (const member of rows.project_members.filter(member => member.project_id === row.id)) rows.project_members.splice(rows.project_members.indexOf(member), 1);
+            for (const invitation of invitations.filter(invitation => invitation.projectId === row.id)) invitations.splice(invitations.indexOf(invitation), 1);
+          }
+        }
         return result(selected.map(({ id }) => ({ id })));
       }
       return result(selected.map(row => ({ ...row })));
@@ -66,6 +75,7 @@ function controlledBackend() {
   };
   function clientFactory() {
     let actorId = null;
+    let session = null;
     return {
       from: table => query(table, actorId),
       auth: {
@@ -74,12 +84,38 @@ function controlledBackend() {
           if (!user) return { error: { code: 'INVALID_CREDENTIALS' }, data: {} };
           actorId = user.id;
           currentId = actorId;
-          return { error: null, data: { session: { access_token: `fictional-${actorId}` } } };
+          session = { access_token: `fictional-${actorId}`, expires_at: Math.floor(Date.now() / 1000) + 3600 };
+          return { error: null, data: { session } };
         },
+        getSession: async () => ({ error: null, data: { session } }),
+        getUser: async () => ({ error: null, data: { user: authUsers.get(actorId) } }),
         updateUser: async () => ({ error: null }),
         refreshSession: async () => ({ error: null }),
       },
-      rpc: async (_name, { p_project_id }) => {
+      rpc: async (name, { p_project_id, p_command, p_payload, p_token }) => {
+        if (name === 'project_invitations' && p_command === 'create') {
+          const project = rows.projects.find(row => row.id === p_project_id);
+          if (!project || orgOwners.get(project.organization_id) !== actorId) return { data: null, error: { code: '42501' } };
+          const invitation = { projectId: p_project_id, email: p_payload.email, role: p_payload.role, token: 'a'.repeat(64) };
+          invitations.push(invitation);
+          return { data: { token: invitation.token }, error: null };
+        }
+        if (name === 'accept_project_invitation') {
+          const invitation = invitations.find(item => item.token === p_token && item.email === authUsers.get(actorId)?.email);
+          if (!invitation) return { data: null, error: { code: 'P0002' } };
+          const project = rows.projects.find(row => row.id === invitation.projectId);
+          rows.project_members.push({ id: randomUUID(), project_id: project.id, organization_id: project.organization_id, user_id: actorId, role: invitation.role });
+          invitation.accepted = true;
+          return { data: { role: invitation.role }, error: null };
+        }
+        if (name === 'project_people' && p_command === 'remove') {
+          const project = rows.projects.find(row => row.id === p_project_id);
+          if (!project || orgOwners.get(project.organization_id) !== actorId) return { data: null, error: { code: '42501' } };
+          const membership = rows.project_members.find(row => row.project_id === p_project_id && row.user_id === p_payload.userId);
+          if (!membership) return { data: null, error: { code: 'P0002' } };
+          rows.project_members.splice(rows.project_members.indexOf(membership), 1);
+          return { data: { removed: true, leftOrganization: true }, error: null };
+        }
         const visibleProject = rows.projects.find(row => row.id === p_project_id && orgOwners.get(row.organization_id) === actorId);
         if (!visibleProject) return { data: null, error: { code: '42501' } };
         const dated = { count: 0, first: null, last: null };
@@ -93,7 +129,7 @@ function controlledBackend() {
     };
   }
   return {
-    rows, authUsers, admin, clientFactory,
+    rows, authUsers, invitations, admin, clientFactory,
     fetchImpl: async url => {
       assert.equal(new URL(url).hostname, `${U03_PREVIEW_REF}.supabase.co`);
       return new Response('', { status: 401 });
@@ -134,4 +170,32 @@ test('full fixture lifecycle creates A1/A2 in A and B1 in B, runs matrix, then r
   assert.equal(await fixtures.verifyOwnedAbsent(), true);
   assert.deepEqual(backend.counts(), { users: 0, organizations: 0, projects: 0, memberships: 0, auditEvents: 0 });
   assert.equal(ledgerRows.filter(row => row.caseId.startsWith('cleanup-') && row.status === 'PASS').length, 9);
+});
+
+test('directed V-4 uses an accepted viewer invitation, keeps the JWT valid, denies the next request, and cleans by IDs', async () => {
+  const backend = controlledBackend();
+  const ledgerRows = [];
+  const fixtures = createDataApiFixtureRun({
+    runId: 'revocation-cycle-test-001', sha: 'a'.repeat(40), admin: backend.admin,
+    publicKey: 'fictional-public-key', clientFactory: backend.clientFactory,
+    ledger: async (caseId, status, detail = {}) => ledgerRows.push({ caseId, status, detail }),
+  });
+  try {
+    const { a1 } = await fixtures.createRevocationFixtures();
+    assert.ok(a1);
+    assert.deepEqual(backend.counts(), { users: 2, organizations: 1, projects: 1, memberships: 0, auditEvents: 0 });
+    assert.deepEqual(await fixtures.runMembershipRevocation({ a1 }), { passed: true, cases: 1 });
+    assert.equal(backend.invitations.length, 1);
+    assert.equal(backend.rows.project_members.length, 0);
+    assert.equal(ledgerRows.find(row => row.caseId === 'membership-grant-before-withdrawal')?.status, 'PASS');
+    assert.equal(ledgerRows.find(row => row.caseId === 'membership-revocation-after-withdrawal')?.status, 'PASS');
+    const serialized = JSON.stringify(ledgerRows);
+    assert.equal(serialized.includes('@ejemplo.test'), false);
+    assert.equal(serialized.includes('fictional-'), false);
+    assert.equal(serialized.includes('a'.repeat(64)), false);
+  } finally {
+    assert.equal((await fixtures.cleanup()).ok, true);
+  }
+  assert.deepEqual(backend.counts(), { users: 0, organizations: 0, projects: 0, memberships: 0, auditEvents: 0 });
+  assert.equal(backend.invitations.length, 0);
 });

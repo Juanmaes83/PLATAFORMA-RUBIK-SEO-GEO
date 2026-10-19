@@ -28,6 +28,7 @@ const PREFLIGHT_SQL = `select
   (select count(*)::int from public.projects) as projects,
   (select count(*)::int from public.organization_members) as organization_members,
   (select count(*)::int from public.project_members) as project_members,
+  (select count(*)::int from private.project_invitations) as invitations,
   (select count(*)::int from public.audit_events) as audit_events,
   (select count(*)::int from private.audit_outbox) as outbox_total,
   (select count(*)::int from private.audit_outbox where state = 'pending') as pending_outbox,
@@ -42,6 +43,7 @@ const FINAL_SQL = `select
   (select count(*)::int from public.projects) as projects,
   (select count(*)::int from public.organization_members) as organization_members,
   (select count(*)::int from public.project_members) as project_members,
+  (select count(*)::int from private.project_invitations) as invitations,
   (select count(*)::int from public.audit_events) as audit_events,
   (select count(*)::int from private.audit_outbox) as outbox_total,
   (select count(*)::int from private.audit_outbox where state = 'pending') as pending_outbox,
@@ -53,7 +55,7 @@ const LEDGER_KEYS = new Set([
   'actor', 'namespace', 'id', 'scope', 'code', 'http', 'kind', 'reason', 'cases', 'count', 'captures',
   'path', 'viewport', 'conclusion', 'viewportWidth', 'documentWidth', 'bodyWidth', 'visibleErrorCount',
   'consoleErrorCount', 'pageErrorCount', 'hydrationErrorCount', 'version', 'projectIds', 'organizationIds',
-  'userIds', 'authUsers', 'organizations', 'projects', 'organizationMembers', 'projectMembers', 'auditEvents',
+  'userIds', 'authUsers', 'organizations', 'projects', 'organizationMembers', 'projectMembers', 'invitations', 'auditEvents',
   'outboxTotal', 'pendingOutbox', 'writerLocked', 'migrationCount', 'latestMigration', 'environment',
   'projectRef', 'deploymentId', 'sha', 'host', 'result', 'visualReview',
   'adminKeyFormat', 'publicKeyFormat',
@@ -88,7 +90,7 @@ export function safeLedgerDetail(input = {}) {
       continue;
     }
     if (key === 'phase' && !['login', 'login-B', 'login-revoked', '/panel-A', '/panel-B', '/A1', '/A2', '/B1', 'deny-B1', 'deny-A1-A2', 'logout-A', 'logout-B', 'revoked-access'].includes(value)) continue;
-    if (key === 'mode' && !['full', 'playwright-only'].includes(value)) continue;
+    if (key === 'mode' && !['full', 'playwright-only', 'membership-revocation'].includes(value)) continue;
     if (key === 'evidenceRunId' && value !== PRIOR_DATA_API_RUN_ID) continue;
     if (typeof value === 'string') result[key] = value.slice(0, 240);
     else if (typeof value === 'number' || typeof value === 'boolean' || value === null) result[key] = value;
@@ -244,7 +246,7 @@ export async function verifyInitialPreviewState({ env = process.env, fetchImpl =
     admin: adminClient,
     initial: {
       authUsers: state.authUsers, organizations: state.organizations, projects: state.projects,
-      organizationMembers: state.organizationMembers, projectMembers: state.projectMembers,
+      organizationMembers: state.organizationMembers, projectMembers: state.projectMembers, invitations: state.invitations,
       auditEvents: state.auditEvents, outboxTotal: state.outboxTotal, pendingOutbox: state.pendingOutbox,
       migrationCount: state.migrationCount, latestMigration: state.latestMigration,
       writerLocked: state.writerLocked, environment: state.environment, projectRef: state.projectRef,
@@ -261,11 +263,11 @@ export async function verifyReadOnlyPreviewState({ sql = runPreviewReadOnlySql }
   if (!migrationMatch) throw new Error('N1_MIGRATION_SET_MISMATCH');
   if (state.environment !== 'preview' || state.project_ref !== U03_PREVIEW_REF) throw new Error('PREVIEW_DATABASE_IDENTITY_INVALID');
   if (state.writer_locked !== true) throw new Error('WRITER_CAPABILITY_NOT_LOCKED');
-  const empty = ['auth_users', 'organizations', 'projects', 'organization_members', 'project_members', 'audit_events', 'outbox_total', 'pending_outbox'];
+  const empty = ['auth_users', 'organizations', 'projects', 'organization_members', 'project_members', 'invitations', 'audit_events', 'outbox_total', 'pending_outbox'];
   if (empty.some(field => state[field] !== 0)) throw new Error('PREVIEW_INITIAL_INVENTORY_NOT_EMPTY');
   return {
     authUsers: state.auth_users, organizations: state.organizations, projects: state.projects,
-    organizationMembers: state.organization_members, projectMembers: state.project_members,
+    organizationMembers: state.organization_members, projectMembers: state.project_members, invitations: state.invitations,
     auditEvents: state.audit_events, outboxTotal: state.outbox_total, pendingOutbox: state.pending_outbox,
     migrationCount: state.migrations.length, latestMigration: state.migrations.at(-1),
     writerLocked: state.writer_locked, environment: state.environment, projectRef: state.project_ref,
@@ -280,7 +282,7 @@ export async function runReadOnlyPreflight({ token = process.env.VERCEL_OIDC_TOK
 
 export async function verifyFinalPreviewState({ sql = runPreviewReadOnlySql } = {}) {
   const state = await sql(FINAL_SQL, { ref: U03_PREVIEW_REF });
-  const inventoriesClear = ['auth_users', 'organizations', 'projects', 'organization_members', 'project_members', 'audit_events']
+  const inventoriesClear = ['auth_users', 'organizations', 'projects', 'organization_members', 'project_members', 'invitations', 'audit_events']
     .every(field => state[field] === 0);
   const outboxClear = state.outbox_total === 0 && state.pending_outbox === 0;
   const capabilitiesSafe = state.writer_locked === true && state.environment === 'preview' && state.project_ref === U03_PREVIEW_REF;
@@ -293,7 +295,7 @@ export async function runHostedU03Campaign({
   root = process.cwd(), mode = 'full',
 } = {}) {
   if (!sha) throw new Error('CAMPAIGN_SHA_REQUIRED');
-  if (!['full', 'playwright-only'].includes(mode)) throw new Error('CAMPAIGN_MODE_INVALID');
+  if (!['full', 'playwright-only', 'membership-revocation'].includes(mode)) throw new Error('CAMPAIGN_MODE_INVALID');
   const ledgerDir = join(root, 'test-results', 'u03-hosted');
   const ledgerPath = join(ledgerDir, `${runId}.jsonl`);
   const captureRoot = join(ledgerDir, runId);
@@ -320,6 +322,12 @@ export async function runHostedU03Campaign({
     await ledger('key-format', 'CLASSIFIED', keyFormats);
     verified = await preflightFn({ env });
     await ledger('preflight', 'PASS', { ...verified.initial, http: verified.initial?.authSettingsHttpStatus ?? null, deploymentId: verified.vercel?.deploymentId, sha: verified.vercel?.sha, host: verified.vercel?.host, projectRef: U03_PREVIEW_REF });
+    if (mode === 'membership-revocation') {
+      // N1 withdrawal queues a pending audit receipt and the N1 delete guard
+      // refuses to remove its project. Preview has no permitted receipt drainer.
+      await ledger('membership-revocation-after-withdrawal', 'BLOCKED_BY_PREVIEW_WRITER', { reason: 'PENDING_RECEIPT_DELETE_GUARD' });
+      throw new Error('REVOCATION_OUTBOX_UNDRAINABLE_PREVIEW');
+    }
     fixtures = fixtureFactory({ runId, sha, admin: verified.admin, publicKey: env.U03_PREVIEW_PUBLIC_KEY, ledger, ref: U03_PREVIEW_REF });
     await fixtures.createUsers();
     await ledger('fixture-users', 'CREATED', { count: 3, namespace: fixtures.namespace });
@@ -363,7 +371,8 @@ export async function runHostedU03Campaign({
         await ledger('final-inventory', finalCheck.inventoriesClear ? 'PASS' : 'FAIL', {
           authUsers: finalCheck.state?.auth_users ?? null, organizations: finalCheck.state?.organizations ?? null,
           projects: finalCheck.state?.projects ?? null, organizationMembers: finalCheck.state?.organization_members ?? null,
-          projectMembers: finalCheck.state?.project_members ?? null, auditEvents: finalCheck.state?.audit_events ?? null,
+          projectMembers: finalCheck.state?.project_members ?? null, invitations: finalCheck.state?.invitations ?? null,
+          auditEvents: finalCheck.state?.audit_events ?? null,
         });
         await ledger('outbox-final', finalCheck.outboxClear ? 'PASS' : 'FAIL', {
           outboxTotal: finalCheck.state?.outbox_total ?? null, pendingOutbox: finalCheck.state?.pending_outbox ?? null,
@@ -384,7 +393,7 @@ export async function runHostedU03Campaign({
   ));
   const b4Pass = Boolean(browserResult) && !failure;
   const status = failure
-    ? (verified === null && fixtures === null ? 'BLOCKED_NO_WRITES' : clean ? 'FAIL_CLEANED' : 'FAIL_CLEANUP_PARTIAL')
+    ? (fixtures === null ? 'BLOCKED_NO_WRITES' : clean ? 'FAIL_CLEANED' : 'FAIL_CLEANUP_PARTIAL')
     : (b4Pass && clean ? 'AWAITING_VISUAL_REVIEW' : 'BLOCKED');
   try {
     await ledger('campaign-global', status, {
@@ -401,7 +410,8 @@ export async function runHostedU03Campaign({
 
 async function main() {
   const sha = (await execFileAsync('git', ['rev-parse', 'HEAD'], { windowsHide: true })).stdout.trim();
-  if (process.argv.includes('--playwright-only') && process.argv.some(arg => ['--readonly-preflight', '--credential-preflight-only'].includes(arg))) {
+  const campaignModes = ['--playwright-only', '--membership-revocation-only'].filter(arg => process.argv.includes(arg));
+  if (campaignModes.length > 1 || campaignModes.length && process.argv.some(arg => ['--readonly-preflight', '--credential-preflight-only'].includes(arg))) {
     console.error('U03 B-4 BLOCKED: CAMPAIGN_MODE_INVALID; no fixtures were created.');
     process.exitCode = 1;
     return;
@@ -435,8 +445,10 @@ async function main() {
     process.exitCode = 1;
     return;
   }
-  const result = await runHostedU03Campaign({ sha, env: process.env, mode: process.argv.includes('--playwright-only') ? 'playwright-only' : 'full' });
-  if (!['AWAITING_VISUAL_REVIEW'].includes(result.status)) process.exitCode = 1;
+  const mode = process.argv.includes('--membership-revocation-only') ? 'membership-revocation' :
+    process.argv.includes('--playwright-only') ? 'playwright-only' : 'full';
+  const result = await runHostedU03Campaign({ sha, env: process.env, mode });
+  if (result.status !== 'AWAITING_VISUAL_REVIEW') process.exitCode = 1;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();
