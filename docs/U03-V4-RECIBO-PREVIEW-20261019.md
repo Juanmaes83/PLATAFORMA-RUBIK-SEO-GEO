@@ -1,0 +1,27 @@
+# U03 V-4 · procesador acotado de recibos en Preview
+
+**Estado:** código y procedimiento para revisión; sin instalación ni ejecución alojada. Destino exclusivo `rhnnplewqsekrnaousyl`. No cambia las 27 migraciones N1, Vercel Authentication ni la guarda `writerPool()` que bloquea Preview en la aplicación.
+
+## Motivo y vía existente
+
+N1 `20261015145025` hace que la RPC `project_people(remove)` retire la membresía y en la misma transacción cree un recibo `member.withdraw` en `private.audit_outbox`. N1 `20261015201500` impide borrar el proyecto mientras el recibo esté `pending`. El producto ya dispone de `processAuditOutbox`: bloquea el recibo, comprueba el ámbito y la cadena HMAC, firma un evento, enlaza `receiptId` y marca el recibo `completed` en una transacción; el reintento devuelve la secuencia existente. Esa rutina usa `writerPool()`, que se cierra en Preview y depende del rol general `rubik_audit_writer`. No hay otra vía legítima desde Auth/Data API para firmar el recibo. Borrar directamente el recibo o desactivar el trigger/guard no satisface V-4.
+
+El arnés reutiliza la misma rutina con `processAuditOutboxWithPool`, sin modificar la selección del pool del producto. `scripts/u03-preview-v4-receipt.mjs` acepta solo el ref exacto, un URL PostgreSQL directo de ese ref o su usuario de pooler con sufijo del ref, y el rol `rubik_preview_receipt_writer`. Exige TLS verificado, identidad Preview en el centinela, rol sin BYPASSRLS/SUPERUSER/INHERIT/CREATEROLE/CREATEDB, vigencia mayor de diez minutos, privilegios de recibo/evento y ausencia de permisos de inserción en resultados de proveedores e idempotencia. Solo procesa el `auditReceiptId` devuelto por la RPC para el proyecto UUID propio. En `finally`, si la respuesta se perdió, busca a lo sumo un recibo `member.withdraw` pendiente para ese proyecto propio, lo firma, limpia los IDs del ledger y comprueba Auth, inventario y outbox a cero. Un error de firma, ámbito o limpieza impide PASS.
+
+## Configuración previa que debe revisar Juanma
+
+1. En **el proyecto Supabase Preview con ref exacto**, comprobar centinela `preview/rhnnplewqsekrnaousyl`, 27 migraciones hasta `20261015210000`, cero inventario/outbox y rol de producto `rubik_audit_writer` todavía `NOLOGIN`. Aplicar únicamente [u03-preview-v4-role.sql](../scripts/u03-preview-v4-role.sql) contra ese ref. Es una configuración exclusiva de Preview, fuera de `supabase/migrations`; el propio SQL aborta si falla el centinela. Crea el rol **NOLOGIN** y concede únicamente SELECT/INSERT en `audit_events`, SELECT/UPDATE limitado en `audit_outbox`, ejecución de la función de ámbito y lectura del centinela. No concede acceso a Auth, tablas de membresía, proveedores ni borrado de recibos.
+2. Tras revisar esos grants, activar ese rol **solo en Preview** con contraseña aleatoria exclusiva, introducida sin eco ni historial (por ejemplo, `psql` interactivo `\password rubik_preview_receipt_writer`); fijar `LOGIN VALID UNTIL` para una ventana corta, mayor de diez minutos, y comprobar `NOINHERIT NOBYPASSRLS NOSUPERUSER`. Nunca reutilizar la URL ni el anillo de Production. La clave HMAC de prueba se genera aleatoriamente en memoria por el wrapper al ejecutar V-4; no se escribe en archivo, Git, Vercel ni chat. No se requiere un servicio nuevo ni proveedores de pago; se usa la base Preview existente. Se requiere conectividad TLS de PostgreSQL desde el Windows del propietario y permiso de administración **solo para preparar el rol**. Si el pooler o TLS no permiten la conexión verificada, detenerse antes de fixtures.
+3. Al terminar o vencer la ventana, mantener el rol sin capacidad de login (`NOLOGIN`); la caducidad corta limita incluso un cierre abrupto. No dejar un rol de firma permanentemente activo. Si el proceso termina con inventario u outbox no cero, conservar ledger/IDs, detener U03 y reconciliar solo esos IDs; nunca borrar un recibo `pending` administrativamente.
+
+**Único comando de campaña V-4**, desde la raíz de este worktree en PowerShell Windows después de revisar y aprovisionar la configuración anterior:
+
+```powershell
+vercel.cmd env run -e preview -- powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/u03-preview-b4-owner.ps1 -MembershipRevocationOnly
+```
+
+El comando usa las claves Admin/Auth Preview ya custodiadas por DPAPI, ejecuta preflight exacto y pide **solo en terminal con entrada oculta** la URL del rol de recibos. La URL y clave HMAC viven en memoria del proceso; el `finally` limpia variables. No repite Data API 12/12 ni B-4, no abre Playwright, no altera Vercel Authentication ni llama a proveedores. El ledger marca ambas suites `SKIP_PRIOR_EVIDENCE` con sus run IDs; registra estados y UUIDs propios, sin URL, contraseña, clave, JWT o email. El último estado alojado conocido antes de esta campaña es el run de solo lectura `dba177cb-6cc9-4a1a-ba1e-88b9c3704130`: cero fixtures y cero outbox. **V-4 aún no se ha ejecutado.**
+
+## Gates y límites
+
+Pruebas locales dirigidas: destino Production/otro ref rechazados, credencial ausente, rol/URL no acotados, preflight sin capacidad, firma inválida, reintento idempotente, respuesta de retirada perdida y reconciliación antes de limpieza. El ensayo usa dobles de PostgreSQL; todavía falta acreditar en Preview la instalación del rol, TLS/privilegios reales, V-4 y limpieza final. GitHub Actions no ejecuta jobs por facturación. Aunque V-4 pase, los casos alojados restantes de U03 y la pasada integral H1/H2 siguen pendientes.

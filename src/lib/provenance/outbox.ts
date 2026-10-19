@@ -16,6 +16,12 @@ export async function processAuditOutbox(id: string, keyring: Keyring): Promise<
   if (!/^[0-9a-f-]{36}$/i.test(id)) return { ok: false, error: "INVALID_RECEIPT" };
   const pool = writerPool();
   if (!pool) return { ok: false, error: "WRITER_NOT_CONFIGURED" };
+  return processAuditOutboxWithPool(id, keyring, pool);
+}
+
+/** Owner-only Preview harness supplies a separately scoped pool; app callers keep writerPool's Preview veto. */
+export async function processAuditOutboxWithPool(id: string, keyring: Keyring, pool: NonNullable<ReturnType<typeof writerPool>>): Promise<{ ok: true; seq: number } | { ok: false; error: string }> {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return { ok: false, error: "INVALID_RECEIPT" };
   let db;
   let failure = "WRITE_FAILED";
   try {

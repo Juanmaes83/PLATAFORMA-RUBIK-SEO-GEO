@@ -183,21 +183,76 @@ test('Playwright-only cannot complete when final outbox is nonzero', async () =>
   assert.match(ledger, /"caseId":"campaign-global","status":"BLOCKED"/);
 }));
 
-test('directed withdrawal blocks before fixtures when Preview cannot drain its audit receipt', async () => withRoot(async root => {
+test('directed withdrawal blocks before fixtures without a scoped receipt credential', async () => withRoot(async root => {
   let fixtureCalls = 0;
   const result = await runHostedU03Campaign({
     root, sha, runId, mode: 'membership-revocation', env: secrets, preflightFn: passingPreflight,
+    receiptProcessorFn: async () => { throw new Error('V4_CREDENTIAL_MISSING'); },
     fixtureFactory: () => { fixtureCalls++; throw new Error('fixture must remain uncreated'); }, finalCheckFn: passingFinal,
     browserFn: async () => { throw new Error('browser must remain skipped'); },
   });
   assert.equal(result.status, 'BLOCKED_NO_WRITES');
   assert.equal(fixtureCalls, 0);
   const ledger = (await readFile(result.ledgerPath, 'utf8')).trim().split('\n').map(JSON.parse);
-  assert.equal(ledger.find(row => row.caseId === 'membership-revocation-after-withdrawal')?.status, 'BLOCKED_BY_PREVIEW_WRITER');
+  assert.equal(ledger.find(row => row.caseId === 'campaign-error')?.code, 'V4_CREDENTIAL_MISSING');
   assert.equal(ledger.some(row => row.caseId.startsWith('fixture-')), false);
   assert.equal(ledger.find(row => row.caseId === 'final-inventory')?.invitations, 0);
   assert.equal(ledger.find(row => row.caseId === 'outbox-final')?.status, 'PASS');
   for (const secret of Object.values(secrets)) assert.equal(JSON.stringify(ledger).includes(secret), false);
+}));
+
+test('directed V-4 signs one receipt and verifies final zero without rerunning matrix or browser', async () => withRoot(async root => {
+  const calls = [];
+  const receiptId = '11111111-1111-4111-8111-111111111111';
+  const projectId = '22222222-2222-4222-8222-222222222222';
+  const result = await runHostedU03Campaign({
+    root, sha, runId, mode: 'membership-revocation', env: secrets, preflightFn: passingPreflight,
+    receiptProcessorFn: async () => ({
+      process: async (receipt, project) => { assert.deepEqual([receipt, project], [receiptId, projectId]); calls.push('sign'); },
+      pendingForProject: async project => { assert.equal(project, projectId); calls.push('reconcile'); return []; },
+      close: async () => calls.push('close'),
+    }),
+    fixtureFactory: () => ({ namespace: 'u03-v4-test',
+      createRevocationFixtures: async () => { calls.push('fixtures'); return { a1: projectId }; },
+      runMembershipRevocation: async () => { calls.push('withdraw'); return { passed: true, receiptId }; },
+      snapshot: () => ({ projectIds: [projectId] }),
+      cleanup: async () => { calls.push('cleanup'); return { ok: true, projectIds: [projectId] }; },
+    }),
+    browserFn: async () => { throw new Error('B4 must be skipped'); }, finalCheckFn: passingFinal,
+  });
+  assert.equal(result.status, 'PASS');
+  assert.deepEqual(calls, ['fixtures', 'withdraw', 'sign', 'reconcile', 'cleanup', 'close']);
+  const ledger = await readFile(result.ledgerPath, 'utf8');
+  assert.match(ledger, /"caseId":"withdrawal-receipt","status":"PASS"/);
+  assert.match(ledger, /"caseId":"data-api-matrix","status":"SKIP_PRIOR_EVIDENCE"/);
+  assert.match(ledger, /"caseId":"browser-b4","status":"SKIP_PRIOR_EVIDENCE"/);
+  assert.doesNotMatch(ledger, /"caseId":"data-api-matrix","status":"PASS"|"caseId":"browser-b4","status":"PASS"/);
+  for (const secret of Object.values(secrets)) assert.equal(ledger.includes(secret), false);
+}));
+
+test('directed V-4 reconciles a lost withdrawal reply before cleanup', async () => withRoot(async root => {
+  const calls = [];
+  const projectId = '22222222-2222-4222-8222-222222222222';
+  const receiptId = '11111111-1111-4111-8111-111111111111';
+  const result = await runHostedU03Campaign({
+    root, sha, runId, mode: 'membership-revocation', env: secrets, preflightFn: passingPreflight,
+    receiptProcessorFn: async () => ({
+      pendingForProject: async () => { calls.push('find-receipt'); return [receiptId]; },
+      process: async () => { calls.push('sign'); }, close: async () => calls.push('close'),
+    }),
+    fixtureFactory: () => ({ namespace: 'u03-v4-test',
+      createRevocationFixtures: async () => ({ a1: projectId }),
+      runMembershipRevocation: async () => { throw new Error('REVOCATION_ACCESS_NOT_DENIED'); },
+      snapshot: () => ({ projectIds: [projectId] }),
+      cleanup: async () => { calls.push('cleanup'); return { ok: true, projectIds: [projectId] }; },
+    }), finalCheckFn: passingFinal,
+  });
+  assert.equal(result.status, 'FAIL_CLEANED');
+  assert.deepEqual(calls, ['find-receipt', 'sign', 'cleanup', 'close']);
+  const ledger = await readFile(result.ledgerPath, 'utf8');
+  assert.match(ledger, /"caseId":"withdrawal-receipt-reconcile","status":"PASS"/);
+  assert.match(ledger, /"caseId":"data-api-matrix","status":"SKIP_PRIOR_EVIDENCE"/);
+  assert.match(ledger, /"caseId":"browser-b4","status":"SKIP_PRIOR_EVIDENCE"/);
 }));
 
 test('filtered child environment omits Preview keys, credentials and OIDC', () => {
@@ -438,23 +493,24 @@ test('initial preflight completes with the mapped read-only state and reports mi
   assert.deepEqual([settingsRead, identityRead, usersRead, sqlRead], [1, 1, 1, 1]);
 });
 
-test('owner wrapper runs no-key preflight before DPAPI load and never prompts during campaigns', async () => {
+test('owner wrapper runs no-key preflight before DPAPI load; only V-4 asks for its separate SQL URL', async () => {
   const script = await readFile(new URL('./u03-preview-b4-owner.ps1', import.meta.url), 'utf8');
   const preflight = script.indexOf('& node $runner --readonly-preflight');
   const credentialLoad = script.indexOf('$previewCredentials = Get-B4PreviewCredentials');
   const credentialPreflight = script.indexOf('& node $runner --credential-preflight-only');
   const credentialSave = script.indexOf('Save-B4PreviewCredentials');
-  const campaignPath = script.slice(credentialLoad, script.indexOf('} finally', credentialLoad));
+  const campaignPath = script.slice(credentialLoad, script.lastIndexOf('} finally'));
   assert.ok(preflight >= 0 && preflight < credentialLoad);
-  assert.doesNotMatch(campaignPath, /Read-B4ClipboardSecret|Read-Host/);
+  assert.doesNotMatch(campaignPath, /Read-B4ClipboardSecret/);
+  assert.match(campaignPath, /if \(\$MembershipRevocationOnly\) \{[\s\S]*Read-Host -Prompt[^\n]*-AsSecureString/);
   assert.ok(preflight < credentialPreflight && credentialPreflight < credentialSave);
   assert.match(script, /if \(\$ProvisionPreviewKeys -or \$ReplacePreviewKeys\)[\s\S]*--credential-preflight-only[\s\S]*Save-B4PreviewCredentials/);
   assert.match(script, /\[switch\]\$ProvisionPreviewKeys[\s\S]*\[switch\]\$CheckPreviewKeys[\s\S]*\[switch\]\$ReplacePreviewKeys[\s\S]*\[switch\]\$DeletePreviewKeys/);
   assert.match(script, /\[switch\]\$PlaywrightOnly/);
   assert.match(script, /\[switch\]\$MembershipRevocationOnly/);
-  assert.match(campaignPath, /if \(\$MembershipRevocationOnly\) \{ & node \$runner --membership-revocation-only \}\s*elseif \(\$PlaywrightOnly\) \{ & node \$runner --playwright-only \}\s*else \{ & node \$runner \}/);
+  assert.match(campaignPath, /& node \$runner --membership-revocation-only[\s\S]*elseif \(\$PlaywrightOnly\) \{ & node \$runner --playwright-only \}/);
   assert.match(script, /-ExpectedPrefix 'sb_secret_'[\s\S]*-ExpectedPrefix 'sb_publishable_'/);
-  assert.doesNotMatch(script, /Read-Host\s+-AsSecureString|Read-B4Secret/);
+  assert.doesNotMatch(script, /Read-B4Secret/);
   assert.doesNotMatch(script, /'U03_PREVIEW_ADMIN_KEY','U03_PREVIEW_PUBLIC_KEY'/);
   assert.match(script, /finally\s*\{[\s\S]*Get-ChildItem Env:[\s\S]*U03_\*/);
   assert.match(script, /finally\s*\{[\s\S]*previewCredentials\.AdminKey = \$null[\s\S]*previewCredentials\.PublicKey = \$null/);

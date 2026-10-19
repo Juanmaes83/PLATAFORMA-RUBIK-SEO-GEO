@@ -9,10 +9,12 @@ import { promisify } from 'node:util';
 import { createPreviewAdminClient } from './u03-preview-api-key.mjs';
 import { createDataApiFixtureRun, U03_PREVIEW_REF } from './u03-preview-data-api.mjs';
 import { PIN, networkEnvironment, preflight, runB4 } from './u03-preview-b4-runner.mjs';
+import { openPreviewReceiptProcessor } from './u03-preview-v4-receipt.mjs';
 
 const execFileAsync = promisify(execFile);
 const SUPABASE_URL = `https://${U03_PREVIEW_REF}.supabase.co`;
 export const PRIOR_DATA_API_RUN_ID = '2c72f352-fd79-4360-8c9b-3c619715c574';
+export const PRIOR_B4_RUN_ID = '5847ce5a-43b9-4dde-9931-61bd8113b27e';
 export const EXPECTED_N1_MIGRATIONS = Object.freeze([
   '20260928120000', '20260928150000', '20261007120000', '20261007150000', '20261009071705',
   '20261009120000', '20261009150000', '20261009170000', '20261009180000', '20261010090000',
@@ -91,7 +93,7 @@ export function safeLedgerDetail(input = {}) {
     }
     if (key === 'phase' && !['login', 'login-B', 'login-revoked', '/panel-A', '/panel-B', '/A1', '/A2', '/B1', 'deny-B1', 'deny-A1-A2', 'logout-A', 'logout-B', 'revoked-access'].includes(value)) continue;
     if (key === 'mode' && !['full', 'playwright-only', 'membership-revocation'].includes(value)) continue;
-    if (key === 'evidenceRunId' && value !== PRIOR_DATA_API_RUN_ID) continue;
+    if (key === 'evidenceRunId' && ![PRIOR_DATA_API_RUN_ID, PRIOR_B4_RUN_ID].includes(value)) continue;
     if (typeof value === 'string') result[key] = value.slice(0, 240);
     else if (typeof value === 'number' || typeof value === 'boolean' || value === null) result[key] = value;
     else if (Array.isArray(value) && value.length <= 100 && value.every(item => typeof item === 'string')) result[key] = value.map(item => item.slice(0, 240));
@@ -292,7 +294,7 @@ export async function verifyFinalPreviewState({ sql = runPreviewReadOnlySql } = 
 export async function runHostedU03Campaign({
   env = process.env, sha, runId = randomUUID(), ledger = null, preflightFn = verifyInitialPreviewState,
   fixtureFactory = createDataApiFixtureRun, browserFn = runB4, finalCheckFn = verifyFinalPreviewState,
-  root = process.cwd(), mode = 'full',
+  receiptProcessorFn = openPreviewReceiptProcessor, root = process.cwd(), mode = 'full',
 } = {}) {
   if (!sha) throw new Error('CAMPAIGN_SHA_REQUIRED');
   if (!['full', 'playwright-only', 'membership-revocation'].includes(mode)) throw new Error('CAMPAIGN_MODE_INVALID');
@@ -315,6 +317,8 @@ export async function runHostedU03Campaign({
   let failure = null;
   let cleanupResult = null;
   let finalCheck = null;
+  let receiptProcessor = null;
+  let revocationPassed = false;
   await ledger('campaign-start', 'STARTED', { deploymentId: PIN.deploymentId, sha: PIN.sha, host: PIN.host, projectRef: U03_PREVIEW_REF, mode });
   try {
     if (!env.U03_PREVIEW_ADMIN_KEY || !env.U03_PREVIEW_PUBLIC_KEY) throw new Error('PREVIEW_KEYS_REQUIRED');
@@ -323,12 +327,20 @@ export async function runHostedU03Campaign({
     verified = await preflightFn({ env });
     await ledger('preflight', 'PASS', { ...verified.initial, http: verified.initial?.authSettingsHttpStatus ?? null, deploymentId: verified.vercel?.deploymentId, sha: verified.vercel?.sha, host: verified.vercel?.host, projectRef: U03_PREVIEW_REF });
     if (mode === 'membership-revocation') {
-      // N1 withdrawal queues a pending audit receipt and the N1 delete guard
-      // refuses to remove its project. Preview has no permitted receipt drainer.
-      await ledger('membership-revocation-after-withdrawal', 'BLOCKED_BY_PREVIEW_WRITER', { reason: 'PENDING_RECEIPT_DELETE_GUARD' });
-      throw new Error('REVOCATION_OUTBOX_UNDRAINABLE_PREVIEW');
+      receiptProcessor = await receiptProcessorFn({ env });
+      await ledger('preview-receipt-writer', 'PASS', { projectRef: U03_PREVIEW_REF });
+      await ledger('data-api-matrix', 'SKIP_PRIOR_EVIDENCE', { cases: 12, evidenceRunId: PRIOR_DATA_API_RUN_ID });
+      await ledger('browser-b4', 'SKIP_PRIOR_EVIDENCE', { evidenceRunId: PRIOR_B4_RUN_ID });
     }
     fixtures = fixtureFactory({ runId, sha, admin: verified.admin, publicKey: env.U03_PREVIEW_PUBLIC_KEY, ledger, ref: U03_PREVIEW_REF });
+    if (mode === 'membership-revocation') {
+      const { a1 } = await fixtures.createRevocationFixtures();
+      await ledger('fixture-revocation', 'CREATED', { count: 2, namespace: fixtures.namespace });
+      const result = await fixtures.runMembershipRevocation({ a1 });
+      await receiptProcessor.process(result.receiptId, a1);
+      await ledger('withdrawal-receipt', 'PASS', { projectIds: [a1] });
+      revocationPassed = result.passed === true;
+    } else {
     await fixtures.createUsers();
     await ledger('fixture-users', 'CREATED', { count: 3, namespace: fixtures.namespace });
     const organizations = await fixtures.createOrganizations();
@@ -344,6 +356,7 @@ export async function runHostedU03Campaign({
     const b4Env = { VERCEL_OIDC_TOKEN: env.VERCEL_OIDC_TOKEN, ...fixtures.browserInputs() };
     browserResult = await browserFn({ env: b4Env, runId, preflightResult: verified.vercel, ledger, captureRoot });
     await ledger('browser-b4', 'PASS', { captures: browserResult?.captures?.length ?? 0, visualReview: 'PENDING_MANUAL_REVIEW' });
+    }
   } catch (error) {
     failure = typeof error?.message === 'string' && /^[A-Z0-9_]{3,80}$/.test(error.message) ? error.message : 'CAMPAIGN_STEP_FAILED';
     try {
@@ -355,6 +368,19 @@ export async function runHostedU03Campaign({
     } catch { /* cleanup still proceeds */ }
   } finally {
     if (fixtures) {
+      if (receiptProcessor) {
+        for (const projectId of fixtures.snapshot().projectIds) {
+          try {
+            for (const receiptId of await receiptProcessor.pendingForProject(projectId)) {
+              await receiptProcessor.process(receiptId, projectId);
+              await ledger('withdrawal-receipt-reconcile', 'PASS', { projectIds: [projectId] });
+            }
+          } catch {
+            failure ??= 'V4_RECEIPT_RECONCILIATION_FAILED';
+            try { await ledger('withdrawal-receipt-reconcile', 'FAIL', { projectIds: [projectId] }); } catch { /* preserve cleanup */ }
+          }
+        }
+      }
       try {
         cleanupResult = await fixtures.cleanup();
         await ledger('fixture-cleanup', cleanupResult?.ok ? 'PASS' : 'PARTIAL', {
@@ -364,6 +390,10 @@ export async function runHostedU03Campaign({
         cleanupResult = { ok: false };
         try { await ledger('fixture-cleanup', 'PARTIAL'); } catch { /* continue final verification */ }
       }
+    }
+    if (receiptProcessor) {
+      try { await receiptProcessor.close(); }
+      catch { failure ??= 'V4_RECEIPT_CLOSE_FAILED'; }
     }
     if (verified) {
       try {
@@ -394,7 +424,8 @@ export async function runHostedU03Campaign({
   const b4Pass = Boolean(browserResult) && !failure;
   const status = failure
     ? (fixtures === null ? 'BLOCKED_NO_WRITES' : clean ? 'FAIL_CLEANED' : 'FAIL_CLEANUP_PARTIAL')
-    : (b4Pass && clean ? 'AWAITING_VISUAL_REVIEW' : 'BLOCKED');
+    : (mode === 'membership-revocation' ? (revocationPassed && clean ? 'PASS' : 'BLOCKED') :
+      (b4Pass && clean ? 'AWAITING_VISUAL_REVIEW' : 'BLOCKED'));
   try {
     await ledger('campaign-global', status, {
       runId, sha, deploymentId: PIN.deploymentId, visualReview: b4Pass ? 'PENDING_MANUAL_REVIEW' : 'NOT_RUN',
@@ -448,7 +479,7 @@ async function main() {
   const mode = process.argv.includes('--membership-revocation-only') ? 'membership-revocation' :
     process.argv.includes('--playwright-only') ? 'playwright-only' : 'full';
   const result = await runHostedU03Campaign({ sha, env: process.env, mode });
-  if (result.status !== 'AWAITING_VISUAL_REVIEW') process.exitCode = 1;
+  if (!['AWAITING_VISUAL_REVIEW', 'PASS'].includes(result.status)) process.exitCode = 1;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();

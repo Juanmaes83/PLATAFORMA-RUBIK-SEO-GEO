@@ -114,7 +114,7 @@ function controlledBackend() {
           const membership = rows.project_members.find(row => row.project_id === p_project_id && row.user_id === p_payload.userId);
           if (!membership) return { data: null, error: { code: 'P0002' } };
           rows.project_members.splice(rows.project_members.indexOf(membership), 1);
-          return { data: { removed: true, leftOrganization: true }, error: null };
+          return { data: { removed: true, leftOrganization: true, auditReceiptId: randomUUID() }, error: null };
         }
         const visibleProject = rows.projects.find(row => row.id === p_project_id && orgOwners.get(row.organization_id) === actorId);
         if (!visibleProject) return { data: null, error: { code: '42501' } };
@@ -184,7 +184,7 @@ test('directed V-4 uses an accepted viewer invitation, keeps the JWT valid, deni
     const { a1 } = await fixtures.createRevocationFixtures();
     assert.ok(a1);
     assert.deepEqual(backend.counts(), { users: 2, organizations: 1, projects: 1, memberships: 0, auditEvents: 0 });
-    assert.deepEqual(await fixtures.runMembershipRevocation({ a1 }), { passed: true, cases: 1 });
+    assert.match((await fixtures.runMembershipRevocation({ a1 })).receiptId, /^[0-9a-f-]{36}$/);
     assert.equal(backend.invitations.length, 1);
     assert.equal(backend.rows.project_members.length, 0);
     assert.equal(ledgerRows.find(row => row.caseId === 'membership-grant-before-withdrawal')?.status, 'PASS');

@@ -1,5 +1,12 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
+## Corte vigente · 19/10/2026 · V-4 Preview preparado, no ejecutado
+
+- #129 OPEN/Draft sobre `main@f39620e347756e980192aac8fe93b9a2e8db6376`; HEAD de partida `4fc38a88d2cb0b7f2d01940aa48ea4e5827f6744`. El SHA publicado de este cambio figura en el cuerpo de la PR. B-4 `5847ce5a-43b9-4dde-9931-61bd8113b27e` tiene aceptación visual posterior de Juanma; Data API 12/12 procede del run `2c72f352-fd79-4360-8c9b-3c619715c574`. Ninguno se repitió.
+- V-4: el trigger de retirada crea recibo `pending` y el guard impide borrar A1 hasta firmarlo. Se añadió un rol exclusivo de Preview NOLOGIN para revisión, un procesador que reutiliza `processAuditOutbox` con pool explícito, y un modo dirigido con preflight, dos usuarios, mismo JWT, firma legítima, reconciliación y cleanup por IDs. El escritor general de Preview, Vercel Authentication, Production y proveedores no cambian. SQL de operador sin aplicar, credencial sin activar y V-4 alojado no ejecutado.
+- Pruebas locales dirigidas: 54/54 PASS; parser/DPAPI/portapapeles Windows PASS. Negativos: ref Production/otro, credencial ausente, rol/capacidades, firma inválida, retry/idempotencia y respuesta perdida. Pendiente acreditar SQL/TLS reales en Preview y cero final tras la única campaña. GitHub Actions sin jobs por facturación; U03/H1/H2 BLOQUEADOS.
+- Próxima acción: revisión del rol y procedimiento en `docs/U03-V4-RECIBO-PREVIEW-20261019.md`; Juanma provisiona solo Preview con vigencia corta y ejecuta una vez `-MembershipRevocationOnly`. Si el preflight no es exacto, parar antes de fixtures; si la limpieza no da cero, mantener U03 bloqueado. Actualizar SHA remoto y pruebas después de publicar el commit.
+
 ## Corte vigente · 19/10/2026 · aceptación B-4 y V-4 dirigido
 
 - PR #129 OPEN/Draft en la rama existente. Run B-4 `5847ce5a-43b9-4dde-9931-61bd8113b27e` ejecutado con `3bc9d85098f3d6536bc28abb7079b8400bd061cf`: ledger original `AWAITING_VISUAL_REVIEW`, diez capturas, navegación escritorio/móvil PASS, limpieza e inventario/outbox final a cero. Juanma aprobó después manualmente `desktop-b-panel`: ownerB ve solo U03 b1, no A1/A2. Registrar esa aceptación en matriz/handoff/PR, sin editar el ledger original.

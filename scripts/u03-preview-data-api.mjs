@@ -144,12 +144,14 @@ export function createDataApiFixtureRun({ runId, sha, admin, publicKey, ledger, 
     const validJwt = !currentSession.error && currentSession.data?.session?.access_token === accessToken &&
       currentSession.data.session.expires_at > Date.now() / 1000 &&
       !currentUser.error && currentUser.data?.user?.id === accounts.outsider.id;
+    const receiptId = removed.data?.auditReceiptId;
     const denied = !removed.error && removed.data?.removed === true && removed.data?.leftOrganization === true &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(receiptId ?? '') &&
       validJwt && !after.error && after.data?.length === 0 &&
       !ownerMembership.error && ownerMembership.data?.length === 0;
     await ledger('membership-revocation-after-withdrawal', denied ? 'PASS' : 'FAIL', { actor: 'outsider' });
     if (!denied) throw new Error('REVOCATION_ACCESS_NOT_DENIED');
-    return { passed: true, cases: 1 };
+    return { passed: true, cases: 1, receiptId };
   }
 
   async function runMatrix({ orgA, a1, a2, b1 }) {

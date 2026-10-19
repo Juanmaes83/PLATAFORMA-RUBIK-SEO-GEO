@@ -127,7 +127,21 @@ try {
   $env:U03_PREVIEW_PUBLIC_KEY = $previewCredentials.PublicKey
   if ([string]::IsNullOrWhiteSpace($env:U03_PREVIEW_ADMIN_KEY) -or [string]::IsNullOrWhiteSpace($env:U03_PREVIEW_PUBLIC_KEY)) { Stop-B4 'PREVIEW_KEYS_REQUIRED' }
 
-  if ($MembershipRevocationOnly) { & node $runner --membership-revocation-only }
+  if ($MembershipRevocationOnly) {
+    # This dedicated SQL credential is supplied once, masked, and never persisted.
+    # The signing key is fresh for this empty Preview and stays in process memory.
+    $secureReceiptUrl = Read-Host -Prompt 'URL PostgreSQL del rol exclusivo de recibos Preview (entrada oculta)' -AsSecureString
+    try {
+      $env:U03_PREVIEW_RECEIPT_DATABASE_URL = [System.Net.NetworkCredential]::new('', $secureReceiptUrl).Password
+    } finally { $secureReceiptUrl.Dispose() }
+    $env:U03_PREVIEW_REF = 'rhnnplewqsekrnaousyl'
+    $env:U03_PREVIEW_RECEIPT_KEY_ID = 'u03-v4-run'
+    $keyBytes = New-Object byte[] 32
+    $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
+    try { $rng.GetBytes($keyBytes); $env:U03_PREVIEW_RECEIPT_SIGNING_KEY = [Convert]::ToBase64String($keyBytes) }
+    finally { $rng.Dispose(); [Array]::Clear($keyBytes, 0, $keyBytes.Length) }
+    & node $runner --membership-revocation-only
+  }
   elseif ($PlaywrightOnly) { & node $runner --playwright-only }
   else { & node $runner }
   if ($LASTEXITCODE -ne 0) { Stop-B4 'U03_B4_CAMPAIGN_FAILED_OR_CLEANUP_UNVERIFIED' }
