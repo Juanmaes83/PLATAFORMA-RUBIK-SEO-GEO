@@ -49,9 +49,10 @@ export function tamperSessionCookies(cookies) {
 }
 
 export async function waitForExpiry(exp, { now = () => Date.now(), sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), ledger = async () => {} } = {}) {
-  const remaining = exp * 1000 + 2000 - now();
+  const remaining = exp * 1000 + 45_000 - now();
   if (remaining < -60_000 || remaining > 2 * 60 * 60 * 1000) throw new GateError('SESSION_EXPIRY_OUT_OF_RANGE');
-  const target = exp * 1000 + 2000;
+  // PostgREST allows 30 seconds of clock skew; wait beyond that margin.
+  const target = exp * 1000 + 45_000;
   while (now() < target) {
     const pause = Math.min(30_000, target - now());
     await sleep(pause);
