@@ -2,9 +2,9 @@
 
 ## Actualización vigente · comparación segura de credenciales V-4 · 19/10/2026
 
-En #129, desde `68786f5db573fbbc3d2d51e2cd8fc5cec964ed7d`, se añadió una sola entrada `SecureString` para comparar psql y Node con los mismos bytes. psql usa el CA fijado y `verify-full`; Node verifica la contraseña descodificada y conserva `rejectUnauthorized`. Fallos de psql se reducen a categoría/código estáticos; ni su stderr, contraseña o URL se imprimen o guardan. El modo de campaña se detiene antes de fixtures si falla cualquiera. No se ha atribuido aún el 28P01 anterior: la comparación alojada sigue pendiente, y no se ejecutaron escrituras.
+En #129, desde `68786f5db573fbbc3d2d51e2cd8fc5cec964ed7d`, el SHA funcional publicado es `107affbe61269c31ebafc515f025b68248e16b0b`. Se añadió una sola entrada `SecureString` para comparar psql y Node con los mismos bytes. psql usa el CA fijado y `verify-full`; Node verifica la contraseña descodificada y conserva `rejectUnauthorized`. Fallos de psql se reducen a categoría/código estáticos; ni su stderr, contraseña o URL se imprimen o guardan. El modo de campaña se detiene antes de fixtures si falla cualquiera. No se ha atribuido aún el 28P01 anterior: la comparación alojada sigue pendiente, y no se ejecutaron escrituras. #129 permanece OPEN/Draft; `origin` apunta al mismo commit.
 
-Pruebas Windows dirigidas 7/7; `npm run verify` completó 607 PASS/1 SKIP, escaneo de 707 archivos, lint, tipos y build. B-4, Data API y otras suites alojadas no se repitieron. PR #129 sigue OPEN/Draft sobre `main@f39620e347756e980192aac8fe93b9a2e8db6376`. V-4/U03/H1/H2 siguen BLOCKED/abiertos. Próximo paso: publicar el cambio y hacer una sola ejecución Windows del comando del expediente; comparar primero psql y Node y ejecutar V-4 solo si ambos pasan.
+Pruebas Windows dirigidas 7/7; `npm run verify` completó 607 PASS/1 SKIP, escaneo de 707 archivos, lint, tipos y build. B-4, Data API y otras suites alojadas no se repitieron. PR #129 sigue OPEN/Draft sobre `main@f39620e347756e980192aac8fe93b9a2e8db6376`. V-4/U03/H1/H2 siguen BLOCKED/abiertos. Próximo paso: ejecutar una sola vez desde Windows el comando del expediente; comparar primero psql y Node y ejecutar V-4 solo si ambos pasan.
 
 ## Actualización vigente · diagnóstico V-4 de solo lectura · 19/10/2026
 

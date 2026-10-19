@@ -2,7 +2,7 @@
 
 ## Actualización V-4 diagnóstico administrativo · 19/10/2026
 
-### Comparación psql/Node con una entrada · HEAD siguiente a 68786f5
+### Comparación psql/Node con una entrada · SHA funcional 107affbe61269c31ebafc515f025b68248e16b0b
 
 El resultado previo AUTHENTICATION/`DATABASE_AUTHENTICATION_REJECTED` no se atribuye a una contraseña incorrecta ni a un fallo de `node-postgres`: el psql PASS independiente no probó que ambos clientes recibieran los mismos bytes. El operador Windows actualizado pide una sola vez la Database password como SecureString y usa la misma cadena en memoria para `PGPASSWORD` y para la URL Node. psql conecta con `verify-full` y la CA raíz fijada; Node verifica igualdad byte a byte después de descodificar la URL y ejecuta el preflight TLS verificado. Solo muestra categorías/códigos allowlisted. `-MembershipRevocationOnly` continúa a una sola V-4 si ambos pasan; si no, se detiene antes de fixtures y no intenta contención sin instalación acreditada.
 
