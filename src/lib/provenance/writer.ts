@@ -19,9 +19,9 @@ type ActorRow = { organization_id: string; actor_role: AuditInput["actor"]["role
 let sharedPool: Pool | null = null;
 let poolUrl: string | null = null;
 export function writerPool(): Pool | null {
-  // A Vercel Preview never opens a database connection, whatever its variables say: the
-  // Preview session lock (src/lib/auth/mode.ts) must also cover this direct Postgres path.
-  if (previewLocked(process.env)) return null;
+  // Session access and direct SQL transport are separate U02 decisions. A Preview
+  // never inherits a Production writer URL when session access is enabled later.
+  if ((process.env.VERCEL_ENV ?? "").trim() === "preview" || previewLocked(process.env)) return null;
   const url = process.env.RUBIK_AUDIT_DATABASE_URL;
   if (!url) return null;
   if (sharedPool && poolUrl === url) return sharedPool;

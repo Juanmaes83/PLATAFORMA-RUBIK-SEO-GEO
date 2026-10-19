@@ -2,7 +2,7 @@
 // when NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY are set. The demo
 // login of CORE-9.0 (AUTH_MODE=mock) was removed; the startup barriers that refuse it in
 // production stay, so an old configuration can never reach a production server.
-export type AuthMode = "supabase" | "not-configured" | "preview-locked";
+export type AuthMode = "supabase" | "not-configured" | "preview-locked" | "preview-isolated";
 
 export interface AuthModeInfo {
   mode: AuthMode;
@@ -40,7 +40,62 @@ export function isSecretKey(key: string): boolean {
 }
 
 export const PREVIEW_LOCKED_NOTICE =
-  "Preview de Vercel sin base de datos propia: el acceso está desactivado para no leer ni escribir datos reales desde código sin revisar.";
+  "Preview de Vercel sin identidad de base acreditada: el acceso permanece desactivado.";
+
+// U02 remains closed until the isolated project's ref is approved in this reviewed file.
+// An environment flag cannot supply the allowlist or authorize access to Production.
+export const PRODUCTION_SUPABASE_REF = "yvdgmklgwlshizzgefpv";
+export const APPROVED_PREVIEW_SUPABASE_REF: string | null = "rhnnplewqsekrnaousyl";
+
+export function previewIdentityMatches(env: Env, approvedRef: string | null = APPROVED_PREVIEW_SUPABASE_REF): boolean {
+  if (env.VERCEL_ENV !== "preview") return false;
+  if (!approvedRef || !/^[a-z0-9]{20}$/.test(approvedRef) || approvedRef === PRODUCTION_SUPABASE_REF) return false;
+  try {
+    const url = new URL((env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim());
+    return url.protocol === "https:"
+      && url.hostname === `${approvedRef}.supabase.co`
+      && url.port === ""
+      && url.username === ""
+      && url.password === ""
+      && url.pathname === "/"
+      && url.search === ""
+      && url.hash === "";
+  } catch {
+    return false;
+  }
+}
+
+/** A verified Preview session must be issued by the same approved Auth project. */
+export function previewJwtIssuerMatches(
+  issuer: unknown,
+  env: Env,
+  approvedRef: string | null = APPROVED_PREVIEW_SUPABASE_REF,
+): boolean {
+  return previewIdentityMatches(env, approvedRef)
+    && issuer === `https://${approvedRef}.supabase.co/auth/v1`;
+}
+
+/** A real Data API read, not an environment flag, is required before Preview opens a session. */
+export async function previewDatabaseIdentityMatches(
+  env: Env,
+  fetcher: typeof fetch = fetch,
+  approvedRef: string | null = APPROVED_PREVIEW_SUPABASE_REF,
+): Promise<boolean> {
+  if (!previewIdentityMatches(env, approvedRef)) return false;
+  const key = (env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "").trim();
+  if (!key || isSecretKey(key)) return false;
+  try {
+    const response = await fetcher(`https://${approvedRef}.supabase.co/rest/v1/rpc/preview_environment_identity`, {
+      headers: { apikey: key }, cache: "no-store", signal: AbortSignal.timeout(3000),
+    });
+    if (!response.ok) return false;
+    const rows: unknown = await response.json();
+    return Array.isArray(rows) && rows.length === 1
+      && rows[0]?.environment === "preview" && rows[0]?.project_ref === approvedRef;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Vercel Previews share the production Supabase project until an isolated one exists
@@ -52,7 +107,7 @@ export const PREVIEW_LOCKED_NOTICE =
  * Production and local development are unaffected.
  */
 export function previewLocked(env: Env): boolean {
-  return (env.VERCEL_ENV ?? "").trim() === "preview";
+  return (env.VERCEL_ENV ?? "").trim() === "preview" && !previewIdentityMatches(env);
 }
 
 /** The public Supabase settings, or null when they are missing, unusable or locked in a Preview. */

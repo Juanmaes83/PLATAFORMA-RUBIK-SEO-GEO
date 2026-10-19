@@ -1,0 +1,214 @@
+# U03 · matriz alojada de Preview · 18/10/2026
+
+## Estado verificado · V-4 alojado PASS · 19/10/2026
+
+En `rhnnplewqsekrnaousyl`, el run `b170134c-5538-4f81-b459-1bb762b95bad` terminó `campaign-global: PASS` y `receipt-role-containment: PASS` sobre #129@`e213238c136909c652907b026eac5e412077329a`. La misma entrada segura dio `admin-password-transport: PASS` y `admin-connection-diagnostic: PASS`; después pasaron `membership-grant-before-withdrawal`, `membership-revocation-after-withdrawal` con el JWT aún vigente, `withdrawal-receipt`, `fixture-cleanup`, `final-inventory`, `outbox-final` y `capabilities-final`. Data API 12/12 (`2c72f352-fd79-4360-8c9b-3c619715c574`) y B-4 Chromium escritorio/móvil con aceptación visual posterior de Juanma (`5847ce5a-43b9-4dde-9931-61bd8113b27e`) son evidencia anterior; no se repitieron en V-4.
+
+Una consulta independiente posterior de solo lectura confirmó un centinela Preview exacto, cero usuarios Auth, organizaciones, proyectos, membresías, eventos y recibos (incluidos pendientes), ausencia del rol y las cuatro políticas temporales de V-4, y `rubik_audit_writer` con `rolcanlogin=false`. Los ledgers originales no se alteran. Los apartados siguientes que dicen «V-4 bloqueado/no ejecutado» describen cortes históricos previos a este run.
+
+**U03 global permanece abierto:** faltan roles account-manager, analyst, viewer, client-approver y viewer limitado a A2; V-1 completo, V-2 y V-3 (invitación/consentimiento y revocación); negativos de sesión/cookie, refresh y JWT auténtico caducado o de otro emisor bajo un alcance autorizado; y las superficies cruzadas restantes del protocolo N1-05. Un bearer inválido, los tres actores Data API y B-4 ya tienen sus PASS acotados. No atribuir PASS a los casos restantes. H1 requiere el ensayo ficticio integral de exportación/verificación/restauración y U04/Sarah; H2 añade aceptación operativa y comercial. #129 sigue Draft; GitHub Actions no ha ejecutado jobs por facturación.
+
+## Actualización V-4 diagnóstico administrativo · 19/10/2026
+
+### Comparación psql/Node con una entrada · SHA funcional 107affbe61269c31ebafc515f025b68248e16b0b
+
+El resultado previo AUTHENTICATION/`DATABASE_AUTHENTICATION_REJECTED` no se atribuye a una contraseña incorrecta ni a un fallo de `node-postgres`: el psql PASS independiente no probó que ambos clientes recibieran los mismos bytes. El operador Windows actualizado pide una sola vez la Database password como SecureString y usa la misma cadena en memoria para `PGPASSWORD` y para la URL Node. psql conecta con `verify-full` y la CA raíz fijada; Node verifica igualdad byte a byte después de descodificar la URL y ejecuta el preflight TLS verificado. Solo muestra categorías/códigos allowlisted. `-MembershipRevocationOnly` continúa a una sola V-4 si ambos pasan; si no, se detiene antes de fixtures y no intenta contención sin instalación acreditada.
+
+Dirigidas Windows: 7/7; `npm run verify`: 607 PASS/1 SKIP, escaneo de secretos, lint, tipos y build PASS. En el único intento alojado posterior al cambio pasó el preflight read-only (27 migraciones/inventario cero/escritor bloqueado); la consola se detuvo en el prompt seguro antes de psql/Node. No hubo ledger, fixtures ni cambios. La discrepancia histórica queda sin causa demostrada hasta observar el resultado comparado. El comando único y el prompt oculto están en [el expediente V-4](U03-V4-RECIBO-PREVIEW-20261019.md). V-4 permanece BLOCKED; no se repitieron Data API ni B-4.
+
+El run `2e0c5119-7f95-43d1-8aa0-3f4ba34b33e1` falló antes del preflight administrativo y no dejó causa diagnóstica útil. La lectura independiente aportada por Juanma muestra Preview sin fixtures/outbox, sin rol temporal ni políticas U03 temporales. No se repitió campaña.
+
+El modo `-V4ConnectionDiagnosticOnly` está preparado como paso read-only separado, con entrada `Read-Host -AsSecureString` de solo la Database password. Clasifica DNS/TCP/TLS-cert/auth/permiso/capacidad por categoría y código allowlisted, sin guardar URL, contraseña ni mensaje PostgreSQL. El run de campaña también ejecuta ese diagnóstico primero y no intenta contención salvo que su ledger acredite `receipt-role-install: ATTEMPTED/PASS`. `node --test scripts/u03-preview-v4-operator.test.mjs` pasó 6/6; incluye errores simulados y verifica categoría/código en ledger sin sentinelas. No hubo conexión alojada, SQL ni fixtures en este cambio. La campaña V-4 sigue BLOCKED hasta que pase una única ejecución del modo de diagnóstico y, después, una sola campaña autorizada.
+
+## Corte vigente · V-4 operador único probado localmente · 19/10/2026
+
+La ruta manual de `psql` descrita en los párrafos históricos queda sustituida por `scripts/u03-preview-v4-operator.mjs`, invocado desde el wrapper Windows. El operador pide solo la Database password existente de Preview mediante `Read-Host -AsSecureString`; construye en memoria la URL Session pooler fija `aws-1-eu-west-3.pooler.supabase.com:5432`, usuario `postgres.rhnnplewqsekrnaousyl`, base `postgres`, con escape RFC 3986. Valida ref/host/puerto/usuario y TLS, hace preflight de identidad y privilegios, instala el rol temporal como `NOLOGIN`, activa por 30 minutos, ejecuta únicamente V-4 y bloquea/retira el rol en `finally` solo tras acreditar inventario y outbox a cero. Si quedan residuos, conserva rol bloqueado, ledger e IDs. No se ha ejecutado en Preview.
+
+El ensayo se ejecutó en un stack local aislado recién iniciado con las 27 migraciones N1: `node scripts/test-u03-v4-rollback-local.mjs` PASS. Acreditó retirada RPC y denegación del mismo JWT aún vigente; recibo firmado, cadena/HMAC y retry idempotente; limpieza por IDs y cero inventario/outbox; `NOLOGIN` con residuos y rollback idempotente sin residuos; y el ciclo del operador con rol marcado y rollback automático. El intento previo con el stack detenido no cuenta como resultado; esta ejecución posterior sí pasó. `npm.cmd run test:u03-b4` 59/59 PASS y `npm.cmd run verify` PASS (607 PASS/1 SKIP, escaneo de secretos, lint, tipos y build). No se repitieron suites alojadas.
+
+**Estado actual:** V-4 Preview sigue BLOCKED/NO EJECUTADO; los 12 casos Data API y B-4 continúan PASS por evidencia previa. U03 sigue BLOCKED hasta V-4 alojado y los otros casos obligatorios de actores/invitación/consentimiento/sesión de la matriz. H1 sigue BLOCKED por su ensayo integral ficticio de acceso, utilidad, exportación/validación/restauración y por la pasada U04; H2 sigue BLOCKED por H1, U02/U03 y gates operativos/comerciales. #129 continúa OPEN/Draft. El único paso operativo siguiente para V-4 es que Juanma ejecute el comando único del expediente e introduzca solo la Database password mediante la entrada oculta.
+
+La campaña de Production no se ejecutó: el deployment actual de Production confirmó el ref correcto, pero la lectura no reveló `RUBIK_AUDIT_DATABASE_URL`; la consulta SQL de solo lectura tampoco pudo completarse por la limitación IPv6 de la CLI y permisos del conector. No se infiere estado actual del rol N1 ni se usa Production para sustituir el gate Preview.
+
+## Reversión V-4 preparada · 19/10/2026
+
+La instalación, la activación corta, el bloqueo inmediato `NOLOGIN` y el rollback idempotente del rol `rubik_preview_receipt_writer` se ensayaron en un **stack local nuevo y aislado** con exactamente 27 migraciones N1. El ensayo comprobó grants y cuatro políticas efectivos, la denegación de acceso tras retirada por RPC con el mismo JWT aún válido, firma auténtica y retry del recibo, limpieza por IDs e inventario/outbox a cero. Un rollback con residuos se detuvo tras confirmar `NOLOGIN`; uno sin residuos retiró rol y políticas, y su repetición fue inocua. Se corrigió en el SQL de instalación la referencia de la política a `audit_events.details`, que inicialmente se resolvía como `outbox.details`. [Procedimiento y comandos del propietario](U03-V4-RECIBO-PREVIEW-20261019.md).
+
+**Nota histórica, sustituida por el corte vigente de arriba:** el wrapper anterior no tenía credencial administrativa y requería contención manual. El operador actual sí dispone de la entrada administrativa oculta durante su único proceso y ejecuta la contención/rollback; nunca escribe claves en ledger. El SQL alojado sigue sin ejecutar, no hay fixtures alojados y V-4 está pendiente.
+
+El preflight también audita funciones y procedimientos ejecutables después de conceder `USAGE` en `public` y `private`, usando catálogos PostgreSQL y privilegios efectivos heredados de `PUBLIC`. Solo permite los `SECURITY DEFINER` `private.audit_writer_project(uuid)` y `public.preview_environment_identity()`, requeridos para acotar firma y comprobar centinela. En el stack aislado N1 la configuración prevista pasó; al añadir una función `SECURITY DEFINER` ejecutable por `PUBLIC`, el preflight la identificó y falló antes de fixtures. No se tocaron grants globales ni funciones del producto.
+
+## Diseño previo V-4 · 19/10/2026 · sustituido por el operador único del corte actual
+
+La incompatibilidad entre retirada y limpieza tiene una vía técnica preparada en [U03-V4-RECIBO-PREVIEW-20261019](U03-V4-RECIBO-PREVIEW-20261019.md): rol SQL independiente y temporal solo para `rhnnplewqsekrnaousyl`, clave HMAC de prueba en memoria y reutilización de `processAuditOutbox` para firmar el recibo auténtico de `project_people(remove)`. El escritor general de la aplicación sigue bloqueado en Preview. El modo `-MembershipRevocationOnly` ahora hace preflight del rol **antes** de crear los dos usuarios propios; luego prueba denegación con el mismo JWT, firma por ID propio, reconcilia en `finally` si se perdió la respuesta, limpia y exige inventario/outbox a cero. El SQL de preparación no es una migración y permanece sin aplicar; no hay credencial activada ni V-4 alojado ejecutado. La explicación histórica de bloqueo de abajo describe el estado anterior a este diseño.
+
+SHA funcional `3774f6ba4c8b04f1d641e4e82ef1ed8b96ac9797`. Pruebas locales del diseño: 54/54 dirigidas PASS, incluidas negativas de ref Production/otro ref, credencial ausente, rol incorrecto, firma inválida, retry/idempotencia y reconciliación; pruebas Windows de parser/DPAPI/portapapeles PASS. `npm.cmd run verify` PASS: core pin, secretos en 700 archivos, lint, tipos, Vitest 607 PASS/1 SKIP y build. El procesador se probó con dobles de PostgreSQL; la capacidad y limpieza reales siguen pendientes. Data API 12/12 y B-4 visual PASS son evidencia previa y no se han repetido alojadas. U03, H1 y H2 siguen **BLOCKED**.
+
+## Evidencia posterior B-4 y gate V-4 · 19/10/2026
+
+El ledger local ignorado de `5847ce5a-43b9-4dde-9931-61bd8113b27e` conserva su resultado original `campaign-global: AWAITING_VISUAL_REVIEW` y `visual-review: PENDING_MANUAL_REVIEW`; **no se modificó**. En ese run, con código `3bc9d85098f3d6536bc28abb7079b8400bd061cf`, `data-api-matrix: SKIP_PRIOR_EVIDENCE` referencia el run previo `2c72f352-fd79-4360-8c9b-3c619715c574`. B-4 registró diez capturas saneadas y PASS de navegación en escritorio y móvil. La captura `5847ce5a-43b9-4dde-9931-61bd8113b27e-desktop-b-panel.png` se encuentra bajo la carpeta local del mismo run: muestra solo el proyecto ficticio **U03 b1** para ownerB, sin A1/A2. Juanma la revisó y aprobó; su **aceptación visual manual PASS** se incorpora aquí como evidencia posterior, sin reescribir el ledger. El mismo ledger acredita `fixture-cleanup: PASS`, `final-inventory: PASS` con Auth/organizaciones/proyectos/membresías/auditoría a cero, `outbox-final: PASS` con total y pendientes a cero, y escritor bloqueado. Las demás capturas y la limpieza corresponden al mismo `runId`.
+
+El [Roadmap N1-05](ROADMAP-MAESTRO-2026.md) incluye expresamente la retirada de acceso y el [protocolo alojado V-4](N1-05-PROTOCOLO-ALOJADO-20261015.md) exige que, tras retirarlo, la siguiente petición de B sea denegada. Por eso `membership-revocation-after-withdrawal` es obligatorio para cerrar U03. El B-4 anterior omitió ese control al no tener una membresía retirada durante la sesión. La prueba local dirigida está preparada: crea solo ownerA, viewer, organización A y A1, acepta una invitación, retira al viewer por RPC y comprueba denegación con el mismo JWT aún válido; un `finally` limpia por IDs. No llama a Data API 12/12 ni B-4.
+
+**Bloqueo alojado descubierto antes de escribir:** la migración N1 `20261015145025` instala `project_members_audit_withdrawal`: V-4 inserta un recibo `pending` en `private.audit_outbox`. La migración `20261015201500` instala `projects_pending_audit_guard`, que impide borrar A1 mientras ese recibo siga pendiente. El preflight de este Preview exige que `rubik_audit_writer` esté `NOLOGIN`; el veto al escritor impide procesar y firmar el recibo. Por tanto, V-4 no puede dejar simultáneamente los fixtures y outbox a cero en este entorno sin violar una guarda. No activar escritor ni borrar el recibo administrativamente para forzar un PASS. El gate requiere un entorno ficticio expresamente autorizado con procesamiento legítimo de recibos, o una decisión de alcance revisada; no se marca PASS en Preview.
+
+**Intento dirigido de solo lectura, run `dba177cb-6cc9-4a1a-ba1e-88b9c3704130`:** código `6cc5cda762a2d78acbfd4355ac2f1ece8e9764b2`, modo `membership-revocation`. El preflight confirmó deployment/ref fijados, 27 migraciones hasta `20261015210000`, registro cerrado, inventario y outbox a cero y escritor bloqueado. El ledger local ignorado registra `membership-revocation-after-withdrawal: BLOCKED_BY_PREVIEW_WRITER` con razón `PENDING_RECEIPT_DELETE_GUARD`, `campaign-global: BLOCKED_NO_WRITES` y **cero filas `fixture-*`**. La lectura final volvió a dar Auth/organizaciones/proyectos/membresías/invitaciones/auditoría a cero, outbox total/pendiente a cero y escritor bloqueado. No se ejecutó V-4, Data API 12/12 ni B-4; tampoco hubo captura ni limpieza necesaria. El ledger original de B-4 `5847ce5a-43b9-4dde-9931-61bd8113b27e` sigue intacto.
+
+La aceptación B-4 y un eventual PASS V-4 no cierran por sí solos U03: siguen los roles y negativas de la matriz alojada, sesión/JWT auténtico y los demás V-1/V-2/V-3 exigidos por el protocolo. El veto al escritor y a las claves de firma en Preview permanece; H1/H2 siguen abiertos.
+
+## B-4 solo Playwright · preparación del 19/10/2026
+
+La siguiente campaña alojada de #129 usa `-PlaywrightOnly`. Crea sus propios tres usuarios Auth ficticios, dos organizaciones y A1/A2/B1 después del preflight completo; ejecuta únicamente el login protegido y la navegación Playwright de escritorio y móvil. El transporte OIDC por CDP añade el encabezado solo al host exacto `plataforma-rubik-seo-bdzqlpg6z-juanma-espinosas-projects.vercel.app` y bloquea redirecciones externas. El pin sigue siendo el deployment `dpl_6fqataMxfkGFSZJKVGk5xJe8snXq`, app SHA `06c2b4270fc74d88ef3e3560bb5d07d8aeb948e2`, proyecto `prj_HgnTtNtisi9Kt1A4Dq2pxoCQBook` y Supabase Preview `rhnnplewqsekrnaousyl`. Vercel Authentication permanece activa; no se modifica Supabase.
+
+El modo **omite `runMatrix`**. El ledger escribe `data-api-matrix: SKIP_PRIOR_EVIDENCE`, `cases: 12` y `evidenceRunId: 2c72f352-fd79-4360-8c9b-3c619715c574`. Ese run anterior acreditó 12/12 casos Data API y limpieza; el nuevo ledger no contará esos casos como ejecutados de nuevo. El `finally` reutiliza la limpieza atribuible por IDs/namespace y exige después inventario Auth, organizaciones, proyectos, membresías y auditoría a cero, outbox total/pendiente a cero y escritor bloqueado. Si no se acredita, el resultado no puede ser `AWAITING_VISUAL_REVIEW`.
+
+Todas las capturas, tanto de éxito como de fallo, vacían los campos de correo y contraseña y sustituyen correos/JWT visibles antes de escribir PNG. Si falla el saneamiento, no se guarda la captura y la auditoría visual falla cerrada. Los PNG y el ledger quedan solo en `test-results/u03-hosted/<runId>/` y `test-results/u03-hosted/<runId>.jsonl`, ignorados por Git; toda captura requiere revisión manual.
+
+**Verificación local de este cambio:** `npm.cmd run test:u03-b4` 46/46 PASS, incluida una prueba real de Chromium que sanea la captura de éxito y otra que cierra el gate sin escribir PNG cuando falla el saneamiento. El wrapper PowerShell pasó su prueba Windows de parser, DPAPI y limpieza. `npm.cmd run verify` pasó core pin, escaneo de secretos de 696 archivos, lint, tipos, Vitest 607 PASS/1 SKIP y build; `git diff --check` PASS. GitHub Actions sigue sin jobs por facturación y no equivale a CI verde. Esta campaña alojada **no se ha ejecutado**. El último run `2c72f352-fd79-4360-8c9b-3c619715c574` acabó con cleanup por IDs PASS, inventario y outbox a cero, según el ledger aportado. El siguiente comando es la única ejecución solicitada a Juanma desde la raíz del worktree, después de recibir el HEAD publicado:
+
+```powershell
+vercel.cmd env run -e preview -- powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/u03-preview-b4-owner.ps1 -PlaywrightOnly
+```
+
+El wrapper reutiliza las claves Preview custodiadas con DPAPI; no solicita ni imprime valores por chat. U03 global, H1 y H2 siguen abiertos por los casos y gates restantes. GitHub Actions no ejecuta jobs por facturación.
+
+## Campaña B-4 unificada · estado 19/10/2026
+
+El cambio de arnés une en una ejecución y un único `runId` el preflight, tres usuarios ficticios Auth, dos organizaciones, los proyectos A1/A2/B1, los 12 controles Data API, Playwright escritorio/móvil, limpieza en `finally` y verificación SQL de solo lectura del inventario y outbox. El antiguo requisito de que Juanma crease cuentas, proyectos o rutas manualmente queda retirado: el wrapper genera fixtures dentro del namespace propio de la campaña y nunca los reutiliza fuera de Preview.
+
+Antes de cualquier escritura, el preflight exige: OIDC presente y aceptado por el deployment exacto; ID/proyecto/host/SHA/rama/READY fijados; Auth `disable_signup=true`; RPC de identidad Preview con ref exacto; exactamente 27 migraciones N1 hasta `20261015210000`; escritor bloqueado; Auth, organizaciones, proyectos, membresías, eventos y outbox a cero. Si cualquiera falla, el estado es `BLOCKED_NO_WRITES`.
+
+Los procesos de Vercel CLI, Supabase CLI y Chromium reciben solo variables del sistema operativo permitidas; el runner principal conserva las claves solo en memoria. El encabezado OIDC se aplica al origen fijado y se elimina de solicitudes ajenas; cualquier fallo de autenticación detiene la ejecución. El ledger usa una lista permitida de campos y nunca contiene claves, credenciales, cookies, JWT ni encabezados. Las capturas locales quedan bajo `test-results/u03-hosted/<runId>/`, ignoradas por Git. La suite registra una revisión manual pendiente y no da por aprobado el aspecto visual hasta abrir y revisar cada captura.
+
+**Pruebas locales del arnés · SHA funcional `af54488bb74f32078ad5765ba086ee1472b00347`:** 20/20 PASS en `npm run test:u03-b4`; Chromium Playwright `1.63.0`, Chrome for Testing `153.0.8010.12`. Incluye simulaciones sin escrituras para preflight fallido y fallos después de usuarios, organizaciones, proyectos, matriz y B-4; valida `finally`, inventario/outbox final simulado, `runId` común y ausencia de secretos en ledger/proceso de navegador. `npm run verify` PASS: core pin, escaneo de 692 archivos, ESLint sin avisos, TypeScript, Vitest 607 PASS/1 SKIP y build Next. `git diff --check` PASS. La campaña alojada permanece **NO EJECUTADA**: `vercel.cmd env run` alcanzó el primer prompt sin eco, pero el terminal no pudo mostrarse como panel interactivo en esta ventana; el proceso se canceló antes de leer claves o ejecutar el preflight. Una consulta SQL posterior de solo lectura a `rhnnplewqsekrnaousyl` confirmó Auth, organizaciones, proyectos, membresías, auditoría y outbox a cero; no dejó fixtures. Data API alojada nueva, Playwright, capturas, revisión visual, cleanup y SQL final están **PENDIENTES**; no se atribuyen PASS.
+
+Comando único desde la raíz del worktree:
+
+```powershell
+vercel.cmd env run -e preview -- powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/u03-preview-b4-owner.ps1
+```
+
+Juanma escribe únicamente en los dos prompts sin eco la clave Admin/Auth de `rhnnplewqsekrnaousyl` y su clave publicable. El OIDC lo entrega `vercel.cmd env run` al proceso; el wrapper no acepta bypass ni cuentas/rutas. Ledger y capturas están en `test-results/u03-hosted/`; todos los IDs del run se anotan localmente y la limpieza solo busca sus scopes exactos. No aplica migraciones ni usa escritor, proveedor, registro público o datos Sarah.
+
+Se comprobó que localmente hay seis migraciones posteriores a las 27 de N1; no se aplican ni deben confundirse con parte del deployment B-4. El estado inicial alojado leído en esta sesión fue cero para las tablas/recibos enumerados, pero la campaña volverá a comprobarlo justo antes de crear fixtures.
+
+H1/H2 y U03 permanecen abiertos hasta completar también los gates del protocolo integral, incluida la revisión visual real y los requisitos de exportación/restauración y Sarah/U04 donde corresponda.
+
+## Reconciliación de #129 con main · 19/10/2026
+
+- Inicio comprobado en #129 `74bbba7de6d3ca15c3ffda44ad4e17777d19354d`, base `main@b99893e8fbc59f265ce61f40dbdc2baab071f69a`; main `f39620e347756e980192aac8fe93b9a2e8db6376` integrado en merge `d62704a98f9ab487fdd898285dae4e39dbabf9c2`. Se resolvió el único conflicto documental en `docs/CODEX-AUTONOMIA-ESTADO.md`. Los seis cambios de main eran documentales e incluyen el gate #136.
+- El gate define dos pasadas obligatorias H1/H2: ensayo ficticio alojado y aceptación de Sarah/U04. U03 esencial precede el ensayo; la exportación firmada/restauración no se habilitan en Preview para conveniencia. Ningún PASS parcial cierra H1/H2.
+- Deployment B-4 exacto sigue READY según lectura Vercel: `dpl_6fqataMxfkGFSZJKVGk5xJe8snXq`, SHA de aplicación `06c2b4270fc74d88ef3e3560bb5d07d8aeb948e2`, host `plataforma-rubik-seo-bdzqlpg6z-juanma-espinosas-projects.vercel.app`, proyecto `prj_HgnTtNtisi9Kt1A4Dq2pxoCQBook`. No se sustituye por el deployment Production más reciente ni por un alias. El merge contiene documentos; se revalidará el pin y código en el HEAD final.
+- Supabase Preview verificada en lectura con la cuenta RUBIK SOTA: `rhnnplewqsekrnaousyl`, estado `ACTIVE_HEALTHY`, identidad `preview`/ref exacto, 27 migraciones hasta `20261015210000`, centinela presente; escritor `NOLOGIN`, `NOSUPERUSER`, `NOBYPASSRLS`. Conteos al 19/10: Auth 0, organizations 0, projects 0, organization_members 0, project_members 0, audit_events 0, outbox total 0. No se crearon ni borraron fixtures. El registro público cerrado y las banderas de proveedores no se revalidaron en esta lectura.
+- Preflight por componentes: **PASS**. Enlace local al proyecto/equipo correctos; `vercel env run` entregó OIDC al hijo (PRESENTE, valor no mostrado); anónimo 302 a Vercel SSO; petición OIDC al mismo host 200; `/api/salud` devolvió `auth=preview-isolated`, ref `rhnnplewqsekrnaousyl`. La función `inspectPinnedDeployment()` vía la CLI real confirmó deployment/proyecto/host/SHA/rama/READY exactos. No se persiste el token. La invocación directa de la CLI consumió `--preflight`, no abrió Chromium; se corrigió la invocación de `.cmd` del wrapper Windows. Aún no se ejecutó el wrapper completo ni el navegador alojado.
+- Árbol funcional verificado antes del checkpoint documental: `npm run test:u03-b4` 13/13 PASS con Chromium Playwright `1.63.0`; tras el ajuste de invocación Windows, se repitió: 13/13 PASS. `npm run verify` PASS: core pin, secret scan 690 archivos, lint, typecheck, Vitest 71 archivos (607 PASS/1 SKIP), build. `inspectPinnedDeployment()` confirmó el pin exacto a través de Vercel CLI. `git diff --check` PASS antes del commit. El SHA funcional fijado/desplegado sigue siendo `06c2b4270fc74d88ef3e3560bb5d07d8aeb948e2`; la prueba local no equivale a B-4 alojado. Suite alojada y fixtures **NO EJECUTADOS**. U03 permanece parcial/bloqueado; H1/H2 siguen abiertos.
+- Acción de Juanma: confirmar localmente que signup sigue cerrado y preparar credenciales/rutas de las cuentas ficticias autorizadas A1/A2/B1 para el wrapper de PowerShell. No enviar secretos por chat. Supabase lectura: ACTIVE_HEALTHY, 27 migraciones hasta `20261015210000`, identidad Preview correcta, escritor no privilegiado y conteos Auth/org/proyectos/membresías/auditoría/outbox a cero al 19/10. Sin escrituras.
+
+## B-4 · arnés local · 18/10/2026
+
+HEAD de #129 comprobado al iniciar este trabajo: `b68244f752bbfc38993c5b0d8b8f95b085a73872`; base efectiva `main@b99893e8fbc59f265ce61f40dbdc2baab071f69a`. `b99893e` es el checkpoint documental posterior a `42e8bcf`; no hay discrepancia de base. #129 sigue OPEN/Draft. El código funcional del arnés se publicó en `06c2b4270fc74d88ef3e3560bb5d07d8aeb948e2`; el commit posterior de pin/documentación conserva el mismo código de aplicación.
+
+El deployment B-4 observado en Vercel está READY: `dpl_6fqataMxfkGFSZJKVGk5xJe8snXq`, SHA `06c2b4270fc74d88ef3e3560bb5d07d8aeb948e2`, host `plataforma-rubik-seo-bdzqlpg6z-juanma-espinosas-projects.vercel.app`, proyecto `prj_HgnTtNtisi9Kt1A4Dq2pxoCQBook`. SSO/Deployment Protection está habilitado (`all_except_custom_domains`). La metadata no expone Trusted Sources ni permite afirmar que esté configurado; la aceptación de OIDC solo quedaría demostrada por `/api/salud` protegido con el token válido.
+
+Se añadió un arnés separado de la E2E local que inspecciona el ID de deployment por la API Vercel y exige ID, proyecto, host, SHA, rama y estado exactos antes de navegador. El pin está explícito en `scripts/u03-preview-b4-runner.mjs`. El preflight compara la identidad Preview (`auth=preview-isolated`, ref exacto) antes de lanzar Chromium. El navegador envía OIDC únicamente desde un interceptor del request al origen exacto. Playwright `route.fetch({ maxRedirects: 0 })` permite inspeccionar el `Location`: redirects HTTP fuera del origen se sustituyen por 502; navegaciones externas directas se bloquean. Requests a Supabase y otros hosts siguen sin el encabezado. No hay `extraHTTPHeaders` global.
+
+La prueba local descubrió y corrigió una fuga real del primer diseño: Chromium conservó el encabezado personalizado al seguir un 302 externo, y el callback de ruta no vio ese segundo request. El diseño actual evita que Chromium siga el redirect: obtiene el response sin seguir redirects y lo bloquea antes de entregarlo al navegador. Test de Chromium local fijado por Playwright `1.63.0`: **13/13 PASS**, incluyendo host permitido/parecido, alias y Production, SHA incorrecto, token ausente, OIDC rechazado antes de abrir navegador, redirect externo, encabezado en destino externo, errores/ledger sin token y ausencia de trazas/capturas. Comando: `npm run test:u03-b4`. Esto prueba el arnés con servidores locales; no es Playwright alojado.
+
+En el mismo árbol: `npm run verify` **PASS** — core pin, secret scan (688 archivos), ESLint sin warnings, TypeScript, Vitest **607 PASS / 1 SKIP** y build Next.js PASS. `git diff --check` y parse de PowerShell PASS. `npm ci` no se necesitó; dependencias fijadas existentes (`@playwright/test`/Chromium 1.63.0). GitHub Actions sigue sin ejecutar jobs por facturación; no se cuenta como CI verde.
+
+El wrapper de propietario es `scripts/u03-preview-b4-owner.ps1`; comando único previsto desde la raíz del worktree: `vercel env run -e preview -- powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/u03-preview-b4-owner.ps1`. Comprueba vínculo de proyecto/branch, inspecciona deployment y `/api/salud` (anónimo protegido + OIDC autorizado), y solo entonces pide credenciales ficticias existentes y rutas. No pide claves Supabase, bypass, ni crea fixtures. Limpia del entorno hijo las variables Preview ajenas antes de iniciar Node; el token permanece en memoria y no se registra.
+
+**Bloqueo concreto del comando:** la documentación oficial describe `vercel env run` como inyección de variables de entorno de proyecto en el comando hijo; no dice que emita `VERCEL_OIDC_TOKEN`. Describe que `vercel env pull` obtiene el token OIDC local, pero lo escribe a un archivo. No se usará ese archivo porque el requisito exige token solo en memoria. El wrapper aborta con `VERCEL_ENV_RUN_DID_NOT_PROVIDE_OIDC_TOKEN` si no está presente, sin fallback ni bypass. Este entorno tampoco tiene CLI ni vínculo local. Trusted Sources no se confirmó. La suite alojada **NO EJECUTADA**.
+
+El último conteo aportado por el propietario fue cero usuarios, organizaciones y proyectos tras la limpieza de la matriz previa; no se recrearon. Por ello no se verificaron cuentas/proyectos A1/A2/B1 en esta tarea. El wrapper solo acepta las cuentas ficticias ya custodiadas que ingrese el propietario; la cuenta opcional con membresía retirada solo prueba denegación posterior y no demuestra retirada en vivo con JWT aún válido. Esa revocación sigue pendiente porque no se autoriza modificar membresías ni habilitar escritor. Escritor, firmas, proveedores y demás filas de outbox no se tocaron.
+
+Destino único: `rhnnplewqsekrnaousyl`. PR #129, rama `codex/u02-preview-isolation-20261017`. Deployment fijado: `dpl_6fqataMxfkGFSZJKVGk5xJe8snXq`, SHA desplegado `06c2b4270fc74d88ef3e3560bb5d07d8aeb948e2`, host `plataforma-rubik-seo-bdzqlpg6z-juanma-espinosas-projects.vercel.app`, READY. No usar otro despliegue por alias implícito.
+
+## Actualización · matriz Data API parcial · 18/10/2026
+
+El propietario ejecutó la matriz alojada con el código de #129 en `661f47d20bb90c95fac058aeec4bdc32cf07029f`. Reporta **12/12 controles RLS/RPC/JWT PASS** con tres identidades ficticias autenticadas (propietario de A, propietario de B y usuario sin membresía). El ledger citado es `test-results/u03-hosted/c21cbbf5-e50a-4bb3-9500-41c8ded8c51f.jsonl`; no está presente en los worktrees accesibles de esta sesión, por lo que sus resultados se registran como evidencia aportada por el propietario, sin reimprimirlo ni sus UUID.
+
+Los 12 controles reportados corresponden a los casos del arnés en `scripts/u03-preview-data-api.mjs`:
+
+1. Lectura positiva del propietario A sobre A1/A2.
+2. Lectura positiva del propietario B sobre B1.
+3. Lectura vacía para el actor sin membresía.
+4. Lectura anónima vacía o denegada.
+5. Lectura cruzada de A1 por B sin filas.
+6. Lectura cruzada de la organización A por B sin filas.
+7. Metadata de usuario falsificada seguida de refresh, sin acceso adicional.
+8. INSERT directo de membresía denegado.
+9. INSERT directo de `audit_events` denegado.
+10. RPC de inventario de A1 por B denegada.
+11. RPC de inventario de A1 por el propietario A aceptada.
+12. Bearer inválido rechazado con HTTP 401.
+
+Los tres usuarios iniciaron sesión con credenciales Auth ficticias y JWT emitidos por Preview. Esto acredita esos actores y sus rutas Data API concretas; no acredita roles de account-manager, analyst, viewer o client-approver. Tampoco acredita un JWT firmado falsamente, expirado, revocado o emitido por otro proyecto. El caso de metadata falsificada modifica metadata de un usuario legítimo y no equivale a falsificar la firma de un JWT.
+
+El propietario informa que el arnés recuperó y limpió los IDs de tres proyectos, dos organizaciones y tres usuarios. Una consulta independiente de solo lectura al mismo ref confirmó después 27 migraciones N1 hasta `20261015210000` y cero usuarios, organizaciones, proyectos, membresías, eventos y recibos pendientes. No se volvió a ejecutar la matriz ni se consultaron otros proyectos. La lectura final es evidencia reportada por el propietario; el ledger no quedó disponible en este checkout para inspección independiente.
+
+## Casos aún pendientes y alcance de B-4
+
+| Grupo | Estado actual |
+|---|---|
+| Auth/RLS/RPC por roles | Faltan account-manager, analyst, viewer y client-approver; viewer de A2; casos completos de A1/A2/B1 y accesos sin membresía por cada superficie. |
+| Membresía y sesión | V-4 con JWT aún válido PASS en el run `b170134c-5538-4f81-b459-1bb762b95bad`; faltan V-2/V-3, el alcance completo de V-1, negativas de alta, refresh/cookie manipulada y JWT auténtico caducado/revocado. El bearer inválido ya tiene un control negativo. |
+| Token de otro emisor | Sigue fuera de alcance usar Production o Funding OS. Un segundo emisor ficticio controlado requeriría una identidad Preview separada y autorización; no se marca PASS. |
+| Eventos y escritor | V-4 acreditó solo su recibo auténtico con rol temporal retirado al finalizar. Evento/HMAC falsificado, cadena y drenaje generales, exportación y restauración siguen pendientes de otro gate/entorno autorizado. El escritor de producto permanece bloqueado en Preview. |
+| Navegador protegido B-4 | PASS técnico alojado en escritorio/móvil para login, cookies, A1/A2/B1, negativas cruzadas y logout; aceptación visual manual posterior de Juanma PASS para el run `5847ce5a-43b9-4dde-9931-61bd8113b27e`. V-4 acreditó la retirada con el mismo JWT por Data API, sin repetir navegación Chromium durante la retirada. |
+
+### Acceso protegido investigado · estado histórico, actualizado arriba
+
+Vercel confirmó que el despliegue exacto sigue READY en el SHA antiguo `ac5a5ff`; esto no prueba el flujo de navegador de la cabeza de #129. En este entorno no hay Vercel CLI, `.vercel/project.json` ni `VERCEL_OIDC_TOKEN` en el proceso. El arnés actual (`scripts/u03-preview-preflight.mjs`) solo consume `U03_VERCEL_BYPASS`; no implementa el encabezado OIDC de navegador ni una suite Playwright alojada dedicada.
+
+La recomendación anterior sobre `vercel env run` como fuente de OIDC quedó corregida por la documentación vigente. Consultar el bloqueo y el wrapper en la actualización B-4 superior. El bypass de automatización sigue excluido.
+
+**Estado actualizado en el primer apartado:** U03 Data API **PARTIAL_PASS** (12/12 del run anterior), B-4 **PASS** con aceptación visual posterior y V-4 **PASS**; U03 global **ABIERTO** por los roles/rutas/JWT restantes. H1 y H2 siguen abiertos. Las descripciones históricas inferiores de B-4/V-4 bloqueados no reflejan estos resultados posteriores.
+
+## Registro previo a la matriz
+
+Los puntos siguientes describen el preflight y la preparación anteriores al run, no el estado posterior. La actualización de arriba los sustituye donde indiquen que no se había ejecutado ningún caso alojado.
+
+## Precondiciones observadas
+
+- 27 migraciones N1, de `20260928120000` a `20261015210000`, cotejadas con `list_migrations` y catálogo del ref exacto.
+- `private.environment_identity` y `public.preview_environment_identity()` presentes; fila única `preview`/`rhnnplewqsekrnaousyl`.
+- Antes de fixtures: 0 usuarios Auth, organizaciones, proyectos, membresías de proyecto, eventos de auditoría y filas de outbox.
+- `rubik_audit_writer` existe pero tiene `NOLOGIN` y `NOBYPASSRLS`; el veto en el código Preview permanece. Ninguna clave de firma ni URL del escritor se activa.
+- PowerShell llegó al host Supabase (`401` de Auth sin clave) y al host exacto Vercel (`302` de Vercel Authentication). Ninguna respuesta fue un bloqueo `CONNECT 403` del proxy.
+- El propietario confirmó antes que el registro público estaba cerrado. **Falta una lectura actual independiente** de esa opción. `scripts/u03-preview-credential-entry.ps1` la comprueba con `/auth/v1/settings` antes de cualquier fixture, además del acceso Admin/Auth y, si se facilita, `/api/salud` protegido. Las claves se leen sin eco, quedan solo en memoria del proceso y no se guardan en el ledger. Si pasan las precondiciones Auth, ejecuta una primera submatriz Data API de tres JWT reales y limpia por IDs; el bypass ausente deja Playwright bloqueado sin impedir esa submatriz.
+
+## Separación de casos
+
+| Grupo | Casos alojados | Estado |
+|---|---|---|
+| Auth/Data API, sin escritor | Alta Admin de identidades ficticias A/B; login y JWT reales; anónimo, claims falsificadas, RLS A1/A2/B1, roles, tablas y RPC de solo lectura; INSERT directo denegado en membresías y `audit_events`; invitación/consentimiento/retirada y acceso con JWT aún válido; limpieza por IDs de usuario, organización y proyecto. | **BLOCKED por credenciales locales y registro cerrado aún no revalidado**. Son ejecutables con Auth/Data API una vez pasen esas precondiciones; no requieren activar el escritor. |
+| Preview protegido con navegador | Login/cookies, rutas A1/A2/B1, salida, revocación, escritorio y móvil con Playwright. | **BLOCKED por bypass/sesión de Vercel aún no disponible**. La respuesta `302` solo acredita conectividad/protección. |
+| Escritor SQL, firma y outbox | Evento firmado, cadena/HMAC, idempotencia, retirada con recibo y drenaje, exportación firmada y restauración que dependa de ese escritor. | **BLOCKED_BY_PREVIEW_WRITER**. No se activa el rol, el pool, el anillo ni claves de firma para U03. |
+| Token auténtico de otro proyecto | JWT de otro emisor contra Preview y viceversa. | **BLOCKED**: el veto a Production/Funding OS impide usar esas identidades; un origen ficticio separado requeriría autorización y custodia propias. Las pruebas unitarias del rechazo de issuer son evidencia local, no caso alojado. |
+
+Los ledgers del preflight y la submatriz se guardan bajo `test-results/u03-hosted/` (ignorado por Git) y registran solo UTC, run ID, SHA, ref, nombre del control, estado, HTTP e IDs de fixtures propios; no deben incluir claves, tokens, cookies ni correos. En el corte previo de esta sección aún no se había creado un ledger de fixtures; después, el propietario generó el run citado en la actualización superior, pero su JSONL no está disponible en este checkout. El arnés planifica cada alta antes de llamar a Admin/Auth o Data API, registra el ID devuelto y limpia exclusivamente esos IDs; cualquier alta ambigua detiene la aceptación y preserva el ledger. Los roles y casos restantes se enumeran arriba y no se marcan PASS.
+
+**Estado previo al run (histórico):** U03 global estaba bloqueado antes de que el propietario ejecutara la submatriz. No usar esta línea como estado actual; consultar la actualización de arriba.
+
+## Incidencia AUTH_SETTINGS_READ_FAILED · 19/10/2026
+
+El intento aportado por el propietario terminó `BLOCKED_NO_WRITES` antes de crear fixtures. Ledger: `ed1a8f3b-77bf-4305-9959-f5510c060b6b.jsonl`; resultado `AUTH_SETTINGS_READ_FAILED`. La evidencia del ledger no conserva el error de transporte ni permite distinguir DNS, TLS, timeout, HTTP o JSON. El `curl.exe` sin clave que devuelve 401 demuestra que curl alcanzó Auth y recibió una respuesta HTTP; no acredita que la petición autenticada de Node responda 200 ni que el cuerpo 200 sea JSON válido.
+
+La diferencia concreta hallada está en el wrapper: al crear el entorno mínimo para Node eliminaba `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY` y sus variantes en minúsculas. En Windows curl puede usar una ruta proxy propia del entorno; Node `fetch` no hereda automáticamente su comportamiento. Node 24 requiere `NODE_USE_ENV_PROXY=1` para usar las variables proxy. El wrapper ahora conserva las variables de red solo para el orquestador y los CLIs, habilita esa opción cuando existe una ruta proxy y usa el almacén de CA del sistema sin desactivar validación TLS. Chromium sigue recibiendo el entorno mínimo sin proxy ni credenciales.
+
+El orquestador separa ahora los errores en códigos seguros `AUTH_SETTINGS_DNS`, `AUTH_SETTINGS_TLS`, `AUTH_SETTINGS_TIMEOUT`, `AUTH_SETTINGS_HTTP` y `AUTH_SETTINGS_JSON`. No persiste mensaje, URL, cabeceras, cuerpo, clave ni causa original. Así, un siguiente intento humano podrá precisar la categoría. La causa exacta de la campaña anterior permanece sin probar; la hipótesis principal es que Node perdió la ruta proxy por el filtrado del wrapper.
+
+Pruebas locales: `npm run test:u03-b4` **22/22 PASS**, incluidos proxy preservado solo en entorno de red, categorización DNS/TLS/timeout/transporte genérico/HTTP 401/JSON inválido y comprobación de que los errores no incluyen clave ni texto de proxy. Parse de PowerShell y `git diff --check` **PASS**. No se repitió ninguna llamada alojada ni se crearon fixtures. La campaña B-4 permanece pendiente; U03, H1 y H2 siguen abiertos. SHA funcional del nuevo cambio: véase el HEAD publicado de #129.
+
+## Compatibilidad real Supabase CLI Windows · 19/10/2026
+
+Se contrastó `supabase db query --help` y `supabase --version` en Windows: CLI **2.118.0**; `db query` soporta `--file`, `--linked`, `--project-ref` y el flag global `--output`. La invocación real `npx.cmd --yes supabase@2.118.0 db query --linked --project-ref rhnnplewqsekrnaousyl --output json --file <SQL>` devolvió texto de inicio seguido por un objeto JSON `{ boundary, rows, warning }`; `rows` contiene un array de una fila. En este entorno `--output-format json --file` produjo el mismo sobre. El parser ahora acepta tanto el array de filas reportado en una ejecución anterior como el sobre real de 2.118.0, ignora texto de inicio y rechaza resultados incompletos con `SUPABASE_SQL_JSON`.
+
+`runPreviewReadOnlySql` escribe SQL `SELECT` a un archivo temporal, invoca `--output json --file`, fija el único ref permitido a `rhnnplewqsekrnaousyl`, elimina el archivo en `finally` y no pasa claves Admin/Auth al proceso hijo. También cita el shim `.cmd` cuando la ruta del ejecutable contiene espacios; sin ello la ejecución Node fallaba aunque el comando directo desde PowerShell funcionaba. Los fallos se exponen en categorías seguras `DNS`, `TLS`, `TIMEOUT`, `HTTP` o `JSON`, sin propagar salida cruda del CLI.
+
+La consulta real ejecutada a través de `runPreviewReadOnlySql` fue solo lectura. Preflight y comprobación final dieron: `environment=preview`, `project_ref=rhnnplewqsekrnaousyl`, **27** migraciones hasta `20261015210000`, Auth/organizaciones/proyectos/membresías/auditoría/outbox total/pendiente = **0**, `writer_locked=true`; la comprobación final devolvió `inventoriesClear=true`, `outboxClear=true`, `capabilitiesSafe=true`. No se usaron claves Admin/Auth, no se accedió a otro proyecto y no se hicieron escrituras alojadas.
+
+El wrapper `scripts/u03-preview-b4-owner.ps1` ejecuta primero deployment protegido + SQL de solo lectura y solo después pide las claves necesarias para Auth. La opción `-ReadOnlyPreflightOnly` permitió ejecutar el wrapper completo hasta PASS y salir antes de prompts, fixtures o navegador. Salida sanitizada: `READ_ONLY_PREFLIGHT PASS; ref rhnnplewqsekrnaousyl; migrations 27; latest 20261015210000; inventory zero; writer locked`. La prueba local de 26/26 incluye orden del prompt, remoción del SQL temporal, allowlist del ref y cleanup `finally`. No se ejecutó la campaña con fixtures. U03, H1 y H2 siguen abiertos.
+
+CLI consultado: [referencia oficial `db query`](https://supabase.com/docs/reference/cli/supabase-db-query). Gate del código y consulta real: HEAD de esta actualización.

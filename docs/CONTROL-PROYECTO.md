@@ -1,5 +1,13 @@
 # Control canónico del proyecto Rubik SEO/GEO
 
+## Estado operativo actual · 19/10/2026 · V-4 Preview acreditado
+
+La PR #129 continúa Draft. V-4 alojado pasó en el run `b170134c-5538-4f81-b459-1bb762b95bad`: retirada con JWT vigente, recibo firmado y limpieza/contención; lectura independiente confirmó inventario y outbox cero, rol/políticas temporales ausentes y escritor del producto bloqueado. Data API 12/12 y B-4 Chromium escritorio/móvil con aceptación visual son evidencia anterior. U03 global sigue abierto por los roles, invitación/consentimiento y sesión/JWT pendientes en la matriz; H1 por la pasada integral ficticia y U04/Sarah; H2 por aceptación operativa y comercial. El estado operativo inferior corresponde a cortes anteriores y sus instrucciones de repetir V-4 ya no aplican.
+
+## Estado operativo · 19/10/2026 · actualización #129
+
+V-4 tiene un operador único Windows implementado y probado en un stack local aislado con 27 migraciones N1. `node scripts/test-u03-v4-rollback-local.mjs`, 59 pruebas dirigidas y `npm.cmd run verify` pasaron (607 PASS/1 SKIP). No se ejecutó V-4 alojado. El operador usa el Preview fijado, TLS verificado, un prompt oculto para la URL Session pooler, rol temporal NOLOGIN y rollback tras cero inventario/outbox. Data API 12/12 y B-4 conservan PASS anterior sin repetición. U03 continúa abierto hasta V-4 y los casos restantes de la matriz; H1/H2 siguen abiertos. #129 permanece Draft; GitHub Actions no ejecutó jobs por el bloqueo de facturación. La acción operativa pendiente es una ejecución del comando único por Juanma desde Windows; véase [expediente V-4](U03-V4-RECIBO-PREVIEW-20261019.md).
+
 > **CHECKPOINT VIGENTE · 18/10/2026 23:20 CEST.** main@b99893e; #129 OPEN/Draft@b68244f, base b99893e. El 42e8bcf citado abajo es el merge de #133, seguido por el commit documental #134, no una bifurcación. U02 aislada en alcance verificado; U03: 12/12 Data API reportados para tres actores con limpieza contrastada, B-4 y roles restantes pendientes. H1/H2 abiertos. N2-09 a N2-14 tienen primeros incrementos integrados como código, aún sin acreditación/activación alojada N2. Metas H1/H2/H3, inventario de tareas y responsables en [Estado de los tres niveles y plan de cierre](ESTADO-TRES-NIVELES-Y-CIERRE-20261018.md). GitHub Actions sin jobs por facturación. Los checkpoints inferiores son históricos salvo evidencia que aún se cite expresamente.
 
 

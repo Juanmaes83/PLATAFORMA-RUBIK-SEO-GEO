@@ -4,7 +4,7 @@ import { cache } from "react";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { createClient, type ServerClient } from "@/lib/supabase/server";
-import { resolveAuthMode, type AuthModeInfo } from "./mode";
+import { previewDatabaseIdentityMatches, previewJwtIssuerMatches, resolveAuthMode, type AuthModeInfo, PREVIEW_LOCKED_NOTICE } from "./mode";
 
 export interface SessionUser {
   /** Supabase Auth user id (JWT `sub`), verified on the server. */
@@ -19,7 +19,11 @@ export function authMode(): AuthModeInfo {
 /** Auth mode read at request time, never baked into a prerendered page at build time. */
 export async function requestAuthMode(): Promise<AuthModeInfo> {
   await connection();
-  return authMode();
+  const mode = authMode();
+  if (process.env.VERCEL_ENV !== "preview" || !mode.canSignIn) return mode;
+  if (!await previewDatabaseIdentityMatches(process.env))
+    return { mode: "preview-locked", canSignIn: false, notice: PREVIEW_LOCKED_NOTICE };
+  return { mode: "preview-isolated", canSignIn: true, notice: "Acceso con Supabase Auth de Preview aislada." };
 }
 
 /**
@@ -34,6 +38,7 @@ export const currentUser = cache(async (): Promise<SessionUser | null> => {
   const { data, error } = await supabase.auth.getClaims();
   const sub = data?.claims?.sub;
   if (error || typeof sub !== "string" || !sub) return null;
+  if (process.env.VERCEL_ENV === "preview" && !previewJwtIssuerMatches(data.claims.iss, process.env)) return null;
   const email = data.claims.email;
   return { id: sub, email: typeof email === "string" ? email : null };
 });
