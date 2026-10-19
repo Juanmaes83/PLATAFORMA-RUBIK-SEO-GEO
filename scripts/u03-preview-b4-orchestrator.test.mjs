@@ -168,6 +168,35 @@ for (const fails of [false, true]) {
   }));
 }
 
+for (const fails of [false, true]) {
+  test(`session and provider campaign ${fails ? 'fails and cleans' : 'records review and cleans'} with one project`, async () => withRoot(async root => {
+    const calls = [];
+    const result = await runHostedU03Campaign({
+      root, sha, runId, env: secrets, mode: 'session-providers', preflightFn: passingPreflight,
+      fixtureFactory: () => ({ namespace: 'u03-test',
+        createSessionFixtures: async () => { calls.push('fixture'); return {
+          account: { email: 'fixture@example.test', password: 'secret', api: {} }, path: '/proyectos/u03-test-a/a1',
+        }; },
+        cleanup: async () => { calls.push('cleanup'); return { ok: true, userIds: [], organizationIds: [], projectIds: [] }; },
+      }),
+      sessionProvidersFn: async ({ path, env }) => {
+        calls.push('browser');
+        assert.equal(path, '/proyectos/u03-test-a/a1');
+        assert.equal(env.VERCEL_OIDC_TOKEN, secrets.VERCEL_OIDC_TOKEN);
+        if (fails) throw new Error('S2_DIRECTED_FAILURE');
+        return { passed: true, captures: ['desktop.png', 'mobile.png'] };
+      },
+      finalCheckFn: passingFinal,
+    });
+    assert.equal(result.status, fails ? 'FAIL_CLEANED' : 'AWAITING_VISUAL_REVIEW');
+    assert.deepEqual(calls, ['fixture', 'browser', 'cleanup']);
+    const ledger = await readFile(result.ledgerPath, 'utf8');
+    assert.match(ledger, /"caseId":"outbox-final","status":"PASS"/);
+    for (const secret of Object.values(secrets)) assert.equal(ledger.includes(secret), false);
+    assert.equal(ledger.includes('fixture@example.test'), false);
+  }));
+}
+
 test('Playwright-only campaign reuses fixtures and cleanup, records prior Data API evidence, and verifies zero inventory/outbox', async () => withRoot(async root => {
   const calls = [];
   const result = await runHostedU03Campaign({
