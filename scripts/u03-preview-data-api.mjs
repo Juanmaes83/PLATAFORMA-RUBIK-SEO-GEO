@@ -12,7 +12,7 @@ export const U03_PREVIEW_REF = 'rhnnplewqsekrnaousyl';
 const ACTORS = Object.freeze(['ownerA', 'ownerB', 'outsider']);
 
 /** Shared fixture lifecycle used by the standalone Data API runner and B-4 campaign. */
-export function createDataApiFixtureRun({ runId, sha, admin, publicKey, ledger, ref = U03_PREVIEW_REF, clientFactory = createClient }) {
+export function createDataApiFixtureRun({ runId, sha, admin, publicKey, ledger, ref = U03_PREVIEW_REF, clientFactory = createClient, fetchImpl = fetch }) {
   if (!runId || !sha || !admin || !publicKey || typeof ledger !== 'function') throw new Error('FIXTURE_RUN_CONFIGURATION_INVALID');
   const url = `https://${ref}.supabase.co`;
   const namespace = `u03-${runId.replaceAll('-', '').slice(0, 12).toLowerCase()}`;
@@ -96,7 +96,8 @@ export function createDataApiFixtureRun({ runId, sha, admin, publicKey, ledger, 
     return { orgA, orgB };
   }
 
-  async function createProjects({ orgA }) {
+  async function createProjects({ orgA, orgB }) {
+    if (!orgA || !orgB || orgA === orgB) throw new Error('ORGANIZATION_FIXTURES_INVALID');
     const a1 = await createProject('ownerA', orgA, 'a1');
     const a2 = await createProject('ownerA', orgA, 'a2');
     const b1 = await createProject('ownerB', orgB, 'b1');
@@ -135,7 +136,7 @@ export function createDataApiFixtureRun({ runId, sha, admin, publicKey, ledger, 
     const ownRpc = await a.rpc('project_data_inventory', { p_project_id: a1 });
     await assert('rpc-cross-tenant-denied', foreignRpc.error?.code === '42501');
     await assert('rpc-owner-authorized', ownerInventoryAccepted(ownRpc, a1, aRows.data));
-    const bearer = await fetch(`${url}/rest/v1/projects?select=id`, {
+    const bearer = await fetchImpl(`${url}/rest/v1/projects?select=id`, {
       headers: { apikey: publicKey, Authorization: 'Bearer invalid-u03-token' },
       signal: AbortSignal.timeout(15000),
     });
