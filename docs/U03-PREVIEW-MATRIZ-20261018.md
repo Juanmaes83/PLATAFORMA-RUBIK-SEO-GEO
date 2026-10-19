@@ -1,5 +1,13 @@
 # U03 · matriz alojada de Preview · 18/10/2026
 
+## Estado verificado · V-4 alojado PASS · 19/10/2026
+
+En `rhnnplewqsekrnaousyl`, el run `b170134c-5538-4f81-b459-1bb762b95bad` terminó `campaign-global: PASS` y `receipt-role-containment: PASS` sobre #129@`e213238c136909c652907b026eac5e412077329a`. La misma entrada segura dio `admin-password-transport: PASS` y `admin-connection-diagnostic: PASS`; después pasaron `membership-grant-before-withdrawal`, `membership-revocation-after-withdrawal` con el JWT aún vigente, `withdrawal-receipt`, `fixture-cleanup`, `final-inventory`, `outbox-final` y `capabilities-final`. Data API 12/12 (`2c72f352-fd79-4360-8c9b-3c619715c574`) y B-4 Chromium escritorio/móvil con aceptación visual posterior de Juanma (`5847ce5a-43b9-4dde-9931-61bd8113b27e`) son evidencia anterior; no se repitieron en V-4.
+
+Una consulta independiente posterior de solo lectura confirmó un centinela Preview exacto, cero usuarios Auth, organizaciones, proyectos, membresías, eventos y recibos (incluidos pendientes), ausencia del rol y las cuatro políticas temporales de V-4, y `rubik_audit_writer` con `rolcanlogin=false`. Los ledgers originales no se alteran. Los apartados siguientes que dicen «V-4 bloqueado/no ejecutado» describen cortes históricos previos a este run.
+
+**U03 global permanece abierto:** faltan roles account-manager, analyst, viewer, client-approver y viewer limitado a A2; V-1 completo, V-2 y V-3 (invitación/consentimiento y revocación); negativos de sesión/cookie, refresh y JWT auténtico caducado o de otro emisor bajo un alcance autorizado; y las superficies cruzadas restantes del protocolo N1-05. Un bearer inválido, los tres actores Data API y B-4 ya tienen sus PASS acotados. No atribuir PASS a los casos restantes. H1 requiere el ensayo ficticio integral de exportación/verificación/restauración y U04/Sarah; H2 añade aceptación operativa y comercial. #129 sigue Draft; GitHub Actions no ha ejecutado jobs por facturación.
+
 ## Actualización V-4 diagnóstico administrativo · 19/10/2026
 
 ### Comparación psql/Node con una entrada · SHA funcional 107affbe61269c31ebafc515f025b68248e16b0b
@@ -144,10 +152,10 @@ El propietario informa que el arnés recuperó y limpió los IDs de tres proyect
 | Grupo | Estado actual |
 |---|---|
 | Auth/RLS/RPC por roles | Faltan account-manager, analyst, viewer y client-approver; viewer de A2; casos completos de A1/A2/B1 y accesos sin membresía por cada superficie. |
-| Membresía y sesión | V-4 con JWT aún válido está `BLOCKED_BY_PREVIEW_WRITER` en Preview; faltan además V-2/V-3, el alcance completo de V-1, negativas de alta, refresh/cookie manipulada y JWT auténtico caducado/revocado. El bearer inválido ya tiene un control negativo. |
+| Membresía y sesión | V-4 con JWT aún válido PASS en el run `b170134c-5538-4f81-b459-1bb762b95bad`; faltan V-2/V-3, el alcance completo de V-1, negativas de alta, refresh/cookie manipulada y JWT auténtico caducado/revocado. El bearer inválido ya tiene un control negativo. |
 | Token de otro emisor | Sigue fuera de alcance usar Production o Funding OS. Un segundo emisor ficticio controlado requeriría una identidad Preview separada y autorización; no se marca PASS. |
-| Eventos y escritor | Evento/HMAC falsificado, cadena, recibos/outbox, drenaje, exportación y restauración dependientes del escritor siguen `BLOCKED_BY_PREVIEW_WRITER`. El rol, pool, anillo y claves de firma permanecen vetados en Preview. |
-| Navegador protegido B-4 | PASS técnico alojado en escritorio/móvil para login, cookies, A1/A2/B1, negativas cruzadas y logout; aceptación visual manual posterior de Juanma PASS para el run `5847ce5a-43b9-4dde-9931-61bd8113b27e`. La retirada **durante** una sesión no se cubrió; es V-4 bloqueado arriba. |
+| Eventos y escritor | V-4 acreditó solo su recibo auténtico con rol temporal retirado al finalizar. Evento/HMAC falsificado, cadena y drenaje generales, exportación y restauración siguen pendientes de otro gate/entorno autorizado. El escritor de producto permanece bloqueado en Preview. |
+| Navegador protegido B-4 | PASS técnico alojado en escritorio/móvil para login, cookies, A1/A2/B1, negativas cruzadas y logout; aceptación visual manual posterior de Juanma PASS para el run `5847ce5a-43b9-4dde-9931-61bd8113b27e`. V-4 acreditó la retirada con el mismo JWT por Data API, sin repetir navegación Chromium durante la retirada. |
 
 ### Acceso protegido investigado · estado histórico, actualizado arriba
 
@@ -155,7 +163,7 @@ Vercel confirmó que el despliegue exacto sigue READY en el SHA antiguo `ac5a5ff
 
 La recomendación anterior sobre `vercel env run` como fuente de OIDC quedó corregida por la documentación vigente. Consultar el bloqueo y el wrapper en la actualización B-4 superior. El bypass de automatización sigue excluido.
 
-**Estado vigente:** U03 Data API **PARTIAL_PASS** (12/12 del run anterior), B-4 técnico **PASS** con aceptación visual posterior; U03 global **BLOCKED** por V-4 y los roles/rutas/JWT restantes. H1 y H2 siguen abiertos. Las descripciones históricas inferiores de B-4 bloqueado no reflejan este resultado posterior.
+**Estado actualizado en el primer apartado:** U03 Data API **PARTIAL_PASS** (12/12 del run anterior), B-4 **PASS** con aceptación visual posterior y V-4 **PASS**; U03 global **ABIERTO** por los roles/rutas/JWT restantes. H1 y H2 siguen abiertos. Las descripciones históricas inferiores de B-4/V-4 bloqueados no reflejan estos resultados posteriores.
 
 ## Registro previo a la matriz
 
