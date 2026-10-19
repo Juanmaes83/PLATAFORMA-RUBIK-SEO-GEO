@@ -164,17 +164,17 @@ export async function readPreviewAuthSettings({ fetchImpl = fetch, apiKey } = {}
   catch { throw new Error('AUTH_SETTINGS_JSON'); }
 }
 
-export async function verifyInitialPreviewState({ env = process.env, fetchImpl = fetch, admin = null, sql = runPreviewReadOnlySql, inspect } = {}) {
+export async function verifyInitialPreviewState({ env = process.env, fetchImpl = fetch, admin = null, publicClient = null, sql = runPreviewReadOnlySql, inspect, preflightFn = preflight } = {}) {
   const adminKey = env.U03_PREVIEW_ADMIN_KEY;
   const publicKey = env.U03_PREVIEW_PUBLIC_KEY;
   if (!adminKey || !publicKey) throw new Error('PREVIEW_KEYS_REQUIRED');
-  const vercel = await preflight({ token: env.VERCEL_OIDC_TOKEN, fetchImpl, ...(inspect ? { inspect } : {}) });
+  const vercel = await preflightFn({ token: env.VERCEL_OIDC_TOKEN, fetchImpl, ...(inspect ? { inspect } : {}) });
 
   const settings = await readPreviewAuthSettings({ fetchImpl, apiKey: publicKey });
   if (settings?.disable_signup !== true) throw new Error('PUBLIC_SIGNUP_NOT_CONFIRMED_CLOSED');
 
-  const publicClient = createClient(SUPABASE_URL, publicKey, { auth: { persistSession: false, autoRefreshToken: false } });
-  const identity = await publicClient.rpc('preview_environment_identity');
+  const identityClient = publicClient ?? createClient(SUPABASE_URL, publicKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const identity = await identityClient.rpc('preview_environment_identity');
   if (identity.error || !Array.isArray(identity.data) || identity.data.length !== 1 ||
       identity.data[0]?.environment !== 'preview' || identity.data[0]?.project_ref !== U03_PREVIEW_REF) {
     throw new Error('PREVIEW_IDENTITY_INVALID');
@@ -189,11 +189,11 @@ export async function verifyInitialPreviewState({ env = process.env, fetchImpl =
     vercel,
     admin: adminClient,
     initial: {
-      authUsers: state.auth_users, organizations: state.organizations, projects: state.projects,
-      organizationMembers: state.organization_members, projectMembers: state.project_members,
-      auditEvents: state.audit_events, outboxTotal: state.outbox_total, pendingOutbox: state.pending_outbox,
-      migrationCount: state.migrations.length, latestMigration: state.migrations.at(-1),
-      writerLocked: state.writer_locked, environment: state.environment, projectRef: state.project_ref,
+      authUsers: state.authUsers, organizations: state.organizations, projects: state.projects,
+      organizationMembers: state.organizationMembers, projectMembers: state.projectMembers,
+      auditEvents: state.auditEvents, outboxTotal: state.outboxTotal, pendingOutbox: state.pendingOutbox,
+      migrationCount: state.migrationCount, latestMigration: state.latestMigration,
+      writerLocked: state.writerLocked, environment: state.environment, projectRef: state.projectRef,
     },
   };
 }

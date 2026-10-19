@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { chromiumEnvironment, networkEnvironment, PIN } from './u03-preview-b4-runner.mjs';
-import { parseCliJson, readPreviewAuthSettings, runHostedU03Campaign, runPreviewReadOnlySql, runReadOnlyPreflight, verifyFinalPreviewState, verifyReadOnlyPreviewState } from './u03-preview-b4-orchestrator.mjs';
+import { parseCliJson, readPreviewAuthSettings, runHostedU03Campaign, runPreviewReadOnlySql, runReadOnlyPreflight, verifyFinalPreviewState, verifyInitialPreviewState, verifyReadOnlyPreviewState } from './u03-preview-b4-orchestrator.mjs';
 
 const runId = 'u03-orchestrator-test-run';
 const sha = 'a'.repeat(40);
@@ -187,6 +187,40 @@ test('no-key read-only preflight verifies identity, 27 migrations, empty counts 
   assert.equal((await verifyReadOnlyPreviewState({ sql })).migrationCount, 27);
   const final = await verifyFinalPreviewState({ sql });
   assert.equal(final.inventoriesClear && final.outboxClear && final.capabilitiesSafe, true);
+});
+
+test('initial preflight completes with the mapped read-only state and reports migration metadata', async () => {
+  const migrationVersions = [
+    '20260928120000', '20260928150000', '20261007120000', '20261007150000', '20261009071705',
+    '20261009120000', '20261009150000', '20261009170000', '20261009180000', '20261010090000',
+    '20261010150000', '20261010160000', '20261012090000', '20261012100000', '20261012110000',
+    '20261012120000', '20261012130000', '20261015115750', '20261015145025', '20261015170000',
+    '20261015171000', '20261015172000', '20261015180000', '20261015183000', '20261015190000',
+    '20261015201500', '20261015210000',
+  ];
+  let settingsRead = 0, identityRead = 0, usersRead = 0, sqlRead = 0;
+  const result = await verifyInitialPreviewState({
+    env: { ...secrets, VERCEL_OIDC_TOKEN: secrets.VERCEL_OIDC_TOKEN },
+    preflightFn: async ({ token }) => { assert.equal(token, secrets.VERCEL_OIDC_TOKEN); return { deploymentId: PIN.deploymentId }; },
+    fetchImpl: async () => { settingsRead++; return new Response(JSON.stringify({ disable_signup: true }), { status: 200 }); },
+    publicClient: { rpc: async () => { identityRead++; return { data: [{ environment: 'preview', project_ref: PIN.supabaseRef }], error: null }; } },
+    admin: { auth: { admin: { listUsers: async () => { usersRead++; return { data: { users: [] }, error: null }; } } } },
+    sql: async (_query, { ref }) => {
+      sqlRead++;
+      assert.equal(ref, PIN.supabaseRef);
+      return {
+        auth_users: 0, organizations: 0, projects: 0, organization_members: 0, project_members: 0,
+        audit_events: 0, outbox_total: 0, pending_outbox: 0, writer_locked: true,
+        environment: 'preview', project_ref: PIN.supabaseRef, migrations: migrationVersions,
+      };
+    },
+  });
+  assert.deepEqual(result.initial, {
+    authUsers: 0, organizations: 0, projects: 0, organizationMembers: 0, projectMembers: 0,
+    auditEvents: 0, outboxTotal: 0, pendingOutbox: 0, migrationCount: 27,
+    latestMigration: '20261015210000', writerLocked: true, environment: 'preview', projectRef: PIN.supabaseRef,
+  });
+  assert.deepEqual([settingsRead, identityRead, usersRead, sqlRead], [1, 1, 1, 1]);
 });
 
 test('owner wrapper performs no-key preflight before prompting and always cleans environment in finally', async () => {
