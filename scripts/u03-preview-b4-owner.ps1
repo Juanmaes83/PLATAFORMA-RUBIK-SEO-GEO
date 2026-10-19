@@ -125,6 +125,9 @@ $remote = (& git -C $repo remote get-url origin 2>$null).Trim()
 if ($branch -notin @('codex/u02-preview-isolation-20261017', 'codex/u03-roles-invitations-20261019',
     'codex/u03-cross-surface-20261019') -or
     $remote -ne 'https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO.git') { Stop-B4 'WRONG_REPOSITORY_OR_BRANCH' }
+if ($CrossSurfaceOnly -and $branch -ne 'codex/u03-cross-surface-20261019') { Stop-B4 'WRONG_MODE_BRANCH' }
+if ($RolesInvitationsOnly -and $branch -notin @('codex/u03-roles-invitations-20261019',
+    'codex/u03-cross-surface-20261019')) { Stop-B4 'WRONG_MODE_BRANCH' }
 $link = Get-Content -LiteralPath $linkFile -Raw | ConvertFrom-Json
 if ($link.projectId -ne 'prj_HgnTtNtisi9Kt1A4Dq2pxoCQBook' -or $link.orgId -ne 'team_hLhdb3M9MviTIysXD9whFF2c') { Stop-B4 'VERCEL_LINK_MISMATCH' }
 if ([string]::IsNullOrWhiteSpace($env:VERCEL_OIDC_TOKEN)) { Stop-B4 'VERCEL_ENV_RUN_DID_NOT_PROVIDE_OIDC_TOKEN' }

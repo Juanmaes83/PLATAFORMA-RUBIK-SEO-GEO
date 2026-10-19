@@ -575,6 +575,8 @@ test('owner wrapper runs no-key preflight before DPAPI load; V-4 uses one hidden
   assert.match(script, /\[switch\]\$ProvisionPreviewKeys[\s\S]*\[switch\]\$CheckPreviewKeys[\s\S]*\[switch\]\$ReplacePreviewKeys[\s\S]*\[switch\]\$DeletePreviewKeys/);
   assert.match(script, /\[switch\]\$PlaywrightOnly/);
   assert.match(script, /\[switch\]\$MembershipRevocationOnly/);
+  assert.match(script, /if \(\$CrossSurfaceOnly -and \$branch -ne 'codex\/u03-cross-surface-20261019'\) \{ Stop-B4 'WRONG_MODE_BRANCH' \}/);
+  assert.ok(script.indexOf("Stop-B4 'WRONG_MODE_BRANCH'") < preflight);
   assert.match(campaignPath, /& node \$v4Operator --run --run-id \$operatorRunId/);
   assert.match(script, /finally\s*\{[\s\S]*& node \$v4Operator --contain --run-id \$operatorRunId/);
   assert.match(operator, /blockAndRollbackPreviewReceiptRole\(pool, runId\)/);
