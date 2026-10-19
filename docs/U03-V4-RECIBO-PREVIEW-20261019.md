@@ -4,6 +4,14 @@
 
 ## Diagnóstico de conexión administrativa · 19/10/2026
 
+### Comparación de clientes con una sola entrada segura · 19/10/2026
+
+El 28P01 anterior no identifica por sí solo si los bytes de contraseña recibidos por Node coincidían con los usados por psql: la conexión psql informada por Juanma fue independiente y no acreditó igualdad byte a byte. No se atribuye todavía la causa a una clave errónea ni a un defecto de `node-postgres`.
+
+El modo Windows usa una única entrada `Read-Host -AsSecureString`, la convierte una vez en memoria y deriva de esa misma cadena tanto `PGPASSWORD` para psql como la URL fijada de Node. psql utiliza `PGSSLMODE=verify-full` y el certificado raíz fijado del repositorio; Node compara en bytes UTF-8 la contraseña descodificada desde la URL con la misma cadena y, solo si coincide, hace su diagnóstico con `rejectUnauthorized: true` y la misma CA. Cada cliente imprime únicamente PASS/FAIL y categoría/código estáticos; la salida libre de psql y los errores del cliente se capturan y no se muestran. El modo `-MembershipRevocationOnly` continúa a la campaña solo si ambos diagnósticos pasan; en otro caso termina antes de fixtures. La contraseña, URL y variables temporales se limpian en `finally`.
+
+Pruebas locales Windows: `node --test scripts/u03-preview-v4-operator.test.mjs` 7/7; cubren caracteres reservados, igualdad/desigualdad de bytes, rechazo de destino y clasificación sanitizada de errores DNS/TCP/TLS/auth/permiso de psql. `npm run verify` pasó: escaneo de 707 archivos, lint, tipos, 607 pruebas PASS/1 SKIP y build. La ejecución alojada de comparación todavía no se ha realizado con esta revisión; no se declara causa histórica ni PASS V-4.
+
 El run `2e0c5119-7f95-43d1-8aa0-3f4ba34b33e1` terminó antes del preflight SQL y su ledger no permitió clasificar la causa. Según la comprobación independiente comunicada por Juanma, Preview `rhnnplewqsekrnaousyl` quedó con inventario/outbox a cero, rol `rubik_preview_receipt_writer` ausente y cero políticas temporales. No se ejecuta V-4 ni se crean fixtures en esta revisión.
 
 Se añade `-V4ConnectionDiagnosticOnly`: el wrapper mantiene el preflight read-only de Preview, solicita solo la Database password como `SecureString`, construye en memoria la URL fijada y ejecuta `--diagnose-connection`. Node informa únicamente `status`, `category` y `code` estáticos; nunca propaga ni guarda URL, contraseña o mensajes PostgreSQL. Las categorías separan DNS, TCP, TLS/certificado, autenticación, permisos SQL, identidad y capacidades. El diagnóstico usa una conexión TLS verificada y consultas de solo lectura para identidad, capacidad administrativa, migraciones/inventario/outbox y rol temporal; no instala ni activa el rol.
@@ -12,13 +20,13 @@ En el modo de campaña, el operador registra este mismo diagnóstico antes de co
 
 Pruebas simuladas del diagnóstico cubren DNS, timeout TCP, rechazo de certificado, autenticación `28P01`, permiso `42501`, capacidad `CREATEROLE` ausente y conexión/capacidades correctas. Errores simulados incluyen texto centinela de contraseña/URL; categoría y código se registran, sin mensajes libres. También se verifica que un fallo diagnóstico pre-campaña no instancia pool, no llama al arnés y no intenta contención.
 
-### Comando de diagnóstico único (no ejecuta campaña)
+### Comando único de comparación y campaña condicionada
 
 ```powershell
-vercel.cmd env run -e preview -- powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/u03-preview-b4-owner.ps1 -V4ConnectionDiagnosticOnly
+vercel.cmd env run -e preview -- powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/u03-preview-b4-owner.ps1 -MembershipRevocationOnly
 ```
 
-Si la comprobación informa `PASS`, la campaña V-4 se ejecutaría después con el modo `-MembershipRevocationOnly`; un resultado distinto de PASS detiene el avance para revisar solo el código seguro reportado.
+El único prompt es la Database password existente de Preview con entrada oculta. El wrapper compara psql y Node y, únicamente si ambos imprimen PASS, empieza esa única campaña dirigida. Cualquier otro resultado detiene la operación antes de crear fixtures; no se reinicia la contraseña ni se cambia la política TLS.
 
 ## Contrato del gate y entorno
 

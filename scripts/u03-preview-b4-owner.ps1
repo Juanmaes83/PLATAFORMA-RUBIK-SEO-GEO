@@ -21,6 +21,77 @@ Import-Module -Name $v4PoolerModule -Force -ErrorAction Stop
 
 function Stop-B4([string]$Code) { throw "U03 B-4 BLOCKED: $Code. No fixtures will be created unless every preflight passes." }
 
+function Invoke-U03PreviewAdminConnectionComparison([System.Security.SecureString]$SecurePassword) {
+  $psql = Get-Command psql.exe -ErrorAction SilentlyContinue
+  if (-not $psql) {
+    $psql = Get-ChildItem 'C:\Program Files\PostgreSQL' -Directory -ErrorAction SilentlyContinue |
+      Sort-Object Name -Descending |
+      ForEach-Object { Join-Path $_.FullName 'bin\psql.exe' } |
+      Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+  } else { $psql = $psql.Source }
+  if (-not $psql -or -not (Test-Path -LiteralPath $psql)) { Stop-B4 'PSQL_CLIENT_NOT_FOUND' }
+
+  $sourceRootCa = Join-Path $PSScriptRoot '..\src\lib\provenance\supabase-root-ca.ts'
+  $caSource = [IO.File]::ReadAllText([IO.Path]::GetFullPath($sourceRootCa))
+  $caMatch = [regex]::Match($caSource, 'SUPABASE_ROOT_2021_CA\s*=\s*`([^`]*)`', [Text.RegularExpressions.RegexOptions]::Singleline)
+  if (-not $caMatch.Success) { Stop-B4 'PINNED_DATABASE_CA_UNAVAILABLE' }
+
+  $bstr = [IntPtr]::Zero
+  $plainPassword = $null
+  $caPath = Join-Path ([IO.Path]::GetTempPath()) ('u03-preview-pooler-ca-' + [guid]::NewGuid().ToString('N') + '.pem')
+  try {
+    $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecurePassword)
+    $plainPassword = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
+    $env:U03_PREVIEW_ADMIN_DATABASE_URL = New-U03PreviewAdminPoolerUrlFromPlaintext -PasswordText $plainPassword
+    $env:U03_PREVIEW_ADMIN_PASSWORD_EXPECTED = $plainPassword
+    [IO.File]::WriteAllText($caPath, $caMatch.Groups[1].Value.Trim() + "`n", [Text.Encoding]::ASCII)
+
+    $env:PGHOST = 'aws-1-eu-west-3.pooler.supabase.com'
+    $env:PGPORT = '5432'
+    $env:PGUSER = 'postgres.rhnnplewqsekrnaousyl'
+    $env:PGDATABASE = 'postgres'
+    $env:PGPASSWORD = $plainPassword
+    $env:PGSSLMODE = 'verify-full'
+    $env:PGSSLROOTCERT = $caPath
+    $psqlOutput = ''
+    $psqlError = ''
+    try {
+      $psqlOutput = (& $psql -X -A -t -v ON_ERROR_STOP=1 -c "select current_database() || '|' || session_user || '|' || current_user;" 2>&1 | Out-String)
+      $psqlExit = $LASTEXITCODE
+      if ($psqlExit -ne 0) { $psqlError = $psqlOutput }
+    } catch {
+      $psqlExit = 1
+      # Exception text is inspected only for allowlisted patterns; never emitted.
+      $psqlError = $_.Exception.Message
+    }
+    $psqlResult = ConvertFrom-U03PsqlDiagnostic -ErrorText $psqlError -ExitCode $psqlExit -OutputText $psqlOutput
+    Write-Output "V4_PSQL_DIAGNOSTIC: $($psqlResult.Status) category=$($psqlResult.Category) code=$($psqlResult.Code)"
+    foreach ($name in @('PGHOST','PGPORT','PGUSER','PGDATABASE','PGPASSWORD','PGSSLMODE','PGSSLROOTCERT')) {
+      Remove-Item -LiteralPath "Env:$name" -ErrorAction SilentlyContinue
+    }
+
+    $nodeOutput = @(& node $v4Operator --diagnose-connection 2>&1)
+    $nodeExit = $LASTEXITCODE
+    $nodeLine = $nodeOutput | ForEach-Object { [regex]::Match([string]$_, '^V4_CONNECTION_DIAGNOSTIC: (PASS|FAIL) category=([A-Z_]+) code=([A-Z0-9_]+)$') } |
+      Where-Object { $_.Success } | Select-Object -First 1
+    if ($nodeLine) {
+      Write-Output $nodeLine.Value
+      $nodePass = $nodeLine.Groups[1].Value -eq 'PASS' -and $nodeExit -eq 0
+    } else {
+      Write-Output 'V4_CONNECTION_DIAGNOSTIC: FAIL category=DIAGNOSTIC code=SAFE_DIAGNOSTIC_FAILURE'
+      $nodePass = $false
+    }
+    return ($psqlResult.Status -eq 'PASS' -and $nodePass)
+  } finally {
+    foreach ($name in @('PGHOST','PGPORT','PGUSER','PGDATABASE','PGPASSWORD','PGSSLMODE','PGSSLROOTCERT')) {
+      Remove-Item -LiteralPath "Env:$name" -ErrorAction SilentlyContinue
+    }
+    if (Test-Path -LiteralPath $caPath) { Remove-Item -LiteralPath $caPath -Force -ErrorAction SilentlyContinue }
+    $plainPassword = $null
+    if ($bstr -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
+  }
+}
+
 $credentialOperations = 0
 foreach ($requested in @($ProvisionPreviewKeys.IsPresent, $CheckPreviewKeys.IsPresent, $ReplacePreviewKeys.IsPresent, $DeletePreviewKeys.IsPresent)) {
   if ($requested) { $credentialOperations++ }
@@ -111,11 +182,9 @@ try {
     if (-not (Test-Path -LiteralPath $v4Operator)) { Stop-B4 'V4_OPERATOR_MISSING' }
     $secureDatabasePassword = Read-Host -Prompt 'Database password de Supabase Preview rhnnplewqsekrnaousyl (entrada oculta)' -AsSecureString
     try {
-      $adminDatabaseUrl = New-U03PreviewAdminPoolerUrl -DatabasePassword $secureDatabasePassword
-      $env:U03_PREVIEW_ADMIN_DATABASE_URL = $adminDatabaseUrl
+      $connectionsPass = Invoke-U03PreviewAdminConnectionComparison -SecurePassword $secureDatabasePassword
+      if (-not $connectionsPass) { Stop-B4 'V4_CONNECTION_DIAGNOSTIC_FAILED' }
     } finally { $secureDatabasePassword.Dispose(); $secureDatabasePassword = $null }
-    & node $v4Operator --diagnose-connection
-    if ($LASTEXITCODE -ne 0) { Stop-B4 'V4_CONNECTION_DIAGNOSTIC_FAILED' }
     return
   }
 
@@ -154,8 +223,8 @@ try {
     # here and revalidated by both this helper and the Node operator.
     $secureDatabasePassword = Read-Host -Prompt 'Database password de Supabase Preview rhnnplewqsekrnaousyl (entrada oculta)' -AsSecureString
     try {
-      $adminDatabaseUrl = New-U03PreviewAdminPoolerUrl -DatabasePassword $secureDatabasePassword
-      $env:U03_PREVIEW_ADMIN_DATABASE_URL = $adminDatabaseUrl
+      $connectionsPass = Invoke-U03PreviewAdminConnectionComparison -SecurePassword $secureDatabasePassword
+      if (-not $connectionsPass) { Stop-B4 'V4_CONNECTION_DIAGNOSTIC_FAILED_NO_FIXTURES' }
     } finally { $secureDatabasePassword.Dispose(); $secureDatabasePassword = $null }
     $operatorRunId = [guid]::NewGuid().ToString()
     & node $v4Operator --run --run-id $operatorRunId

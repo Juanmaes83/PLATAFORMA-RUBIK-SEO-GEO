@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { diagnosePreviewAdminConnection, runPreviewV4Operator, validatePreviewAdminPoolerUrl,
-  buildPreviewReceiptPoolerUrl } from './u03-preview-v4-operator.mjs';
+  buildPreviewReceiptPoolerUrl, verifyPreviewAdminPasswordTransport } from './u03-preview-v4-operator.mjs';
 
 const ref = 'rhnnplewqsekrnaousyl';
 const secret = 'fictional-window-secret-for-tests-only';
@@ -36,15 +36,32 @@ test('Preview receipt URL stays on the exact session pooler/ref and carries no S
   assert.deepEqual([...receipt.searchParams.keys()], []);
 });
 
+test('connection comparison accepts the exact reserved-character password bytes and rejects mismatches without disclosure', () => {
+  const password = `fictional:/?#% +&=[]'quote!()*`;
+  const raw = `postgresql://postgres.${ref}:${encodeURIComponent(password)}@${poolerHost}:5432/postgres`;
+  const pass = verifyPreviewAdminPasswordTransport(raw, password);
+  assert.deepEqual([pass.status, pass.category, pass.code], ['PASS', 'TRANSPORT', 'URL_PASSWORD_BYTES_MATCH']);
+  const mismatch = verifyPreviewAdminPasswordTransport(raw, `${password}x`);
+  assert.deepEqual([mismatch.status, mismatch.category, mismatch.code], ['FAIL', 'CONFIGURATION', 'URL_PASSWORD_BYTES_MISMATCH']);
+  const missing = verifyPreviewAdminPasswordTransport(raw, undefined);
+  assert.deepEqual([missing.status, missing.category, missing.code], ['FAIL', 'CONFIGURATION', 'PASSWORD_COMPARISON_INPUT_MISSING']);
+  for (const result of [pass, mismatch, missing])
+    assert.doesNotMatch(JSON.stringify(result), /fictional|postgresql:|pooler\.supabase/);
+});
+
 test('single Windows operator prompts only for a secure password and guarantees finally containment', async () => {
   const script = await readFile(new URL('./u03-preview-b4-owner.ps1', import.meta.url), 'utf8');
   assert.match(script, /Read-Host -Prompt[^\n]*Database password[^\n]*-AsSecureString/);
-  assert.match(script, /New-U03PreviewAdminPoolerUrl -DatabasePassword \$secureDatabasePassword/);
+  assert.match(script, /New-U03PreviewAdminPoolerUrlFromPlaintext -PasswordText \$plainPassword/);
   assert.match(script, /\[switch\]\$V4ConnectionDiagnosticOnly/);
   assert.match(script, /& node \$v4Operator --diagnose-connection/);
+  assert.match(script, /PGSSLMODE = 'verify-full'/);
+  assert.match(script, /PGPASSWORD = \$plainPassword/);
+  assert.match(script, /U03_PREVIEW_ADMIN_PASSWORD_EXPECTED = \$plainPassword/);
+  assert.match(script, /Invoke-U03PreviewAdminConnectionComparison/);
   assert.match(script, /caseId -eq 'receipt-role-install'[\s\S]*ATTEMPTED/);
   assert.match(script, /finally\s*\{[\s\S]*--contain --run-id \$operatorRunId/);
-  assert.doesNotMatch(script, /psql\s+-X|u03-preview-v4-(?:role|activate|block|rollback)\.sql/);
+  assert.doesNotMatch(script, /u03-preview-v4-(?:role|activate|block|rollback)\.sql/);
   assert.doesNotMatch(script, /Read-Host[^\n]*(?:URL|connection string)/i);
 });
 
@@ -57,20 +74,33 @@ $ErrorActionPreference = 'Stop'
 Import-Module '${modulePath}' -Force
 $password = 'fictional:/?#% +&=[]''quote!()*'
 $secure = ConvertTo-SecureString $password -AsPlainText -Force
-$url = New-U03PreviewAdminPoolerUrl -DatabasePassword $secure
+    $url = New-U03PreviewAdminPoolerUrl -DatabasePassword $secure
 $userinfo = $url.Substring('postgresql://'.Length).Split('@')[0]
 $encoded = $userinfo.Substring($userinfo.IndexOf(':') + 1)
 if ([Uri]::UnescapeDataString($encoded) -cne $password) { throw 'PASSWORD_ROUNDTRIP_FAILED' }
 if (-not $encoded.Contains('%21%28%29%2A')) { throw 'RFC3986_RESERVED_CHARACTERS_NOT_ESCAPED' }
-if (-not $url.Contains('@aws-1-eu-west-3.pooler.supabase.com:5432/postgres')) { throw 'PINNED_URL_FAILED' }
+    if (-not $url.Contains('@aws-1-eu-west-3.pooler.supabase.com:5432/postgres')) { throw 'PINNED_URL_FAILED' }
+    $urlFromSameInput = New-U03PreviewAdminPoolerUrlFromPlaintext -PasswordText $password
+    if ($urlFromSameInput -cne $url) { throw 'URL_BUILDER_BYTE_PATH_MISMATCH' }
 try {
   Assert-U03PreviewPoolerTarget -HostName 'aws-2-eu-west-3.pooler.supabase.com' -Port 5432 -UserName 'postgres' -ProjectRef '${ref}' -Database 'postgres'
   throw 'WRONG_TARGET_ACCEPTED'
 } catch {
   if ($_.Exception.Message -cne 'V4_SESSION_POOLER_TARGET_REJECTED') { throw }
 }
+$classified = @(
+  (ConvertFrom-U03PsqlDiagnostic -ErrorText 'could not translate host sentinel-password' -ExitCode 2 -OutputText ''),
+  (ConvertFrom-U03PsqlDiagnostic -ErrorText 'connection timed out sentinel-url' -ExitCode 2 -OutputText ''),
+  (ConvertFrom-U03PsqlDiagnostic -ErrorText 'certificate verify failed sentinel-password' -ExitCode 2 -OutputText ''),
+  (ConvertFrom-U03PsqlDiagnostic -ErrorText 'password authentication failed sentinel-url' -ExitCode 2 -OutputText ''),
+  (ConvertFrom-U03PsqlDiagnostic -ErrorText 'permission denied sentinel-password' -ExitCode 2 -OutputText ''),
+  (ConvertFrom-U03PsqlDiagnostic -ErrorText '' -ExitCode 0 -OutputText 'postgres|postgres|postgres')
+)
+if (($classified | Where-Object Status -eq 'FAIL').Count -ne 5 -or $classified[5].Status -ne 'PASS') { throw 'PSQL_SAFE_CLASSIFIER_FAILED' }
+if (($classified | ForEach-Object Category) -join ',' -cne 'DNS,TCP,TLS,AUTHENTICATION,PERMISSION,DATABASE') { throw 'PSQL_CLASSIFIER_CATEGORY_MISMATCH' }
+if ((ConvertTo-Json -InputObject $classified -Compress) -match 'sentinel') { throw 'PSQL_CLASSIFIER_LEAKED_INPUT' }
 $password = $null; $url = $null; $secure.Dispose()
-Write-Output 'PASSWORD_ENCODING_PASS; WRONG_TARGET_REJECTED'
+Write-Output 'PASSWORD_ENCODING_PASS; WRONG_TARGET_REJECTED; PSQL_SAFE_CLASSIFIER_PASS'
 `;
   const folder = await mkdtemp(join(tmpdir(), 'u03-v4-pooler-test-'));
   const scriptPath = join(folder, 'test-pooler.ps1');
@@ -79,7 +109,7 @@ Write-Output 'PASSWORD_ENCODING_PASS; WRONG_TARGET_REJECTED'
     const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-File', scriptPath],
       { encoding: 'utf8', timeout: 15000 });
     assert.equal(result.status, 0, 'PowerShell helper should complete: ' + result.stderr);
-    assert.match(result.stdout, /PASSWORD_ENCODING_PASS; WRONG_TARGET_REJECTED/);
+    assert.match(result.stdout, /PASSWORD_ENCODING_PASS; WRONG_TARGET_REJECTED; PSQL_SAFE_CLASSIFIER_PASS/);
     assert.doesNotMatch(result.stdout + result.stderr, /fictional:|postgresql:\/\/|aws-1-eu-west-3/);
   } finally { await rm(folder, { recursive: true, force: true }); }
 });
@@ -150,7 +180,7 @@ test('failed pre-campaign admin diagnosis does not call campaign, create pool, o
   class NeverPool { constructor() { poolConstructed = true; } }
   try {
     const result = await runPreviewV4Operator({
-      env: { U03_PREVIEW_ADMIN_DATABASE_URL: url }, runId, root: process.cwd(), PoolClass: NeverPool,
+      env: { U03_PREVIEW_ADMIN_DATABASE_URL: url, U03_PREVIEW_ADMIN_PASSWORD_EXPECTED: 'fictional-secret' }, runId, root: process.cwd(), PoolClass: NeverPool,
       diagnosticFn: async () => ({ status: 'FAIL', category: 'DNS', code: 'DNS_RESOLUTION_FAILED' }),
       campaignFn: async () => { campaignCalled = true; return { status: 'PASS' }; },
     });

@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { register } from 'node:module';
 import { lookup } from 'node:dns/promises';
 import { createConnection } from 'node:net';
@@ -36,6 +36,21 @@ export function validatePreviewAdminPoolerUrl(raw, { allowLocal = false } = {}) 
       (!local && (url.hostname !== PREVIEW_POOLER_HOST || username !== `postgres.${PREVIEW_REF}`)) ||
       (local && username !== 'postgres')) throw new Error('V4_ADMIN_DATABASE_URL_INVALID');
   return { url, local };
+}
+
+export function verifyPreviewAdminPasswordTransport(rawUrl, expectedPassword) {
+  if (typeof expectedPassword !== 'string' || expectedPassword.length === 0)
+    return safeDiagnosticFailure('CONFIGURATION', 'PASSWORD_COMPARISON_INPUT_MISSING');
+  try {
+    const { url } = validatePreviewAdminPoolerUrl(rawUrl);
+    const actualBytes = Buffer.from(decodeURIComponent(url.password), 'utf8');
+    const expectedBytes = Buffer.from(expectedPassword, 'utf8');
+    if (actualBytes.length !== expectedBytes.length || !timingSafeEqual(actualBytes, expectedBytes))
+      return safeDiagnosticFailure('CONFIGURATION', 'URL_PASSWORD_BYTES_MISMATCH');
+    return { status: 'PASS', category: 'TRANSPORT', code: 'URL_PASSWORD_BYTES_MATCH' };
+  } catch {
+    return safeDiagnosticFailure('CONFIGURATION', 'URL_PASSWORD_BYTES_MISMATCH');
+  }
 }
 
 export async function createPreviewAdminPool(rawUrl, { PoolClass = Pool, allowLocal = false, ca, skipDns = false } = {}) {
@@ -306,6 +321,9 @@ export async function runPreviewV4Operator({ env = process.env, runId, PoolClass
   let containmentError = null;
   try {
     await ledger('campaign-start', 'STARTED', { mode: 'membership-revocation', deploymentId: 'dpl_6fqataMxfkGFSZJKVGk5xJe8snXq', projectRef: PREVIEW_REF });
+    const transport = verifyPreviewAdminPasswordTransport(adminUrl, env.U03_PREVIEW_ADMIN_PASSWORD_EXPECTED);
+    await ledger('admin-password-transport', transport.status, { category: transport.category, code: transport.code });
+    if (transport.status !== 'PASS') { process.exitCode = 1; return null; }
     const diagnosis = await diagnosticFn(adminUrl, { PoolClass, allowLocal });
     await ledger('admin-connection-diagnostic', diagnosis.status, { category: diagnosis.category, code: diagnosis.code });
     if (diagnosis.status !== 'PASS') { process.exitCode = 1; return null; }
@@ -344,6 +362,7 @@ export async function runPreviewV4Operator({ env = process.env, runId, PoolClass
       for (const name of ['U03_PREVIEW_RECEIPT_DATABASE_URL', 'U03_PREVIEW_RECEIPT_KEY_ID', 'U03_PREVIEW_RECEIPT_SIGNING_KEY']) delete campaignEnv[name];
     }
     delete process.env.U03_PREVIEW_ADMIN_DATABASE_URL;
+    delete process.env.U03_PREVIEW_ADMIN_PASSWORD_EXPECTED;
     if (pool && roleInstallAttempted) {
       try {
         const contained = await blockAndRollbackPreviewReceiptRole(pool, runId);
@@ -368,15 +387,17 @@ async function main() {
   if (diagnose) {
     const url = process.env.U03_PREVIEW_ADMIN_DATABASE_URL;
     try {
-      const result = url
-        ? await diagnosePreviewAdminConnection(url)
-        : safeDiagnosticFailure('CONFIGURATION', 'ADMIN_CREDENTIAL_MISSING');
+      const transport = verifyPreviewAdminPasswordTransport(url, process.env.U03_PREVIEW_ADMIN_PASSWORD_EXPECTED);
+      const result = transport.status !== 'PASS' ? transport : await diagnosePreviewAdminConnection(url);
       console.log(`V4_CONNECTION_DIAGNOSTIC: ${result.status} category=${result.category} code=${result.code}`);
       if (result.status !== 'PASS') process.exitCode = 1;
     } catch {
       console.log('V4_CONNECTION_DIAGNOSTIC: FAIL category=DIAGNOSTIC code=SAFE_DIAGNOSTIC_FAILURE');
       process.exitCode = 1;
-    } finally { delete process.env.U03_PREVIEW_ADMIN_DATABASE_URL; }
+    } finally {
+      delete process.env.U03_PREVIEW_ADMIN_DATABASE_URL;
+      delete process.env.U03_PREVIEW_ADMIN_PASSWORD_EXPECTED;
+    }
     return;
   }
   const run = args.includes('--run');

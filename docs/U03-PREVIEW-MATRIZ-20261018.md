@@ -2,6 +2,12 @@
 
 ## Actualización V-4 diagnóstico administrativo · 19/10/2026
 
+### Comparación psql/Node con una entrada · HEAD siguiente a 68786f5
+
+El resultado previo AUTHENTICATION/`DATABASE_AUTHENTICATION_REJECTED` no se atribuye a una contraseña incorrecta ni a un fallo de `node-postgres`: el psql PASS independiente no probó que ambos clientes recibieran los mismos bytes. El operador Windows actualizado pide una sola vez la Database password como SecureString y usa la misma cadena en memoria para `PGPASSWORD` y para la URL Node. psql conecta con `verify-full` y la CA raíz fijada; Node verifica igualdad byte a byte después de descodificar la URL y ejecuta el preflight TLS verificado. Solo muestra categorías/códigos allowlisted. `-MembershipRevocationOnly` continúa a una sola V-4 si ambos pasan; si no, se detiene antes de fixtures y no intenta contención sin instalación acreditada.
+
+Dirigidas Windows: 7/7; `npm run verify`: 607 PASS/1 SKIP, escaneo de secretos, lint, tipos y build PASS. No hay conexión alojada de esta revisión todavía; la discrepancia histórica queda sin causa demostrada hasta observar el resultado comparado. El comando único y el prompt oculto están en [el expediente V-4](U03-V4-RECIBO-PREVIEW-20261019.md). V-4 permanece BLOCKED; no se repitieron Data API ni B-4.
+
 El run `2e0c5119-7f95-43d1-8aa0-3f4ba34b33e1` falló antes del preflight administrativo y no dejó causa diagnóstica útil. La lectura independiente aportada por Juanma muestra Preview sin fixtures/outbox, sin rol temporal ni políticas U03 temporales. No se repitió campaña.
 
 El modo `-V4ConnectionDiagnosticOnly` está preparado como paso read-only separado, con entrada `Read-Host -AsSecureString` de solo la Database password. Clasifica DNS/TCP/TLS-cert/auth/permiso/capacidad por categoría y código allowlisted, sin guardar URL, contraseña ni mensaje PostgreSQL. El run de campaña también ejecuta ese diagnóstico primero y no intenta contención salvo que su ledger acredite `receipt-role-install: ATTEMPTED/PASS`. `node --test scripts/u03-preview-v4-operator.test.mjs` pasó 6/6; incluye errores simulados y verifica categoría/código en ledger sin sentinelas. No hubo conexión alojada, SQL ni fixtures en este cambio. La campaña V-4 sigue BLOCKED hasta que pase una única ejecución del modo de diagnóstico y, después, una sola campaña autorizada.
