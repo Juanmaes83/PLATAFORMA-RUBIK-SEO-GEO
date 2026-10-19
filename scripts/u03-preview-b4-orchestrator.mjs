@@ -380,6 +380,17 @@ async function main() {
     }
     return;
   }
+  if (process.argv.includes('--credential-preflight-only')) {
+    try {
+      const verified = await verifyInitialPreviewState();
+      console.log(`U03 B-4 CREDENTIAL_PREFLIGHT PASS; ref ${verified.initial.projectRef}; migrations ${verified.initial.migrationCount}; writer locked`);
+    } catch (error) {
+      const code = typeof error?.message === 'string' && /^[A-Z0-9_]{3,80}$/.test(error.message) ? error.message : 'CREDENTIAL_PREFLIGHT_FAILED';
+      console.error(`U03 B-4 CREDENTIAL_PREFLIGHT FAIL; ${code}`);
+      process.exitCode = 1;
+    }
+    return;
+  }
   const adminKey = process.env.U03_PREVIEW_ADMIN_KEY;
   const publicKey = process.env.U03_PREVIEW_PUBLIC_KEY;
   if (!adminKey || !publicKey) {

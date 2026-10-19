@@ -2,7 +2,7 @@
 
 ## Continuidad B-4 · 19/10/2026
 
-La rama #129 incorpora un wrapper de campaña: `scripts/u03-preview-b4-owner.ps1`. Con `vercel.cmd env run -e preview`, solicita las claves necesarias de forma secuencial mediante el portapapeles de Windows: el propietario copia cada valor desde el Dashboard Preview y escribe solo `LISTO` en PowerShell. El wrapper lee y vacía el portapapeles después de cada valor, valida el prefijo esperado y el preflight comprueba que ambas claves correspondan al ref fijado. Crea usuarios y ámbitos ficticios bajo un runId, ejecuta Data API y Playwright en el deployment fijado, limpia en `finally` y verifica inventario/outbox con SQL de solo lectura. No requiere cuentas, contraseñas o rutas precreadas. No usa Production, Funding OS, Sarah, proveedores, escritor ni migraciones.
+La rama #129 incorpora un wrapper de campaña: `scripts/u03-preview-b4-owner.ps1`. El primer aprovisionamiento (`-ProvisionPreviewKeys`) y el reemplazo explícito (`-ReplacePreviewKeys`) leen las dos claves secuencialmente del portapapeles. El wrapper las valida y las guarda fuera del repositorio y de `%TEMP%`, bajo `%LOCALAPPDATA%\Rubik\U03-B4\preview-rhnnplewqsekrnaousyl.json`, cifradas con DPAPI `CurrentUser` y entropía ligada al ref `rhnnplewqsekrnaousyl` y al SID Windows actual. El registro también comprueba esos valores al cargar y hereda la ACL del perfil. La campaña normal nunca lee el portapapeles ni muestra prompts: recupera las claves cifradas después del preflight sin claves, valida formato/ref/SID y las entrega en memoria al runner. El preflight del runner confirma que corresponden al proyecto Preview real antes de crear fixtures. Crea usuarios y ámbitos ficticios bajo un runId, ejecuta Data API y Playwright en el deployment fijado, limpia en `finally` y verifica inventario/outbox con SQL de solo lectura. No requiere cuentas, contraseñas o rutas precreadas. No usa Production, Funding OS, Sarah, proveedores, escritor ni migraciones.
 
 Comando único desde la raíz del worktree: `vercel.cmd env run -e preview -- powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/u03-preview-b4-owner.ps1`. En Windows se debe invocar `vercel.cmd`: el shim `vercel` de PowerShell consumía/interpretaba `--` y no entregaba el comando. El `.cmd` real ya se probó con `node -v` y un comando PowerShell inocuo. Antes de escrituras exige rama/repositorio/enlace Vercel exactos, `VERCEL_OIDC_TOKEN`, deployment `dpl_6fqataMxfkGFSZJKVGk5xJe8snXq`, aplicación SHA `06c2b4270fc74d88ef3e3560bb5d07d8aeb948e2`, host/protección, signup cerrado, centinela/ref Preview, 27 migraciones N1, escritor bloqueado y cero inventario inicial. Falla el preflight: `BLOCKED_NO_WRITES`.
 
@@ -16,14 +16,24 @@ Preparación del comando del propietario: el checkout `C:\Users\temp123\Document
 vercel.cmd env run -e preview -- powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/u03-preview-b4-owner.ps1
 ```
 
-El propietario debe copiar secuencialmente las claves Admin/Auth y publishable de `rhnnplewqsekrnaousyl` desde el Dashboard, y escribir `LISTO` en cada confirmación de PowerShell. No pegar ni mandar claves por chat; compartir luego solo la salida sanitizada. Esperar esa salida antes de atribuir resultados alojados.
+La campaña alojada no se ha ejecutado desde este checkpoint. Tras el aprovisionamiento local, la ejecución del propietario debe compartir solo la salida sanitizada. No pegar ni mandar claves por chat; esperar esa salida antes de atribuir resultados alojados.
 
-### Entrada secuencial de claves por portapapeles
+### Ciclo local de credenciales del Preview
 
-1. Cuando aparezca `Paso 1/2`, copiar en el Dashboard de Supabase Preview `rhnnplewqsekrnaousyl` la clave Admin/Auth (`sb_secret_`), volver a PowerShell y escribir únicamente `LISTO`.
-2. Cuando aparezca `Paso 2/2`, copiar del mismo proyecto la clave publishable (`sb_publishable_`), volver a PowerShell y escribir únicamente `LISTO`.
+Desde la raíz del worktree, comprobar presencia y borrar son operaciones locales. Aprovisionar/reemplazar requieren OIDC de Preview y ejecutan primero el preflight de solo lectura:
 
-El wrapper consume una sola lectura por confirmación, vacía el portapapeles y borra variables al salir. Rechaza líneas múltiples, formatos incompatibles y cancelaciones antes de crear fixtures. La prueba local de regresión valida el parser PowerShell, el rechazo de dos líneas y que la primera copia no pueda rellenar el segundo campo.
+```powershell
+vercel.cmd env run -e preview -- powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/u03-preview-b4-owner.ps1 -ProvisionPreviewKeys
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/u03-preview-b4-owner.ps1 -CheckPreviewKeys
+vercel.cmd env run -e preview -- powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/u03-preview-b4-owner.ps1 -ReplacePreviewKeys
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/u03-preview-b4-owner.ps1 -DeletePreviewKeys
+```
+
+`-CheckPreviewKeys` solo devuelve `PREVIEW_CREDENTIALS_PRESENT` o `PREVIEW_CREDENTIALS_MISSING_OR_UNAVAILABLE`; nunca imprime valores, fragmentos o longitudes. Provisionamiento rechaza sobrescribir una entrada existente; el reemplazo guarda solo después de validar las dos claves y reemplaza el registro cifrado. Borrar elimina ese registro local.
+
+Para aprovisionar por primera vez: ejecuta el comando `-ProvisionPreviewKeys`. Primero se comprueba deployment, ref, migraciones, inventario y capacidades en modo solo lectura. En `Paso 1/2`, copia del Dashboard Preview `rhnnplewqsekrnaousyl` la clave Admin/Auth y escribe `LISTO`; en `Paso 2/2`, copia la publishable del mismo proyecto y escribe `LISTO`. Antes de guardar, el segundo preflight comprueba las claves contra Auth settings, la identidad RPC y Admin API de ese ref, además del estado SQL. Así una clave de Production o de otro proyecto no se conserva en el almacén. No se crean fixtures. El wrapper lee y limpia el portapapeles por cada confirmación, y falla antes de guardar ante valores multilínea, prefijos inválidos, cancelación, error de limpieza o identidad no coincidente. Una campaña posterior usa el comando reutilizable de abajo y no solicita claves ni lee el portapapeles.
+
+Las pruebas locales ejercitan DPAPI CurrentUser real con valores ficticios, primera carga, segunda carga sin prompts, rechazo de clave errónea, perfil no disponible, rechazo de ref alterado, vinculación SID, ACL heredada del perfil, ausencia de texto claro y borrado del fixture sintético. El directorio de prueba vive bajo LocalAppData y se elimina en `finally`.
 
 ## Actualización de estado · reconciliación de #129 · 19/10/2026
 

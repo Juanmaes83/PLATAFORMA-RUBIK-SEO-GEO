@@ -1,4 +1,10 @@
-param([switch]$ReadOnlyPreflightOnly)
+param(
+  [switch]$ReadOnlyPreflightOnly,
+  [switch]$ProvisionPreviewKeys,
+  [switch]$CheckPreviewKeys,
+  [switch]$ReplacePreviewKeys,
+  [switch]$DeletePreviewKeys
+)
 
 $ErrorActionPreference = 'Stop'
 $repo = (Get-Location).Path
@@ -8,6 +14,26 @@ $clipboardModule = Join-Path $PSScriptRoot 'u03-preview-b4-clipboard.psm1'
 Import-Module -Name $clipboardModule -Force -ErrorAction Stop
 
 function Stop-B4([string]$Code) { throw "U03 B-4 BLOCKED: $Code. No fixtures will be created unless every preflight passes." }
+
+$credentialOperations = 0
+foreach ($requested in @($ProvisionPreviewKeys.IsPresent, $CheckPreviewKeys.IsPresent, $ReplacePreviewKeys.IsPresent, $DeletePreviewKeys.IsPresent)) {
+  if ($requested) { $credentialOperations++ }
+}
+if ($credentialOperations -gt 1 -or ($credentialOperations -gt 0 -and $ReadOnlyPreflightOnly)) { Stop-B4 'CREDENTIAL_OPERATION_ARGUMENTS_INVALID' }
+if ($CheckPreviewKeys) {
+  try {
+    if (Test-B4PreviewCredentials) { Write-Output 'PREVIEW_CREDENTIALS_PRESENT' }
+  }
+  catch {
+    Write-Output 'PREVIEW_CREDENTIALS_MISSING_OR_UNAVAILABLE'
+  }
+  return
+}
+if ($DeletePreviewKeys) {
+  if (Remove-B4PreviewCredentials) { Write-Output 'PREVIEW_CREDENTIALS_DELETED' }
+  else { Write-Output 'PREVIEW_CREDENTIALS_NOT_PRESENT' }
+  return
+}
 
 if (-not (Test-Path -LiteralPath $runner)) { Stop-B4 'B4_ORCHESTRATOR_MISSING' }
 if (-not (Test-Path -LiteralPath $linkFile)) { Stop-B4 'VERCEL_PROJECT_NOT_LINKED' }
@@ -36,6 +62,9 @@ else {
 }
 
 $pushed = $false
+$previewCredentials = $null
+$adminKey = $null
+$publicKey = $null
 $clipboardSessionActive = $false
 try {
   # Preserve the machine's authorized proxy route for Node fetch and CLI reads.
@@ -55,27 +84,44 @@ try {
 
   # Strip unrelated Vercel project values and inherited credentials before Node.
   # Keep the isolated OIDC token, OS runtime and network route only.
-  $keep = @('PATH','SystemRoot','WINDIR','TEMP','TMP','USERPROFILE','LOCALAPPDATA','APPDATA','ProgramFiles','HOMEDRIVE','HOMEPATH','COMSPEC','PATHEXT','PROCESSOR_ARCHITECTURE','NUMBER_OF_PROCESSORS','OS','VERCEL_OIDC_TOKEN','U03_VERCEL_CLI','U03_SUPABASE_CLI','U03_PREVIEW_ADMIN_KEY','U03_PREVIEW_PUBLIC_KEY','NODE_USE_ENV_PROXY','NODE_USE_SYSTEM_CA','NODE_EXTRA_CA_CERTS','SSL_CERT_FILE','SSL_CERT_DIR') + $proxyNames
+  $keep = @('PATH','SystemRoot','WINDIR','TEMP','TMP','USERPROFILE','LOCALAPPDATA','APPDATA','ProgramFiles','HOMEDRIVE','HOMEPATH','COMSPEC','PATHEXT','PROCESSOR_ARCHITECTURE','NUMBER_OF_PROCESSORS','OS','VERCEL_OIDC_TOKEN','U03_VERCEL_CLI','U03_SUPABASE_CLI','NODE_USE_ENV_PROXY','NODE_USE_SYSTEM_CA','NODE_EXTRA_CA_CERTS','SSL_CERT_FILE','SSL_CERT_DIR') + $proxyNames
   Get-ChildItem Env: | Where-Object { $_.Name -notin $keep } | ForEach-Object { Remove-Item -LiteralPath "Env:$($_.Name)" -ErrorAction SilentlyContinue }
 
   Push-Location -LiteralPath $repo
   $pushed = $true
   # Deployment protection and database identity/counts/migrations do not need
-  # Auth keys. Fail here before prompting if any read-only gate is not exact.
+  # Auth keys. Fail here before loading credentials if any read-only gate is not exact.
   & node $runner --readonly-preflight
   if ($LASTEXITCODE -ne 0) { Stop-B4 'READ_ONLY_PREFLIGHT_FAILED' }
   if ($ReadOnlyPreflightOnly) { return }
 
-  # Ask only after read-only checks pass. Each clipboard value is read once,
-  # validated by prefix, and cleared before the next key can be requested.
-  # The orchestrator then verifies both keys against the pinned Preview ref.
-  $clipboardSessionActive = $true
-  $env:U03_PREVIEW_ADMIN_KEY = Read-B4ClipboardSecret `
-    -Prompt 'Paso 1/2: copia en el Dashboard Preview rhnnplewqsekrnaousyl la clave Admin/Auth. Vuelve aquí y escribe solo LISTO.' `
-    -ExpectedPrefix 'sb_secret_'
-  $env:U03_PREVIEW_PUBLIC_KEY = Read-B4ClipboardSecret `
-    -Prompt 'Paso 2/2: copia ahora en el mismo proyecto Preview la clave publishable. Vuelve aquí y escribe solo LISTO.' `
-    -ExpectedPrefix 'sb_publishable_'
+  if ($ProvisionPreviewKeys -or $ReplacePreviewKeys) {
+    if ($ProvisionPreviewKeys -and (Test-Path -LiteralPath (Get-B4PreviewCredentialPath))) { Stop-B4 'CREDENTIALS_ALREADY_PRESENT_USE_REPLACE' }
+    $clipboardSessionActive = $true
+    $adminKey = Read-B4ClipboardSecret `
+      -Prompt 'Paso 1/2: copia del Dashboard Preview rhnnplewqsekrnaousyl la clave Admin/Auth y escribe solo LISTO.' `
+      -ExpectedPrefix 'sb_secret_'
+    $publicKey = Read-B4ClipboardSecret `
+      -Prompt 'Paso 2/2: copia del mismo Preview la clave publishable y escribe solo LISTO.' `
+      -ExpectedPrefix 'sb_publishable_'
+    $env:U03_PREVIEW_ADMIN_KEY = $adminKey
+    $env:U03_PREVIEW_PUBLIC_KEY = $publicKey
+    & node $runner --credential-preflight-only
+    if ($LASTEXITCODE -ne 0) { Stop-B4 'CREDENTIAL_PREFLIGHT_FAILED' }
+    Save-B4PreviewCredentials -AdminKey $adminKey -PublicKey $publicKey -Replace:$ReplacePreviewKeys
+    if ($ReplacePreviewKeys) { Write-Output 'PREVIEW_CREDENTIALS_REPLACED' }
+    else { Write-Output 'PREVIEW_CREDENTIALS_PROVISIONED' }
+    return
+  }
+
+  # Each run binds the encrypted record to this Windows SID and Preview ref,
+  # validates formats, then the Node preflight verifies the credentials against
+  # the actual pinned project before any fixture can be created.
+  try { $previewCredentials = Get-B4PreviewCredentials }
+  catch { Stop-B4 'PREVIEW_CREDENTIALS_UNAVAILABLE' }
+  if ($previewCredentials.ProjectRef -cne 'rhnnplewqsekrnaousyl') { Stop-B4 'PREVIEW_CREDENTIAL_REF_MISMATCH' }
+  $env:U03_PREVIEW_ADMIN_KEY = $previewCredentials.AdminKey
+  $env:U03_PREVIEW_PUBLIC_KEY = $previewCredentials.PublicKey
   if ([string]::IsNullOrWhiteSpace($env:U03_PREVIEW_ADMIN_KEY) -or [string]::IsNullOrWhiteSpace($env:U03_PREVIEW_PUBLIC_KEY)) { Stop-B4 'PREVIEW_KEYS_REQUIRED' }
 
   & node $runner
@@ -84,5 +130,9 @@ try {
   if ($pushed) { Pop-Location }
   Get-ChildItem Env: | Where-Object { $_.Name -like 'U03_*' -or $_.Name -eq 'VERCEL_OIDC_TOKEN' } | ForEach-Object { Remove-Item -LiteralPath "Env:$($_.Name)" -ErrorAction SilentlyContinue }
   if ($clipboardSessionActive) { Clear-B4Clipboard }
-  Remove-Variable -Name clipboardSessionActive, clipboardValue, confirmation -ErrorAction SilentlyContinue
+  $adminKey = $null
+  $publicKey = $null
+  if ($previewCredentials) { $previewCredentials.AdminKey = $null; $previewCredentials.PublicKey = $null }
+  $previewCredentials = $null
+  Remove-Variable -Name previewCredentials, clipboardSessionActive, adminKey, publicKey, clipboardValue, confirmation -ErrorAction SilentlyContinue
 }

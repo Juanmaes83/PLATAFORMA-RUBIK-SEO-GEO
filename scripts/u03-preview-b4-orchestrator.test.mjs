@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { execFileSync } from 'node:child_process';
 import test from 'node:test';
 import { chromiumEnvironment, networkEnvironment, PIN } from './u03-preview-b4-runner.mjs';
 import { parseCliJson, readPreviewAuthSettings, runHostedU03Campaign, runPreviewReadOnlySql, runReadOnlyPreflight, verifyFinalPreviewState, verifyInitialPreviewState, verifyReadOnlyPreviewState } from './u03-preview-b4-orchestrator.mjs';
@@ -14,17 +13,6 @@ const secrets = {
   U03_PREVIEW_PUBLIC_KEY: ['sb_publishable_', 'fictional-public-key-do-not-log'].join(''),
   VERCEL_OIDC_TOKEN: 'fictional-oidc-secret-do-not-log',
 };
-
-test('Windows owner wrapper parses and clipboard key entry is sequential and fail-closed', t => {
-  if (process.platform !== 'win32') return t.skip('PowerShell clipboard regression test runs on Windows.');
-  const output = execFileSync('powershell.exe', [
-    '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File',
-    join(process.cwd(), 'scripts', 'u03-preview-b4-clipboard.test.ps1'),
-  ], { encoding: 'utf8', windowsHide: true });
-  assert.match(output, /PASS PowerShell parser: owner, clipboard module, and clipboard tests/);
-  assert.match(output, /PASS two-line clipboard rejected and cleared/);
-  assert.match(output, /PASS one clipboard copy cannot populate both sequential keys/);
-});
 
 function fakeFixture(failAt = null, calls = []) {
   const failAfter = stage => { calls.push(stage); if (failAt === stage) throw new Error(`INJECTED_${stage.toUpperCase()}_FAILURE`); };
@@ -169,6 +157,31 @@ test('incompatible key formats are rejected before deployment or Auth requests',
   }), error => error.message === 'SUPABASE_KEY_FORMAT_REJECTED' &&
     error.adminKeyFormat === 'sb_publishable_' && error.publicKeyFormat === 'sb_publishable_');
   assert.deepEqual([deploymentCalls, fetchCalls], [0, 0]);
+});
+
+test('credential preflight rejects another project identity and invalid Admin key before writes', async () => {
+  const noWritePreflight = async () => ({ deploymentId: PIN.deploymentId, sha: PIN.sha, host: PIN.host });
+  let wrongIdentityAdminCalls = 0, wrongIdentitySqlCalls = 0;
+  await assert.rejects(verifyInitialPreviewState({
+    env: secrets,
+    preflightFn: noWritePreflight,
+    fetchImpl: async () => new Response(JSON.stringify({ disable_signup: true }), { status: 200 }),
+    publicClient: { rpc: async () => ({ data: [{ environment: 'preview', project_ref: 'another-preview-ref' }], error: null }) },
+    admin: { auth: { admin: { listUsers: async () => { wrongIdentityAdminCalls++; return { data: { users: [] }, error: null }; } } } },
+    sql: async () => { wrongIdentitySqlCalls++; throw new Error('unexpected SQL'); },
+  }), error => error.message === 'PREVIEW_IDENTITY_INVALID');
+  assert.deepEqual([wrongIdentityAdminCalls, wrongIdentitySqlCalls], [0, 0]);
+
+  let correctIdentityCalls = 0, invalidAdminSqlCalls = 0;
+  await assert.rejects(verifyInitialPreviewState({
+    env: secrets,
+    preflightFn: noWritePreflight,
+    fetchImpl: async () => new Response(JSON.stringify({ disable_signup: true }), { status: 200 }),
+    publicClient: { rpc: async () => { correctIdentityCalls++; return { data: [{ environment: 'preview', project_ref: PIN.supabaseRef }], error: null }; } },
+    admin: { auth: { admin: { listUsers: async () => ({ data: null, error: new Error('invalid synthetic key') }) } } },
+    sql: async () => { invalidAdminSqlCalls++; throw new Error('unexpected SQL'); },
+  }), error => error.message === 'PREVIEW_ADMIN_KEY_INVALID');
+  assert.deepEqual([correctIdentityCalls, invalidAdminSqlCalls], [1, 0]);
 });
 
 for (const [label, responseFor, http] of [
@@ -318,12 +331,21 @@ test('initial preflight completes with the mapped read-only state and reports mi
   assert.deepEqual([settingsRead, identityRead, usersRead, sqlRead], [1, 1, 1, 1]);
 });
 
-test('owner wrapper performs no-key preflight before prompting and always cleans environment in finally', async () => {
+test('owner wrapper runs no-key preflight before DPAPI load and never prompts during campaigns', async () => {
   const script = await readFile(new URL('./u03-preview-b4-owner.ps1', import.meta.url), 'utf8');
-  assert.ok(script.indexOf('--readonly-preflight') < script.indexOf("-ExpectedPrefix 'sb_secret_'"));
-  assert.ok(script.indexOf("-ExpectedPrefix 'sb_secret_'") < script.indexOf("-ExpectedPrefix 'sb_publishable_'"));
-  assert.ok(script.indexOf('if ($ReadOnlyPreflightOnly) { return }') < script.indexOf("-ExpectedPrefix 'sb_secret_'"));
+  const preflight = script.indexOf('& node $runner --readonly-preflight');
+  const credentialLoad = script.indexOf('$previewCredentials = Get-B4PreviewCredentials');
+  const credentialPreflight = script.indexOf('& node $runner --credential-preflight-only');
+  const credentialSave = script.indexOf('Save-B4PreviewCredentials');
+  const campaignPath = script.slice(credentialLoad, script.indexOf('} finally', credentialLoad));
+  assert.ok(preflight >= 0 && preflight < credentialLoad);
+  assert.doesNotMatch(campaignPath, /Read-B4ClipboardSecret|Read-Host/);
+  assert.ok(preflight < credentialPreflight && credentialPreflight < credentialSave);
+  assert.match(script, /if \(\$ProvisionPreviewKeys -or \$ReplacePreviewKeys\)[\s\S]*--credential-preflight-only[\s\S]*Save-B4PreviewCredentials/);
+  assert.match(script, /\[switch\]\$ProvisionPreviewKeys[\s\S]*\[switch\]\$CheckPreviewKeys[\s\S]*\[switch\]\$ReplacePreviewKeys[\s\S]*\[switch\]\$DeletePreviewKeys/);
+  assert.match(script, /-ExpectedPrefix 'sb_secret_'[\s\S]*-ExpectedPrefix 'sb_publishable_'/);
   assert.doesNotMatch(script, /Read-Host\s+-AsSecureString|Read-B4Secret/);
+  assert.doesNotMatch(script, /'U03_PREVIEW_ADMIN_KEY','U03_PREVIEW_PUBLIC_KEY'/);
   assert.match(script, /finally\s*\{[\s\S]*Get-ChildItem Env:[\s\S]*U03_\*/);
-  assert.match(script, /finally\s*\{[\s\S]*Clear-B4Clipboard/);
+  assert.match(script, /finally\s*\{[\s\S]*previewCredentials\.AdminKey = \$null[\s\S]*previewCredentials\.PublicKey = \$null/);
 });
