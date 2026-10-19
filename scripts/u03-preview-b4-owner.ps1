@@ -4,14 +4,10 @@ $ErrorActionPreference = 'Stop'
 $repo = (Get-Location).Path
 $runner = Join-Path $repo 'scripts\u03-preview-b4-orchestrator.mjs'
 $linkFile = Join-Path $repo '.vercel\project.json'
+$clipboardModule = Join-Path $PSScriptRoot 'u03-preview-b4-clipboard.psm1'
+Import-Module -Name $clipboardModule -Force -ErrorAction Stop
 
 function Stop-B4([string]$Code) { throw "U03 B-4 BLOCKED: $Code. No fixtures will be created unless every preflight passes." }
-function Read-B4Secret([string]$Prompt) {
-  $secure = Read-Host -Prompt $Prompt -AsSecureString
-  $ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
-  try { [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr) }
-  finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr) }
-}
 
 if (-not (Test-Path -LiteralPath $runner)) { Stop-B4 'B4_ORCHESTRATOR_MISSING' }
 if (-not (Test-Path -LiteralPath $linkFile)) { Stop-B4 'VERCEL_PROJECT_NOT_LINKED' }
@@ -40,6 +36,7 @@ else {
 }
 
 $pushed = $false
+$clipboardSessionActive = $false
 try {
   # Preserve the machine's authorized proxy route for Node fetch and CLI reads.
   # Never print these values; they may contain proxy authentication material.
@@ -69,10 +66,16 @@ try {
   if ($LASTEXITCODE -ne 0) { Stop-B4 'READ_ONLY_PREFLIGHT_FAILED' }
   if ($ReadOnlyPreflightOnly) { return }
 
-  # Ask only after read-only checks pass. Keys stay in this process environment,
-  # never enter arguments, and are removed on every exit.
-  $env:U03_PREVIEW_ADMIN_KEY = Read-B4Secret 'Supabase Preview Admin/Auth key (solo rhnnplewqsekrnaousyl)'
-  $env:U03_PREVIEW_PUBLIC_KEY = Read-B4Secret 'Supabase Preview publishable key (solo rhnnplewqsekrnaousyl)'
+  # Ask only after read-only checks pass. Each clipboard value is read once,
+  # validated by prefix, and cleared before the next key can be requested.
+  # The orchestrator then verifies both keys against the pinned Preview ref.
+  $clipboardSessionActive = $true
+  $env:U03_PREVIEW_ADMIN_KEY = Read-B4ClipboardSecret `
+    -Prompt 'Paso 1/2: copia en el Dashboard Preview rhnnplewqsekrnaousyl la clave Admin/Auth. Vuelve aquí y escribe solo LISTO.' `
+    -ExpectedPrefix 'sb_secret_'
+  $env:U03_PREVIEW_PUBLIC_KEY = Read-B4ClipboardSecret `
+    -Prompt 'Paso 2/2: copia ahora en el mismo proyecto Preview la clave publishable. Vuelve aquí y escribe solo LISTO.' `
+    -ExpectedPrefix 'sb_publishable_'
   if ([string]::IsNullOrWhiteSpace($env:U03_PREVIEW_ADMIN_KEY) -or [string]::IsNullOrWhiteSpace($env:U03_PREVIEW_PUBLIC_KEY)) { Stop-B4 'PREVIEW_KEYS_REQUIRED' }
 
   & node $runner
@@ -80,6 +83,6 @@ try {
 } finally {
   if ($pushed) { Pop-Location }
   Get-ChildItem Env: | Where-Object { $_.Name -like 'U03_*' -or $_.Name -eq 'VERCEL_OIDC_TOKEN' } | ForEach-Object { Remove-Item -LiteralPath "Env:$($_.Name)" -ErrorAction SilentlyContinue }
-  Remove-Variable -Name secure -ErrorAction SilentlyContinue
-  Remove-Variable -Name adminKey,publicKey -ErrorAction SilentlyContinue
+  if ($clipboardSessionActive) { Clear-B4Clipboard }
+  Remove-Variable -Name clipboardSessionActive, clipboardValue, confirmation -ErrorAction SilentlyContinue
 }

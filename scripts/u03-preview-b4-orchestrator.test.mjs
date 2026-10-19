@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
 import test from 'node:test';
 import { chromiumEnvironment, networkEnvironment, PIN } from './u03-preview-b4-runner.mjs';
 import { parseCliJson, readPreviewAuthSettings, runHostedU03Campaign, runPreviewReadOnlySql, runReadOnlyPreflight, verifyFinalPreviewState, verifyInitialPreviewState, verifyReadOnlyPreviewState } from './u03-preview-b4-orchestrator.mjs';
@@ -13,6 +14,17 @@ const secrets = {
   U03_PREVIEW_PUBLIC_KEY: ['sb_publishable_', 'fictional-public-key-do-not-log'].join(''),
   VERCEL_OIDC_TOKEN: 'fictional-oidc-secret-do-not-log',
 };
+
+test('Windows owner wrapper parses and clipboard key entry is sequential and fail-closed', t => {
+  if (process.platform !== 'win32') return t.skip('PowerShell clipboard regression test runs on Windows.');
+  const output = execFileSync('powershell.exe', [
+    '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File',
+    join(process.cwd(), 'scripts', 'u03-preview-b4-clipboard.test.ps1'),
+  ], { encoding: 'utf8', windowsHide: true });
+  assert.match(output, /PASS PowerShell parser: owner, clipboard module, and clipboard tests/);
+  assert.match(output, /PASS two-line clipboard rejected and cleared/);
+  assert.match(output, /PASS one clipboard copy cannot populate both sequential keys/);
+});
 
 function fakeFixture(failAt = null, calls = []) {
   const failAfter = stage => { calls.push(stage); if (failAt === stage) throw new Error(`INJECTED_${stage.toUpperCase()}_FAILURE`); };
@@ -308,8 +320,10 @@ test('initial preflight completes with the mapped read-only state and reports mi
 
 test('owner wrapper performs no-key preflight before prompting and always cleans environment in finally', async () => {
   const script = await readFile(new URL('./u03-preview-b4-owner.ps1', import.meta.url), 'utf8');
-  assert.ok(script.indexOf('--readonly-preflight') < script.indexOf("Read-B4Secret 'Supabase Preview Admin/Auth key"));
-  assert.ok(script.indexOf('--readonly-preflight') < script.indexOf("Read-B4Secret 'Supabase Preview publishable key"));
-  assert.ok(script.indexOf('if ($ReadOnlyPreflightOnly) { return }') < script.indexOf("Read-B4Secret 'Supabase Preview Admin/Auth key"));
+  assert.ok(script.indexOf('--readonly-preflight') < script.indexOf("-ExpectedPrefix 'sb_secret_'"));
+  assert.ok(script.indexOf("-ExpectedPrefix 'sb_secret_'") < script.indexOf("-ExpectedPrefix 'sb_publishable_'"));
+  assert.ok(script.indexOf('if ($ReadOnlyPreflightOnly) { return }') < script.indexOf("-ExpectedPrefix 'sb_secret_'"));
+  assert.doesNotMatch(script, /Read-Host\s+-AsSecureString|Read-B4Secret/);
   assert.match(script, /finally\s*\{[\s\S]*Get-ChildItem Env:[\s\S]*U03_\*/);
+  assert.match(script, /finally\s*\{[\s\S]*Clear-B4Clipboard/);
 });

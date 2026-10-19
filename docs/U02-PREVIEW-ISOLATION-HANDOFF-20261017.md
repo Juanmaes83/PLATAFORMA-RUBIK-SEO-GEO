@@ -2,7 +2,7 @@
 
 ## Continuidad B-4 · 19/10/2026
 
-La rama #129 incorpora un wrapper de campaña: `scripts/u03-preview-b4-owner.ps1`. Con `vercel.cmd env run -e preview`, pide solo Admin/Auth y publishable key por prompts sin eco. Crea usuarios y ámbitos ficticios bajo un runId, ejecuta Data API y Playwright en el deployment fijado, limpia en `finally` y verifica inventario/outbox con SQL de solo lectura. No requiere cuentas, contraseñas o rutas precreadas. No usa Production, Funding OS, Sarah, proveedores, escritor ni migraciones.
+La rama #129 incorpora un wrapper de campaña: `scripts/u03-preview-b4-owner.ps1`. Con `vercel.cmd env run -e preview`, solicita las claves necesarias de forma secuencial mediante el portapapeles de Windows: el propietario copia cada valor desde el Dashboard Preview y escribe solo `LISTO` en PowerShell. El wrapper lee y vacía el portapapeles después de cada valor, valida el prefijo esperado y el preflight comprueba que ambas claves correspondan al ref fijado. Crea usuarios y ámbitos ficticios bajo un runId, ejecuta Data API y Playwright en el deployment fijado, limpia en `finally` y verifica inventario/outbox con SQL de solo lectura. No requiere cuentas, contraseñas o rutas precreadas. No usa Production, Funding OS, Sarah, proveedores, escritor ni migraciones.
 
 Comando único desde la raíz del worktree: `vercel.cmd env run -e preview -- powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/u03-preview-b4-owner.ps1`. En Windows se debe invocar `vercel.cmd`: el shim `vercel` de PowerShell consumía/interpretaba `--` y no entregaba el comando. El `.cmd` real ya se probó con `node -v` y un comando PowerShell inocuo. Antes de escrituras exige rama/repositorio/enlace Vercel exactos, `VERCEL_OIDC_TOKEN`, deployment `dpl_6fqataMxfkGFSZJKVGk5xJe8snXq`, aplicación SHA `06c2b4270fc74d88ef3e3560bb5d07d8aeb948e2`, host/protección, signup cerrado, centinela/ref Preview, 27 migraciones N1, escritor bloqueado y cero inventario inicial. Falla el preflight: `BLOCKED_NO_WRITES`.
 
@@ -16,7 +16,14 @@ Preparación del comando del propietario: el checkout `C:\Users\temp123\Document
 vercel.cmd env run -e preview -- powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/u03-preview-b4-owner.ps1
 ```
 
-El propietario debe introducir solo las claves Admin/Auth y publishable de `rhnnplewqsekrnaousyl` en los dos prompts sin eco y compartir luego la salida sanitizada. No mandar claves por chat. Esperar esa salida antes de atribuir resultados alojados.
+El propietario debe copiar secuencialmente las claves Admin/Auth y publishable de `rhnnplewqsekrnaousyl` desde el Dashboard, y escribir `LISTO` en cada confirmación de PowerShell. No pegar ni mandar claves por chat; compartir luego solo la salida sanitizada. Esperar esa salida antes de atribuir resultados alojados.
+
+### Entrada secuencial de claves por portapapeles
+
+1. Cuando aparezca `Paso 1/2`, copiar en el Dashboard de Supabase Preview `rhnnplewqsekrnaousyl` la clave Admin/Auth (`sb_secret_`), volver a PowerShell y escribir únicamente `LISTO`.
+2. Cuando aparezca `Paso 2/2`, copiar del mismo proyecto la clave publishable (`sb_publishable_`), volver a PowerShell y escribir únicamente `LISTO`.
+
+El wrapper consume una sola lectura por confirmación, vacía el portapapeles y borra variables al salir. Rechaza líneas múltiples, formatos incompatibles y cancelaciones antes de crear fixtures. La prueba local de regresión valida el parser PowerShell, el rechazo de dos líneas y que la primera copia no pueda rellenar el segundo campo.
 
 ## Actualización de estado · reconciliación de #129 · 19/10/2026
 
