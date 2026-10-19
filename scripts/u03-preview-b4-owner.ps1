@@ -3,6 +3,7 @@ param(
   [switch]$V4ConnectionDiagnosticOnly,
   [switch]$PlaywrightOnly,
   [switch]$RolesInvitationsOnly,
+  [switch]$CrossSurfaceOnly,
   [switch]$MembershipRevocationOnly,
   [switch]$ProvisionPreviewKeys,
   [switch]$CheckPreviewKeys,
@@ -98,7 +99,8 @@ foreach ($requested in @($ProvisionPreviewKeys.IsPresent, $CheckPreviewKeys.IsPr
   if ($requested) { $credentialOperations++ }
 }
 $campaignModes = @($ReadOnlyPreflightOnly.IsPresent, $V4ConnectionDiagnosticOnly.IsPresent,
-  $PlaywrightOnly.IsPresent, $MembershipRevocationOnly.IsPresent, $RolesInvitationsOnly.IsPresent) | Where-Object { $_ }
+  $PlaywrightOnly.IsPresent, $MembershipRevocationOnly.IsPresent, $RolesInvitationsOnly.IsPresent,
+  $CrossSurfaceOnly.IsPresent) | Where-Object { $_ }
 if ($credentialOperations -gt 1 -or ($credentialOperations -gt 0 -and $campaignModes.Count -gt 0) -or
     $campaignModes.Count -gt 1) { Stop-B4 'CREDENTIAL_OPERATION_ARGUMENTS_INVALID' }
 if ($CheckPreviewKeys) {
@@ -120,7 +122,8 @@ if (-not (Test-Path -LiteralPath $runner)) { Stop-B4 'B4_ORCHESTRATOR_MISSING' }
 if (-not (Test-Path -LiteralPath $linkFile)) { Stop-B4 'VERCEL_PROJECT_NOT_LINKED' }
 $branch = (& git -C $repo branch --show-current 2>$null).Trim()
 $remote = (& git -C $repo remote get-url origin 2>$null).Trim()
-if ($branch -notin @('codex/u02-preview-isolation-20261017', 'codex/u03-roles-invitations-20261019') -or
+if ($branch -notin @('codex/u02-preview-isolation-20261017', 'codex/u03-roles-invitations-20261019',
+    'codex/u03-cross-surface-20261019') -or
     $remote -ne 'https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO.git') { Stop-B4 'WRONG_REPOSITORY_OR_BRANCH' }
 $link = Get-Content -LiteralPath $linkFile -Raw | ConvertFrom-Json
 if ($link.projectId -ne 'prj_HgnTtNtisi9Kt1A4Dq2pxoCQBook' -or $link.orgId -ne 'team_hLhdb3M9MviTIysXD9whFF2c') { Stop-B4 'VERCEL_LINK_MISMATCH' }
@@ -234,6 +237,7 @@ try {
     if ($LASTEXITCODE -ne 0) { Stop-B4 'V4_OPERATOR_CAMPAIGN_OR_CLEANUP_FAILED' }
   }
   elseif ($RolesInvitationsOnly) { & node $runner --roles-invitations-only }
+  elseif ($CrossSurfaceOnly) { & node $runner --cross-surface-only }
   elseif ($PlaywrightOnly) { & node $runner --playwright-only }
   else { & node $runner }
   if ($LASTEXITCODE -ne 0) { Stop-B4 'U03_B4_CAMPAIGN_FAILED_OR_CLEANUP_UNVERIFIED' }

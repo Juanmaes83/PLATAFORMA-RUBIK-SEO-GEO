@@ -144,6 +144,30 @@ for (const fails of [false, true]) {
   }));
 }
 
+for (const fails of [false, true]) {
+  test(`cross-surface campaign ${fails ? 'fails and cleans' : 'passes'} without prior matrices or Chromium`, async () => withRoot(async root => {
+    const calls = [];
+    const result = await runHostedU03Campaign({
+      root, sha, runId, env: secrets, mode: 'cross-surface', preflightFn: passingPreflight,
+      fixtureFactory: () => ({ namespace: 'u03-cross-test',
+        createUsers: async () => calls.push('users'),
+        createOrganizations: async () => { calls.push('organizations'); return { orgA: 'org-a', orgB: 'org-b' }; },
+        createProjects: async () => { calls.push('projects'); return { a1: 'a1', a2: 'a2', b1: 'b1' }; },
+        runCrossSurface: async () => { calls.push('cross'); if (fails) throw new Error('CROSS_CASE_FAILED_I8'); return { passed: true, cases: 14 }; },
+        cleanup: async () => { calls.push('cleanup'); return { ok: true, userIds: [], organizationIds: [], projectIds: [] }; },
+      }), finalCheckFn: passingFinal,
+      browserFn: async () => { throw new Error('BROWSER_MUST_NOT_RUN'); },
+    });
+    assert.equal(result.status, fails ? 'FAIL_CLEANED' : 'PASS');
+    assert.deepEqual(calls, ['users', 'organizations', 'projects', 'cross', 'cleanup']);
+    const ledger = await readFile(result.ledgerPath, 'utf8');
+    assert.match(ledger, /"caseId":"data-api-matrix","status":"SKIP_PRIOR_EVIDENCE"/);
+    assert.match(ledger, /"caseId":"browser-b4","status":"SKIP_PRIOR_EVIDENCE"/);
+    assert.match(ledger, /"caseId":"outbox-final","status":"PASS"/);
+    for (const secret of Object.values(secrets)) assert.equal(ledger.includes(secret), false);
+  }));
+}
+
 test('Playwright-only campaign reuses fixtures and cleanup, records prior Data API evidence, and verifies zero inventory/outbox', async () => withRoot(async root => {
   const calls = [];
   const result = await runHostedU03Campaign({

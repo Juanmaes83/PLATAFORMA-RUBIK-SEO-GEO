@@ -5,7 +5,7 @@ import { createDataApiFixtureRun } from './u03-preview-data-api.mjs';
 import { U03_PREVIEW_REF } from './u03-preview-data-api.mjs';
 
 function controlledBackend() {
-  const rows = { organizations: [], projects: [], project_members: [], audit_events: [] };
+  const rows = { organizations: [], projects: [], project_members: [], audit_events: [], provider_results: [], imports: [] };
   const authUsers = new Map();
   const orgOwners = new Map();
   const invitations = [];
@@ -43,6 +43,8 @@ function controlledBackend() {
         const row = { id, created_by: actorId, ...payload };
         tableRows.push(row);
         if (table === 'organizations') orgOwners.set(id, actorId);
+        if (table === 'projects') rows.project_members.push({ id: randomUUID(), project_id: id,
+          organization_id: row.organization_id, user_id: actorId, role: 'owner' });
         return result([row], null, 201);
       }
       const selected = tableRows.filter(row => (adminMode || visible(row)) && filters.every(filter => filter(row)));
@@ -134,6 +136,7 @@ function controlledBackend() {
         }
         const visibleProject = rows.projects.find(row => row.id === p_project_id && orgOwners.get(row.organization_id) === actorId);
         if (!visibleProject) return { data: null, error: { code: '42501' } };
+        if (name === 'provider_budget') return { data: { used: 0, spend: null, available: null }, error: null };
         const dated = { count: 0, first: null, last: null };
         return { data: {
           auditEvents: dated, providerResults: dated, imports: dated, invitations: { open: 0, closed: 0 },
@@ -199,10 +202,10 @@ test('directed V-4 uses an accepted viewer invitation, keeps the JWT valid, deni
   try {
     const { a1 } = await fixtures.createRevocationFixtures();
     assert.ok(a1);
-    assert.deepEqual(backend.counts(), { users: 2, organizations: 1, projects: 1, memberships: 0, auditEvents: 0 });
+    assert.deepEqual(backend.counts(), { users: 2, organizations: 1, projects: 1, memberships: 1, auditEvents: 0 });
     assert.match((await fixtures.runMembershipRevocation({ a1 })).receiptId, /^[0-9a-f-]{36}$/);
     assert.equal(backend.invitations.length, 1);
-    assert.equal(backend.rows.project_members.length, 0);
+    assert.equal(backend.rows.project_members.length, 1);
     assert.equal(ledgerRows.find(row => row.caseId === 'membership-grant-before-withdrawal')?.status, 'PASS');
     assert.equal(ledgerRows.find(row => row.caseId === 'membership-revocation-after-withdrawal')?.status, 'PASS');
     const serialized = JSON.stringify(ledgerRows);
@@ -232,7 +235,7 @@ test('directed V-1/V-2/V-3 and five roles remain scoped; cleanup removes invitat
     assert.equal(ledgerRows.filter(row => row.caseId.startsWith('role-') && row.status === 'PASS').length, 5);
     assert.equal(ledgerRows.filter(row => row.caseId.startsWith('v2-') && row.status === 'PASS').length, 3);
     assert.equal(backend.authUsers.size, 8);
-    assert.equal(backend.rows.project_members.length, 5);
+    assert.equal(backend.rows.project_members.length, 8);
     assert.equal(JSON.stringify(ledgerRows).includes(backend.invitations[0].token), false);
   } finally {
     assert.equal((await fixtures.cleanup()).ok, true);
@@ -241,4 +244,24 @@ test('directed V-1/V-2/V-3 and five roles remain scoped; cleanup removes invitat
   assert.equal(backend.invitations.length, 0);
   assert.equal(backend.rows.projects.length, 0);
   assert.equal(backend.rows.project_members.length, 0);
+});
+
+test('I-5/I-8 and P-2 use both authentic owners, foreign IDs and no provider writes', async () => {
+  const backend = controlledBackend();
+  const ledgerRows = [];
+  const fixtures = createDataApiFixtureRun({
+    runId: 'cross-cycle-test-001', sha: 'c'.repeat(40), admin: backend.admin,
+    publicKey: 'fictional-public-key', clientFactory: backend.clientFactory,
+    ledger: async (caseId, status) => ledgerRows.push({ caseId, status }),
+  });
+  try {
+    await fixtures.createUsers();
+    const orgs = await fixtures.createOrganizations();
+    const projects = await fixtures.createProjects(orgs);
+    assert.deepEqual(await fixtures.runCrossSurface({ ...orgs, ...projects }), { passed: true, cases: 14 });
+    assert.equal(ledgerRows.filter(row => row.caseId.startsWith('i5-') && row.status === 'PASS').length, 6);
+    assert.equal(ledgerRows.filter(row => row.caseId.startsWith('i8-') && row.status === 'PASS').length, 6);
+    assert.equal(ledgerRows.filter(row => row.caseId.startsWith('p2-') && row.status === 'PASS').length, 2);
+  } finally { assert.equal((await fixtures.cleanup()).ok, true); }
+  assert.deepEqual(backend.counts(), { users: 0, organizations: 0, projects: 0, memberships: 0, auditEvents: 0 });
 });
