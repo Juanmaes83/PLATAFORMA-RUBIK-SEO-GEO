@@ -7,7 +7,7 @@ import { test } from "node:test";
 import { chromium } from "playwright";
 import {
   PIN, deploymentMatches, scopedHeaders, isExternalRedirect,
-  sanitizeDiagnostic, safePath, preflight, runB4, installScopedRoutes,
+  sanitizeDiagnostic, safePath, preflight, runB4, installScopedRoutes, createPageDiagnostics, auditAndCapture,
   safeLedgerRow, login,
 } from "./u03-preview-b4-runner.mjs";
 
@@ -125,6 +125,52 @@ test("token is redacted from errors and persisted diagnostics", () => {
   assert.equal(error.includes(token), false);
   assert.equal(ledger.includes(token), false);
   assert.equal(JSON.stringify({ trace: null, screenshot: null, capture: null, error }).includes(token), false);
+});
+
+test("visual diagnostics are scoped per phase, categorized, sanitized, and captured before failure", async () => {
+  const root = await mkdtemp(join(tmpdir(), "u03-visual-diagnostic-"));
+  const server = createServer((_req, res) => res.writeHead(500, { "content-type": "text/plain" }).end("never retain body"));
+  const port = await new Promise(resolve => server.listen(0, "127.0.0.1", () => resolve(server.address().port)));
+  const origin = `http://127.0.0.1:${port}`;
+  const events = [];
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    const diagnostics = createPageDiagnostics(page);
+    await page.goto(origin);
+    await page.evaluate(() => console.error("SECRET_TEXT https://example.test/path?token=hidden"));
+    await page.waitForTimeout(25);
+    const loginPhase = diagnostics.take();
+    assert.equal(loginPhase.console["error:external"], 1);
+    assert.ok(Object.values(loginPhase.console).reduce((sum, count) => sum + count, 0) >= 1);
+    assert.equal(JSON.stringify(loginPhase).includes("SECRET_TEXT"), false);
+    assert.equal(JSON.stringify(loginPhase).includes("token=hidden"), false);
+
+    await page.evaluate(() => { const script = document.createElement("script"); script.src = "/missing.js?credential=hidden"; document.head.append(script); });
+    await page.waitForTimeout(50);
+    await assert.rejects(auditAndCapture(page, {
+      runId: "simulated-visual-failure", viewport: "desktop", screen: "a-panel", captureRoot: root,
+      diagnostics, pageErrors: 0,
+      ledger: async (caseId, status, detail) => events.push({ caseId, status, ...detail }),
+    }), error => error.code === "VISUAL_AUDIT_FAILED");
+    const visual = events.find(event => event.caseId === "visual-a-panel");
+    assert.equal(visual.status, "FAIL");
+    assert.equal(visual.diagnostics.http[`500:external`], 1);
+    assert.equal(JSON.stringify(visual).includes("missing.js"), false);
+    assert.equal(JSON.stringify(visual).includes("credential=hidden"), false);
+    assert.equal(JSON.stringify(visual).includes("never retain body"), false);
+    assert.equal((await readFile(join(root, "simulated-visual-failure-desktop-a-panel.png"))).length > 0, true);
+    assert.equal(events.some(event => event.caseId === "capture-a-panel"), false);
+    diagnostics.dispose();
+    await context.close();
+  } finally {
+    if (browser) await browser.close();
+    server.closeAllConnections?.();
+    await new Promise(resolve => server.close(resolve));
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 test("login diagnoses a form rejection locally without persisting credentials, cookies, or tokens", async () => {

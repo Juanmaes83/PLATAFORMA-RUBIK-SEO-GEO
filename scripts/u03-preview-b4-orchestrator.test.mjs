@@ -4,10 +4,36 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { chromiumEnvironment, networkEnvironment, PIN } from './u03-preview-b4-runner.mjs';
-import { parseCliJson, readPreviewAuthSettings, runHostedU03Campaign, runPreviewReadOnlySql, runReadOnlyPreflight, verifyFinalPreviewState, verifyInitialPreviewState, verifyReadOnlyPreviewState } from './u03-preview-b4-orchestrator.mjs';
+import { parseCliJson, readPreviewAuthSettings, runHostedU03Campaign, runPreviewReadOnlySql, runReadOnlyPreflight, safeLedgerDetail, verifyFinalPreviewState, verifyInitialPreviewState, verifyReadOnlyPreviewState } from './u03-preview-b4-orchestrator.mjs';
 
 const runId = 'u03-orchestrator-test-run';
 const sha = 'a'.repeat(40);
+
+test('ledger retains only categorized browser diagnostics and discards unsafe strings', () => {
+  const safe = safeLedgerDetail({
+    phase: 'login', pathname: '/acceso',
+    diagnostics: {
+      console: { 'error:preview': 7, 'warning:external': 2, 'error:https://evil.test/?token=leak': 99 },
+      http: { '403:preview': 1, '500:external': 3, '200:https://host.test/?key=leak': 9 },
+      requestFailures: { external: 4, 'evil.test?token=leak': 5 },
+      routeEvents: { 'pinned-origin-request-failed': 1, 'auth-action-http-403': 1, 'https://evil.test/?token=leak': 6 },
+      freeText: 'secret-value',
+    },
+    consoleText: 'secret-value',
+  });
+  assert.deepEqual(safe, {
+    phase: 'login', pathname: '/acceso',
+    diagnostics: {
+      console: { 'error:preview': 7, 'warning:external': 2 },
+      http: { '403:preview': 1, '500:external': 3 },
+      requestFailures: { external: 4 },
+      routeEvents: { 'pinned-origin-request-failed': 1, 'auth-action-http-403': 1 },
+    },
+  });
+  assert.equal(JSON.stringify(safe).includes('leak'), false);
+  assert.equal(JSON.stringify(safe).includes('secret-value'), false);
+});
+
 const secrets = {
   U03_PREVIEW_ADMIN_KEY: ['sb_secret_', 'fictional-admin-key-do-not-log'].join(''),
   U03_PREVIEW_PUBLIC_KEY: ['sb_publishable_', 'fictional-public-key-do-not-log'].join(''),

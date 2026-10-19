@@ -194,13 +194,71 @@ export function safeLedgerRow(runId, control, status, viewport = null) {
   return { utc: new Date().toISOString(), runId, deploymentId: PIN.deploymentId, sha: PIN.sha, control, status, viewport };
 }
 
+function diagnosticOrigin(value) {
+  try {
+    const url = new URL(value);
+    if (url.origin === ORIGIN) return "preview";
+    if (url.hostname === `${PIN.supabaseRef}.supabase.co`) return "preview-supabase";
+    return url.protocol === "data:" || url.protocol === "blob:" ? "inline" : "external";
+  } catch { return "unknown"; }
+}
+
+export function createPageDiagnostics(page) {
+  let bucket = emptyDiagnosticBucket();
+  const consoleListener = message => {
+    const rawType = message.type();
+    const type = new Set(["error", "warning", "log", "info", "debug", "dir", "assert", "trace"]).has(rawType) ? rawType : "other";
+    let origin = "unknown";
+    try { origin = diagnosticOrigin(message.location()?.url ?? ""); } catch { /* classify only */ }
+    const key = `${type}:${origin}`;
+    bucket.console[key] = (bucket.console[key] ?? 0) + 1;
+  };
+  const responseListener = response => {
+    const status = response.status();
+    let origin = "unknown";
+    try { origin = diagnosticOrigin(response.url()); } catch { /* classify only */ }
+    const key = `${status}:${origin}`;
+    bucket.http[key] = (bucket.http[key] ?? 0) + 1;
+  };
+  const failedListener = request => {
+    let origin = "unknown";
+    try { origin = diagnosticOrigin(request.url()); } catch { /* classify only */ }
+    bucket.requestFailures[origin] = (bucket.requestFailures[origin] ?? 0) + 1;
+  };
+  page.on("console", consoleListener);
+  page.on("response", responseListener);
+  page.on("requestfailed", failedListener);
+  let routeEvents = {};
+  const allowedRouteEvents = new Set(["auth-action-post", "pinned-navigation", "pinned-request", "external-navigation-blocked", "external-redirect-blocked", "pinned-origin-request-failed"]);
+  return {
+    addRouteEvent(event) { if (allowedRouteEvents.has(event) || /^auth-action-http-[1-5]\d\d$/.test(event)) routeEvents[event] = (routeEvents[event] ?? 0) + 1; },
+    take() {
+      const result = { ...bucket, routeEvents };
+      bucket = emptyDiagnosticBucket();
+      routeEvents = {};
+      return result;
+    },
+    dispose() {
+      page.off("console", consoleListener);
+      page.off("response", responseListener);
+      page.off("requestfailed", failedListener);
+    },
+  };
+}
+
+function emptyDiagnosticBucket() { return { console: {}, http: {}, requestFailures: {} }; }
+
+function totalConsoleErrors(diagnostics) {
+  return Object.entries(diagnostics.console).filter(([key]) => key.startsWith("error:")).reduce((sum, [, count]) => sum + count, 0);
+}
+
 async function appendSafeLedger(runId, control, status, viewport = null) {
   const dir = "test-results/u03-b4";
   await mkdir(dir, { recursive: true });
   await appendFile(`${dir}/${runId}.jsonl`, `${JSON.stringify(safeLedgerRow(runId, control, status, viewport))}\n`, { mode: 0o600 });
 }
 
-async function auditAndCapture(page, { runId, viewport, screen, captureRoot, ledger, consoleErrors, pageErrors }) {
+export async function auditAndCapture(page, { runId, viewport, screen, captureRoot, ledger, diagnostics, pageErrors = 0 }) {
   await page.waitForTimeout(300);
   const dom = await page.evaluate(() => {
     const visible = element => {
@@ -215,16 +273,30 @@ async function auditAndCapture(page, { runId, viewport, screen, captureRoot, led
       visibleErrors: [...document.querySelectorAll('[role="alert"], [data-error], [aria-invalid="true"]')].filter(visible).length,
     };
   });
-  const hydrationErrors = consoleErrors.filter(message => /hydration|hydrating|did not match|server html/i.test(message)).length;
+  const phaseDiagnostics = diagnostics.take();
+  const consoleErrorCount = totalConsoleErrors(phaseDiagnostics);
+  const phasePageErrors = typeof pageErrors === "object" ? pageErrors.count : pageErrors;
+  if (typeof pageErrors === "object") pageErrors.count = 0;
   const horizontalOverflow = Math.max(dom.documentWidth, dom.bodyWidth) > dom.viewportWidth + 1;
-  const visualPass = !horizontalOverflow && dom.visibleErrors === 0 && consoleErrors.length === 0 && pageErrors === 0 && hydrationErrors === 0;
+  const visualPass = !horizontalOverflow && dom.visibleErrors === 0 && consoleErrorCount === 0 && phasePageErrors === 0;
   const capturePath = join(captureRoot, `${runId}-${viewport}-${screen}.png`);
+  let captureSaved = false;
+  if (!visualPass) {
+    await page.evaluate(() => {
+      document.querySelectorAll('input[type="password"], input[type="email"]').forEach(input => { input.value = ""; input.setAttribute("value", ""); });
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      while (walker.nextNode()) walker.currentNode.textContent = walker.currentNode.textContent
+        .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[redacted]")
+        .replace(/(?:eyJ[a-zA-Z0-9_-]{10,}\.){2}[a-zA-Z0-9_-]+/g, "[redacted]");
+    }).catch(() => {});
+    try { await page.screenshot({ path: capturePath, fullPage: true, animations: "disabled" }); captureSaved = true; }
+    catch { /* diagnostic ledger still records the failed capture */ }
+  }
   await ledger(`visual-${screen}`, visualPass ? "PASS" : "FAIL", {
-    viewport, path: relative(process.cwd(), capturePath),
-    conclusion: visualPass ? "sin overflow ni errores visibles, de consola o hidratación" : "fallo de layout o error de página",
+    viewport, ...(captureSaved ? { path: relative(process.cwd(), capturePath) } : {}),
     viewportWidth: dom.viewportWidth, documentWidth: dom.documentWidth, bodyWidth: dom.bodyWidth,
-    visibleErrorCount: dom.visibleErrors, consoleErrorCount: consoleErrors.length, pageErrorCount: pageErrors,
-    hydrationErrorCount: hydrationErrors,
+    visibleErrorCount: dom.visibleErrors, consoleErrorCount, pageErrorCount: phasePageErrors,
+    diagnostics: phaseDiagnostics,
   });
   if (!visualPass) throw new GateError("VISUAL_AUDIT_FAILED");
   await page.screenshot({ path: capturePath, fullPage: true, animations: "disabled" });
@@ -356,35 +428,46 @@ async function runViewport(browser, token, env, viewport, runId, { ledger, captu
   context.setDefaultNavigationTimeout(20000);
   const securityEvents = [];
   const routeEvents = [];
-  await installScopedRoutes(context, token, ORIGIN, (event) => securityEvents.push(event), event => routeEvents.push(event));
+    let diagnostics = null;
+    await installScopedRoutes(context, token, ORIGIN, (event) => securityEvents.push(event), event => {
+      routeEvents.push(event);
+      diagnostics?.addRouteEvent(event);
+    });
 
   try {
     const page = await context.newPage();
-    const consoleErrors = [];
-    let pageErrors = 0;
-    page.on("console", message => { if (message.type() === "error") consoleErrors.push(message.text()); });
-    page.on("pageerror", () => { pageErrors++; });
+    diagnostics = createPageDiagnostics(page);
+    const pageErrors = { count: 0 };
+    page.on("pageerror", () => { pageErrors.count++; });
+    let phase = "login";
     await login(page, context, env.U03_B4_A_EMAIL, env.U03_B4_A_PASSWORD, { runId, viewport, captureRoot, ledger, routeEvents });
+    await ledger("browser-phase-diagnostics", "INFO", { viewport, phase, pathname: "/acceso", ...diagnostics.take(), pageErrorCount: pageErrors.count });
+    pageErrors.count = 0;
     await ledger("login-cookie-A", "PASS", { viewport });
+    phase = "/panel-A";
     await visit(page, "/panel", 200);
-    captures.push(await auditAndCapture(page, { runId, viewport, screen: "a-panel", captureRoot, ledger, consoleErrors, pageErrors }));
+    captures.push(await auditAndCapture(page, { runId, viewport, screen: "a-panel", captureRoot, ledger, diagnostics, pageErrors }));
     const links = await page.locator("a[href]").evaluateAll((anchors) => anchors.map((anchor) => anchor.getAttribute("href")));
     if (![env.U03_B4_A1_PATH, env.U03_B4_A2_PATH].every((path) => links.includes(path))) throw new GateError("A_PROJECTS_NOT_LISTED");
     await visit(page, env.U03_B4_A1_PATH, 200);
-    captures.push(await auditAndCapture(page, { runId, viewport, screen: "a1", captureRoot, ledger, consoleErrors, pageErrors }));
+    captures.push(await auditAndCapture(page, { runId, viewport, screen: "a1", captureRoot, ledger, diagnostics, pageErrors }));
     await visit(page, env.U03_B4_A2_PATH, 200);
-    captures.push(await auditAndCapture(page, { runId, viewport, screen: "a2", captureRoot, ledger, consoleErrors, pageErrors }));
+    captures.push(await auditAndCapture(page, { runId, viewport, screen: "a2", captureRoot, ledger, diagnostics, pageErrors }));
     await visit(page, env.U03_B4_B1_PATH, 404);
     await ledger("navigation-A1-A2-deny-B1", "PASS", { viewport });
     await logout(page, context, env.U03_B4_A1_PATH);
     await ledger("logout-cookie-revocation-A", "PASS", { viewport });
 
+    phase = "login-B";
     await login(page, context, env.U03_B4_B_EMAIL, env.U03_B4_B_PASSWORD, { runId, viewport, captureRoot, ledger, routeEvents });
+    await ledger("browser-phase-diagnostics", "INFO", { viewport, phase, pathname: "/acceso", ...diagnostics.take(), pageErrorCount: pageErrors.count });
+    pageErrors.count = 0;
     await ledger("login-cookie-B", "PASS", { viewport });
+    phase = "/panel-B";
     await visit(page, "/panel", 200);
-    captures.push(await auditAndCapture(page, { runId, viewport, screen: "b-panel", captureRoot, ledger, consoleErrors, pageErrors }));
+    captures.push(await auditAndCapture(page, { runId, viewport, screen: "b-panel", captureRoot, ledger, diagnostics, pageErrors }));
     await visit(page, env.U03_B4_B1_PATH, 200);
-    captures.push(await auditAndCapture(page, { runId, viewport, screen: "b1", captureRoot, ledger, consoleErrors, pageErrors }));
+    captures.push(await auditAndCapture(page, { runId, viewport, screen: "b1", captureRoot, ledger, diagnostics, pageErrors }));
     await visit(page, env.U03_B4_A1_PATH, 404);
     await visit(page, env.U03_B4_A2_PATH, 404);
     await ledger("navigation-B1-deny-A1-A2", "PASS", { viewport });
@@ -392,7 +475,10 @@ async function runViewport(browser, token, env, viewport, runId, { ledger, captu
     await ledger("logout-cookie-revocation-B", "PASS", { viewport });
 
     if (env.U03_B4_REVOKED_EMAIL) {
+      phase = "login-revoked";
       await login(page, context, env.U03_B4_REVOKED_EMAIL, env.U03_B4_REVOKED_PASSWORD, { runId, viewport, captureRoot, ledger, routeEvents });
+      await ledger("browser-phase-diagnostics", "INFO", { viewport, phase, pathname: "/acceso", ...diagnostics.take(), pageErrorCount: pageErrors.count });
+      pageErrors.count = 0;
       await visit(page, env.U03_B4_REVOKED_PATH, 404);
       await ledger("pre-revoked-membership-denial", "PASS", { viewport });
       await logout(page, context, env.U03_B4_REVOKED_PATH);
@@ -402,10 +488,12 @@ async function runViewport(browser, token, env, viewport, runId, { ledger, captu
     if (securityEvents.length) throw new GateError("EXTERNAL_NAVIGATION_OR_REQUEST_BLOCKED");
     await ledger("oidc-host-scope-and-redirect-guard", "PASS", { viewport });
   } catch (error) {
+    await ledger("browser-phase-diagnostics", "FAIL", { viewport, phase, ...(phase.startsWith("login") ? { pathname: "/acceso" } : {}), ...diagnostics.take(), pageErrorCount: pageErrors.count });
     await ledger("browser-suite", "FAIL", { viewport });
     if (error instanceof GateError) throw error;
     throw new GateError("BROWSER_AUTH_OR_NAVIGATION_FAILED");
   } finally {
+    diagnostics.dispose();
     await context.close();
   }
 }

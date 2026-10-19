@@ -57,12 +57,35 @@ const LEDGER_KEYS = new Set([
   'projectRef', 'deploymentId', 'sha', 'host', 'result', 'visualReview',
   'adminKeyFormat', 'publicKeyFormat',
   'pathname', 'errorCode', 'actionHttpStatus', 'sessionCookiePresent', 'routeEvents', 'capturePath',
+  'phase', 'diagnostics',
 ]);
 
-function safeLedgerDetail(input = {}) {
+const ORIGIN_CLASSES = '(?:preview|preview-supabase|external|inline|unknown)';
+function safeCounterMap(input, keyPattern) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return {};
+  const safe = {};
+  for (const [key, value] of Object.entries(input)) {
+    if (Object.keys(safe).length >= 100) break;
+    if (keyPattern.test(key) && Number.isSafeInteger(value) && value >= 0) safe[key] = value;
+  }
+  return safe;
+}
+
+export function safeLedgerDetail(input = {}) {
   const result = {};
   for (const [key, value] of Object.entries(input)) {
     if (!LEDGER_KEYS.has(key)) continue;
+    if (key === 'diagnostics') {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
+      result.diagnostics = {
+        console: safeCounterMap(value.console, new RegExp(`^(?:error|warning|log|info|debug|dir|assert|trace|other):${ORIGIN_CLASSES}$`)),
+        http: safeCounterMap(value.http, new RegExp(`^[1-5]\\d\\d:${ORIGIN_CLASSES}$`)),
+        requestFailures: safeCounterMap(value.requestFailures, new RegExp(`^${ORIGIN_CLASSES}$`)),
+        routeEvents: safeCounterMap(value.routeEvents, /^(?:auth-action-post|auth-action-http-[1-5]\d\d|pinned-navigation|pinned-request|external-navigation-blocked|external-redirect-blocked|pinned-origin-request-failed)$/),
+      };
+      continue;
+    }
+    if (key === 'phase' && !['login', 'login-B', 'login-revoked', '/panel-A', '/panel-B'].includes(value)) continue;
     if (typeof value === 'string') result[key] = value.slice(0, 240);
     else if (typeof value === 'number' || typeof value === 'boolean' || value === null) result[key] = value;
     else if (Array.isArray(value) && value.length <= 100 && value.every(item => typeof item === 'string')) result[key] = value.map(item => item.slice(0, 240));
