@@ -1,5 +1,9 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
+## Actualización vigente · V-4 alojado cerrado como subgate · 19/10/2026
+
+#129@`e213238c136909c652907b026eac5e412077329a` sigue Draft. El run V-4 Preview `b170134c-5538-4f81-b459-1bb762b95bad` pasó transporte/conexión psql y Node, retirada con el mismo JWT vigente, recibo firmado, limpieza y contención. Consulta independiente al ref `rhnnplewqsekrnaousyl`: centinela exacto; cero usuarios, organizaciones, proyectos, membresías, auditoría y outbox; rol/políticas temporales ausentes y escritor de producto `NOLOGIN`. Conservar Data API 12/12 y B-4 Chromium/aceptación visual como evidencia previa, sin repetirlas. U03 global sigue abierto por roles, invitaciones/consentimiento, sesión/JWT y superficies restantes; H1 necesita el ensayo ficticio integral y U04/Sarah, y H2 los gates operativos/comerciales. Las instrucciones V-4 de los cortes inferiores son históricas. No declarar CI verde: Actions sigue sin ejecutar jobs por facturación.
+
 ## Actualización vigente · comparación segura de credenciales V-4 · 19/10/2026
 
 En #129, desde `68786f5db573fbbc3d2d51e2cd8fc5cec964ed7d`, el SHA funcional publicado es `107affbe61269c31ebafc515f025b68248e16b0b`. Se añadió una sola entrada `SecureString` para comparar psql y Node con los mismos bytes. psql usa el CA fijado y `verify-full`; Node verifica la contraseña descodificada y conserva `rejectUnauthorized`. Fallos de psql se reducen a categoría/código estáticos; ni su stderr, contraseña o URL se imprimen o guardan. El modo de campaña se detiene antes de fixtures si falla cualquiera. No se ha atribuido aún el 28P01 anterior: la comparación alojada sigue pendiente, y no se ejecutaron escrituras. #129 permanece OPEN/Draft; `origin` apunta al mismo commit.
