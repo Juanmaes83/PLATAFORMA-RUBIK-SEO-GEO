@@ -449,12 +449,16 @@ async function runViewport(browser, token, env, viewport, runId, { ledger, captu
     captures.push(await auditAndCapture(page, { runId, viewport, screen: "a-panel", captureRoot, ledger, diagnostics, pageErrors }));
     const links = await page.locator("a[href]").evaluateAll((anchors) => anchors.map((anchor) => anchor.getAttribute("href")));
     if (![env.U03_B4_A1_PATH, env.U03_B4_A2_PATH].every((path) => links.includes(path))) throw new GateError("A_PROJECTS_NOT_LISTED");
+    phase = "/A1";
     await visit(page, env.U03_B4_A1_PATH, 200);
     captures.push(await auditAndCapture(page, { runId, viewport, screen: "a1", captureRoot, ledger, diagnostics, pageErrors }));
+    phase = "/A2";
     await visit(page, env.U03_B4_A2_PATH, 200);
     captures.push(await auditAndCapture(page, { runId, viewport, screen: "a2", captureRoot, ledger, diagnostics, pageErrors }));
+    phase = "deny-B1";
     await visit(page, env.U03_B4_B1_PATH, 404);
     await ledger("navigation-A1-A2-deny-B1", "PASS", { viewport });
+    phase = "logout-A";
     await logout(page, context, env.U03_B4_A1_PATH);
     await ledger("logout-cookie-revocation-A", "PASS", { viewport });
 
@@ -466,11 +470,14 @@ async function runViewport(browser, token, env, viewport, runId, { ledger, captu
     phase = "/panel-B";
     await visit(page, "/panel", 200);
     captures.push(await auditAndCapture(page, { runId, viewport, screen: "b-panel", captureRoot, ledger, diagnostics, pageErrors }));
+    phase = "/B1";
     await visit(page, env.U03_B4_B1_PATH, 200);
     captures.push(await auditAndCapture(page, { runId, viewport, screen: "b1", captureRoot, ledger, diagnostics, pageErrors }));
+    phase = "deny-A1-A2";
     await visit(page, env.U03_B4_A1_PATH, 404);
     await visit(page, env.U03_B4_A2_PATH, 404);
     await ledger("navigation-B1-deny-A1-A2", "PASS", { viewport });
+    phase = "logout-B";
     await logout(page, context, env.U03_B4_B1_PATH);
     await ledger("logout-cookie-revocation-B", "PASS", { viewport });
 
@@ -481,6 +488,7 @@ async function runViewport(browser, token, env, viewport, runId, { ledger, captu
       pageErrors.count = 0;
       await visit(page, env.U03_B4_REVOKED_PATH, 404);
       await ledger("pre-revoked-membership-denial", "PASS", { viewport });
+      phase = "revoked-access";
       await logout(page, context, env.U03_B4_REVOKED_PATH);
     } else {
       await ledger("membership-revocation-after-withdrawal", "SKIP", { viewport });

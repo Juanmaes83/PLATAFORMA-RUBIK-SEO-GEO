@@ -85,7 +85,7 @@ export function safeLedgerDetail(input = {}) {
       };
       continue;
     }
-    if (key === 'phase' && !['login', 'login-B', 'login-revoked', '/panel-A', '/panel-B'].includes(value)) continue;
+    if (key === 'phase' && !['login', 'login-B', 'login-revoked', '/panel-A', '/panel-B', '/A1', '/A2', '/B1', 'deny-B1', 'deny-A1-A2', 'logout-A', 'logout-B', 'revoked-access'].includes(value)) continue;
     if (typeof value === 'string') result[key] = value.slice(0, 240);
     else if (typeof value === 'number' || typeof value === 'boolean' || value === null) result[key] = value;
     else if (Array.isArray(value) && value.length <= 100 && value.every(item => typeof item === 'string')) result[key] = value.map(item => item.slice(0, 240));
