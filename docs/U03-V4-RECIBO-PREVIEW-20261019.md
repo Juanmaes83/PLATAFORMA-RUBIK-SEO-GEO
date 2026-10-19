@@ -2,6 +2,24 @@
 
 **Estado alojado: NO EJECUTADO.** El operador único está implementado y ensayado en el stack local aislado con 27 migraciones N1. No se ejecutó SQL, no se instaló el rol y no se crearon fixtures en Preview. El siguiente paso es una sola invocación Windows de Juanma, con una entrada oculta para la conexión administrativa; no requiere la secuencia manual de `psql`.
 
+## Diagnóstico de conexión administrativa · 19/10/2026
+
+El run `2e0c5119-7f95-43d1-8aa0-3f4ba34b33e1` terminó antes del preflight SQL y su ledger no permitió clasificar la causa. Según la comprobación independiente comunicada por Juanma, Preview `rhnnplewqsekrnaousyl` quedó con inventario/outbox a cero, rol `rubik_preview_receipt_writer` ausente y cero políticas temporales. No se ejecuta V-4 ni se crean fixtures en esta revisión.
+
+Se añade `-V4ConnectionDiagnosticOnly`: el wrapper mantiene el preflight read-only de Preview, solicita solo la Database password como `SecureString`, construye en memoria la URL fijada y ejecuta `--diagnose-connection`. Node informa únicamente `status`, `category` y `code` estáticos; nunca propaga ni guarda URL, contraseña o mensajes PostgreSQL. Las categorías separan DNS, TCP, TLS/certificado, autenticación, permisos SQL, identidad y capacidades. El diagnóstico usa una conexión TLS verificada y consultas de solo lectura para identidad, capacidad administrativa, migraciones/inventario/outbox y rol temporal; no instala ni activa el rol.
+
+En el modo de campaña, el operador registra este mismo diagnóstico antes de comenzar el arnés. Un fallo detiene el run antes de crear una conexión de campaña, rol o fixtures. Tanto Node como el `finally` PowerShell intentan contención solo si el ledger del run contiene `receipt-role-install: ATTEMPTED` o `PASS`; el marcador se escribe antes de comenzar la transacción de instalación. Así un fallo DNS/TCP/TLS/auth/permisos previo no dispara un falso `V4_CONTAINMENT_FAILED`.
+
+Pruebas simuladas del diagnóstico cubren DNS, timeout TCP, rechazo de certificado, autenticación `28P01`, permiso `42501`, capacidad `CREATEROLE` ausente y conexión/capacidades correctas. Errores simulados incluyen texto centinela de contraseña/URL; categoría y código se registran, sin mensajes libres. También se verifica que un fallo diagnóstico pre-campaña no instancia pool, no llama al arnés y no intenta contención.
+
+### Comando de diagnóstico único (no ejecuta campaña)
+
+```powershell
+vercel.cmd env run -e preview -- powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/u03-preview-b4-owner.ps1 -V4ConnectionDiagnosticOnly
+```
+
+Si la comprobación informa `PASS`, la campaña V-4 se ejecutaría después con el modo `-MembershipRevocationOnly`; un resultado distinto de PASS detiene el avance para revisar solo el código seguro reportado.
+
 ## Contrato del gate y entorno
 
 | Pregunta | Evidencia / conclusión |

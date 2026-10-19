@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, unlink, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { validatePreviewAdminPoolerUrl, buildPreviewReceiptPoolerUrl } from './u03-preview-v4-operator.mjs';
+import { diagnosePreviewAdminConnection, runPreviewV4Operator, validatePreviewAdminPoolerUrl,
+  buildPreviewReceiptPoolerUrl } from './u03-preview-v4-operator.mjs';
 
 const ref = 'rhnnplewqsekrnaousyl';
 const secret = 'fictional-window-secret-for-tests-only';
@@ -38,6 +40,9 @@ test('single Windows operator prompts only for a secure password and guarantees 
   const script = await readFile(new URL('./u03-preview-b4-owner.ps1', import.meta.url), 'utf8');
   assert.match(script, /Read-Host -Prompt[^\n]*Database password[^\n]*-AsSecureString/);
   assert.match(script, /New-U03PreviewAdminPoolerUrl -DatabasePassword \$secureDatabasePassword/);
+  assert.match(script, /\[switch\]\$V4ConnectionDiagnosticOnly/);
+  assert.match(script, /& node \$v4Operator --diagnose-connection/);
+  assert.match(script, /caseId -eq 'receipt-role-install'[\s\S]*ATTEMPTED/);
   assert.match(script, /finally\s*\{[\s\S]*--contain --run-id \$operatorRunId/);
   assert.doesNotMatch(script, /psql\s+-X|u03-preview-v4-(?:role|activate|block|rollback)\.sql/);
   assert.doesNotMatch(script, /Read-Host[^\n]*(?:URL|connection string)/i);
@@ -77,4 +82,86 @@ Write-Output 'PASSWORD_ENCODING_PASS; WRONG_TARGET_REJECTED'
     assert.match(result.stdout, /PASSWORD_ENCODING_PASS; WRONG_TARGET_REJECTED/);
     assert.doesNotMatch(result.stdout + result.stderr, /fictional:|postgresql:\/\/|aws-1-eu-west-3/);
   } finally { await rm(folder, { recursive: true, force: true }); }
+});
+
+function simulatedPoolClass({ connectError, queryError, adminRow } = {}) {
+  return class SimulatedPool {
+    async connect() {
+      if (connectError) throw connectError;
+      let queryCount = 0;
+      return {
+        async query() {
+          queryCount++;
+          if (queryError && queryCount > 1) throw queryError;
+          if (queryCount === 1) return { rows: [adminRow ?? {
+            database_ok: true, session_identity_ok: true, may_create_role: true,
+            exact_identity: true, closed_identity: true,
+          }] };
+          return { rows: [{ receipt_writer_present: false }] };
+        },
+        release() {},
+      };
+    }
+    async end() {}
+  };
+}
+
+test('admin connection diagnostic classifies DNS, TCP, TLS, authentication, permission and capabilities without raw errors', async () => {
+  const password = 'fictional-diagnostic-password';
+  const url = `postgresql://postgres.${ref}:${password}@${poolerHost}:5432/postgres`;
+  const network = { tcpProbeFn: async () => {}, lookupFn: async () => [{ family: 4, address: '192.0.2.7' }], ca: 'fictional-ca' };
+  const dns = await diagnosePreviewAdminConnection(url, { ...network,
+    lookupFn: async () => { throw Object.assign(new Error(`${password} ${url}`), { code: 'ENOTFOUND' }); } });
+  assert.deepEqual([dns.category, dns.code], ['DNS', 'DNS_RESOLUTION_FAILED']);
+
+  const tcp = await diagnosePreviewAdminConnection(url, { ...network,
+    tcpProbeFn: async () => { throw Object.assign(new Error(`${password} ${url}`), { code: 'ETIMEDOUT' }); } });
+  assert.deepEqual([tcp.category, tcp.code], ['TCP', 'TCP_CONNECTION_TIMEOUT']);
+
+  const tls = await diagnosePreviewAdminConnection(url, { ...network,
+    PoolClass: simulatedPoolClass({ connectError: Object.assign(new Error(`${password} ${url}`), { code: 'ERR_TLS_CERT_ALTNAME_INVALID' }) }) });
+  assert.deepEqual([tls.category, tls.code], ['TLS', 'TLS_CERTIFICATE_OR_HANDSHAKE_REJECTED']);
+
+  const auth = await diagnosePreviewAdminConnection(url, { ...network,
+    PoolClass: simulatedPoolClass({ connectError: Object.assign(new Error(`${password} ${url}`), { code: '28P01' }) }) });
+  assert.deepEqual([auth.category, auth.code], ['AUTHENTICATION', 'DATABASE_AUTHENTICATION_REJECTED']);
+
+  const permission = await diagnosePreviewAdminConnection(url, { ...network,
+    PoolClass: simulatedPoolClass({ queryError: Object.assign(new Error(`${password} ${url}`), { code: '42501' }) }) });
+  assert.deepEqual([permission.category, permission.code], ['PERMISSION', 'SQL_PERMISSION_DENIED']);
+
+  const capability = await diagnosePreviewAdminConnection(url, { ...network,
+    PoolClass: simulatedPoolClass({ adminRow: { database_ok: true, session_identity_ok: true,
+      may_create_role: false, exact_identity: true, closed_identity: true } }) });
+  assert.deepEqual([capability.category, capability.code], ['CAPABILITY', 'ADMIN_CREATE_ROLE_CAPABILITY_MISSING']);
+
+  const pass = await diagnosePreviewAdminConnection(url, { ...network, PoolClass: simulatedPoolClass(), stateValidator: async () => {} });
+  assert.deepEqual([pass.status, pass.category, pass.code], ['PASS', 'READ_ONLY_ADMIN', 'PREVIEW_ADMIN_CONNECTION_AND_CAPABILITIES_VERIFIED']);
+  for (const result of [dns, tcp, tls, auth, permission, capability, pass])
+    assert.doesNotMatch(JSON.stringify(result), /fictional-diagnostic-password|postgresql:\/\/|192\.0\.2\.7/);
+});
+
+test('failed pre-campaign admin diagnosis does not call campaign, create pool, or attempt containment', async () => {
+  const runId = randomUUID();
+  const url = `postgresql://postgres.${ref}:fictional-secret@${poolerHost}:5432/postgres`;
+  let poolConstructed = false;
+  let campaignCalled = false;
+  const priorExitCode = process.exitCode;
+  class NeverPool { constructor() { poolConstructed = true; } }
+  try {
+    const result = await runPreviewV4Operator({
+      env: { U03_PREVIEW_ADMIN_DATABASE_URL: url }, runId, root: process.cwd(), PoolClass: NeverPool,
+      diagnosticFn: async () => ({ status: 'FAIL', category: 'DNS', code: 'DNS_RESOLUTION_FAILED' }),
+      campaignFn: async () => { campaignCalled = true; return { status: 'PASS' }; },
+    });
+    assert.equal(result, null);
+    assert.equal(poolConstructed, false);
+    assert.equal(campaignCalled, false);
+    const ledger = await readFile(join(process.cwd(), 'test-results', 'u03-hosted', `${runId}.jsonl`), 'utf8');
+    assert.match(ledger, /"category":"DNS","code":"DNS_RESOLUTION_FAILED"/);
+    assert.doesNotMatch(ledger, /fictional-secret|postgresql:\/\//);
+  } finally {
+    process.exitCode = priorExitCode;
+    await unlink(join(process.cwd(), 'test-results', 'u03-hosted', `${runId}.jsonl`)).catch(() => {});
+  }
 });

@@ -1,5 +1,11 @@
 # U03 · matriz alojada de Preview · 18/10/2026
 
+## Actualización V-4 diagnóstico administrativo · 19/10/2026
+
+El run `2e0c5119-7f95-43d1-8aa0-3f4ba34b33e1` falló antes del preflight administrativo y no dejó causa diagnóstica útil. La lectura independiente aportada por Juanma muestra Preview sin fixtures/outbox, sin rol temporal ni políticas U03 temporales. No se repitió campaña.
+
+El modo `-V4ConnectionDiagnosticOnly` está preparado como paso read-only separado, con entrada `Read-Host -AsSecureString` de solo la Database password. Clasifica DNS/TCP/TLS-cert/auth/permiso/capacidad por categoría y código allowlisted, sin guardar URL, contraseña ni mensaje PostgreSQL. El run de campaña también ejecuta ese diagnóstico primero y no intenta contención salvo que su ledger acredite `receipt-role-install: ATTEMPTED/PASS`. `node --test scripts/u03-preview-v4-operator.test.mjs` pasó 6/6; incluye errores simulados y verifica categoría/código en ledger sin sentinelas. No hubo conexión alojada, SQL ni fixtures en este cambio. La campaña V-4 sigue BLOCKED hasta que pase una única ejecución del modo de diagnóstico y, después, una sola campaña autorizada.
+
 ## Corte vigente · V-4 operador único probado localmente · 19/10/2026
 
 La ruta manual de `psql` descrita en los párrafos históricos queda sustituida por `scripts/u03-preview-v4-operator.mjs`, invocado desde el wrapper Windows. El operador pide solo la Database password existente de Preview mediante `Read-Host -AsSecureString`; construye en memoria la URL Session pooler fija `aws-1-eu-west-3.pooler.supabase.com:5432`, usuario `postgres.rhnnplewqsekrnaousyl`, base `postgres`, con escape RFC 3986. Valida ref/host/puerto/usuario y TLS, hace preflight de identidad y privilegios, instala el rol temporal como `NOLOGIN`, activa por 30 minutos, ejecuta únicamente V-4 y bloquea/retira el rol en `finally` solo tras acreditar inventario y outbox a cero. Si quedan residuos, conserva rol bloqueado, ledger e IDs. No se ha ejecutado en Preview.

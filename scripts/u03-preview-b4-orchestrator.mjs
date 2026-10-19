@@ -65,7 +65,7 @@ const FINAL_SQL = `select
   (select project_ref from private.environment_identity limit 1) as project_ref`;
 
 const LEDGER_KEYS = new Set([
-  'actor', 'namespace', 'id', 'scope', 'code', 'http', 'kind', 'reason', 'cases', 'count', 'captures',
+  'actor', 'namespace', 'id', 'scope', 'code', 'category', 'http', 'kind', 'reason', 'cases', 'count', 'captures',
   'path', 'viewport', 'conclusion', 'viewportWidth', 'documentWidth', 'bodyWidth', 'visibleErrorCount',
   'consoleErrorCount', 'pageErrorCount', 'hydrationErrorCount', 'version', 'projectIds', 'organizationIds',
   'userIds', 'authUsers', 'organizations', 'projects', 'organizationMembers', 'projectMembers', 'invitations', 'auditEvents',
@@ -102,6 +102,8 @@ export function safeLedgerDetail(input = {}) {
       };
       continue;
     }
+    if (key === 'category' && !['DNS', 'TCP', 'TLS', 'AUTHENTICATION', 'PERMISSION', 'CAPABILITY', 'IDENTITY',
+      'PRECONDITION', 'CONFIGURATION', 'READ_ONLY_ADMIN', 'DATABASE'].includes(value)) continue;
     if (key === 'phase' && !['login', 'login-B', 'login-revoked', '/panel-A', '/panel-B', '/A1', '/A2', '/B1', 'deny-B1', 'deny-A1-A2', 'logout-A', 'logout-B', 'revoked-access'].includes(value)) continue;
     if (key === 'mode' && !['full', 'playwright-only', 'membership-revocation'].includes(value)) continue;
     if (key === 'evidenceRunId' && ![PRIOR_DATA_API_RUN_ID, PRIOR_B4_RUN_ID].includes(value)) continue;

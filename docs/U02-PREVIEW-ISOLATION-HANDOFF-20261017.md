@@ -1,5 +1,11 @@
 # U02 Preview aislada · preparación verificable · 17/10/2026
 
+## Corte vigente · diagnóstico de conexión V-4 · 19/10/2026
+
+HEAD de partida `b56d906d015c82a59a173019262a60302acc417a`, #129 OPEN/Draft sobre `main@f39620e347756e980192aac8fe93b9a2e8db6376`. El run `2e0c5119-7f95-43d1-8aa0-3f4ba34b33e1` falló antes del preflight SQL; la revisión independiente aportada confirma inventario/outbox cero, rol temporal ausente y ninguna política temporal en Preview. Se añade el modo separado read-only `-V4ConnectionDiagnosticOnly`: pide solo la Database password por `SecureString`, clasifica DNS/TCP/TLS-cert/auth/SQL permiso/capacidad usando códigos seguros, y no registra mensajes libres ni URL/contraseña. Contención solo si el ledger acredita que comenzó la instalación propia. Pruebas simuladas locales PASS; ninguna conexión alojada, campaña o fixture nueva.
+
+**Siguiente acción única:** ejecutar el comando de diagnóstico que figura en el [expediente V-4](U03-V4-RECIBO-PREVIEW-20261019.md). Solo si reporta PASS se inicia después la campaña con `-MembershipRevocationOnly`.
+
 ## Corte vigente · 19/10/2026 · V-4 operator local PASS
 
 HEAD de partida revisado: `a265b2f4207fc48b761e974e229422548e00581a`; #129 OPEN/Draft, base `main@f39620e347756e980192aac8fe93b9a2e8db6376`. El wrapper pide solo la Database password de Preview mediante `Read-Host -AsSecureString` y construye en memoria la URL del Session pooler exacto; el operador Node vuelve a validar host/ref/puerto/usuario y TLS. El resto sigue siendo una ejecución única: preflight exacto, rol temporal NOLOGIN/activación limitada, solo V-4 y bloqueo/rollback en finally. La prueba dirigida Windows cubre caracteres reservados, endpoint incorrecto y ausencia de fugas. Localmente, stack aislado con 27 migraciones N1: `node scripts/test-u03-v4-rollback-local.mjs` PASS; las pruebas dirigidas anteriores 59/59; `npm.cmd run verify` PASS con 607 PASS/1 SKIP. V-4 alojado no ejecutado y no hubo escrituras en Supabase.

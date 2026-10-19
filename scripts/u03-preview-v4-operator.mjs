@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { register } from 'node:module';
 import { lookup } from 'node:dns/promises';
+import { createConnection } from 'node:net';
 import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -37,11 +38,13 @@ export function validatePreviewAdminPoolerUrl(raw, { allowLocal = false } = {}) 
   return { url, local };
 }
 
-export async function createPreviewAdminPool(rawUrl, { PoolClass = Pool, allowLocal = false, ca } = {}) {
+export async function createPreviewAdminPool(rawUrl, { PoolClass = Pool, allowLocal = false, ca, skipDns = false } = {}) {
   const parsed = validatePreviewAdminPoolerUrl(rawUrl, { allowLocal });
   if (!parsed.local) {
-    const addresses = await lookup(parsed.url.hostname, { all: true });
-    if (!addresses.some(address => address.family === 4)) throw new Error('V4_SESSION_POOLER_IPV4_UNAVAILABLE');
+    if (!skipDns) {
+      const addresses = await lookup(parsed.url.hostname, { all: true });
+      if (!addresses.some(address => address.family === 4)) throw new Error('V4_SESSION_POOLER_IPV4_UNAVAILABLE');
+    }
     if (!ca) {
       const { SUPABASE_ROOT_2021_CA } = await import('../src/lib/provenance/supabase-root-ca.ts');
       ca = SUPABASE_ROOT_2021_CA;
@@ -49,6 +52,110 @@ export async function createPreviewAdminPool(rawUrl, { PoolClass = Pool, allowLo
   }
   return new PoolClass({ connectionString: rawUrl, max: 1, connectionTimeoutMillis: 5000,
     idleTimeoutMillis: 10000, ssl: parsed.local ? false : { rejectUnauthorized: true, ca } });
+}
+
+const ADMIN_DIAGNOSTIC_SQL = `select current_database() = 'postgres' as database_ok,
+    session_user = current_user as session_identity_ok,
+    (select rolsuper or rolcreaterole from pg_roles where rolname = current_user) as may_create_role,
+    (select count(*) = 1 from private.environment_identity where environment='preview' and project_ref=$1) as exact_identity,
+    (select count(*) = 1 from private.environment_identity) as closed_identity`;
+const TLS_ERROR_CODES = new Set(['CERT_HAS_EXPIRED', 'CERT_NOT_YET_VALID', 'ERR_TLS_CERT_ALTNAME_INVALID',
+  'UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'DEPTH_ZERO_SELF_SIGNED_CERT', 'SELF_SIGNED_CERT_IN_CHAIN',
+  'ERR_SSL_WRONG_VERSION_NUMBER', 'ERR_SSL_TLSV1_ALERT_UNKNOWN_CA']);
+
+function safeDiagnosticFailure(category, code) { return { status: 'FAIL', category, code }; }
+
+export function classifyPreviewAdminError(error, phase) {
+  const codes = [];
+  const queue = [error];
+  const seen = new Set();
+  while (queue.length) {
+    const current = queue.shift();
+    if (!current || typeof current !== 'object' || seen.has(current)) continue;
+    seen.add(current);
+    if (typeof current.code === 'string') codes.push(current.code.toUpperCase());
+    if (current.cause) queue.push(current.cause);
+    if (Array.isArray(current.errors)) queue.push(...current.errors);
+  }
+  if (codes.some(code => TLS_ERROR_CODES.has(code) || code.startsWith('ERR_SSL_') || code.startsWith('ERR_TLS_')))
+    return safeDiagnosticFailure('TLS', 'TLS_CERTIFICATE_OR_HANDSHAKE_REJECTED');
+  if (codes.some(code => code.startsWith('28'))) return safeDiagnosticFailure('AUTHENTICATION', 'DATABASE_AUTHENTICATION_REJECTED');
+  if (codes.includes('42501')) return safeDiagnosticFailure('PERMISSION', 'SQL_PERMISSION_DENIED');
+  if (phase === 'dns') return safeDiagnosticFailure('DNS', 'DNS_RESOLUTION_FAILED');
+  if (phase === 'tcp') {
+    if (codes.includes('ETIMEDOUT')) return safeDiagnosticFailure('TCP', 'TCP_CONNECTION_TIMEOUT');
+    if (codes.includes('ECONNREFUSED')) return safeDiagnosticFailure('TCP', 'TCP_CONNECTION_REFUSED');
+    return safeDiagnosticFailure('TCP', 'TCP_CONNECTION_FAILED');
+  }
+  if (phase === 'connect') {
+    if (codes.includes('ETIMEDOUT')) return safeDiagnosticFailure('TCP', 'TCP_CONNECTION_TIMEOUT');
+    if (codes.includes('ECONNREFUSED')) return safeDiagnosticFailure('TCP', 'TCP_CONNECTION_REFUSED');
+    return safeDiagnosticFailure('TLS', 'TLS_OR_DATABASE_HANDSHAKE_FAILED');
+  }
+  if (phase === 'permission') return safeDiagnosticFailure('PERMISSION', 'READ_ONLY_SQL_PERMISSION_DENIED');
+  return safeDiagnosticFailure('DATABASE', 'READ_ONLY_DATABASE_CHECK_FAILED');
+}
+
+function tcpProbe(host, port, timeoutMs = 5000) {
+  return new Promise((resolve, reject) => {
+    const socket = createConnection({ host, port });
+    const timer = setTimeout(() => {
+      const error = new Error('TCP_TIMEOUT');
+      error.code = 'ETIMEDOUT';
+      socket.destroy(error);
+    }, timeoutMs);
+    socket.once('connect', () => { clearTimeout(timer); socket.destroy(); resolve(); });
+    socket.once('error', error => { clearTimeout(timer); reject(error); });
+  });
+}
+
+export async function diagnosePreviewAdminConnection(rawUrl, {
+  PoolClass = Pool, lookupFn = lookup, tcpProbeFn = tcpProbe, ca,
+  allowLocal = false, stateValidator = verifyReadOnlyPreviewState,
+} = {}) {
+  let parsed;
+  try { parsed = validatePreviewAdminPoolerUrl(rawUrl, { allowLocal }); }
+  catch { return safeDiagnosticFailure('CONFIGURATION', 'PREVIEW_DATABASE_TARGET_REJECTED'); }
+
+  if (!parsed.local) {
+    try {
+      const addresses = await lookupFn(parsed.url.hostname, { all: true });
+      if (!addresses.some(address => address.family === 4)) return safeDiagnosticFailure('DNS', 'SESSION_POOLER_IPV4_UNAVAILABLE');
+    } catch (error) { return classifyPreviewAdminError(error, 'dns'); }
+  }
+  try { await tcpProbeFn(parsed.url.hostname, Number(parsed.url.port), 5000); }
+  catch (error) { return classifyPreviewAdminError(error, 'tcp'); }
+
+  let pool;
+  let client;
+  try {
+    if (!parsed.local && !ca) {
+      const { SUPABASE_ROOT_2021_CA } = await import('../src/lib/provenance/supabase-root-ca.ts');
+      ca = SUPABASE_ROOT_2021_CA;
+    }
+    pool = new PoolClass({ connectionString: rawUrl, max: 1, connectionTimeoutMillis: 5000,
+      idleTimeoutMillis: 10000, ssl: parsed.local ? false : { rejectUnauthorized: true, ca } });
+    try { client = await pool.connect(); }
+    catch (error) { return classifyPreviewAdminError(error, 'connect'); }
+
+    let admin;
+    try { admin = (await client.query(ADMIN_DIAGNOSTIC_SQL, [PREVIEW_REF])).rows[0]; }
+    catch (error) { return classifyPreviewAdminError(error, 'permission'); }
+    if (!admin || !admin.database_ok || !admin.session_identity_ok || !admin.exact_identity || !admin.closed_identity)
+      return safeDiagnosticFailure('IDENTITY', 'PREVIEW_DATABASE_IDENTITY_REJECTED');
+    if (!admin.may_create_role) return safeDiagnosticFailure('CAPABILITY', 'ADMIN_CREATE_ROLE_CAPABILITY_MISSING');
+
+    let state;
+    try { state = (await client.query(PREFLIGHT_SQL)).rows[0]; }
+    catch (error) { return classifyPreviewAdminError(error, 'permission'); }
+    try { await stateValidator({ sql: async () => state }); }
+    catch { return safeDiagnosticFailure('PRECONDITION', 'PREVIEW_READ_ONLY_PREFLIGHT_REJECTED'); }
+    if (state.receipt_writer_present) return safeDiagnosticFailure('CAPABILITY', 'TEMP_RECEIPT_ROLE_ALREADY_PRESENT');
+    return { status: 'PASS', category: 'READ_ONLY_ADMIN', code: 'PREVIEW_ADMIN_CONNECTION_AND_CAPABILITIES_VERIFIED' };
+  } finally {
+    client?.release();
+    await pool?.end().catch(() => {});
+  }
 }
 
 async function readSql(path) { return readFile(path, 'utf8'); }
@@ -179,7 +286,7 @@ function ledgerWriter(runId, sha, ledgerPath) {
 
 export async function runPreviewV4Operator({ env = process.env, runId, PoolClass = Pool,
   preflightFn = verifyInitialPreviewState, campaignFn = runHostedU03Campaign,
-  root = ROOT, allowLocal = false } = {}) {
+  diagnosticFn = diagnosePreviewAdminConnection, root = ROOT, allowLocal = false } = {}) {
   if (!/^[0-9a-f-]{36}$/i.test(runId ?? '')) throw new Error('V4_RUN_ID_INVALID');
   const adminUrl = env.U03_PREVIEW_ADMIN_DATABASE_URL;
   if (!adminUrl) throw new Error('V4_ADMIN_CREDENTIAL_MISSING');
@@ -190,7 +297,8 @@ export async function runPreviewV4Operator({ env = process.env, runId, PoolClass
   const ledgerPath = join(ledgerDir, `${runId}.jsonl`);
   await appendFile(ledgerPath, '', { flag: 'wx', mode: 0o600 });
   const ledger = ledgerWriter(runId, sha, ledgerPath);
-  const pool = await createPreviewAdminPool(adminUrl, { PoolClass, allowLocal });
+  let pool = null;
+  let roleInstallAttempted = false;
   let rolePassword = null;
   let signingKey = null;
   let campaignEnv = null;
@@ -198,11 +306,17 @@ export async function runPreviewV4Operator({ env = process.env, runId, PoolClass
   let containmentError = null;
   try {
     await ledger('campaign-start', 'STARTED', { mode: 'membership-revocation', deploymentId: 'dpl_6fqataMxfkGFSZJKVGk5xJe8snXq', projectRef: PREVIEW_REF });
+    const diagnosis = await diagnosticFn(adminUrl, { PoolClass, allowLocal });
+    await ledger('admin-connection-diagnostic', diagnosis.status, { category: diagnosis.category, code: diagnosis.code });
+    if (diagnosis.status !== 'PASS') { process.exitCode = 1; return null; }
+    pool = await createPreviewAdminPool(adminUrl, { PoolClass, allowLocal, skipDns: true });
     const preflight = async ({ env: campaignEnvironment }) => {
       const verified = await preflightFn({ env: campaignEnvironment });
       await assertPreviewAdminPreflight(pool);
       await ledger('session-pooler-preflight', 'PASS', { projectRef: PREVIEW_REF, migrationCount: 27, latestMigration: N1_LATEST });
       rolePassword = randomBytes(32).toString('base64url');
+      roleInstallAttempted = true;
+      await ledger('receipt-role-install', 'ATTEMPTED', { namespace: RUN_MARKER_PREFIX + runId });
       await installPreviewReceiptRole(pool, runId);
       await ledger('receipt-role-install', 'PASS', { namespace: RUN_MARKER_PREFIX + runId });
       await activatePreviewReceiptRole(pool, rolePassword);
@@ -220,8 +334,8 @@ export async function runPreviewV4Operator({ env = process.env, runId, PoolClass
       receiptProcessorFn: options => openPreviewReceiptProcessor({ ...options, env: campaignEnv }) });
     if (result.status !== 'PASS') process.exitCode = 1;
   } catch (error) {
-    const code = /^[A-Z0-9_]{3,80}$/.test(error?.message ?? '') ? error.message : 'V4_OPERATOR_FAILED';
-    try { await ledger('operator-error', 'FAIL', { code }); } catch { /* retain any earlier ledger rows */ }
+    const diagnostic = classifyPreviewAdminError(error, 'connect');
+    try { await ledger('operator-error', 'FAIL', { category: diagnostic.category, code: diagnostic.code }); } catch { /* retain any earlier ledger rows */ }
     process.exitCode = 1;
   } finally {
     if (signingKey) signingKey = '';
@@ -230,19 +344,18 @@ export async function runPreviewV4Operator({ env = process.env, runId, PoolClass
       for (const name of ['U03_PREVIEW_RECEIPT_DATABASE_URL', 'U03_PREVIEW_RECEIPT_KEY_ID', 'U03_PREVIEW_RECEIPT_SIGNING_KEY']) delete campaignEnv[name];
     }
     delete process.env.U03_PREVIEW_ADMIN_DATABASE_URL;
-    if (pool) {
+    if (pool && roleInstallAttempted) {
       try {
         const contained = await blockAndRollbackPreviewReceiptRole(pool, runId);
         await ledger('receipt-role-containment', 'PASS', { result: contained.result,
           outboxTotal: contained.outboxTotal ?? 0, pendingOutbox: contained.pendingOutbox ?? 0 });
-      } catch (error) {
-        const code = /^[A-Z0-9_]{3,80}$/.test(error?.message ?? '') ? error.message : 'V4_CONTAINMENT_FAILED';
-        containmentError = code;
+      } catch {
+        containmentError = 'V4_CONTAINMENT_FAILED';
         process.exitCode = 1;
-        try { await ledger('receipt-role-containment', 'BLOCKED', { code }); } catch { /* preserve fixtures ledger */ }
+        try { await ledger('receipt-role-containment', 'BLOCKED', { category: 'DATABASE', code: containmentError }); } catch { /* preserve fixtures ledger */ }
       }
-      await pool.end().catch(() => {});
     }
+    await pool?.end().catch(() => {});
     if (containmentError) console.error(`V4_OPERATOR_CONTAINMENT_BLOCKED: ${containmentError}; preserve run ledger and IDs.`);
     if (result?.status) console.log(`V-4 Preview run ${runId}: ${result.status}; ledger test-results/u03-hosted/${runId}.jsonl`);
   }
@@ -251,6 +364,21 @@ export async function runPreviewV4Operator({ env = process.env, runId, PoolClass
 
 async function main() {
   const args = process.argv.slice(2);
+  const diagnose = args.length === 1 && args[0] === '--diagnose-connection';
+  if (diagnose) {
+    const url = process.env.U03_PREVIEW_ADMIN_DATABASE_URL;
+    try {
+      const result = url
+        ? await diagnosePreviewAdminConnection(url)
+        : safeDiagnosticFailure('CONFIGURATION', 'ADMIN_CREDENTIAL_MISSING');
+      console.log(`V4_CONNECTION_DIAGNOSTIC: ${result.status} category=${result.category} code=${result.code}`);
+      if (result.status !== 'PASS') process.exitCode = 1;
+    } catch {
+      console.log('V4_CONNECTION_DIAGNOSTIC: FAIL category=DIAGNOSTIC code=SAFE_DIAGNOSTIC_FAILURE');
+      process.exitCode = 1;
+    } finally { delete process.env.U03_PREVIEW_ADMIN_DATABASE_URL; }
+    return;
+  }
   const run = args.includes('--run');
   const contain = args.includes('--contain');
   const idIndex = args.indexOf('--run-id');
@@ -261,8 +389,8 @@ async function main() {
   if (run) {
     try { await runPreviewV4Operator({ runId }); }
     catch (error) {
-      const code = /^[A-Z0-9_]{3,80}$/.test(error?.message ?? '') ? error.message : 'V4_OPERATOR_FAILED';
-      console.error(`V4_OPERATOR_BLOCKED: ${code}; no fixture write is assumed.`);
+      const diagnostic = classifyPreviewAdminError(error, 'database');
+      console.error(`V4_OPERATOR_BLOCKED: category=${diagnostic.category} code=${diagnostic.code}; no fixture write is assumed.`);
       process.exitCode = 1;
     }
     return;
@@ -274,9 +402,8 @@ async function main() {
     pool = await createPreviewAdminPool(url);
     const result = await blockAndRollbackPreviewReceiptRole(pool, runId);
     console.log(`V4_OPERATOR_CONTAINMENT_PASS: ${result.result}; run=${runId}`);
-  } catch (error) {
-    const code = /^[A-Z0-9_]{3,80}$/.test(error?.message ?? '') ? error.message : 'V4_CONTAINMENT_FAILED';
-    console.error(`V4_OPERATOR_CONTAINMENT_BLOCKED: ${code}; preserve run ledger and IDs.`);
+  } catch {
+    console.error('V4_OPERATOR_CONTAINMENT_BLOCKED: category=CONTAINMENT code=V4_CONTAINMENT_FAILED; preserve run ledger and IDs.');
     process.exitCode = 1;
   } finally {
     delete process.env.U03_PREVIEW_ADMIN_DATABASE_URL;

@@ -1,5 +1,6 @@
 param(
   [switch]$ReadOnlyPreflightOnly,
+  [switch]$V4ConnectionDiagnosticOnly,
   [switch]$PlaywrightOnly,
   [switch]$MembershipRevocationOnly,
   [switch]$ProvisionPreviewKeys,
@@ -24,8 +25,9 @@ $credentialOperations = 0
 foreach ($requested in @($ProvisionPreviewKeys.IsPresent, $CheckPreviewKeys.IsPresent, $ReplacePreviewKeys.IsPresent, $DeletePreviewKeys.IsPresent)) {
   if ($requested) { $credentialOperations++ }
 }
-if ($credentialOperations -gt 1 -or ($credentialOperations -gt 0 -and ($ReadOnlyPreflightOnly -or $PlaywrightOnly -or $MembershipRevocationOnly)) -or
-    ($ReadOnlyPreflightOnly -and ($PlaywrightOnly -or $MembershipRevocationOnly)) -or ($PlaywrightOnly -and $MembershipRevocationOnly)) { Stop-B4 'CREDENTIAL_OPERATION_ARGUMENTS_INVALID' }
+if ($credentialOperations -gt 1 -or ($credentialOperations -gt 0 -and ($ReadOnlyPreflightOnly -or $V4ConnectionDiagnosticOnly -or $PlaywrightOnly -or $MembershipRevocationOnly)) -or
+    ($ReadOnlyPreflightOnly -and ($V4ConnectionDiagnosticOnly -or $PlaywrightOnly -or $MembershipRevocationOnly)) -or
+    ($V4ConnectionDiagnosticOnly -and ($PlaywrightOnly -or $MembershipRevocationOnly)) -or ($PlaywrightOnly -and $MembershipRevocationOnly)) { Stop-B4 'CREDENTIAL_OPERATION_ARGUMENTS_INVALID' }
 if ($CheckPreviewKeys) {
   try {
     if (Test-B4PreviewCredentials) { Write-Output 'PREVIEW_CREDENTIALS_PRESENT' }
@@ -105,6 +107,18 @@ try {
   if ($LASTEXITCODE -ne 0) { Stop-B4 'READ_ONLY_PREFLIGHT_FAILED' }
   if ($ReadOnlyPreflightOnly) { return }
 
+  if ($V4ConnectionDiagnosticOnly) {
+    if (-not (Test-Path -LiteralPath $v4Operator)) { Stop-B4 'V4_OPERATOR_MISSING' }
+    $secureDatabasePassword = Read-Host -Prompt 'Database password de Supabase Preview rhnnplewqsekrnaousyl (entrada oculta)' -AsSecureString
+    try {
+      $adminDatabaseUrl = New-U03PreviewAdminPoolerUrl -DatabasePassword $secureDatabasePassword
+      $env:U03_PREVIEW_ADMIN_DATABASE_URL = $adminDatabaseUrl
+    } finally { $secureDatabasePassword.Dispose(); $secureDatabasePassword = $null }
+    & node $v4Operator --diagnose-connection
+    if ($LASTEXITCODE -ne 0) { Stop-B4 'V4_CONNECTION_DIAGNOSTIC_FAILED' }
+    return
+  }
+
   if ($ProvisionPreviewKeys -or $ReplacePreviewKeys) {
     if ($ProvisionPreviewKeys -and (Test-Path -LiteralPath (Get-B4PreviewCredentialPath))) { Stop-B4 'CREDENTIALS_ALREADY_PRESENT_USE_REPLACE' }
     $clipboardSessionActive = $true
@@ -152,7 +166,17 @@ try {
   if ($LASTEXITCODE -ne 0) { Stop-B4 'U03_B4_CAMPAIGN_FAILED_OR_CLEANUP_UNVERIFIED' }
 } finally {
   if ($MembershipRevocationOnly) {
-    if ($operatorRunId -and -not [string]::IsNullOrWhiteSpace($env:U03_PREVIEW_ADMIN_DATABASE_URL)) {
+    $installAttempted = $false
+    $ledgerPath = if ($operatorRunId) { Join-Path $repo "test-results\u03-hosted\$operatorRunId.jsonl" } else { $null }
+    if ($ledgerPath -and (Test-Path -LiteralPath $ledgerPath)) {
+      try {
+        foreach ($entry in Get-Content -LiteralPath $ledgerPath) {
+          $record = $entry | ConvertFrom-Json
+          if ($record.caseId -eq 'receipt-role-install' -and $record.status -in @('ATTEMPTED','PASS')) { $installAttempted = $true }
+        }
+      } catch { }
+    }
+    if ($installAttempted -and $operatorRunId -and -not [string]::IsNullOrWhiteSpace($env:U03_PREVIEW_ADMIN_DATABASE_URL)) {
       & node $v4Operator --contain --run-id $operatorRunId
       if ($LASTEXITCODE -ne 0) {
         $operatorContainFailed = $true

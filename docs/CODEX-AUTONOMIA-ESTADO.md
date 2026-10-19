@@ -1,5 +1,9 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
+## Actualización vigente · diagnóstico V-4 de solo lectura · 19/10/2026
+
+Desde #129@`b56d906`, se añade `-V4ConnectionDiagnosticOnly` para probar únicamente la conexión administrativa Preview después del preflight de app. Usa solo la Database password en `SecureString`, URL de pooler fijada en memoria y códigos allowlisted para DNS, TCP, TLS, autenticación, SQL permisos e identidad/capacidades. El run de campaña también diagnostica antes del arnés; no intenta contención a menos que se haya escrito el marcador previo a instalación del rol. Los errores simulados se clasifican sin mensajes PostgreSQL ni filtraciones. No hubo conexión alojada ni escrituras. Próximo paso: ejecutar el diagnóstico una sola vez; no iniciar campaña hasta PASS.
+
 ## Corte vigente · 19/10/2026 · operador V-4
 
 #129 sigue OPEN/Draft en `codex/u02-preview-isolation-20261017`, base `main@f39620e347756e980192aac8fe93b9a2e8db6376`; HEAD previo a este cambio `6381e751ca7ca1a156bf8fb4f8dc48bd3fce56bf`. Se añadió un único operador Windows de V-4 con destino Preview fijo, conexión Session pooler TLS verificada, entrada oculta de una sola vez, rol temporal NOLOGIN, activación breve y contención/rollback condicionado a inventario/outbox cero. Ensayo de stack aislado recién creado con 27 migraciones N1 pasó; dirigidas 59/59; verify 607 PASS/1 SKIP y gates de lint, tipos, build y secretos PASS. No hubo escritura alojada, ni campaña Production.
