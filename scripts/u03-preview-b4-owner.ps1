@@ -11,6 +11,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $repo = (Get-Location).Path
 $runner = Join-Path $repo 'scripts\u03-preview-b4-orchestrator.mjs'
+$v4Operator = Join-Path $repo 'scripts\u03-preview-v4-operator.mjs'
 $linkFile = Join-Path $repo '.vercel\project.json'
 $clipboardModule = Join-Path $PSScriptRoot 'u03-preview-b4-clipboard.psm1'
 Import-Module -Name $clipboardModule -Force -ErrorAction Stop
@@ -69,6 +70,8 @@ $previewCredentials = $null
 $adminKey = $null
 $publicKey = $null
 $clipboardSessionActive = $false
+$operatorRunId = $null
+$operatorContainFailed = $false
 try {
   # Preserve the machine's authorized proxy route for Node fetch and CLI reads.
   # Never print these values; they may contain proxy authentication material.
@@ -128,26 +131,29 @@ try {
   if ([string]::IsNullOrWhiteSpace($env:U03_PREVIEW_ADMIN_KEY) -or [string]::IsNullOrWhiteSpace($env:U03_PREVIEW_PUBLIC_KEY)) { Stop-B4 'PREVIEW_KEYS_REQUIRED' }
 
   if ($MembershipRevocationOnly) {
-    # This dedicated SQL credential is supplied once, masked, and never persisted.
-    # The signing key is fresh for this empty Preview and stays in process memory.
-    $secureReceiptUrl = Read-Host -Prompt 'URL PostgreSQL del rol exclusivo de recibos Preview (entrada oculta)' -AsSecureString
+    if (-not (Test-Path -LiteralPath $v4Operator)) { Stop-B4 'V4_OPERATOR_MISSING' }
+    # One hidden entry for the exact Session pooler URL copied from Dashboard.
+    # The child validates Preview ref, session port, IPv4 pooler hostname and TLS.
+    $secureReceiptUrl = Read-Host -Prompt 'Session pooler IPv4 URL de PostgreSQL (Preview rhnnplewqsekrnaousyl, entrada oculta)' -AsSecureString
     try {
-      $env:U03_PREVIEW_RECEIPT_DATABASE_URL = [System.Net.NetworkCredential]::new('', $secureReceiptUrl).Password
+      $env:U03_PREVIEW_ADMIN_DATABASE_URL = [System.Net.NetworkCredential]::new('', $secureReceiptUrl).Password
     } finally { $secureReceiptUrl.Dispose() }
-    $env:U03_PREVIEW_REF = 'rhnnplewqsekrnaousyl'
-    $env:U03_PREVIEW_RECEIPT_KEY_ID = 'u03-v4-run'
-    $keyBytes = New-Object byte[] 32
-    $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
-    try { $rng.GetBytes($keyBytes); $env:U03_PREVIEW_RECEIPT_SIGNING_KEY = [Convert]::ToBase64String($keyBytes) }
-    finally { $rng.Dispose(); [Array]::Clear($keyBytes, 0, $keyBytes.Length) }
-    & node $runner --membership-revocation-only
+    $operatorRunId = [guid]::NewGuid().ToString()
+    & node $v4Operator --run --run-id $operatorRunId
+    if ($LASTEXITCODE -ne 0) { Stop-B4 'V4_OPERATOR_CAMPAIGN_OR_CLEANUP_FAILED' }
   }
   elseif ($PlaywrightOnly) { & node $runner --playwright-only }
   else { & node $runner }
   if ($LASTEXITCODE -ne 0) { Stop-B4 'U03_B4_CAMPAIGN_FAILED_OR_CLEANUP_UNVERIFIED' }
 } finally {
   if ($MembershipRevocationOnly) {
-    Write-Warning 'V4_OPERATOR_NOLOGIN_REQUIRED: Run scripts/u03-preview-v4-block.sql with the separate Preview administrator connection now, even after a failed campaign. This wrapper has no administrator credential and cannot block the role itself.'
+    if ($operatorRunId -and -not [string]::IsNullOrWhiteSpace($env:U03_PREVIEW_ADMIN_DATABASE_URL)) {
+      & node $v4Operator --contain --run-id $operatorRunId
+      if ($LASTEXITCODE -ne 0) {
+        $operatorContainFailed = $true
+        Write-Warning 'V4_OPERATOR_CONTAINMENT_BLOCKED: preserve the run ledger and IDs; do not remove pending receipts or fixtures manually.'
+      }
+    }
   }
   if ($pushed) { Pop-Location }
   Get-ChildItem Env: | Where-Object { $_.Name -like 'U03_*' -or $_.Name -eq 'VERCEL_OIDC_TOKEN' } | ForEach-Object { Remove-Item -LiteralPath "Env:$($_.Name)" -ErrorAction SilentlyContinue }
@@ -158,3 +164,4 @@ try {
   $previewCredentials = $null
   Remove-Variable -Name previewCredentials, clipboardSessionActive, adminKey, publicKey, clipboardValue, confirmation -ErrorAction SilentlyContinue
 }
+if ($operatorContainFailed) { Stop-B4 'V4_OPERATOR_CONTAINMENT_FAILED_PRESERVE_LEDGER' }

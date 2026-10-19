@@ -511,8 +511,9 @@ test('initial preflight completes with the mapped read-only state and reports mi
   assert.deepEqual([settingsRead, identityRead, usersRead, sqlRead], [1, 1, 1, 1]);
 });
 
-test('owner wrapper runs no-key preflight before DPAPI load; only V-4 asks for its separate SQL URL', async () => {
+test('owner wrapper runs no-key preflight before DPAPI load; V-4 uses one hidden admin URL and automatic containment', async () => {
   const script = await readFile(new URL('./u03-preview-b4-owner.ps1', import.meta.url), 'utf8');
+  const operator = await readFile(new URL('./u03-preview-v4-operator.mjs', import.meta.url), 'utf8');
   const preflight = script.indexOf('& node $runner --readonly-preflight');
   const credentialLoad = script.indexOf('$previewCredentials = Get-B4PreviewCredentials');
   const credentialPreflight = script.indexOf('& node $runner --credential-preflight-only');
@@ -526,7 +527,11 @@ test('owner wrapper runs no-key preflight before DPAPI load; only V-4 asks for i
   assert.match(script, /\[switch\]\$ProvisionPreviewKeys[\s\S]*\[switch\]\$CheckPreviewKeys[\s\S]*\[switch\]\$ReplacePreviewKeys[\s\S]*\[switch\]\$DeletePreviewKeys/);
   assert.match(script, /\[switch\]\$PlaywrightOnly/);
   assert.match(script, /\[switch\]\$MembershipRevocationOnly/);
-  assert.match(campaignPath, /& node \$runner --membership-revocation-only[\s\S]*elseif \(\$PlaywrightOnly\) \{ & node \$runner --playwright-only \}/);
+  assert.match(campaignPath, /& node \$v4Operator --run --run-id \$operatorRunId/);
+  assert.match(script, /finally\s*\{[\s\S]*& node \$v4Operator --contain --run-id \$operatorRunId/);
+  assert.match(operator, /blockAndRollbackPreviewReceiptRole\(pool, runId\)/);
+  assert.match(operator, /rejectUnauthorized: true, ca/);
+  assert.match(operator, /\$\{RECEIPT_ROLE\}\.\$\{PREVIEW_REF\}/);
   assert.match(script, /-ExpectedPrefix 'sb_secret_'[\s\S]*-ExpectedPrefix 'sb_publishable_'/);
   assert.doesNotMatch(script, /Read-B4Secret/);
   assert.doesNotMatch(script, /'U03_PREVIEW_ADMIN_KEY','U03_PREVIEW_PUBLIC_KEY'/);

@@ -1,5 +1,11 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
+## Corte vigente · 19/10/2026 · operador V-4
+
+#129 sigue OPEN/Draft en `codex/u02-preview-isolation-20261017`, base `main@f39620e347756e980192aac8fe93b9a2e8db6376`; HEAD previo a este cambio `6381e751ca7ca1a156bf8fb4f8dc48bd3fce56bf`. Se añadió un único operador Windows de V-4 con destino Preview fijo, conexión Session pooler TLS verificada, entrada oculta de una sola vez, rol temporal NOLOGIN, activación breve y contención/rollback condicionado a inventario/outbox cero. Ensayo de stack aislado recién creado con 27 migraciones N1 pasó; dirigidas 59/59; verify 607 PASS/1 SKIP y gates de lint, tipos, build y secretos PASS. No hubo escritura alojada, ni campaña Production.
+
+Estado: U02 continúa con evidencia anterior; U03 Data API 12/12 y B-4 PASS por evidencia anterior; V-4 alojado no ejecutado, así que U03 permanece BLOCKED. H1 integral y su aceptación U04 no están ejecutadas; H1 BLOCKED. H2 BLOCKED por sus prerrequisitos y gates operativos/comerciales. Siguiente acción única para V-4: que Juanma ejecute el comando señalado en el expediente V-4, con la conexión administrativa Preview introducida solo en el prompt oculto.
+
 ## Corte vigente · 19/10/2026 · V-4 Preview preparado, no ejecutado
 
 - #129 OPEN/Draft sobre `main@f39620e347756e980192aac8fe93b9a2e8db6376`; HEAD de partida `4fc38a88d2cb0b7f2d01940aa48ea4e5827f6744`, SHA funcional local probado `3774f6ba4c8b04f1d641e4e82ef1ed8b96ac9797`. B-4 `5847ce5a-43b9-4dde-9931-61bd8113b27e` tiene aceptación visual posterior de Juanma; Data API 12/12 procede del run `2c72f352-fd79-4360-8c9b-3c619715c574`. Ninguno se repitió.

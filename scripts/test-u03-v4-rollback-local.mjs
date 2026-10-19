@@ -2,13 +2,15 @@
 // rubik-u03-v4-rollback-local on 127.0.0.1:62321/62322; never accepts a remote URL.
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { createClient } from '@supabase/supabase-js';
 import { Client, Pool } from 'pg';
 import { PREFLIGHT_SQL, verifyReadOnlyPreviewState } from './u03-preview-b4-orchestrator.mjs';
 import { EFFECTIVE_FUNCTION_AUDIT_SQL, isV4SecurityDefinerAllowlistOnly,
   V4_SECURITY_DEFINER_ALLOWLIST } from './u03-preview-v4-receipt.mjs';
+import { activatePreviewReceiptRole, blockAndRollbackPreviewReceiptRole,
+  buildPreviewReceiptPoolerUrl, installPreviewReceiptRole, runPreviewV4Operator } from './u03-preview-v4-operator.mjs';
 
 const { loadKeyring } = await import('../src/lib/provenance/keyring.ts');
 const { processAuditOutboxWithPool } = await import('../src/lib/provenance/outbox.ts');
@@ -21,6 +23,7 @@ const writerPassword = `local-${randomBytes(24).toString('hex')}`;
 const writerUrl = `postgresql://rubik_preview_receipt_writer:${writerPassword}@127.0.0.1:62322/postgres`;
 const label = `u03-v4-local-${randomBytes(4).toString('hex')}`;
 const password = 'fictional-local-auth-password-2026';
+const runId = randomUUID();
 const check = (condition, name) => { assert.ok(condition, name); console.log(`PASS ${name}`); };
 const sql = async (db, text, values = []) => (await db.query(text, values)).rows;
 function runFile(name, expectedFailure) {
@@ -56,7 +59,7 @@ try {
   check(state[0].migrations === 27 && state[0].latest === '20261015210000' && state[0].users === 0,
     'fresh N1 stack: 27 migrations, no users');
   runFile('u02-preview-sentinel.sql');
-  runFile('u03-preview-v4-role.sql');
+  await installPreviewReceiptRole(db, runId);
   const installed = await sql(db, `select rolcanlogin, rolsuper, rolbypassrls, rolinherit,
     has_table_privilege('rubik_preview_receipt_writer','public.audit_events','INSERT') audit_insert,
     has_column_privilege('rubik_preview_receipt_writer','private.audit_outbox','state','UPDATE') outbox_update,
@@ -96,8 +99,9 @@ try {
   const restoredFunctions = (await db.query(EFFECTIVE_FUNCTION_AUDIT_SQL, ['rubik_preview_receipt_writer'])).rows[0];
   check(isV4SecurityDefinerAllowlistOnly(restoredFunctions.executable_security_definer_functions),
     'local preflight passes again after removing the test-only function');
-  await db.query(`alter role rubik_preview_receipt_writer password '${writerPassword}'`);
-  runFile('u03-preview-v4-activate.sql');
+  const localWriterUrl = buildPreviewReceiptPoolerUrl(database, writerPassword);
+  assert.equal(localWriterUrl, writerUrl);
+  await activatePreviewReceiptRole(db, writerPassword);
   runFile('u03-preview-v4-activate.sql', 'V4_PREVIEW_ROLE_REJECTED');
 
   for (const name of ['owner', 'viewer']) {
@@ -137,19 +141,16 @@ try {
   check((await sql(db, `select state from private.audit_outbox where id=$1`, [ids.receipt]))[0]?.state === 'pending',
     'withdrawal leaves pending receipt');
 
-  runFile('u03-preview-v4-block.sql');
+  await assert.rejects(blockAndRollbackPreviewReceiptRole(db, runId), /V4_RESIDUES_KEEP_NOLOGIN/);
   check((await sql(db, `select rolcanlogin from pg_roles where rolname='rubik_preview_receipt_writer'`))[0]?.rolcanlogin === false,
     'emergency block commits NOLOGIN while fixtures remain');
-  runFile('u03-preview-v4-activate.sql');
-  runFile('u03-preview-v4-rollback.sql', 'V4_PREVIEW_RESIDUES_KEEP_NOLOGIN');
-  check((await sql(db, `select rolcanlogin from pg_roles where rolname='rubik_preview_receipt_writer'`))[0]?.rolcanlogin === false,
-    'failed rollback has already committed NOLOGIN');
   const blocked = new Client({ connectionString: writerUrl, ssl: false });
   await assert.rejects(blocked.connect());
   await blocked.end().catch(() => {});
   check(true, 'NOLOGIN rejects a fresh writer session');
-  runFile('u03-preview-v4-block.sql');
-  runFile('u03-preview-v4-activate.sql');
+  await activatePreviewReceiptRole(db, writerPassword);
+  check((await sql(db, `select rolcanlogin from pg_roles where rolname='rubik_preview_receipt_writer'`))[0]?.rolcanlogin === true,
+    'local directed campaign can resume after intentional NOLOGIN containment');
   writer = new Pool({ connectionString: writerUrl, ssl: false, max: 1 });
   writer.on('connect', client => {
     const query = client.query.bind(client);
@@ -189,11 +190,28 @@ try {
     (select count(*)::int from private.audit_outbox) outbox`);
   check(Object.values(left[0]).every(value => value === 0), 'final local inventory and outbox zero');
   runFile('u03-preview-v4-block.sql');
-  runFile('u03-preview-v4-rollback.sql');
-  runFile('u03-preview-v4-rollback.sql');
+  const rollback = await blockAndRollbackPreviewReceiptRole(db, runId);
+  check(rollback.result === 'BLOCKED_AND_ROLLED_BACK' && rollback.outboxTotal === 0 && rollback.pendingOutbox === 0,
+    'operator finally blocks, verifies zero inventory/outbox, and rolls back its marked role');
+  const repeatedRollback = await blockAndRollbackPreviewReceiptRole(db, runId);
+  check(repeatedRollback.result === 'ROLE_ALREADY_ABSENT', 'operator containment retry is idempotent');
   const final = await sql(db, `select (select count(*)::int from pg_roles where rolname='rubik_preview_receipt_writer') roles,
     (select count(*)::int from pg_policies where policyname like 'u03 preview receipt %') policies`);
   check(final[0].roles === 0 && final[0].policies === 0, 'rollback removes role and policies; second run is idempotent');
+  const operatorResult = await runPreviewV4Operator({
+    env: { U03_PREVIEW_ADMIN_DATABASE_URL: database }, runId: randomUUID(), allowLocal: true,
+    preflightFn: async () => ({ initial: {}, admin: null, vercel: {} }),
+    campaignFn: async ({ env: campaignEnv, preflightFn }) => {
+      await preflightFn({ env: campaignEnv });
+      return { status: 'PASS' };
+    },
+  });
+  check(operatorResult.status === 'PASS', 'single operator preflight installs, activates, then contains and rolls back a marked role');
+  const operatorFinal = await sql(db, `select (select count(*)::int from pg_roles where rolname='rubik_preview_receipt_writer') roles,
+    (select count(*)::int from pg_policies where policyname like 'u03 preview receipt %') policies,
+    (select count(*)::int from auth.users) users, (select count(*)::int from private.audit_outbox) outbox`);
+  check(operatorFinal[0].roles === 0 && operatorFinal[0].policies === 0 && operatorFinal[0].users === 0 && operatorFinal[0].outbox === 0,
+    'single operator leaves local fixtures and outbox at zero');
   await db.query('delete from private.environment_identity');
   runFile('u03-preview-v4-block.sql', 'V4_PREVIEW_IDENTITY_REJECTED');
   runFile('u03-preview-v4-rollback.sql', 'V4_PREVIEW_IDENTITY_REJECTED');
