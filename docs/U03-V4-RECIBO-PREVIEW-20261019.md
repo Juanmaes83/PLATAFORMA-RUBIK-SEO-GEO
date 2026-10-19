@@ -1,5 +1,7 @@
 # U03 V-4 · campaña de retirada y recibo firmado en Preview
 
+**Resultado posterior · 19/10/2026:** V-4 alojado PASS en `rhnnplewqsekrnaousyl`, run `b170134c-5538-4f81-b459-1bb762b95bad` sobre #129@`e213238c136909c652907b026eac5e412077329a`. Transporte psql/Node, conexión, retirada con el mismo JWT, recibo, limpieza, inventario/outbox y contención PASS. Consulta SQL independiente posterior: inventario/outbox a cero, rol y políticas temporales ausentes, escritor de producto NOLOGIN. El resto de este expediente documenta la preparación y los intentos previos; los comandos de campaña ya se ejecutaron y no son el siguiente paso. U03 global, H1 y H2 permanecen abiertos por sus otros criterios.
+
 **Estado alojado: NO EJECUTADO.** El operador único está implementado y ensayado en el stack local aislado con 27 migraciones N1. No se ejecutó SQL, no se instaló el rol y no se crearon fixtures en Preview. El siguiente paso es una sola invocación Windows de Juanma, con una entrada oculta para la conexión administrativa; no requiere la secuencia manual de `psql`.
 
 ## Diagnóstico de conexión administrativa · 19/10/2026
