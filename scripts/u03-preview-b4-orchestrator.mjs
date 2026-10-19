@@ -105,7 +105,7 @@ export function safeLedgerDetail(input = {}) {
     if (key === 'category' && !['DNS', 'TCP', 'TLS', 'AUTHENTICATION', 'PERMISSION', 'CAPABILITY', 'IDENTITY',
       'PRECONDITION', 'CONFIGURATION', 'READ_ONLY_ADMIN', 'DATABASE'].includes(value)) continue;
     if (key === 'phase' && !['login', 'login-B', 'login-revoked', '/panel-A', '/panel-B', '/A1', '/A2', '/B1', 'deny-B1', 'deny-A1-A2', 'logout-A', 'logout-B', 'revoked-access'].includes(value)) continue;
-    if (key === 'mode' && !['full', 'playwright-only', 'membership-revocation', 'roles-invitations'].includes(value)) continue;
+    if (key === 'mode' && !['full', 'playwright-only', 'membership-revocation', 'roles-invitations', 'cross-surface'].includes(value)) continue;
     if (key === 'evidenceRunId' && ![PRIOR_DATA_API_RUN_ID, PRIOR_B4_RUN_ID].includes(value)) continue;
     if (typeof value === 'string') result[key] = value.slice(0, 240);
     else if (typeof value === 'number' || typeof value === 'boolean' || value === null) result[key] = value;
@@ -313,7 +313,7 @@ export async function runHostedU03Campaign({
   receiptProcessorFn = openPreviewReceiptProcessor, root = process.cwd(), mode = 'full',
 } = {}) {
   if (!sha) throw new Error('CAMPAIGN_SHA_REQUIRED');
-  if (!['full', 'playwright-only', 'membership-revocation', 'roles-invitations'].includes(mode)) throw new Error('CAMPAIGN_MODE_INVALID');
+  if (!['full', 'playwright-only', 'membership-revocation', 'roles-invitations', 'cross-surface'].includes(mode)) throw new Error('CAMPAIGN_MODE_INVALID');
   const ledgerDir = join(root, 'test-results', 'u03-hosted');
   const ledgerPath = join(ledgerDir, `${runId}.jsonl`);
   const captureRoot = join(ledgerDir, runId);
@@ -336,6 +336,7 @@ export async function runHostedU03Campaign({
   let receiptProcessor = null;
   let revocationPassed = false;
   let rolesPassed = false;
+  let crossPassed = false;
   await ledger('campaign-start', 'STARTED', { deploymentId: PIN.deploymentId, sha: PIN.sha, host: PIN.host, projectRef: U03_PREVIEW_REF, mode });
   try {
     if (!env.U03_PREVIEW_ADMIN_KEY || !env.U03_PREVIEW_PUBLIC_KEY) throw new Error('PREVIEW_KEYS_REQUIRED');
@@ -370,6 +371,12 @@ export async function runHostedU03Campaign({
       const result = await fixtures.runRolesInvitations(projects);
       rolesPassed = result.passed === true;
       await ledger('roles-invitations', 'PASS', { cases: result.cases });
+    } else if (mode === 'cross-surface') {
+      await ledger('data-api-matrix', 'SKIP_PRIOR_EVIDENCE', { cases: 12, evidenceRunId: PRIOR_DATA_API_RUN_ID });
+      await ledger('browser-b4', 'SKIP_PRIOR_EVIDENCE', { evidenceRunId: PRIOR_B4_RUN_ID });
+      const result = await fixtures.runCrossSurface({ ...organizations, ...projects });
+      crossPassed = result.passed === true;
+      await ledger('cross-surface', 'PASS', { cases: result.cases });
     } else {
       if (mode === 'playwright-only') {
         await ledger('data-api-matrix', 'SKIP_PRIOR_EVIDENCE', { cases: 12, reason: 'PRIOR_RUN_PASS', evidenceRunId: PRIOR_DATA_API_RUN_ID });
@@ -451,6 +458,7 @@ export async function runHostedU03Campaign({
     ? (fixtures === null ? 'BLOCKED_NO_WRITES' : clean ? 'FAIL_CLEANED' : 'FAIL_CLEANUP_PARTIAL')
     : (mode === 'membership-revocation' ? (revocationPassed && clean ? 'PASS' : 'BLOCKED') :
       mode === 'roles-invitations' ? (rolesPassed && clean ? 'PASS' : 'BLOCKED') :
+      mode === 'cross-surface' ? (crossPassed && clean ? 'PASS' : 'BLOCKED') :
       (b4Pass && clean ? 'AWAITING_VISUAL_REVIEW' : 'BLOCKED'));
   try {
     await ledger('campaign-global', status, {
@@ -467,7 +475,7 @@ export async function runHostedU03Campaign({
 
 async function main() {
   const sha = (await execFileAsync('git', ['rev-parse', 'HEAD'], { windowsHide: true })).stdout.trim();
-  const campaignModes = ['--playwright-only', '--membership-revocation-only', '--roles-invitations-only'].filter(arg => process.argv.includes(arg));
+  const campaignModes = ['--playwright-only', '--membership-revocation-only', '--roles-invitations-only', '--cross-surface-only'].filter(arg => process.argv.includes(arg));
   if (campaignModes.length > 1 || campaignModes.length && process.argv.some(arg => ['--readonly-preflight', '--credential-preflight-only'].includes(arg))) {
     console.error('U03 B-4 BLOCKED: CAMPAIGN_MODE_INVALID; no fixtures were created.');
     process.exitCode = 1;
@@ -503,6 +511,7 @@ async function main() {
     return;
   }
   const mode = process.argv.includes('--membership-revocation-only') ? 'membership-revocation' :
+    process.argv.includes('--cross-surface-only') ? 'cross-surface' :
     process.argv.includes('--roles-invitations-only') ? 'roles-invitations' :
     process.argv.includes('--playwright-only') ? 'playwright-only' : 'full';
   const result = await runHostedU03Campaign({ sha, env: process.env, mode });

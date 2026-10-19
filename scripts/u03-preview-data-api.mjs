@@ -256,6 +256,55 @@ export function createDataApiFixtureRun({ runId, sha, admin, publicKey, ledger, 
     return { passed: true, cases };
   }
 
+  /** I-5/I-8 and P-2: read-only cross-tenant checks with real owner JWTs. */
+  async function runCrossSurface({ orgA, orgB, a1, a2, b1 }) {
+    if (![orgA, orgB, a1, a2, b1].every(Boolean) || !accounts.ownerA || !accounts.ownerB) throw new Error('CROSS_FIXTURES_INVALID');
+    const a = accounts.ownerA.api, b = accounts.ownerB.api;
+    const check = async (caseId, condition) => {
+      await ledger(caseId, condition ? 'PASS' : 'FAIL');
+      if (!condition) throw new Error(`CROSS_CASE_FAILED_${caseId}`);
+    };
+    let cases = 0;
+    const tables = [
+      ['organizations', 'id', orgB, 'id', orgA],
+      ['projects', 'id', b1, 'id', a1],
+      ['project_members', 'project_id', b1, 'project_id', a1],
+      ['audit_events', 'project_id', b1, 'project_id', a1],
+      ['provider_results', 'project_id', b1, 'project_id', a1],
+      ['imports', 'project_id', b1, 'project_id', a1],
+    ];
+    for (const [table, ownColumn, ownId, foreignColumn, foreignId] of tables) {
+      const visible = await b.from(table).select(ownColumn);
+      const foreign = await b.from(table).select(foreignColumn).eq(foreignColumn, foreignId);
+      // The empty audit/provider/import tables prove non-disclosure only. No signed data is fabricated.
+      const ownExpected = ['organizations', 'projects', 'project_members'].includes(table) ? 1 : 0;
+      await check(`i5-${table}-scope`, !visible.error && visible.data?.length === ownExpected &&
+        (ownExpected === 0 || visible.data[0]?.[ownColumn] === ownId) && !foreign.error && foreign.data?.length === 0);
+      cases++;
+    }
+    for (const [actor, foreignProject] of [[a, b1], [b, a1]]) {
+      const side = actor === a ? 'a' : 'b';
+      const attempts = [
+        ['invitations', 'project_invitations', { p_project_id: foreignProject, p_command: 'list', p_payload: {} }],
+        ['people', 'project_people', { p_project_id: foreignProject, p_command: 'list', p_payload: {} }],
+        ['budget', 'provider_budget', { p_project_id: foreignProject, p_provider: 'openseo', p_command: 'get', p_payload: {} }],
+      ];
+      for (const [surface, rpc, args] of attempts) {
+        const result = await actor.rpc(rpc, args);
+        await check(`i8-${side}-${surface}-denied`, result.error?.code === '42501');
+        cases++;
+      }
+    }
+    for (const [side, actor, projectId] of [['a', a, a1], ['b', b, b1]]) {
+      const inventory = await actor.rpc('project_data_inventory', { p_project_id: projectId });
+      const budget = await actor.rpc('provider_budget', { p_project_id: projectId, p_provider: 'openseo', p_command: 'get', p_payload: {} });
+      await check(`p2-${side}-no-budget-or-spend`, !inventory.error && inventory.data?.budgets === 0 &&
+        inventory.data?.spendEntries === 0 && !budget.error && budget.data?.used === 0 && budget.data?.spend === null);
+      cases++;
+    }
+    return { passed: true, cases };
+  }
+
   async function reconcileCreatedScopes() {
     for (const slug of plannedOrganizations) {
       await reconcileByScope(() => admin.from('organizations').select('id').eq('slug', slug),
@@ -340,7 +389,7 @@ export function createDataApiFixtureRun({ runId, sha, admin, publicKey, ledger, 
   }
 
   return { runId, ref, namespace, createUsers, createOrganizations, createProjects, createRevocationFixtures,
-    runMatrix, runMembershipRevocation, runRolesInvitations, cleanup, verifyOwnedAbsent, browserInputs, snapshot };
+    runMatrix, runMembershipRevocation, runRolesInvitations, runCrossSurface, cleanup, verifyOwnedAbsent, browserInputs, snapshot };
 }
 
 async function main() {
