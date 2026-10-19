@@ -66,56 +66,68 @@ export function isExternalRedirect(requestUrl, redirectedFromUrl, allowedOrigin 
   catch { return true; }
 }
 
-export async function installScopedRoutes(context, token, allowedOrigin = ORIGIN, onEvent = () => {}, onRouteEvent = () => {}) {
-  await context.route("**/*", async (route) => {
-    const request = route.request();
-    const url = request.url();
-    let origin = "";
-    try { origin = new URL(url).origin; } catch { await route.abort("blockedbyclient"); return; }
-    const headers = await request.allHeaders();
-    const parsedUrl = new URL(url);
-    const authAction = request.method() === "POST" && (parsedUrl.pathname === "/acceso" || Boolean(headers["next-action"]));
-    if (authAction) onRouteEvent("auth-action-post");
-    else if (origin === allowedOrigin && request.isNavigationRequest()) onRouteEvent("pinned-navigation");
-    else if (origin === allowedOrigin) onRouteEvent("pinned-request");
-
-    // Never let top-level navigation leave the approved deployment. The browser itself
-    // follows HTTP 3xx without exposing a redirect request to Playwright's route callback.
-    if (request.isNavigationRequest() && origin !== allowedOrigin) {
-      onEvent("external-navigation-blocked");
-      onRouteEvent("external-navigation-blocked");
-      await route.abort("blockedbyclient");
-      return;
-    }
-
-    if (origin !== allowedOrigin) {
-      await route.continue({ headers: scopedHeaders(url, headers, "", allowedOrigin) });
-      return;
-    }
-
-    let upstream;
-    try {
-      upstream = await route.fetch({ headers: scopedHeaders(url, headers, token, allowedOrigin), maxRedirects: 0 });
-    } catch {
-      onEvent("pinned-origin-request-failed");
-      onRouteEvent("pinned-origin-request-failed");
-      await route.fulfill({ status: 502, contentType: "text/plain", body: "Protected Preview request failed closed." });
-      return;
-    }
-    if (authAction && Number.isInteger(upstream.status())) onRouteEvent(`auth-action-http-${upstream.status()}`);
-    const location = upstream.headers()["location"];
-    if (upstream.status() >= 300 && upstream.status() < 400 && location) {
-      let destination;
-      try { destination = new URL(location, url); } catch { destination = null; }
-      if (!destination || destination.origin !== allowedOrigin) {
-        onEvent("external-redirect-blocked");
-        onRouteEvent("external-redirect-blocked");
-        await route.fulfill({ status: 502, contentType: "text/plain", body: "Cross-origin redirect blocked." });
+export async function installScopedRoutes(context, page, token, allowedOrigin = ORIGIN, onEvent = () => {}, onRouteEvent = () => {}) {
+  // Playwright routes are called once for a redirect chain. CDP Fetch pauses each
+  // Chromium request, including the GET produced by an action's 303 response.
+  const session = await context.newCDPSession(page);
+  const requestOrigins = new Map();
+  session.on("Fetch.requestPaused", (paused) => {
+    void (async () => {
+      const url = paused.request.url;
+      let parsed;
+      try { parsed = new URL(url); }
+      catch { await session.send("Fetch.failRequest", { requestId: paused.requestId, errorReason: "BlockedByClient" }); return; }
+      const origin = parsed.origin;
+      if (paused.responseStatusCode || paused.responseErrorReason) {
+        const location = paused.responseHeaders?.find(header => header.name.toLowerCase() === "location")?.value;
+        if (paused.responseStatusCode >= 300 && paused.responseStatusCode < 400 && location) {
+          let destination;
+          try { destination = new URL(location, url); } catch { destination = null; }
+          if (!destination || (origin === allowedOrigin && destination.origin !== allowedOrigin)) {
+            onEvent("external-redirect-blocked");
+            onRouteEvent("external-redirect-blocked");
+            await session.send("Fetch.failRequest", { requestId: paused.requestId, errorReason: "BlockedByClient" });
+            return;
+          }
+        }
+        await session.send("Fetch.continueResponse", { requestId: paused.requestId });
         return;
       }
-    }
-    await route.fulfill({ response: upstream });
+      const redirectedFromAllowed = requestOrigins.get(paused.redirectedRequestId) === allowedOrigin;
+      requestOrigins.set(paused.requestId, origin);
+      const navigation = paused.resourceType === "Document";
+      if (origin !== allowedOrigin && (navigation || redirectedFromAllowed)) {
+        const event = redirectedFromAllowed ? "external-redirect-blocked" : "external-navigation-blocked";
+        onEvent(event);
+        onRouteEvent(event);
+        await session.send("Fetch.failRequest", { requestId: paused.requestId, errorReason: "BlockedByClient" });
+        return;
+      }
+      const inputHeaders = paused.request.headers ?? {};
+      const authAction = origin === allowedOrigin && paused.request.method === "POST" &&
+        (parsed.pathname === "/acceso" || Object.keys(inputHeaders).some(name => name.toLowerCase() === "next-action"));
+      if (authAction) onRouteEvent("auth-action-post");
+      else if (origin === allowedOrigin) onRouteEvent(navigation ? "pinned-navigation" : "pinned-request");
+      const headers = scopedHeaders(url, inputHeaders, token, allowedOrigin);
+      await session.send("Fetch.continueRequest", {
+        requestId: paused.requestId,
+        headers: Object.entries(headers).map(([name, value]) => ({ name, value: String(value) })),
+      });
+    })().catch(async () => {
+      onEvent("pinned-origin-request-failed");
+      onRouteEvent("pinned-origin-request-failed");
+      await session.send("Fetch.failRequest", { requestId: paused.requestId, errorReason: "BlockedByClient" }).catch(() => {});
+    });
   });
+  page.on("response", (response) => {
+    const request = response.request();
+    try {
+      const url = new URL(request.url());
+      if (url.origin === allowedOrigin && request.method() === "POST" && url.pathname === "/acceso") onRouteEvent(`auth-action-http-${response.status()}`);
+    } catch { /* retain only the classified event */ }
+  });
+  await session.send("Fetch.enable", { patterns: [{ urlPattern: "*", requestStage: "Request" }, { urlPattern: "*", requestStage: "Response" }] });
+  return session;
 }
 
 export function sanitizeDiagnostic(value, secrets = []) {
@@ -428,18 +440,17 @@ async function runViewport(browser, token, env, viewport, runId, { ledger, captu
   context.setDefaultNavigationTimeout(20000);
   const securityEvents = [];
   const routeEvents = [];
-    let diagnostics = null;
-    await installScopedRoutes(context, token, ORIGIN, (event) => securityEvents.push(event), event => {
+  const pageErrors = { count: 0 };
+  let diagnostics = null;
+  let phase = "login";
+  try {
+    const page = await context.newPage();
+    await installScopedRoutes(context, page, token, ORIGIN, (event) => securityEvents.push(event), event => {
       routeEvents.push(event);
       diagnostics?.addRouteEvent(event);
     });
-
-  try {
-    const page = await context.newPage();
     diagnostics = createPageDiagnostics(page);
-    const pageErrors = { count: 0 };
     page.on("pageerror", () => { pageErrors.count++; });
-    let phase = "login";
     await login(page, context, env.U03_B4_A_EMAIL, env.U03_B4_A_PASSWORD, { runId, viewport, captureRoot, ledger, routeEvents });
     await ledger("browser-phase-diagnostics", "INFO", { viewport, phase, pathname: "/acceso", ...diagnostics.take(), pageErrorCount: pageErrors.count });
     pageErrors.count = 0;
@@ -496,12 +507,12 @@ async function runViewport(browser, token, env, viewport, runId, { ledger, captu
     if (securityEvents.length) throw new GateError("EXTERNAL_NAVIGATION_OR_REQUEST_BLOCKED");
     await ledger("oidc-host-scope-and-redirect-guard", "PASS", { viewport });
   } catch (error) {
-    await ledger("browser-phase-diagnostics", "FAIL", { viewport, phase, ...(phase.startsWith("login") ? { pathname: "/acceso" } : {}), ...diagnostics.take(), pageErrorCount: pageErrors.count });
+    await ledger("browser-phase-diagnostics", "FAIL", { viewport, phase, ...(phase.startsWith("login") ? { pathname: "/acceso" } : {}), ...(diagnostics?.take() ?? emptyDiagnosticBucket()), pageErrorCount: pageErrors.count });
     await ledger("browser-suite", "FAIL", { viewport });
     if (error instanceof GateError) throw error;
     throw new GateError("BROWSER_AUTH_OR_NAVIGATION_FAILED");
   } finally {
-    diagnostics.dispose();
+    diagnostics?.dispose();
     await context.close();
   }
 }

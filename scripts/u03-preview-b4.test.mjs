@@ -251,8 +251,8 @@ test("login recovers only when a session cookie proves the action succeeded but 
     const context = await browser.newContext();
     context.setDefaultTimeout(2000);
     context.setDefaultNavigationTimeout(2000);
-    await installScopedRoutes(context, "", origin, () => {}, event => routeEvents.push(event));
     const page = await context.newPage();
+    await installScopedRoutes(context, page, "", origin, () => {}, event => routeEvents.push(event));
     await login(page, context, "fictional-owner@example.test", "fictional-password", {
       origin, captureRoot: root, timeoutMs: 50, routeEvents,
       cookieCheck: cookies => cookies.some(cookie => cookie.name.startsWith(`sb-${PIN.supabaseRef}-auth-token`)),
@@ -300,6 +300,81 @@ test("login records a local capture when the Preview auth mode exposes no sign-i
   }
 });
 
+test("Chromium sends scoped OIDC on the GET after a login POST 303 and blocks an external 303", async () => {
+  const token = "fictional-oidc-token-not-real";
+  const requests = [];
+  const externalRequests = [];
+  const external = createServer((req, res) => {
+    externalRequests.push({ path: req.url, hasToken: Boolean(req.headers["x-vercel-trusted-oidc-idp-token"]) });
+    res.writeHead(200, { "content-type": "text/html" }).end("external page");
+  });
+  const externalPort = await new Promise(resolve => external.listen(0, "127.0.0.1", () => resolve(external.address().port)));
+  const externalOrigin = `http://127.0.0.1:${externalPort}`;
+  const allowed = createServer((req, res) => {
+    requests.push({ path: req.url, method: req.method, hasToken: req.headers["x-vercel-trusted-oidc-idp-token"] === token, hasSession: Boolean(req.headers.cookie?.includes("fake-session")) });
+    if (req.url === "/acceso" && req.method === "GET") {
+      res.writeHead(200, { "content-type": "text/html" }).end('<form method="post" action="/acceso"><input id="email" name="email"><input id="password" name="password" type="password"><button>Entrar</button></form>');
+    } else if (req.url === "/acceso" && req.method === "POST") {
+      res.writeHead(303, { location: "/panel", "set-cookie": `sb-${PIN.supabaseRef}-auth-token=fake-session; Path=/; HttpOnly; SameSite=Lax` }).end();
+    } else if (req.url === "/panel" && req.headers["x-vercel-trusted-oidc-idp-token"] === token && req.headers.cookie?.includes("fake-session")) {
+      res.writeHead(200, { "content-type": "text/html" }).end("<main>panel</main>");
+    } else if ((req.url === "/leave" || req.url === "/api-leave") && req.method === "POST") {
+      res.writeHead(303, { location: `${externalOrigin}/login` }).end();
+    } else if (req.url === "/external-form") {
+      res.writeHead(200, { "content-type": "text/html" }).end('<form method="post" action="/leave"><button>Leave</button></form>');
+    } else {
+      res.writeHead(302, { location: `${externalOrigin}/login` }).end();
+    }
+  });
+  const allowedPort = await new Promise(resolve => allowed.listen(0, "127.0.0.1", () => resolve(allowed.address().port)));
+  const origin = `http://127.0.0.1:${allowedPort}`;
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    const securityEvents = [];
+    const routeEvents = [];
+    await installScopedRoutes(context, page, token, origin, event => securityEvents.push(event), event => routeEvents.push(event));
+    await login(page, context, "fictional-owner@example.test", "fictional-password", {
+      origin, timeoutMs: 3000, routeEvents,
+      cookieCheck: cookies => cookies.some(cookie => cookie.name.startsWith(`sb-${PIN.supabaseRef}-auth-token`)),
+    });
+    assert.equal(new URL(page.url()).pathname, "/panel");
+    assert.equal(requests.find(req => req.path === "/acceso" && req.method === "POST")?.hasToken, true);
+    assert.deepEqual(requests.find(req => req.path === "/panel" && req.method === "GET"), { path: "/panel", method: "GET", hasToken: true, hasSession: true });
+    assert.equal(routeEvents.includes("auth-action-http-303"), true);
+    assert.equal(securityEvents.length, 0);
+
+    const beforeClientAction = requests.length;
+    const clientAction = await page.evaluate(async () => {
+      const response = await fetch("/acceso", { method: "POST" });
+      return { status: response.status, redirected: response.redirected };
+    });
+    assert.deepEqual(clientAction, { status: 200, redirected: true });
+    assert.equal(requests.slice(beforeClientAction).find(req => req.path === "/panel" && req.method === "GET")?.hasToken, true);
+
+    await page.evaluate(() => fetch("/api-leave", { method: "POST" }).catch(() => null));
+    assert.equal(requests.find(req => req.path === "/api-leave" && req.method === "POST")?.hasToken, true);
+    assert.deepEqual(externalRequests, []);
+    assert.equal(securityEvents.includes("external-redirect-blocked"), true, JSON.stringify(securityEvents));
+
+    await page.goto(`${origin}/external-form`);
+    await page.getByRole("button", { name: "Leave" }).click().catch(() => {});
+    await page.waitForTimeout(100);
+    assert.equal(requests.find(req => req.path === "/leave" && req.method === "POST")?.hasToken, true);
+    assert.equal(securityEvents.includes("external-redirect-blocked"), true);
+    assert.deepEqual(externalRequests, []);
+    await context.close();
+  } finally {
+    if (browser) await browser.close();
+    allowed.closeAllConnections?.();
+    external.closeAllConnections?.();
+    await new Promise(resolve => allowed.close(resolve));
+    await new Promise(resolve => external.close(resolve));
+  }
+});
+
 test("pinned Playwright Chromium strips OIDC off-origin and blocks external navigation redirects", async (t) => {
   let allowedOrigin = "";
   let externalOrigin = "";
@@ -332,8 +407,8 @@ test("pinned Playwright Chromium strips OIDC off-origin and blocks external navi
     browser = await chromium.launch({ headless: true });
     const context = await browser.newContext();
     const securityEvents = [];
-    await installScopedRoutes(context, "fictional-oidc-token-not-real", allowedOrigin, (event) => securityEvents.push(event));
     const page = await context.newPage();
+    await installScopedRoutes(context, page, "fictional-oidc-token-not-real", allowedOrigin, (event) => securityEvents.push(event));
     let captureCount = 0;
     let traceCount = 0;
     page.screenshot = async () => { captureCount++; throw new Error("capture disabled"); };
@@ -348,7 +423,7 @@ test("pinned Playwright Chromium strips OIDC off-origin and blocks external navi
       try { redirectedResponse = await page.goto(`${allowedOrigin}/redirect`); } catch { /* browser-side block is expected */ }
       assert.equal(allowedRedirectRequests, 1);
       assert.equal(allowedReceivedToken, true);
-      assert.equal(redirectedResponse?.status(), 502);
+      assert.equal(redirectedResponse == null || redirectedResponse.status() >= 400, true);
       assert.equal(securityEvents.includes("external-redirect-blocked"), true);
       assert.equal(externalRedirectWasReached, false, JSON.stringify(externalRequests));
       assert.equal(externalReceivedToken, false, JSON.stringify(externalRequests));
