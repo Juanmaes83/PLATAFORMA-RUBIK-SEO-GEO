@@ -1,5 +1,11 @@
 # U02 Preview aislada · preparación verificable · 17/10/2026
 
+## Handoff actual · V-4 Preview PASS y limpieza independiente · 19/10/2026
+
+#129@`e213238c136909c652907b026eac5e412077329a` acreditó V-4 en Preview `rhnnplewqsekrnaousyl` con el run `b170134c-5538-4f81-b459-1bb762b95bad`: transporte y conexión administrativa PASS, rol temporal instalado/activado, retirada denegada al JWT aún vigente, recibo firmado, limpieza e inventario/outbox finales PASS, contención PASS y rol temporal ausente. Una lectura independiente posterior confirmó cero usuarios, organizaciones, proyectos, membresías, auditoría y recibos; cero políticas temporales y escritor de producto NOLOGIN. Los apartados antiguos que piden repetir V-4 son historia, no instrucciones vigentes.
+
+Data API 12/12 (`2c72f352-fd79-4360-8c9b-3c619715c574`) y B-4 Chromium escritorio/móvil (`5847ce5a-43b9-4dde-9931-61bd8113b27e`, aceptación visual de Juanma) conservan su evidencia y no se repiten. U02 tiene PASS acotado; U03 global sigue abierto por roles, invitaciones/consentimiento, sesión/JWT y superficies indicadas en la [matriz actual](U03-PREVIEW-MATRIZ-20261018.md). H1/H2 y la aceptación integral siguen abiertos; no se aplicaron migraciones N2 ni se tocó Production.
+
 ## Corte vigente · diagnóstico de conexión V-4 · 19/10/2026
 
 HEAD de partida `b56d906d015c82a59a173019262a60302acc417a`, #129 OPEN/Draft sobre `main@f39620e347756e980192aac8fe93b9a2e8db6376`. El run `2e0c5119-7f95-43d1-8aa0-3f4ba34b33e1` falló antes del preflight SQL; la revisión independiente aportada confirma inventario/outbox cero, rol temporal ausente y ninguna política temporal en Preview. Se añade el modo separado read-only `-V4ConnectionDiagnosticOnly`: pide solo la Database password por `SecureString`, clasifica DNS/TCP/TLS-cert/auth/SQL permiso/capacidad usando códigos seguros, y no registra mensajes libres ni URL/contraseña. Contención solo si el ledger acredita que comenzó la instalación propia. Pruebas simuladas locales PASS; ninguna conexión alojada, campaña o fixture nueva.
