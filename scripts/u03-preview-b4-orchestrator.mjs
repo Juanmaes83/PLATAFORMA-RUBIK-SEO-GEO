@@ -1,7 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import { randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
-import { mkdir, appendFile } from 'node:fs/promises';
+import { mkdir, appendFile, mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
@@ -67,27 +68,77 @@ function safeLedgerDetail(input = {}) {
   return result;
 }
 
-function parseCliJson(stdout) {
-  const first = stdout.indexOf('{');
-  const last = stdout.lastIndexOf('}');
-  if (first < 0 || last < first) throw new Error('SUPABASE_SQL_RESULT_INVALID');
-  let parsed;
-  try { parsed = JSON.parse(stdout.slice(first, last + 1)); }
-  catch { throw new Error('SUPABASE_SQL_RESULT_INVALID'); }
-  if (!Array.isArray(parsed.rows) || parsed.rows.length !== 1) throw new Error('SUPABASE_SQL_RESULT_INVALID');
-  return parsed.rows[0];
+export function parseCliJson(stdout) {
+  const text = String(stdout).replace(/\u001b\[[0-9;]*m/g, '');
+  for (let start = 0; start < text.length; start++) {
+    if (text[start] !== '{' && text[start] !== '[') continue;
+    const stack = [];
+    let quoted = false;
+    let escaped = false;
+    for (let end = start; end < text.length; end++) {
+      const char = text[end];
+      if (quoted) {
+        if (escaped) escaped = false;
+        else if (char === '\\') escaped = true;
+        else if (char === '"') quoted = false;
+        continue;
+      }
+      if (char === '"') { quoted = true; continue; }
+      if (char === '{' || char === '[') stack.push(char);
+      else if (char === '}' || char === ']') {
+        const open = stack.pop();
+        if ((open === '{' && char !== '}') || (open === '[' && char !== ']')) break;
+        if (!stack.length) {
+          let parsed;
+          try { parsed = JSON.parse(text.slice(start, end + 1)); }
+          catch { break; }
+          const rows = Array.isArray(parsed) ? parsed : parsed?.rows;
+          if (!Array.isArray(rows) || rows.length !== 1 || !rows[0] || Array.isArray(rows[0]) || typeof rows[0] !== 'object') break;
+          return rows[0];
+        }
+      }
+    }
+  }
+  throw new Error('SUPABASE_SQL_JSON');
 }
 
-export async function runPreviewReadOnlySql(query, { cli = process.env.U03_SUPABASE_CLI, ref = U03_PREVIEW_REF } = {}) {
+function sqlFailureCategory(error) {
+  const detail = [error?.code, error?.cause?.code, error?.stderr, error?.message]
+    .filter(value => typeof value === 'string').join(' ').toUpperCase();
+  if (/ENOTFOUND|EAI_AGAIN|EAI_FAIL|DNS/.test(detail)) return 'DNS';
+  if (/TLS|SSL|CERT|ERR_TLS|ERR_SSL/.test(detail)) return 'TLS';
+  if (/TIMEOUT|ETIMEDOUT|ABORT|DEADLINE EXCEEDED/.test(detail)) return 'TIMEOUT';
+  return 'HTTP';
+}
+
+export async function runPreviewReadOnlySql(query, {
+  cli = process.env.U03_SUPABASE_CLI, ref = U03_PREVIEW_REF, exec = execFileAsync, tempRoot = tmpdir(),
+} = {}) {
   if (!cli) throw new Error('SUPABASE_CLI_UNAVAILABLE');
-  let stdout;
+  if (ref !== U03_PREVIEW_REF) throw new Error('SUPABASE_PROJECT_REF_REJECTED');
+  if (typeof query !== 'string' || !/^\s*select\b/i.test(query)) throw new Error('SUPABASE_READ_ONLY_SQL_REJECTED');
+  let sqlDir;
   try {
-    ({ stdout } = await execFileAsync(cli, [
+    sqlDir = await mkdtemp(join(tempRoot, 'u03-preview-sql-'));
+    const sqlFile = join(sqlDir, 'query.sql');
+    await writeFile(sqlFile, query, { encoding: 'utf8', mode: 0o600 });
+    let stdout;
+    try {
+      // Windows .cmd shims require shell mode; quote the executable path itself
+      // when Node composes the command, otherwise `C:\Program Files\...` splits.
+      const executable = process.platform === 'win32' && /\s/.test(cli) ? `"${cli.replace(/"/g, '""')}"` : cli;
+      ({ stdout } = await exec(executable, [
       '--yes', 'supabase@2.118.0', 'db', 'query', '--linked', '--project-ref', ref,
-      '--output-format', 'json', query,
-    ], { windowsHide: true, maxBuffer: 2 * 1024 * 1024, shell: process.platform === 'win32', env: networkEnvironment() }));
-  } catch { throw new Error('SUPABASE_READ_ONLY_QUERY_FAILED'); }
-  return parseCliJson(stdout);
+        '--output', 'json', '--file', sqlFile,
+      ], { windowsHide: true, maxBuffer: 2 * 1024 * 1024, shell: process.platform === 'win32', env: networkEnvironment() }));
+    } catch (error) { throw new Error(`SUPABASE_SQL_${sqlFailureCategory(error)}`); }
+    return parseCliJson(stdout);
+  } catch (error) {
+    if (error?.message === 'SUPABASE_SQL_JSON' || /^SUPABASE_SQL_(DNS|TLS|TIMEOUT|HTTP)$/.test(error?.message ?? '')) throw error;
+    throw new Error('SUPABASE_SQL_HTTP');
+  } finally {
+    if (sqlDir) await rm(sqlDir, { recursive: true, force: true }).catch(() => {});
+  }
 }
 
 function authSettingsFailureCategory(error) {
@@ -132,15 +183,7 @@ export async function verifyInitialPreviewState({ env = process.env, fetchImpl =
   const adminClient = admin ?? createPreviewAdminClient(SUPABASE_URL, adminKey);
   const adminProbe = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1 });
   if (adminProbe.error || !Array.isArray(adminProbe.data?.users)) throw new Error('PREVIEW_ADMIN_KEY_INVALID');
-  const state = await sql(PREFLIGHT_SQL, { ref: U03_PREVIEW_REF });
-  const expected = EXPECTED_N1_MIGRATIONS;
-  const migrationMatch = Array.isArray(state.migrations) && state.migrations.length === expected.length &&
-    expected.every((version, index) => state.migrations[index] === version);
-  if (!migrationMatch) throw new Error('N1_MIGRATION_SET_MISMATCH');
-  if (state.environment !== 'preview' || state.project_ref !== U03_PREVIEW_REF) throw new Error('PREVIEW_DATABASE_IDENTITY_INVALID');
-  if (state.writer_locked !== true) throw new Error('WRITER_CAPABILITY_NOT_LOCKED');
-  const empty = ['auth_users', 'organizations', 'projects', 'organization_members', 'project_members', 'audit_events', 'outbox_total', 'pending_outbox'];
-  if (empty.some(field => state[field] !== 0)) throw new Error('PREVIEW_INITIAL_INVENTORY_NOT_EMPTY');
+  const state = await verifyReadOnlyPreviewState({ sql });
 
   return {
     vercel,
@@ -153,6 +196,31 @@ export async function verifyInitialPreviewState({ env = process.env, fetchImpl =
       writerLocked: state.writer_locked, environment: state.environment, projectRef: state.project_ref,
     },
   };
+}
+
+export async function verifyReadOnlyPreviewState({ sql = runPreviewReadOnlySql } = {}) {
+  const state = await sql(PREFLIGHT_SQL, { ref: U03_PREVIEW_REF });
+  const expected = EXPECTED_N1_MIGRATIONS;
+  const migrationMatch = Array.isArray(state.migrations) && state.migrations.length === expected.length &&
+    expected.every((version, index) => state.migrations[index] === version);
+  if (!migrationMatch) throw new Error('N1_MIGRATION_SET_MISMATCH');
+  if (state.environment !== 'preview' || state.project_ref !== U03_PREVIEW_REF) throw new Error('PREVIEW_DATABASE_IDENTITY_INVALID');
+  if (state.writer_locked !== true) throw new Error('WRITER_CAPABILITY_NOT_LOCKED');
+  const empty = ['auth_users', 'organizations', 'projects', 'organization_members', 'project_members', 'audit_events', 'outbox_total', 'pending_outbox'];
+  if (empty.some(field => state[field] !== 0)) throw new Error('PREVIEW_INITIAL_INVENTORY_NOT_EMPTY');
+  return {
+    authUsers: state.auth_users, organizations: state.organizations, projects: state.projects,
+    organizationMembers: state.organization_members, projectMembers: state.project_members,
+    auditEvents: state.audit_events, outboxTotal: state.outbox_total, pendingOutbox: state.pending_outbox,
+    migrationCount: state.migrations.length, latestMigration: state.migrations.at(-1),
+    writerLocked: state.writer_locked, environment: state.environment, projectRef: state.project_ref,
+  };
+}
+
+export async function runReadOnlyPreflight({ token = process.env.VERCEL_OIDC_TOKEN, inspect, sql = runPreviewReadOnlySql, preflightFn = preflight } = {}) {
+  const vercel = await preflightFn({ token, ...(inspect ? { inspect } : {}) });
+  const initial = await verifyReadOnlyPreviewState({ sql });
+  return { vercel, initial };
 }
 
 export async function verifyFinalPreviewState({ sql = runPreviewReadOnlySql } = {}) {
@@ -265,6 +333,17 @@ export async function runHostedU03Campaign({
 
 async function main() {
   const sha = (await execFileAsync('git', ['rev-parse', 'HEAD'], { windowsHide: true })).stdout.trim();
+  if (process.argv.includes('--readonly-preflight')) {
+    try {
+      const { initial } = await runReadOnlyPreflight();
+      console.log(`U03 B-4 READ_ONLY_PREFLIGHT PASS; ref ${initial.projectRef}; migrations ${initial.migrationCount}; latest ${initial.latestMigration}; inventory zero; writer locked`);
+    } catch (error) {
+      const code = typeof error?.message === 'string' && /^[A-Z0-9_]{3,80}$/.test(error.message) ? error.message : 'READ_ONLY_PREFLIGHT_FAILED';
+      console.error(`U03 B-4 READ_ONLY_PREFLIGHT FAIL; ${code}`);
+      process.exitCode = 1;
+    }
+    return;
+  }
   const adminKey = process.env.U03_PREVIEW_ADMIN_KEY;
   const publicKey = process.env.U03_PREVIEW_PUBLIC_KEY;
   if (!adminKey || !publicKey) {

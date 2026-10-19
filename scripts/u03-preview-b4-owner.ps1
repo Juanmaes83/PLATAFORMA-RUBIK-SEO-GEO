@@ -1,3 +1,5 @@
+param([switch]$ReadOnlyPreflightOnly)
+
 $ErrorActionPreference = 'Stop'
 $repo = (Get-Location).Path
 $runner = Join-Path $repo 'scripts\u03-preview-b4-orchestrator.mjs'
@@ -39,12 +41,6 @@ else {
 
 $pushed = $false
 try {
-  # Ask only for Preview Admin/Auth and publishable keys. They stay in this
-  # process environment, never enter arguments, and are removed on every exit.
-  $env:U03_PREVIEW_ADMIN_KEY = Read-B4Secret 'Supabase Preview Admin/Auth key (solo rhnnplewqsekrnaousyl)'
-  $env:U03_PREVIEW_PUBLIC_KEY = Read-B4Secret 'Supabase Preview publishable key (solo rhnnplewqsekrnaousyl)'
-  if ([string]::IsNullOrWhiteSpace($env:U03_PREVIEW_ADMIN_KEY) -or [string]::IsNullOrWhiteSpace($env:U03_PREVIEW_PUBLIC_KEY)) { Stop-B4 'PREVIEW_KEYS_REQUIRED' }
-
   # Preserve the machine's authorized proxy route for Node fetch and CLI reads.
   # Never print these values; they may contain proxy authentication material.
   $proxyNames = @('HTTP_PROXY','HTTPS_PROXY','ALL_PROXY','NO_PROXY','http_proxy','https_proxy','all_proxy','no_proxy')
@@ -67,6 +63,18 @@ try {
 
   Push-Location -LiteralPath $repo
   $pushed = $true
+  # Deployment protection and database identity/counts/migrations do not need
+  # Auth keys. Fail here before prompting if any read-only gate is not exact.
+  & node $runner --readonly-preflight
+  if ($LASTEXITCODE -ne 0) { Stop-B4 'READ_ONLY_PREFLIGHT_FAILED' }
+  if ($ReadOnlyPreflightOnly) { return }
+
+  # Ask only after read-only checks pass. Keys stay in this process environment,
+  # never enter arguments, and are removed on every exit.
+  $env:U03_PREVIEW_ADMIN_KEY = Read-B4Secret 'Supabase Preview Admin/Auth key (solo rhnnplewqsekrnaousyl)'
+  $env:U03_PREVIEW_PUBLIC_KEY = Read-B4Secret 'Supabase Preview publishable key (solo rhnnplewqsekrnaousyl)'
+  if ([string]::IsNullOrWhiteSpace($env:U03_PREVIEW_ADMIN_KEY) -or [string]::IsNullOrWhiteSpace($env:U03_PREVIEW_PUBLIC_KEY)) { Stop-B4 'PREVIEW_KEYS_REQUIRED' }
+
   & node $runner
   if ($LASTEXITCODE -ne 0) { Stop-B4 'U03_B4_CAMPAIGN_FAILED_OR_CLEANUP_UNVERIFIED' }
 } finally {
