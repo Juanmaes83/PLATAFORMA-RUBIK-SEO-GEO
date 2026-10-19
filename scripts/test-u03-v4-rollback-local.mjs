@@ -4,11 +4,12 @@ import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { register } from 'node:module';
 import { createClient } from '@supabase/supabase-js';
 import { Client, Pool } from 'pg';
+import { PREFLIGHT_SQL, verifyReadOnlyPreviewState } from './u03-preview-b4-orchestrator.mjs';
+import { EFFECTIVE_FUNCTION_AUDIT_SQL, isV4SecurityDefinerAllowlistOnly,
+  V4_SECURITY_DEFINER_ALLOWLIST } from './u03-preview-v4-receipt.mjs';
 
-register('./lib/app-ts-hooks.mjs', import.meta.url);
 const { loadKeyring } = await import('../src/lib/provenance/keyring.ts');
 const { processAuditOutboxWithPool } = await import('../src/lib/provenance/outbox.ts');
 const { verifyAuditTrail } = await import('../src/lib/provenance/audit.ts');
@@ -75,6 +76,26 @@ try {
     and tablename='audit_events' and policyname='u03 preview receipt appends audit'`);
   check(appendPolicy.length === 1 && appendPolicy[0].with_check.includes('audit_events.details') &&
     !appendPolicy[0].with_check.includes('o.details'), 'receipt policy binds the inserted event details');
+  const expectedFunctions = (await db.query(EFFECTIVE_FUNCTION_AUDIT_SQL, ['rubik_preview_receipt_writer'])).rows[0];
+  check(isV4SecurityDefinerAllowlistOnly(expectedFunctions.executable_security_definer_functions) &&
+    V4_SECURITY_DEFINER_ALLOWLIST.every(name => expectedFunctions.executable_functions.includes(name)),
+  'effective SECURITY DEFINER set matches V-4 allowlist after PUBLIC inheritance');
+  let campaignPreflightState = (await db.query(PREFLIGHT_SQL)).rows[0];
+  check((await verifyReadOnlyPreviewState({ sql: async () => campaignPreflightState })).migrationCount === 27,
+    'read-only campaign preflight accepts the intended local role configuration');
+  await db.query(`create function public.u03_test_unapproved_definer() returns boolean
+    language sql security definer as 'select true'`);
+  campaignPreflightState = (await db.query(PREFLIGHT_SQL)).rows[0];
+  await assert.rejects(verifyReadOnlyPreviewState({ sql: async () => campaignPreflightState }),
+    /PREVIEW_RECEIPT_SECURITY_DEFINER_UNSAFE/);
+  const unsafeFunctions = (await db.query(EFFECTIVE_FUNCTION_AUDIT_SQL, ['rubik_preview_receipt_writer'])).rows[0];
+  check(unsafeFunctions.executable_security_definer_functions.includes('public.u03_test_unapproved_definer()') &&
+    !isV4SecurityDefinerAllowlistOnly(unsafeFunctions.executable_security_definer_functions),
+  'additional PUBLIC-executable SECURITY DEFINER fails the preflight allowlist');
+  await db.query('drop function public.u03_test_unapproved_definer()');
+  const restoredFunctions = (await db.query(EFFECTIVE_FUNCTION_AUDIT_SQL, ['rubik_preview_receipt_writer'])).rows[0];
+  check(isV4SecurityDefinerAllowlistOnly(restoredFunctions.executable_security_definer_functions),
+    'local preflight passes again after removing the test-only function');
   await db.query(`alter role rubik_preview_receipt_writer password '${writerPassword}'`);
   runFile('u03-preview-v4-activate.sql');
   runFile('u03-preview-v4-activate.sql', 'V4_PREVIEW_ROLE_REJECTED');

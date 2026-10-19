@@ -9,7 +9,7 @@ import { promisify } from 'node:util';
 import { createPreviewAdminClient } from './u03-preview-api-key.mjs';
 import { createDataApiFixtureRun, U03_PREVIEW_REF } from './u03-preview-data-api.mjs';
 import { PIN, networkEnvironment, preflight, runB4 } from './u03-preview-b4-runner.mjs';
-import { openPreviewReceiptProcessor } from './u03-preview-v4-receipt.mjs';
+import { isV4SecurityDefinerAllowlistOnly, openPreviewReceiptProcessor } from './u03-preview-v4-receipt.mjs';
 
 const execFileAsync = promisify(execFile);
 const SUPABASE_URL = `https://${U03_PREVIEW_REF}.supabase.co`;
@@ -24,7 +24,7 @@ export const EXPECTED_N1_MIGRATIONS = Object.freeze([
   '20261015201500', '20261015210000',
 ]);
 
-const PREFLIGHT_SQL = `select
+export const PREFLIGHT_SQL = `select
   (select count(*)::int from auth.users) as auth_users,
   (select count(*)::int from public.organizations) as organizations,
   (select count(*)::int from public.projects) as projects,
@@ -35,6 +35,17 @@ const PREFLIGHT_SQL = `select
   (select count(*)::int from private.audit_outbox) as outbox_total,
   (select count(*)::int from private.audit_outbox where state = 'pending') as pending_outbox,
   (select not rolsuper and not rolcanlogin and not rolbypassrls from pg_roles where rolname = 'rubik_audit_writer') as writer_locked,
+  (select exists (select 1 from pg_roles where rolname = 'rubik_preview_receipt_writer')) as receipt_writer_present,
+  (select coalesce(array_agg(format('%I.%I(%s)', n.nspname, p.proname, oidvectortypes(p.proargtypes)) order by n.nspname, p.proname, oidvectortypes(p.proargtypes)), array[]::text[])
+    from pg_roles r cross join pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where r.rolname = 'rubik_preview_receipt_writer' and p.prokind in ('f', 'p')
+      and has_schema_privilege(r.oid, n.oid, 'USAGE')
+      and has_function_privilege(r.oid, p.oid, 'EXECUTE')) as receipt_writer_executable_functions,
+  (select coalesce(array_agg(format('%I.%I(%s)', n.nspname, p.proname, oidvectortypes(p.proargtypes)) order by n.nspname, p.proname, oidvectortypes(p.proargtypes)), array[]::text[])
+    from pg_roles r cross join pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where r.rolname = 'rubik_preview_receipt_writer' and p.prokind in ('f', 'p')
+      and p.prosecdef and has_schema_privilege(r.oid, n.oid, 'USAGE')
+      and has_function_privilege(r.oid, p.oid, 'EXECUTE')) as receipt_writer_security_definers,
   (select environment from private.environment_identity limit 1) as environment,
   (select project_ref from private.environment_identity limit 1) as project_ref,
   (select coalesce(json_agg(version::text order by version), '[]'::json) from supabase_migrations.schema_migrations) as migrations`;
@@ -265,6 +276,9 @@ export async function verifyReadOnlyPreviewState({ sql = runPreviewReadOnlySql }
   if (!migrationMatch) throw new Error('N1_MIGRATION_SET_MISMATCH');
   if (state.environment !== 'preview' || state.project_ref !== U03_PREVIEW_REF) throw new Error('PREVIEW_DATABASE_IDENTITY_INVALID');
   if (state.writer_locked !== true) throw new Error('WRITER_CAPABILITY_NOT_LOCKED');
+  if (state.receipt_writer_present === true &&
+      !isV4SecurityDefinerAllowlistOnly(state.receipt_writer_security_definers))
+    throw new Error('PREVIEW_RECEIPT_SECURITY_DEFINER_UNSAFE');
   const empty = ['auth_users', 'organizations', 'projects', 'organization_members', 'project_members', 'invitations', 'audit_events', 'outbox_total', 'pending_outbox'];
   if (empty.some(field => state[field] !== 0)) throw new Error('PREVIEW_INITIAL_INVENTORY_NOT_EMPTY');
   return {

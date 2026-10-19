@@ -5,6 +5,28 @@ register('./lib/app-ts-hooks.mjs', import.meta.url);
 
 export const PREVIEW_REF = 'rhnnplewqsekrnaousyl';
 export const RECEIPT_ROLE = 'rubik_preview_receipt_writer';
+export const V4_SECURITY_DEFINER_ALLOWLIST = Object.freeze([
+  'private.audit_writer_project(uuid)',
+  'public.preview_environment_identity()',
+]);
+export const EFFECTIVE_FUNCTION_AUDIT_SQL = `with executable as (
+  select format('%I.%I(%s)', n.nspname, p.proname, oidvectortypes(p.proargtypes)) as signature,
+    p.prosecdef
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where p.prokind in ('f', 'p')
+    and has_schema_privilege($1, n.oid, 'USAGE')
+    and has_function_privilege($1, p.oid, 'EXECUTE')
+)
+select coalesce(array_agg(signature order by signature), array[]::text[]) as executable_functions,
+  coalesce(array_agg(signature order by signature) filter (where prosecdef), array[]::text[])
+    as executable_security_definer_functions
+from executable`;
+export function isV4SecurityDefinerAllowlistOnly(functions) {
+  if (!Array.isArray(functions)) return false;
+  const actual = [...functions].sort();
+  const expected = [...V4_SECURITY_DEFINER_ALLOWLIST].sort();
+  return actual.length === expected.length && actual.every((name, index) => name === expected[index]);
+}
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function validateReceiptConfig(env) {
@@ -53,7 +75,11 @@ export async function openPreviewReceiptProcessor({ env = process.env, PoolClass
         and not has_table_privilege(current_user, 'public.audit_events', 'DELETE')
         and not exists (select 1 from pg_auth_members where member = r.oid) as narrow_ok
       from pg_roles r cross join public.preview_environment_identity() i where r.rolname = current_user`, [RECEIPT_ROLE, PREVIEW_REF]);
-    if (check.rows.length !== 1 || !Object.values(check.rows[0]).every(Boolean)) throw new Error('V4_RECEIPT_PREFLIGHT_FAILED');
+    const functionAudit = await pool.query(EFFECTIVE_FUNCTION_AUDIT_SQL, [RECEIPT_ROLE]);
+    if (check.rows.length !== 1 || !Object.values(check.rows[0]).every(Boolean) ||
+        functionAudit.rows.length !== 1 ||
+        !isV4SecurityDefinerAllowlistOnly(functionAudit.rows[0].executable_security_definer_functions))
+      throw new Error('V4_RECEIPT_PREFLIGHT_FAILED');
   } catch {
     await pool.end().catch(() => {});
     throw new Error('V4_RECEIPT_PREFLIGHT_FAILED');

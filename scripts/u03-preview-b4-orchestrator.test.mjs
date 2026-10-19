@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { chromiumEnvironment, networkEnvironment, PIN } from './u03-preview-b4-runner.mjs';
 import { PRIOR_DATA_API_RUN_ID, parseCliJson, readPreviewAuthSettings, runHostedU03Campaign, runPreviewReadOnlySql, runReadOnlyPreflight, safeLedgerDetail, verifyFinalPreviewState, verifyInitialPreviewState, verifyReadOnlyPreviewState } from './u03-preview-b4-orchestrator.mjs';
+import { V4_SECURITY_DEFINER_ALLOWLIST } from './u03-preview-v4-receipt.mjs';
 
 const runId = 'u03-orchestrator-test-run';
 const sha = 'a'.repeat(40);
@@ -456,6 +457,23 @@ test('no-key read-only preflight verifies identity, 27 migrations, empty counts 
   assert.equal((await verifyReadOnlyPreviewState({ sql })).migrationCount, 27);
   const final = await verifyFinalPreviewState({ sql });
   assert.equal(final.inventoriesClear && final.outboxClear && final.capabilitiesSafe, true);
+});
+
+test('read-only campaign preflight fails on an extra executable receipt-writer SECURITY DEFINER', async () => {
+  const unsafe = async () => ({
+    auth_users: 0, organizations: 0, projects: 0, organization_members: 0, project_members: 0,
+    invitations: 0, audit_events: 0, outbox_total: 0, pending_outbox: 0, writer_locked: true,
+    environment: 'preview', project_ref: PIN.supabaseRef,
+    migrations: ['20260928120000', '20260928150000', '20261007120000', '20261007150000', '20261009071705',
+      '20261009120000', '20261009150000', '20261009170000', '20261009180000', '20261010090000',
+      '20261010150000', '20261010160000', '20261012090000', '20261012100000', '20261012110000',
+      '20261012120000', '20261012130000', '20261015115750', '20261015145025', '20261015170000',
+      '20261015171000', '20261015172000', '20261015180000', '20261015183000', '20261015190000',
+      '20261015201500', '20261015210000'],
+    receipt_writer_present: true,
+    receipt_writer_security_definers: [...V4_SECURITY_DEFINER_ALLOWLIST, 'public.unapproved_definer()'],
+  });
+  await assert.rejects(verifyReadOnlyPreviewState({ sql: unsafe }), /PREVIEW_RECEIPT_SECURITY_DEFINER_UNSAFE/);
 });
 
 test('initial preflight completes with the mapped read-only state and reports migration metadata', async () => {

@@ -2,6 +2,15 @@
 
 **Estado:** instalación, contención y rollback ensayados en un stack N1 local aislado desde cero; sin instalación ni ejecución alojada. Destino exclusivo `rhnnplewqsekrnaousyl`. No cambia las 27 migraciones N1, Vercel Authentication ni la guarda `writerPool()` que bloquea Preview en la aplicación.
 
+## Auditoría de funciones ejecutables
+
+El preflight consulta `pg_proc` usando `has_schema_privilege` y `has_function_privilege`, por lo que evalúa el permiso efectivo del rol, incluidas las concesiones heredadas de `PUBLIC` y cualquier schema donde tenga `USAGE`. Incluye funciones y procedimientos ejecutables, devuelve su inventario y separa los `SECURITY DEFINER`; antes de fixtures exige que el conjunto de estos últimos coincida exactamente con la allowlist V-4:
+
+- `private.audit_writer_project(uuid)`: resuelve el proyecto y organización reales para acotar y verificar la firma del recibo.
+- `public.preview_environment_identity()`: acredita que la conexión está en el centinela `preview/rhnnplewqsekrnaousyl`.
+
+El stack de 27 migraciones N1, tras instalar los grants U03 previstos, mostró exactamente esas dos funciones ejecutables. No se revocan permisos globales ni se alteran funciones de producto. Una función adicional con `SECURITY DEFINER` y `EXECUTE` efectivo (incluido por `PUBLIC`) detiene el preflight antes de crear fixtures.
+
 ## Reversión operativa obligatoria
 
 El wrapper V-4 **no dispone de credencial administrativa PostgreSQL**. Por ello no puede ejecutar `ALTER ROLE ... NOLOGIN` automáticamente. Emite un aviso al salir, incluso si la campaña falla; el propietario debe ejecutar el bloqueo desde otra terminal administrativa inmediatamente después. La caducidad de 30 minutos limita un cierre abrupto, pero no sustituye el bloqueo. `NOLOGIN` impide sesiones nuevas; antes del rollback hay que dejar terminar la sesión del arnés.

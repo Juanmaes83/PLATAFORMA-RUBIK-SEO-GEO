@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import test from 'node:test';
-import { openPreviewReceiptProcessor, validateReceiptConfig } from './u03-preview-v4-receipt.mjs';
+import { EFFECTIVE_FUNCTION_AUDIT_SQL, isV4SecurityDefinerAllowlistOnly, openPreviewReceiptProcessor,
+  V4_SECURITY_DEFINER_ALLOWLIST, validateReceiptConfig } from './u03-preview-v4-receipt.mjs';
 
 const ref = 'rhnnplewqsekrnaousyl';
 const projectId = '22222222-2222-4222-8222-222222222222';
@@ -30,12 +31,18 @@ test('V-4 config rejects Production, another ref, absent credential, SSL overrid
   assert.equal(validateReceiptConfig({ ...source, U03_PREVIEW_RECEIPT_DATABASE_URL: pooler }).keyId, 'u03-v4-test');
 });
 
-function fakePool({ ready = true } = {}) {
+function fakePool({ ready = true, extraDefiner = false } = {}) {
   const state = { receipt: 'pending', signed: 0, closed: false, queries: [] };
   class PoolClass {
     async query(sql, args) {
       state.queries.push({ sql, args });
       if (sql.includes('as role_ok')) return { rows: ready ? [{ role_ok: true, identity_ok: true, capability_ok: true, narrow_ok: true }] : [] };
+      if (sql === EFFECTIVE_FUNCTION_AUDIT_SQL) return { rows: [{
+        executable_functions: [...V4_SECURITY_DEFINER_ALLOWLIST],
+        executable_security_definer_functions: extraDefiner
+          ? [...V4_SECURITY_DEFINER_ALLOWLIST, 'public.unapproved_definer()']
+          : [...V4_SECURITY_DEFINER_ALLOWLIST],
+      }] };
       if (sql.includes('join public.audit_events')) return { rows: [{ state: state.receipt, event_seq: 1 }] };
       if (sql.includes('where o.id = $1::uuid and o.project_id')) return { rows: args[1] === projectId ? [{ id: receiptId, project_id: projectId,
         organization_id: organizationId, actual_organization_id: organizationId, tenant_slug: 'u03-v4',
@@ -53,6 +60,19 @@ test('V-4 receipt preflight rejects absent or wrong SQL capability before a fixt
   const { state, PoolClass } = fakePool({ ready: false });
   await assert.rejects(openPreviewReceiptProcessor({ env: env(), PoolClass }), /V4_RECEIPT_PREFLIGHT_FAILED/);
   assert.equal(state.closed, true);
+});
+
+test('effective function audit allows only V-4 SECURITY DEFINER functions and rejects PUBLIC inheritance', async () => {
+  const safe = fakePool();
+  const processor = await openPreviewReceiptProcessor({ env: env(), PoolClass: safe.PoolClass });
+  await processor.close();
+  assert.ok(safe.state.queries.some(query => query.sql === EFFECTIVE_FUNCTION_AUDIT_SQL));
+  assert.equal(isV4SecurityDefinerAllowlistOnly(V4_SECURITY_DEFINER_ALLOWLIST), true);
+  assert.equal(isV4SecurityDefinerAllowlistOnly([...V4_SECURITY_DEFINER_ALLOWLIST, 'public.unapproved_definer()']), false);
+
+  const unsafe = fakePool({ extraDefiner: true });
+  await assert.rejects(openPreviewReceiptProcessor({ env: env(), PoolClass: unsafe.PoolClass }), /V4_RECEIPT_PREFLIGHT_FAILED/);
+  assert.equal(unsafe.state.closed, true);
 });
 
 test('V-4 receipt processes a pending ID, retries idempotently, and never exposes credentials', async () => {
