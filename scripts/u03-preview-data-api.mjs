@@ -10,6 +10,11 @@ import { cleanupTrackedIds, createScopedFixture, reconcileByScope, sanitizeDiagn
 
 export const U03_PREVIEW_REF = 'rhnnplewqsekrnaousyl';
 const ACTORS = Object.freeze(['ownerA', 'ownerB', 'outsider']);
+const ROLE_ACTORS = Object.freeze([
+  ['manager', 'account-manager', 'a1'], ['analyst', 'analyst', 'a1'],
+  ['viewer', 'viewer', 'a1'], ['approver', 'client-approver', 'a1'],
+  ['a2viewer', 'viewer', 'a2'],
+]);
 
 /** Shared fixture lifecycle used by the standalone Data API runner and B-4 campaign. */
 export function createDataApiFixtureRun({ runId, sha, admin, publicKey, ledger, ref = U03_PREVIEW_REF, clientFactory = createClient, fetchImpl = fetch }) {
@@ -24,7 +29,8 @@ export function createDataApiFixtureRun({ runId, sha, admin, publicKey, ledger, 
   const plannedOrganizations = [];
   const plannedProjects = [];
   const accounts = {};
-  const ownEmails = new Set(ACTORS.map(actor => `${actor}-${namespace}@ejemplo.test`));
+  const ownEmails = new Set([...ACTORS, ...ROLE_ACTORS.map(([actor]) => actor)]
+    .map(actor => `${actor}-${namespace}@ejemplo.test`));
   let cleanupAttempted = false;
   let cleanupOk = true;
 
@@ -194,6 +200,62 @@ export function createDataApiFixtureRun({ runId, sha, admin, publicKey, ledger, 
     return { passed: true, cases: 12 };
   }
 
+  /** Directed U03 V-1/V-2/V-3 and role isolation. No withdrawal or audit receipt is created. */
+  async function runRolesInvitations({ a1, a2, b1 }) {
+    if (![a1, a2, b1].every(Boolean) || !accounts.ownerA || !accounts.ownerB) throw new Error('ROLE_FIXTURES_INVALID');
+    const assert = async (caseId, condition) => {
+      await ledger(caseId, condition ? 'PASS' : 'FAIL');
+      if (!condition) throw new Error(`ROLE_CASE_FAILED_${caseId}`);
+    };
+    for (const [actor] of ROLE_ACTORS) await createUser(actor);
+    let cases = 0;
+    for (const [actor, role, scope] of ROLE_ACTORS) {
+      const projectId = scope === 'a1' ? a1 : a2;
+      const invited = await accounts.ownerA.api.rpc('project_invitations', {
+        p_project_id: projectId, p_command: 'create', p_payload: { email: accounts[actor].email, role },
+      });
+      // The token exists only in memory; neither ledger nor errors contain it.
+      if (invited.error || !/^[0-9a-f]{64}$/.test(invited.data?.token ?? '')) throw new Error('ROLE_INVITATION_CREATE_FAILED');
+      const accepted = await accounts[actor].api.rpc('accept_project_invitation', { p_token: invited.data.token });
+      const visible = await accounts[actor].api.from('projects').select('id');
+      const membership = await accounts[actor].api.from('project_members').select('project_id,role').eq('project_id', projectId);
+      await assert(`role-${actor}-scoped`, !accepted.error && accepted.data?.role === role && !visible.error &&
+        visible.data?.length === 1 && visible.data[0]?.id === projectId && !membership.error &&
+        membership.data?.length === 1 && membership.data[0]?.project_id === projectId && membership.data[0]?.role === role);
+      cases++;
+    }
+
+    const viewer = accounts.viewer.api;
+    const denied = await viewer.from('projects').update({ name: 'U03 unexpected write' }).eq('id', a1).select('id');
+    const unchanged = await accounts.ownerA.api.from('projects').select('name').eq('id', a1);
+    await assert('v1-viewer-read-only', (denied.error?.code === '42501' || (!denied.error && denied.data?.length === 0)) &&
+      !unchanged.error && unchanged.data?.length === 1 && unchanged.data[0].name === 'U03 a1');
+    cases++;
+
+    for (const command of ['list', 'create', 'revoke']) {
+      const attempt = await viewer.rpc('project_invitations', {
+        p_project_id: a1, p_command: command, p_payload: { email: accounts.outsider.email, role: 'viewer', invitationId: randomUUID() },
+      });
+      await assert(`v2-viewer-${command}-denied`, attempt.error?.code === '42501');
+      cases++;
+    }
+
+    const revokedInvite = await accounts.ownerB.api.rpc('project_invitations', {
+      p_project_id: b1, p_command: 'create', p_payload: { email: accounts.outsider.email, role: 'viewer' },
+    });
+    if (revokedInvite.error || !/^[0-9a-f]{64}$/.test(revokedInvite.data?.token ?? '') ||
+      !/^[0-9a-f-]{36}$/i.test(revokedInvite.data?.invitationId ?? '')) throw new Error('V3_INVITATION_CREATE_FAILED');
+    const revoked = await accounts.ownerB.api.rpc('project_invitations', {
+      p_project_id: b1, p_command: 'revoke', p_payload: { invitationId: revokedInvite.data.invitationId },
+    });
+    const reuse = await accounts.outsider.api.rpc('accept_project_invitation', { p_token: revokedInvite.data.token });
+    const outsiderProjects = await accounts.outsider.api.from('projects').select('id');
+    await assert('v3-revoked-token-denied', !revoked.error && reuse.error?.code === 'P0002' &&
+      !outsiderProjects.error && outsiderProjects.data?.length === 0);
+    cases++;
+    return { passed: true, cases };
+  }
+
   async function reconcileCreatedScopes() {
     for (const slug of plannedOrganizations) {
       await reconcileByScope(() => admin.from('organizations').select('id').eq('slug', slug),
@@ -278,7 +340,7 @@ export function createDataApiFixtureRun({ runId, sha, admin, publicKey, ledger, 
   }
 
   return { runId, ref, namespace, createUsers, createOrganizations, createProjects, createRevocationFixtures,
-    runMatrix, runMembershipRevocation, cleanup, verifyOwnedAbsent, browserInputs, snapshot };
+    runMatrix, runMembershipRevocation, runRolesInvitations, cleanup, verifyOwnedAbsent, browserInputs, snapshot };
 }
 
 async function main() {
