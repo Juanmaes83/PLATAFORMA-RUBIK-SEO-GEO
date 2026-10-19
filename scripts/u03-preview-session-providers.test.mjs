@@ -40,7 +40,12 @@ test('expiry wait is bounded and can be driven without a real hour delay', async
   let clock = 4599_000;
   const pauses = [];
   await waitForExpiry(4600, { now: () => clock, sleep: async ms => { pauses.push(ms); clock += ms; } });
-  assert.deepEqual(pauses, [3000]);
+  assert.deepEqual(pauses, [30_000, 16_000]);
+  assert.equal(clock, 4645_000);
+  clock = 4630_000;
+  const skewPauses = [];
+  await waitForExpiry(4600, { now: () => clock, sleep: async ms => { skewPauses.push(ms); clock += ms; } });
+  assert.deepEqual(skewPauses, [15_000]);
   await assert.rejects(waitForExpiry(10, { now: () => 10_000_000 }), /SESSION_EXPIRY_OUT_OF_RANGE/);
 });
 
