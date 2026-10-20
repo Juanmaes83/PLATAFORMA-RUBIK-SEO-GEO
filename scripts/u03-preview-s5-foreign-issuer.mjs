@@ -51,9 +51,7 @@ async function ledger(runId, caseId, status, detail = {}) {
 export async function runS5ForeignIssuer({ env = process.env, runId = randomUUID(),
   fetchImpl = fetch, launch = () => chromium.launch({ headless: true, env: chromiumEnvironment() }),
   inspect = verifyS5Target } = {}) {
-  if (!uuid.test(runId) || !env.VERCEL_OIDC_TOKEN || !env.U03_PREVIEW_PUBLIC_KEY ||
-      !env.U03_FOREIGN_ISSUER_URL || !env.U03_FOREIGN_ISSUER_ANON_KEY || !env.U03_FOREIGN_ISSUER_SERVICE_KEY)
-    throw new GateError('S5_OPERATOR_INPUT_INVALID');
+  const safeRunId = uuid.test(runId) ? runId : randomUUID();
   let admin;
   let authUserId = null;
   let browser;
@@ -61,6 +59,9 @@ export async function runS5ForeignIssuer({ env = process.env, runId = randomUUID
   let passed = false;
   let failureCode = null;
   try {
+    if (!uuid.test(runId) || !env.VERCEL_OIDC_TOKEN || !env.U03_PREVIEW_PUBLIC_KEY ||
+        !env.U03_FOREIGN_ISSUER_URL || !env.U03_FOREIGN_ISSUER_ANON_KEY || !env.U03_FOREIGN_ISSUER_SERVICE_KEY)
+      throw new GateError('S5_OPERATOR_INPUT_INVALID');
     const pinned = await inspect({ env, token: env.VERCEL_OIDC_TOKEN });
     if (pinned.deploymentId !== PIN.deploymentId || pinned.host !== PIN.host || pinned.sha !== PIN.sha || pinned.supabaseRef !== PIN.supabaseRef)
       throw new GateError('S5_PREVIEW_PIN_MISMATCH');
@@ -78,14 +79,14 @@ export async function runS5ForeignIssuer({ env = process.env, runId = randomUUID
       user_metadata: { testRunId: runId, purpose: 'isolated-foreign-issuer' } });
     if (created.error || !created.data.user?.id) throw new GateError('S5_ISSUER_USER_CREATE_FAILED');
     authUserId = created.data.user.id;
-    await ledger(runId, 'foreign-issuer-user', 'CREATED', { namespace: `u03-s5-${runId}`, ids: [authUserId] });
+    await ledger(safeRunId, 'foreign-issuer-user', 'CREATED', { namespace: `u03-s5-${safeRunId}`, ids: [authUserId] });
     const signedIn = await localAnon.auth.signInWithPassword({ email, password });
     if (signedIn.error || !signedIn.data.session?.access_token) throw new GateError('S5_AUTH_SIGNIN_FAILED');
     const session = signedIn.data.session;
     const timing = inspectForeignJwt(session.access_token);
     const expectedForeignIssuer = `${foreignUrl.origin}/auth/v1`;
     if (timing.issuer !== expectedForeignIssuer) throw new GateError('S5_FOREIGN_ISSUER_NOT_AUTHENTIC');
-    await ledger(runId, 'foreign-issuer-token', 'PASS', { issuer: timing.issuer, exp: timing.exp });
+    await ledger(safeRunId, 'foreign-issuer-token', 'PASS', { issuer: timing.issuer, exp: timing.exp });
 
     const api = await fetchImpl(`${previewApi}/rest/v1/projects?select=id&limit=1`, {
       headers: { apikey: env.U03_PREVIEW_PUBLIC_KEY, Authorization: `Bearer ${session.access_token}` },
@@ -93,7 +94,7 @@ export async function runS5ForeignIssuer({ env = process.env, runId = randomUUID
     });
     const apiBody = await api.text();
     const apiRejected = (api.status === 401 || api.status === 403) && !apiBody.trimStart().startsWith('[');
-    await ledger(runId, 's5-foreign-issuer-data-api', apiRejected ? 'PASS' : 'FAIL', { http: api.status });
+    await ledger(safeRunId, 's5-foreign-issuer-data-api', apiRejected ? 'PASS' : 'FAIL', { http: api.status });
     if (!apiRejected) throw new GateError('S5_DATA_API_ACCEPTED_FOREIGN_ISSUER');
 
     browser = await launch();
@@ -101,13 +102,13 @@ export async function runS5ForeignIssuer({ env = process.env, runId = randomUUID
     const page = await context.newPage();
     const securityEvents = [];
     await installScopedRoutes(context, page, env.VERCEL_OIDC_TOKEN, origin,
-      event => securityEvents.push(event), () => {}, runId);
+      event => securityEvents.push(event), () => {}, safeRunId);
     await context.addCookies([{ name: `sb-${PIN.supabaseRef}-auth-token`, value: cookieValue(session),
       domain: PIN.host, path: '/', httpOnly: true, secure: true, sameSite: 'Lax' }]);
     const response = await page.goto(`${origin}/panel`, { waitUntil: 'domcontentloaded' });
     const pathname = new URL(page.url()).pathname;
     const routeRejected = pathname === '/acceso';
-    await ledger(runId, 's5-foreign-issuer-protected-route', routeRejected && securityEvents.length === 0 ? 'PASS' : 'FAIL',
+    await ledger(safeRunId, 's5-foreign-issuer-protected-route', routeRejected && securityEvents.length === 0 ? 'PASS' : 'FAIL',
       { http: response?.status() ?? null, pathname });
     if (!routeRejected || securityEvents.length) throw new GateError('S5_PROTECTED_ROUTE_ACCEPTED_FOREIGN_ISSUER');
     passed = true;
@@ -119,17 +120,17 @@ export async function runS5ForeignIssuer({ env = process.env, runId = randomUUID
     if (authUserId && admin) {
       const deleted = await admin.auth.admin.deleteUser(authUserId).catch(() => ({ error: true }));
       const cleaned = !deleted.error;
-      await ledger(runId, 'foreign-issuer-cleanup', cleaned ? 'PASS' : 'BLOCKED', { ids: [authUserId] }).catch(() => {});
+      await ledger(safeRunId, 'foreign-issuer-cleanup', cleaned ? 'PASS' : 'BLOCKED', { ids: [authUserId] }).catch(() => {});
       if (!cleaned) { passed = false; failureCode = 'S5_ISSUER_USER_CLEANUP_FAILED'; }
     }
   }
   if (failureCode || !passed) {
     const code = failureCode ?? 'S5_SAFE_FAILURE';
-    await ledger(runId, 's5-foreign-issuer', 'BLOCKED', { code }).catch(() => {});
+    await ledger(safeRunId, 's5-foreign-issuer', 'BLOCKED', { code }).catch(() => {});
     throw new GateError(code);
   }
-  await ledger(runId, 's5-foreign-issuer', 'PASS', { label: 'emisor ajeno aislado', deploymentId: PIN.deploymentId });
-  return { passed: true, runId };
+  await ledger(safeRunId, 's5-foreign-issuer', 'PASS', { label: 'emisor ajeno aislado', deploymentId: PIN.deploymentId });
+  return { passed: true, runId: safeRunId };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

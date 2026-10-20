@@ -100,8 +100,15 @@ try {
   $env:U03_FOREIGN_ISSUER_URL = $localStatus.API_URL
   $env:U03_FOREIGN_ISSUER_ANON_KEY = $localStatus.ANON_KEY
   $env:U03_FOREIGN_ISSUER_SERVICE_KEY = $localStatus.SERVICE_ROLE_KEY
-  & node $runner --run-id $runId
-  if ($LASTEXITCODE -ne 0) { Stop-S5 'S5_CAMPAIGN_OR_LOCAL_CLEANUP_FAILED' }
+  $runnerOutput = @(& node $runner --run-id $runId 2>&1)
+  $runnerExit = $LASTEXITCODE
+  if ($runnerExit -ne 0) {
+    $safeCode = 'S5_SAFE_FAILURE'
+    foreach ($line in $runnerOutput) {
+      if ([string]$line -match 'S5_FOREIGN_ISSUER: BLOCKED code=([A-Z0-9_]+)') { $safeCode = $Matches[1]; break }
+    }
+    Stop-S5 $safeCode
+  }
   Write-Output "S5_FOREIGN_ISSUER: PASS label=emisor-ajeno-aislado runId=$runId"
 } catch {
   Write-Output 'S5_FOREIGN_ISSUER: BLOCKED; review the sanitized run ledger and local stack status.'
