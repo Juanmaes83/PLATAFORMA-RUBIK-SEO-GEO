@@ -10,10 +10,10 @@ const execFileAsync = promisify(execFile);
 export const PIN = Object.freeze({
   projectId: "prj_HgnTtNtisi9Kt1A4Dq2pxoCQBook",
   teamId: "team_hLhdb3M9MviTIysXD9whFF2c",
-  deploymentId: "dpl_6fqataMxfkGFSZJKVGk5xJe8snXq",
-  sha: "06c2b4270fc74d88ef3e3560bb5d07d8aeb948e2",
-  branch: "codex/u02-preview-isolation-20261017",
-  host: "plataforma-rubik-seo-bdzqlpg6z-juanma-espinosas-projects.vercel.app",
+  deploymentId: "dpl_Hmpevn3Vds4pFUzbiiFFB3vVGCKD",
+  sha: "28fd3927f9acce8ba9b27b43d3afb86b12aa0a86",
+  branch: "codex/u03-session-isolation-20261020",
+  host: "plataforma-rubik-seo-3elivlu19-juanma-espinosas-projects.vercel.app",
   supabaseRef: "rhnnplewqsekrnaousyl",
 });
 
@@ -264,7 +264,7 @@ function totalConsoleErrors(diagnostics) {
   return Object.entries(diagnostics.console).filter(([key]) => key.startsWith("error:")).reduce((sum, [, count]) => sum + count, 0);
 }
 
-async function saveSanitizedCapture(page, capturePath) {
+export async function saveSanitizedCapture(page, capturePath) {
   try {
     await page.evaluate(() => {
       document.querySelectorAll('input[type="password"], input[type="email"]').forEach(input => { input.value = ""; input.setAttribute("value", ""); });

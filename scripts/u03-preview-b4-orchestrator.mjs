@@ -10,6 +10,7 @@ import { createPreviewAdminClient } from './u03-preview-api-key.mjs';
 import { createDataApiFixtureRun, U03_PREVIEW_REF } from './u03-preview-data-api.mjs';
 import { PIN, networkEnvironment, preflight, runB4 } from './u03-preview-b4-runner.mjs';
 import { isV4SecurityDefinerAllowlistOnly, openPreviewReceiptProcessor } from './u03-preview-v4-receipt.mjs';
+import { runSessionProviders } from './u03-preview-session-providers.mjs';
 
 const execFileAsync = promisify(execFile);
 const SUPABASE_URL = `https://${U03_PREVIEW_REF}.supabase.co`;
@@ -105,7 +106,7 @@ export function safeLedgerDetail(input = {}) {
     if (key === 'category' && !['DNS', 'TCP', 'TLS', 'AUTHENTICATION', 'PERMISSION', 'CAPABILITY', 'IDENTITY',
       'PRECONDITION', 'CONFIGURATION', 'READ_ONLY_ADMIN', 'DATABASE'].includes(value)) continue;
     if (key === 'phase' && !['login', 'login-B', 'login-revoked', '/panel-A', '/panel-B', '/A1', '/A2', '/B1', 'deny-B1', 'deny-A1-A2', 'logout-A', 'logout-B', 'revoked-access'].includes(value)) continue;
-    if (key === 'mode' && !['full', 'playwright-only', 'membership-revocation', 'roles-invitations', 'cross-surface'].includes(value)) continue;
+    if (key === 'mode' && !['full', 'playwright-only', 'membership-revocation', 'roles-invitations', 'cross-surface', 'session-providers'].includes(value)) continue;
     if (key === 'evidenceRunId' && ![PRIOR_DATA_API_RUN_ID, PRIOR_B4_RUN_ID].includes(value)) continue;
     if (typeof value === 'string') result[key] = value.slice(0, 240);
     else if (typeof value === 'number' || typeof value === 'boolean' || value === null) result[key] = value;
@@ -310,10 +311,11 @@ export async function verifyFinalPreviewState({ sql = runPreviewReadOnlySql } = 
 export async function runHostedU03Campaign({
   env = process.env, sha, runId = randomUUID(), ledger = null, preflightFn = verifyInitialPreviewState,
   fixtureFactory = createDataApiFixtureRun, browserFn = runB4, finalCheckFn = verifyFinalPreviewState,
-  receiptProcessorFn = openPreviewReceiptProcessor, root = process.cwd(), mode = 'full',
+  receiptProcessorFn = openPreviewReceiptProcessor, sessionProvidersFn = runSessionProviders,
+  root = process.cwd(), mode = 'full',
 } = {}) {
   if (!sha) throw new Error('CAMPAIGN_SHA_REQUIRED');
-  if (!['full', 'playwright-only', 'membership-revocation', 'roles-invitations', 'cross-surface'].includes(mode)) throw new Error('CAMPAIGN_MODE_INVALID');
+  if (!['full', 'playwright-only', 'membership-revocation', 'roles-invitations', 'cross-surface', 'session-providers'].includes(mode)) throw new Error('CAMPAIGN_MODE_INVALID');
   const ledgerDir = join(root, 'test-results', 'u03-hosted');
   const ledgerPath = join(ledgerDir, `${runId}.jsonl`);
   const captureRoot = join(ledgerDir, runId);
@@ -337,6 +339,7 @@ export async function runHostedU03Campaign({
   let revocationPassed = false;
   let rolesPassed = false;
   let crossPassed = false;
+  let sessionProvidersPassed = false;
   await ledger('campaign-start', 'STARTED', { deploymentId: PIN.deploymentId, sha: PIN.sha, host: PIN.host, projectRef: U03_PREVIEW_REF, mode });
   try {
     if (!env.U03_PREVIEW_ADMIN_KEY || !env.U03_PREVIEW_PUBLIC_KEY) throw new Error('PREVIEW_KEYS_REQUIRED');
@@ -351,7 +354,14 @@ export async function runHostedU03Campaign({
       await ledger('browser-b4', 'SKIP_PRIOR_EVIDENCE', { evidenceRunId: PRIOR_B4_RUN_ID });
     }
     fixtures = fixtureFactory({ runId, sha, admin: verified.admin, publicKey: env.U03_PREVIEW_PUBLIC_KEY, ledger, ref: U03_PREVIEW_REF });
-    if (mode === 'membership-revocation') {
+    if (mode === 'session-providers') {
+      const session = await fixtures.createSessionFixtures();
+      await ledger('fixture-session', 'CREATED', { namespace: fixtures.namespace, count: 1 });
+      await ledger('data-api-matrix', 'SKIP_PRIOR_EVIDENCE', { cases: 12, evidenceRunId: PRIOR_DATA_API_RUN_ID });
+      await ledger('browser-b4', 'SKIP_PRIOR_EVIDENCE', { evidenceRunId: PRIOR_B4_RUN_ID });
+      browserResult = await sessionProvidersFn({ env, ...session, ledger, runId, captureRoot });
+      sessionProvidersPassed = browserResult?.passed === true;
+    } else if (mode === 'membership-revocation') {
       const { a1 } = await fixtures.createRevocationFixtures();
       await ledger('fixture-revocation', 'CREATED', { count: 2, namespace: fixtures.namespace });
       const result = await fixtures.runMembershipRevocation({ a1 });
@@ -459,6 +469,7 @@ export async function runHostedU03Campaign({
     : (mode === 'membership-revocation' ? (revocationPassed && clean ? 'PASS' : 'BLOCKED') :
       mode === 'roles-invitations' ? (rolesPassed && clean ? 'PASS' : 'BLOCKED') :
       mode === 'cross-surface' ? (crossPassed && clean ? 'PASS' : 'BLOCKED') :
+      mode === 'session-providers' ? (sessionProvidersPassed && clean ? 'AWAITING_VISUAL_REVIEW' : 'BLOCKED') :
       (b4Pass && clean ? 'AWAITING_VISUAL_REVIEW' : 'BLOCKED'));
   try {
     await ledger('campaign-global', status, {
@@ -475,7 +486,7 @@ export async function runHostedU03Campaign({
 
 async function main() {
   const sha = (await execFileAsync('git', ['rev-parse', 'HEAD'], { windowsHide: true })).stdout.trim();
-  const campaignModes = ['--playwright-only', '--membership-revocation-only', '--roles-invitations-only', '--cross-surface-only'].filter(arg => process.argv.includes(arg));
+  const campaignModes = ['--playwright-only', '--membership-revocation-only', '--roles-invitations-only', '--cross-surface-only', '--session-providers-only'].filter(arg => process.argv.includes(arg));
   if (campaignModes.length > 1 || campaignModes.length && process.argv.some(arg => ['--readonly-preflight', '--credential-preflight-only'].includes(arg))) {
     console.error('U03 B-4 BLOCKED: CAMPAIGN_MODE_INVALID; no fixtures were created.');
     process.exitCode = 1;
@@ -510,7 +521,8 @@ async function main() {
     process.exitCode = 1;
     return;
   }
-  const mode = process.argv.includes('--membership-revocation-only') ? 'membership-revocation' :
+  const mode = process.argv.includes('--session-providers-only') ? 'session-providers' :
+    process.argv.includes('--membership-revocation-only') ? 'membership-revocation' :
     process.argv.includes('--cross-surface-only') ? 'cross-surface' :
     process.argv.includes('--roles-invitations-only') ? 'roles-invitations' :
     process.argv.includes('--playwright-only') ? 'playwright-only' : 'full';

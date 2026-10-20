@@ -118,6 +118,13 @@ export function createDataApiFixtureRun({ runId, sha, admin, publicKey, ledger, 
     return { orgA, a1 };
   }
 
+  async function createSessionFixtures() {
+    await createUser('ownerA');
+    const orgA = await createOrganization('ownerA', `${namespace}-a`);
+    const a1 = await createProject('ownerA', orgA, 'a1');
+    return { orgA, a1, account: accounts.ownerA, path: `/proyectos/${namespace}-a/a1` };
+  }
+
   async function runMembershipRevocation({ a1 }) {
     if (!a1 || !accounts.ownerA || !accounts.outsider) throw new Error('REVOCATION_FIXTURES_INVALID');
     const owner = accounts.ownerA.api;
@@ -388,7 +395,7 @@ export function createDataApiFixtureRun({ runId, sha, admin, publicKey, ledger, 
     return { namespace, userIds: [...new Set(users)], organizationIds: [...new Set(organizations)], projectIds: [...new Set(projects)] };
   }
 
-  return { runId, ref, namespace, createUsers, createOrganizations, createProjects, createRevocationFixtures,
+  return { runId, ref, namespace, createUsers, createOrganizations, createProjects, createRevocationFixtures, createSessionFixtures,
     runMatrix, runMembershipRevocation, runRolesInvitations, runCrossSurface, cleanup, verifyOwnedAbsent, browserInputs, snapshot };
 }
 
