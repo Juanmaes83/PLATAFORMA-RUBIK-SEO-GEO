@@ -13,9 +13,9 @@ const DB_PASSWORD = 'fictional:/?#% +&=[]quote!()*';
 const secrets = [DB_PASSWORD, 'fictional-user-uuid-111111111111', 'fictional-project-uuid-222222222222'];
 
 function freshState({ failNoLogin = false, failInstallAfterApply = false, failActivationAfterApply = false,
-  failPoolerConnect = false } = {}) {
+  failPoolerConnect = false, extraPreRoleDefiner = false } = {}) {
   return { role: false, login: false, expired: false, policies: 0, sessions: 0, failNoLogin,
-    failInstallAfterApply, failActivationAfterApply, failPoolerConnect,
+    failInstallAfterApply, failActivationAfterApply, failPoolerConnect, extraPreRoleDefiner,
     marker: `u03-window:${RUN}` };
 }
 function createMocks(state) {
@@ -100,6 +100,7 @@ class RolePool {
     }
     if (!this.state.login || this.state.expired) throw Object.assign(new Error(DB_PASSWORD), { code: '28P01' });
     let setRole = false;
+    const state = this.state;
     return { release() {}, async query(sql) {
       if (sql.startsWith('set role')) { setRole = true; return { rows: [] }; }
       if (sql.includes('not has_table_privilege')) return { rows: [{ session_user: ROLE, current_user: ROLE,
@@ -110,7 +111,8 @@ class RolePool {
         import_insert: false, imports_select: false, auth_schema: false, org_members_select: false, project_members_select: false,
         organizations_select: false, projects_select: false,
         audit_delete: false, outbox_delete: false, tls_verified: true }] };
-      if (sql.includes('from pg_proc p join pg_namespace')) return { rows: [{ executable: [...EXPECTED_DEFINERS], definers: [...EXPECTED_DEFINERS] }] };
+      if (sql.includes('from pg_proc p join pg_namespace')) return { rows: [{ executable: [...EXPECTED_DEFINERS],
+        definers: !setRole && state.extraPreRoleDefiner ? [...EXPECTED_DEFINERS, 'public.unsafe_definer()'] : [...EXPECTED_DEFINERS] }] };
       if (sql.includes('relrowsecurity')) return { rows: [{ rls_count: 4 }] };
       if (sql.includes('audit_hidden')) return { rows: [{ audit_hidden: true, results_hidden: true, receipts_hidden: true, outbox_hidden: true }] };
       throw new Error('UNEXPECTED_FAKE_ROLE_QUERY');
@@ -209,6 +211,22 @@ test('failed independent NOLOGIN containment remains BLOCKED and never claims cl
   assert.doesNotMatch(ledger, /finally-independent-containment.*PASS/);
   for (const secret of secrets) assert.equal(ledger.includes(secret), false);
   await rm(folder, { recursive: true, force: true });
+});
+
+test('extra SECURITY DEFINER reachable before SET ROLE blocks and rolls back the temporary role', async () => {
+  const folder = await mkdtemp(join(tmpdir(), 'u03-window-role-public-definer-'));
+  const ledgerPath = join(folder, 'run.jsonl');
+  const state = freshState({ extraPreRoleDefiner: true });
+  try {
+    await assert.rejects(runWindowRolePreflight({ databasePassword: DB_PASSWORD, runId: RUN,
+      ledgerPath, ...createMocks(state) }), /WINDOW_ROLE_PREFLIGHT_BLOCKED/);
+    assert.equal(state.role, false);
+    assert.equal(state.policies, 0);
+    const ledger = await readFile(ledgerPath, 'utf8');
+    assert.doesNotMatch(ledger, /unsafe_definer|public\./);
+    assert.match(ledger, /finally-independent-containment.*CONTAINMENT.*PASS/);
+    for (const secret of secrets) assert.equal(ledger.includes(secret), false);
+  } finally { await rm(folder, { recursive: true, force: true }); }
 });
 
 test('contain-only mode independently blocks, terminates and removes the owned role after a parent-process failure', async () => {

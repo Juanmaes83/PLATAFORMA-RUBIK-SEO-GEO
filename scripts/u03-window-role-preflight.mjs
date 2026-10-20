@@ -212,6 +212,9 @@ async function checkPooler(password, PoolClass = Pool, rolePoolFactory = createP
     if (noSet.session_user !== ROLE || noSet.current_user !== ROLE || !noSet.no_writer_privileges ||
         !noSet.no_results_privileges || !noSet.no_outbox_privileges || !noSet.no_auth_schema)
       throw new Error('POOLER_PRE_SET_ROLE_REJECTED');
+    const preRoleFunctions = (await client.query(DEFiner_SQL)).rows[0];
+    if (preRoleFunctions.definers.some(name => !EXPECTED_DEFINERS.includes(name)))
+      throw new Error('PRE_SET_ROLE_SECURITY_DEFINER_UNSAFE');
     await client.query(`set role ${WRITER}`);
     const identity = (await client.query(`select session_user::text as session_user,current_user::text as current_user,
       has_table_privilege(current_user,'public.audit_events','insert') as audit_insert,
@@ -250,6 +253,7 @@ async function checkPooler(password, PoolClass = Pool, rolePoolFactory = createP
       (select count(*)=0 from private.audit_outbox) as outbox_hidden`)).rows[0];
     if (!Object.values(deny).every(Boolean)) throw new Error('PREFLIGHT_DENY_RLS_FAILED');
     return { sessionUser: identity.session_user, currentUser: identity.current_user, tlsVerified: identity.tls_verified,
+      preSetRoleSecurityDefinerCount: preRoleFunctions.definers.length,
       executableFunctionCount: functions.executable.length, securityDefinerCount: functions.definers.length,
       denyPoliciesVerified: true, positiveRlsDeferred: true };
   } finally { client?.release(); await pool.end().catch(() => {}); }
