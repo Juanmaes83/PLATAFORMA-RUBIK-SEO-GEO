@@ -2,6 +2,12 @@
 
 ## Reconciliación vigente · 20/10/2026
 
+### Corte #143 · diagnóstico local HTTP y límite de pooler · 20/10/2026
+
+Rama `codex/u03-final-gates-20261020`, PR #143 OPEN/Draft sobre `main@a0a40b776361f292d910e285b390d5e753da8d7b`; SHA funcional probado `7704f40632e7dd16a883d21d4985bccb1fa2587e`. El commit documental posterior deja el HEAD publicado registrado en el cuerpo de #143. No se desplegó ni se consultó/escribió Supabase alojado. Run local `721ebe4e-8117-4c73-aa47-93680bc321d3`: Auth, actor/scope, `appendTrustedAudit`, handler GET de exportación, verificación offline, rechazo de alteración y restauración doble idempotente PASS acotado en un stack N1 27/27; lectura independiente de inventario/outbox/capacidades a cero y stack retirado. El `NOT_ALLOWED` histórico no se reprodujo: no se cambia autorización ni se afirma causa de privilegios. La primera respuesta 503 del handler se debió a que el fixture no fijaba la atestación local N1; el test ahora la fija y la verifica.
+
+El Session pooler local sigue BLOCKED con `CLIENT_ERROR`: contenedor Supavisor 2.9.13, TCP accesible, `POOLER_TENANT_ID` ausente; no se encontró un bootstrap soportado/reproducible para el tenant de CLI 2.118.0. PostgreSQL directo PASS no sustituye ese gate. No reabrir intentos equivalentes. Comprobación del Session pooler Preview solo preparada conceptualmente: rol no instalado; no ejecutar SQL ni crear fixtures hasta tener operador revisado y contención administrativa. U03/H1/H2 siguen abiertos; Actions no está verde por facturación.
+
 La fuente de código vigente es `main@a0a40b776361f292d910e285b390d5e753da8d7b`; PR #129, #141 y #142 están fusionadas. Los cortes fechados abajo son históricos salvo que se indiquen como evidencia reutilizable. #142 (`24d0ac0f-5688-4f82-ba0d-101b4f085c30`) acredita S-2, S-3a, S-4 y P-1 navegador con limpieza; no repetir. U03 mantiene pendientes S-5 con emisor ajeno aislado, positivos firmados I-2/I-5 y egress servidor; S-3b queda NO APLICABLE por decisión de alcance de Juanma. H1-A/H1-B y H2 siguen abiertos. La matriz reconciliada es [U03-PREVIEW-MATRIZ](U03-PREVIEW-MATRIZ-20261018.md); no declarar Actions verde por bloqueo de facturación.
 
 ## Actualización vigente · V-4 alojado cerrado como subgate · 19/10/2026
