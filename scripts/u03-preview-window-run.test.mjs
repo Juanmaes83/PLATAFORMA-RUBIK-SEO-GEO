@@ -74,6 +74,14 @@ test('attestation compares every secret field with the fixed protected deploymen
   assert.equal(passed.runId,RUN);
   const wrongUrl = new URL(writerUrl); wrongUrl.password = 'AnotherFictionalPassword_12345678901234567890';
   await assert.rejects(verifyProtectedWindowBatch({env:{...env,RUBIK_AUDIT_DATABASE_URL:wrongUrl.toString()},pin:PIN,nonce,preflightFn,fetchImpl}),/WINDOW_BATCH_DEPLOYMENT_MISMATCH/);
+  for (const [response,statusCode] of [
+    [{status:303,headers:{get:(name)=>name==='location'?'/login':null}},'WINDOW_CHALLENGE_PROTECTION_REDIRECT'],
+    [{status:403,headers:{get:()=>null}},'WINDOW_CHALLENGE_PROTECTION_DENIED'],
+    [{status:404,headers:{get:()=>null}},'WINDOW_CHALLENGE_ROUTE_OR_WINDOW_NOT_READY'],
+  ]) {
+    const rejectedFetch = async () => response;
+    await assert.rejects(verifyProtectedWindowBatch({env,pin:PIN,nonce,preflightFn,fetchImpl:rejectedFetch}),new RegExp(statusCode));
+  }
 });
 
 test('successful operator orders all gates, campaign, then independent containment', async () => {

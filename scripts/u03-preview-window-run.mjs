@@ -70,7 +70,14 @@ export async function verifyProtectedWindowBatch({ env = process.env, pin = PIN,
       body: JSON.stringify({ runId, nonce }), redirect: 'manual', signal: AbortSignal.timeout(15000),
     });
   } catch { throw new Error('WINDOW_CHALLENGE_TRANSPORT_FAILED'); }
-  if (response.status !== 200 || response.headers?.get?.('location')) throw new Error('WINDOW_CHALLENGE_REJECTED');
+  if (response.status !== 200 || response.headers?.get?.('location')) {
+    if ((response.status >= 300 && response.status < 400) || response.headers?.get?.('location'))
+      throw new Error('WINDOW_CHALLENGE_PROTECTION_REDIRECT');
+    if (response.status === 401 || response.status === 403) throw new Error('WINDOW_CHALLENGE_PROTECTION_DENIED');
+    if (response.status === 404) throw new Error('WINDOW_CHALLENGE_ROUTE_OR_WINDOW_NOT_READY');
+    if (response.status >= 500) throw new Error('WINDOW_CHALLENGE_SERVER_ERROR');
+    throw new Error('WINDOW_CHALLENGE_HTTP_REJECTED');
+  }
   let proof;
   try { proof = await response.json(); } catch { throw new Error('WINDOW_CHALLENGE_RESPONSE_INVALID'); }
   const context = previewWindowAttestationContext({ runId, nonce }, pin.deploymentId, pin.host, pin.sha);

@@ -127,7 +127,8 @@ function Invoke-U03WindowRoleChild([string]$Mode, [string]$RunId, [string]$Passw
     } else {
       '^U03_WINDOW_ROLE_READONLY_DIAGNOSTIC (PASS runId=[0-9a-fA-F-]{36} checks=IDENTITY,MIGRATIONS,WRITER_LOCK,ADMIN_CAPABILITIES,INVENTORY,OUTBOX,TLS|BLOCKED runId=[0-9a-fA-F-]{36} category=(?:DNS|TCP|TLS|AUTHENTICATION|PERMISSION|DATABASE|PREFLIGHT) code=(?:ENOTFOUND|EAI_AGAIN|EAI_FAIL|ETIMEDOUT|ECONNREFUSED|ECONNRESET|EHOSTUNREACH|ENETUNREACH|EPIPE|ENETDOWN|ECONNABORTED|ERR_TLS_CERT_ALTNAME_INVALID|CERT_HAS_EXPIRED|UNABLE_TO_VERIFY_LEAF_SIGNATURE|UNABLE_TO_GET_ISSUER_CERT_LOCALLY|DEPTH_ZERO_SELF_SIGNED_CERT|SELF_SIGNED_CERT_IN_CHAIN|ERR_TLS_CERT_SIGNATURE_ALGORITHM_UNSUPPORTED|ERR_TLS_HANDSHAKE_TIMEOUT|ERR_SSL_WRONG_VERSION_NUMBER|TLS_ERROR_UNCLASSIFIED|SQLSTATE_(?:42501|28P01|28000|57P01|0A000|42704|42710)|DATABASE_ERROR_UNCLASSIFIED|PREVIEW_READ_ONLY_RESULT_SCHEMA_INCOMPLETE|DATABASE_IDENTITY_MISMATCH|PREVIEW_IDENTITY_MISMATCH|MIGRATION_SET_MISMATCH|GENERAL_WRITER_NOT_LOCKED|ADMIN_CAPABILITY_MISSING|WRITER_SESSION_RESIDUE|TEMPORARY_ROLE_RESIDUE|TEMPORARY_POLICY_RESIDUE|TLS_VERIFICATION_FAILED|INVENTORY_NOT_EMPTY|PENDING_OUTBOX_NOT_EMPTY|ROLE_OWNERSHIP_UNVERIFIED|ROLE_ABSENCE_NOT_VERIFIED|ROLE_POLICY_RESIDUE|ROLE_SESSION_RESIDUE|FINAL_INVENTORY_NOT_EMPTY) sqlstate=(?:NONE|42501|28P01|28000|57P01|0A000|42704|42710) condition=(?:NONE|PREVIEW_READ_ONLY_RESULT_SCHEMA_INCOMPLETE|DATABASE_IDENTITY_MISMATCH|PREVIEW_IDENTITY_MISMATCH|MIGRATION_SET_MISMATCH|GENERAL_WRITER_NOT_LOCKED|ADMIN_CAPABILITY_MISSING|WRITER_SESSION_RESIDUE|TEMPORARY_ROLE_RESIDUE|TEMPORARY_POLICY_RESIDUE|TLS_VERIFICATION_FAILED|INVENTORY_NOT_EMPTY|PENDING_OUTBOX_NOT_EMPTY|ROLE_OWNERSHIP_UNVERIFIED|ROLE_ABSENCE_NOT_VERIFIED|ROLE_POLICY_RESIDUE|ROLE_SESSION_RESIDUE|FINAL_INVENTORY_NOT_EMPTY))$'
     }
-    $safeLine = @($stdout -split "`r?`n" | Where-Object { $_ -cmatch $pattern } | Select-Object -Last 1)
+    $combinedOutput = $stdout + "`n" + $stderr
+    $safeLine = @($combinedOutput -split "`r?`n" | Where-Object { $_ -cmatch $pattern } | Select-Object -Last 1)
     if ($safeLine.Count -eq 0) {
       $missingCode = if ($Mode -eq 'attest' -and $stderr -match 'This module cannot be imported from a Client Component module') { 'SERVER_ONLY_IMPORT_REJECTED' }
         elseif (-not [string]::IsNullOrWhiteSpace($stderr)) { 'SAFE_CHILD_STDERR_NONEMPTY' } else { 'SAFE_CHILD_RESULT_MISSING' }
@@ -142,6 +143,7 @@ function Invoke-U03WindowRoleChild([string]$Mode, [string]$RunId, [string]$Passw
     if ($payloadBytes) { [Array]::Clear($payloadBytes, 0, $payloadBytes.Length) }
     $payload = $null
     $stderr = $null
+    $combinedOutput = $null
     if ($process) { try { $process.Dispose() } catch { } }
   }
 }
@@ -507,7 +509,7 @@ try {
       $attestResult = Invoke-U03WindowRoleChild -Mode 'attest' -RunId $windowRoleRunId -PasswordText '' -ChildPath $windowSequenceOperator
       if ($attestResult.SafeLine) { Write-Output $attestResult.SafeLine }
       if (-not $attestResult.Passed) {
-        if ($attestResult.Code -match '^WINDOW_[A-Z0-9_]+$') { Stop-B4 $attestResult.Code }
+        if ($attestResult.Code -match '^(?:WINDOW|SAFE_CHILD)_[A-Z0-9_]+$') { Stop-B4 $attestResult.Code }
         Stop-B4 'WINDOW_BATCH_CHILD_TRANSPORT_FAILED'
       }
       $windowBatchAttested = $true
