@@ -21,6 +21,10 @@
 
 El Core es una librería, no una suite SEO con interfaz ni datos propios. Tiene piezas reutilizables para metadatos por página, title/description/H1, Page Registry, schema.org por vertical, SEO de medios, canonical/hreflang, HTML inicial, sitemap y robots.txt; también contratos de conectores/proveedores, autoridad/citas, snapshots y borradores de acciones. La plataforma presenta y persiste la auditoría técnica `legacy` comprobada de Sarah; eso no conecta automáticamente las demás piezas a su sitio ni implementa todo este catálogo. Persistencia de informes Google, otras integraciones y medición externa siguen pendientes.
 
+## Diagnóstico GEO de páginas públicas (propuesta futura · 20/10/2026)
+
+[Diseño y criterios de aceptación de los cuatro bloques](N2-GEO-AUDITORIA-CITABILIDAD-BACKLOG-20261020.md): legibilidad y citabilidad; acceso de rastreadores y datos estructurados; evidencia y comparación; presencia real en respuestas de IA. Es backlog posterior a U03/H1: no activa proveedores ni implica que el score de preparación prediga citas. Evitar duplicar OpenSEO/Core y evaluar primero en URLs públicas autorizadas.
+
 ## Catálogo deseado
 
 ### 1. SEO técnico
