@@ -111,7 +111,9 @@ try {
   }
   Write-Output "S5_FOREIGN_ISSUER: PASS label=emisor-ajeno-aislado runId=$runId"
 } catch {
-  Write-Output 'S5_FOREIGN_ISSUER: BLOCKED; review the sanitized run ledger and local stack status.'
+  $safeFailureCode = 'S5_SAFE_FAILURE'
+  if ($_.Exception.Message -match 'U03 S-5 BLOCKED: ([A-Z0-9_]+)') { $safeFailureCode = $Matches[1] }
+  Write-Output "S5_FOREIGN_ISSUER: BLOCKED code=$safeFailureCode; review the sanitized run ledger and local stack status."
   throw 'S5_OPERATOR_SAFE_FAILURE'
 } finally {
   if ($issuerStarted -and $issuerRoot) {
