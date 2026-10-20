@@ -145,3 +145,9 @@ Implementado `-WindowRoleReadOnlyDiagnosticOnly`: consulta de solo lectura y dia
 ## Correccion TLS cliente - 20/10/2026
 
 La causa de `TLS_VERIFICATION_FAILED` en run `48bfd21f-cf28-48e8-a98a-508e4bad2743` fue usar `pg_stat_ssl.ssl` como evidencia del TLS Node a Session pooler. Es el estado del tramo pooler a PostgreSQL. El gate ahora comprueba el socket TLS activo y autorizado de node-postgres junto con host/SNI, CA fijada y `rejectUnauthorized=true`; el valor backend se mantiene separado y no bloquea si es false. Regresiones locales cubren TLS valido con backend false y CA/hostname/TLS ausentes invalidos. Sin ejecucion alojada ni fixtures.
+
+## Preparacion de operador U03/H1-A - HEAD bbb11c4
+
+La revision end-to-end queda registrada en `docs/U03-OPERADOR-SECUENCIA-H1A-REVISION-20261020.md`. El deployment READY de esta rama es `dpl_tpsS6xCm4vivCoh9Rsje74rfaeCw` / host `plataforma-rubik-seo-g1z86z3n1-juanma-espinosas-projects.vercel.app` / SHA `bbb11c4179e90d8317c6fad2e4639e8060a8539a`; una peticion anonima redirigio a Vercel SSO. Las variables Preview generales comprobadas son solo NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY; no hay variables branch-specific ni DSN/keyring de ventana.
+
+El operador actual de rol hace una prueba deny-all y retira rol/politicas antes de terminar; no se conecta a una campaña positiva. cross-surface solo valida filas vacias; falta crear provider_results firmados por flujo legitimo y unir export HTTP real del Preview con restore en destino local. Sin esos tramos no hay comando unico seguro. Sin escrituras, cambios de variables o recursos Supabase en este corte. U03/I-2/I-5 y H1-A siguen BLOCKED; PR #143 permanece OPEN/Draft.

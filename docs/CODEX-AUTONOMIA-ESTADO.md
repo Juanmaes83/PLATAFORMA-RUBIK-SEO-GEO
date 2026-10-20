@@ -288,3 +288,9 @@ Lectura independiente, counts-only, del Preview rhnnplewqsekrnaousyl tras el run
 ## Nota de alcance TLS cliente - run 48bfd21f
 
 El `TLS_VERIFICATION_FAILED` se debio a confundir el estado pg_stat_ssl del tramo pooler a PostgreSQL con TLS Node a pooler. El nuevo control usa el TLSSocket real de node-postgres (`encrypted`, `authorized`, `authorizationError`), host/SNI y CA fijados, y `rejectUnauthorized=true`. El estado backend se conserva como dato independiente. Pruebas locales: TLS cliente correcto con backend false pasa; CA, hostname o TLS incorrectos bloquean. No hubo nueva consulta alojada. PR #143 sigue Draft; roles, fixtures I-2/I-5 y H1-A no ejecutados.
+
+## Auditoria de secuencia U03/H1-A - 20/10/2026
+
+HEAD revisado bbb11c4179e90d8317c6fad2e4639e8060a8539a. Vercel deployment READY dpl_tpsS6xCm4vivCoh9Rsje74rfaeCw, host plataforma-rubik-seo-g1z86z3n1-juanma-espinosas-projects.vercel.app, SHA exacto; peticion anonima a /api/salud redirigio 302 a vercel.com/sso-api. El entorno Preview general tiene solo las dos variables publicas de Supabase; no hay variables branch-specific ni DSN/keyring de ventana.
+
+La revision confirmo que el operador actual no encadena diagnostico, rol, campaña y H1-A: WindowRolePreflightOnly instala politicas deny-all y retira el rol al terminar; cross-surface prueba tablas vacias; no hay flujo firmado de provider_result sintetico ni puente de export remoto Preview a restore local. No hubo acceso a Supabase, cambios de variables, fixtures ni nueva campaña. La auditoria y gates estan en docs/U03-OPERADOR-SECUENCIA-H1A-REVISION-20261020.md. No hay comando de campaña seguro hasta que la secuencia completa y sus pruebas locales se implementen.
