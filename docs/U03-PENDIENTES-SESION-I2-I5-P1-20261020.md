@@ -1,5 +1,16 @@
 # N1-05/U03: matriz dirigida pendiente
 
+## Corte actual · PR #143 · 20/10/2026
+
+HEAD/ SHA funcional `85f93a5b7f7b9db26a2ade4f75fdf3d12aaf18d4`; base `main@a0a40b776361f292d910e285b390d5e753da8d7b`; PR #143 sigue OPEN/Draft.
+
+- **P-1 servidor PASS acotado:** run `6311c85c-5d97-4af4-9569-7336f2232222`, Preview `rhnnplewqsekrnaousyl`, deployment READY `dpl_FX2BbLxBZPg38hYqikhhsEprGdPL`, host `plataforma-rubik-seo-9lkzlkvr1-juanma-espinosas-projects.vercel.app`. Las Functions logs se consultaron antes y después; hubo dos acciones reales autenticadas y dos eventos `gate/outbound:false`, `openseo` y `google-via-openseo`, sin evento `transport` correlacionado. Google respondió HTTP 200 y acabó en `/google?error=DISABLED`; cleanup, inventario/outbox cero y escritor bloqueado PASS. Alcance: solo estas rutas observadas; no se inspeccionaron spans ni se afirma egreso global. Ledger/captura saneada local en `test-results/u03-hosted/6311c85c-5d97-4af4-9569-7336f2232222/`.
+- **I-2/I-5 y H1-A siguen BLOCKED:** no hay fixtures ni SQL alojado. La puerta de ventana y el diseño están en [el documento de ventana](U03-I2-I5-H1A-VENTANA-20261020.md), pero falta ensayar desde instalación aislada `SET ROLE`, privilegios/allowlist, firmas y todos los recibos, limpieza y rollback. El stack Docker local preexistente solo se consultó en lectura: 27 migraciones; no fue alterado y no es una prueba desde cero.
+- **Coste:** no se provisionó recurso ni se cambió plan. Se recomienda reutilizar el Preview/proyecto Vercel existente bajo ventana branch-specific, condicionado a comprobar coste marginal; no se puede garantizar el techo total de 10 € sin cotización. Proyecto nuevo/Branching quedan rechazados por cupo/coste no acreditados.
+- Se conservan todos los PASS anteriores sin repetición. S-3b sigue NO APLICABLE por decisión de Juanma; S-5 conserva el alcance `emisor ajeno aislado`.
+
+Tests: `npm run test:u03-b4` 79/79; prueba de helper P-1 2/2; `npm run verify` y `git diff --check` se detallan en PR #143. GitHub Actions no está verde por bloqueo de facturación.
+
 ## Reconciliación de corte tras #142 · 20/10/2026
 
 La base ahora es `main@a0a40b776361f292d910e285b390d5e753da8d7b`. #129, #141 y #142 están fusionadas. El estado de arriba queda como historial de diseño; para PASS anteriores y pendientes actuales rige la [matriz reconciliada](U03-PREVIEW-MATRIZ-20261018.md).
