@@ -284,3 +284,7 @@ Lectura independiente, counts-only, del Preview rhnnplewqsekrnaousyl tras el run
 - Prueba dirigida actual: 14/14 PASS; incluye fallo transitorio de primera consulta, resultados de transporte/SQLSTATE/condición simulados, rol ausente/propio, y salida del proceso hijo real PowerShell 5.1 con códigos sanitizados. No hubo acceso alojado en esta iteración.
 - Siguiente acción única: Juanma ejecuta el comando read-only del runbook desde PowerShell visible; la Database password existente se introduce solo en el prompt oculto después del pin Vercel. No se instala rol ni se crean fixtures. Si sale condición/categoría, corregir únicamente esa causa acreditada.
 - U03/I-2/I-5/H1-A/H1/H2 permanecen abiertos; no repetir Data API, B-4, V-4 ni otros PASS. GitHub Actions continúa bloqueada por facturación.
+
+## Nota de alcance TLS cliente - run 48bfd21f
+
+El `TLS_VERIFICATION_FAILED` se debio a confundir el estado pg_stat_ssl del tramo pooler a PostgreSQL con TLS Node a pooler. El nuevo control usa el TLSSocket real de node-postgres (`encrypted`, `authorized`, `authorizationError`), host/SNI y CA fijados, y `rejectUnauthorized=true`. El estado backend se conserva como dato independiente. Pruebas locales: TLS cliente correcto con backend false pasa; CA, hostname o TLS incorrectos bloquean. No hubo nueva consulta alojada. PR #143 sigue Draft; roles, fixtures I-2/I-5 y H1-A no ejecutados.

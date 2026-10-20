@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { deriveTemporaryPassword, EXPECTED_DEFINERS, EXPECTED_N1_MIGRATIONS,
-  createPreviewAdminPool, createPreviewRolePool, POOLER_HOST, PREVIEW_REF, ROLE, WRITER,
-  assertReadOnlyState, classifyDiagnosticError, diagnoseReadOnlyPreflight, PreflightConditionError,
+  createPreviewAdminPool, createPreviewRolePool, POOLER_HOST, PINNED_POOLER_CA, PREVIEW_REF, ROLE, WRITER,
+  assertNodeClientTls, assertReadOnlyState, classifyDiagnosticError, diagnoseReadOnlyPreflight, PreflightConditionError,
   runIndependentContainment, runWindowRolePreflight } from './u03-window-role-preflight.mjs';
 
 const RUN = '5b02bb37-2ef8-4af1-8954-56fd496cd121';
@@ -31,8 +31,11 @@ const emptyCounts = { auth_users: 0, organizations: 0, organization_members: 0, 
   openseo_google_properties: 0, google_captures: 0, writer_locked: true };
 
 class AdminPool {
-  constructor(state) { this.state = state; }
+  constructor(state) { this.state = state; this.options = { host: POOLER_HOST, port: 5432,
+    ssl: { ca: PINNED_POOLER_CA, rejectUnauthorized: true, servername: POOLER_HOST } }; }
   async end() {}
+  async connect() { return { connection: { stream: { encrypted: true, authorized: true, authorizationError: null } },
+    query: (sql, params) => this.query(sql, params), release() {} }; }
   async query(sql, params = []) {
     if (sql.includes('select current_database()')) {
       this.state.readOnlyQueries++;
@@ -51,7 +54,7 @@ class AdminPool {
       projects: 0, project_members: 0, audit_events: 0, provider_results: 0, imports: 0,
       invitations: 0, audit_idempotency: 0, outbox_total: 0, pending_outbox: 0, openseo_project_jobs: 0,
       openseo_project_connections: 0, webmaster_properties: 0, provider_budgets: 0, provider_spend: 0,
-      openseo_google_properties: 0, google_captures: 0, tls_verified: true, ...this.state.readOnlyOverrides }] };
+      openseo_google_properties: 0, google_captures: 0, backend_tls_active: false, ...this.state.readOnlyOverrides }] };
     }
     if (sql.includes('from pg_proc p join pg_namespace')) return { rows: [{ executable: [...EXPECTED_DEFINERS], definers: [...EXPECTED_DEFINERS] }] };
     if (sql.includes('relrowsecurity')) return { rows: [{ n: 4 }] };
@@ -102,7 +105,8 @@ class AdminPool {
   }
 }
 class RolePool {
-  constructor(state) { this.state = state; }
+  constructor(state) { this.state = state; this.options = { host: POOLER_HOST, port: 5432,
+    ssl: { ca: PINNED_POOLER_CA, rejectUnauthorized: true, servername: POOLER_HOST } }; }
   async end() {}
   async connect() {
     if (this.state.login && this.state.failPoolerConnect) {
@@ -112,7 +116,7 @@ class RolePool {
     if (!this.state.login || this.state.expired) throw Object.assign(new Error(DB_PASSWORD), { code: '28P01' });
     let setRole = false;
     const state = this.state;
-    return { release() {}, async query(sql) {
+    return { connection: { stream: { encrypted: true, authorized: true, authorizationError: null } }, release() {}, async query(sql) {
       if (sql.startsWith('set role')) { setRole = true; return { rows: [] }; }
       if (sql.includes('not has_table_privilege')) return { rows: [{ session_user: ROLE, current_user: ROLE,
         no_writer_privileges: true, no_results_privileges: true, no_outbox_privileges: true, no_auth_schema: true }] };
@@ -121,7 +125,7 @@ class RolePool {
         outbox_select: true, outbox_state_update: true, public_create: false, private_create: false,
         import_insert: false, imports_select: false, auth_schema: false, org_members_select: false, project_members_select: false,
         organizations_select: false, projects_select: false,
-        audit_delete: false, outbox_delete: false, tls_verified: true }] };
+        audit_delete: false, outbox_delete: false, backend_tls_active: false }] };
       if (sql.includes('from pg_proc p join pg_namespace')) return { rows: [{ executable: [...EXPECTED_DEFINERS],
         definers: !setRole && state.extraPreRoleDefiner ? [...EXPECTED_DEFINERS, 'public.unsafe_definer()'] : [...EXPECTED_DEFINERS] }] };
       if (sql.includes('relrowsecurity')) return { rows: [{ rls_count: 4 }] };
@@ -182,7 +186,7 @@ test('readonly diagnostic classifies transport, TLS, SQLSTATE and explicit prefl
     const result = await diagnoseReadOnlyPreflight({ databasePassword: DB_PASSWORD, runId: RUN,
       ledgerPath, ...createMocks(state) });
     assert.equal(result.status, 'PASS');
-    assert.deepEqual(result.checks, ['IDENTITY','MIGRATIONS','WRITER_LOCK','ADMIN_CAPABILITIES','INVENTORY','OUTBOX','TLS']);
+    assert.deepEqual(result.checks, ['IDENTITY','MIGRATIONS','WRITER_LOCK','ADMIN_CAPABILITIES','INVENTORY','OUTBOX','CLIENT_TLS']);
     assert.equal(state.role, false);
     assert.equal(state.policies, 0);
     assert.equal(state.readOnlyQueries, 1);
@@ -235,7 +239,7 @@ test('missing SQL result columns and concrete failed conditions do not collapse 
     migration_count: 27, latest_migration: '20261015210000', migrations: EXPECTED_N1_MIGRATIONS,
     writer_locked: true, may_manage_role: true, may_terminate_session: true, writer_sessions: 0,
     writer_role_sessions: 0, temporary_role_sessions: 0, temporary_role_count: 0,
-    temporary_policy_count: 0, tls_verified: true, ...emptyCounts };
+    temporary_policy_count: 0, backend_tls_active: false, ...emptyCounts };
   assert.throws(() => assertReadOnlyState(row), error => error.condition === 'PREVIEW_IDENTITY_MISMATCH');
   assert.throws(() => assertReadOnlyState({ ...row, exact_identity: true, audit_events: 1 }),
     error => error.condition === 'INVENTORY_NOT_EMPTY');
@@ -257,6 +261,44 @@ test('admin and temporary role pools use only the pinned TLS Session pooler and 
     assert.match(pool.config.ssl.ca, /BEGIN CERTIFICATE/);
   }
   assert.doesNotMatch(JSON.stringify(instances.map(pool => ({ host: pool.config.host, user: pool.config.user }))), /:\/\//);
+});
+
+test('client TLS is proven from node-postgres TLSSocket and pinned config, independently of backend pg_stat_ssl', async () => {
+  const state = freshState({ readOnlyOverrides: { backend_tls_active: false } });
+  const folder = await mkdtemp(join(tmpdir(), 'u03-client-tls-proof-'));
+  try {
+    const result = await diagnoseReadOnlyPreflight({ databasePassword: DB_PASSWORD, runId: RUN,
+      ledgerPath: join(folder, 'run.jsonl'), ...createMocks(state) });
+    assert.equal(result.status, 'PASS');
+    assert.ok(result.checks.includes('CLIENT_TLS'));
+    const validPool = new AdminPool(state);
+    const validClient = await validPool.connect();
+    assert.equal(assertNodeClientTls(validClient, validPool), true);
+
+    for (const invalid of [
+      { options: { ...validPool.options, ssl: { ...validPool.options.ssl, ca: 'wrong-ca' } }, client: validClient },
+      { options: { ...validPool.options, host: 'external.invalid' }, client: validClient },
+      { options: { ...validPool.options, ssl: { ...validPool.options.ssl, servername: 'external.invalid' } }, client: validClient },
+      { options: { ...validPool.options, ssl: false }, client: validClient },
+      { options: validPool.options, client: { connection: { stream: { encrypted: false, authorized: false } } } },
+      { options: validPool.options, client: { connection: { stream: { encrypted: true, authorized: false,
+        authorizationError: 'CERT_HAS_EXPIRED' } } } },
+    ]) assert.throws(() => assertNodeClientTls(invalid.client, invalid), error =>
+      error instanceof PreflightConditionError && error.condition === 'TLS_VERIFICATION_FAILED');
+
+    const noTlsPoolFactory = () => {
+      const pool = new AdminPool(state);
+      pool.options.ssl = false;
+      pool.connect = async () => ({ connection: { stream: { encrypted: false, authorized: false } },
+        query: (sql, params) => pool.query(sql, params), release() {} });
+      return pool;
+    };
+    const noTls = await diagnoseReadOnlyPreflight({ databasePassword: DB_PASSWORD, runId: RUN,
+      ledgerPath: join(folder, 'no-tls.jsonl'), adminPoolFactory: noTlsPoolFactory });
+    assert.equal(noTls.status, 'BLOCKED');
+    assert.equal(noTls.code, 'TLS_VERIFICATION_FAILED');
+    assert.equal(state.readOnlyQueries, 1, 'TLS failure must block before executing READ_ONLY_SQL');
+  } finally { await rm(folder, { recursive: true, force: true }); }
 });
 
 test('successful simulated run verifies fail-closed pooler identity then removes only its role and policies', async () => {

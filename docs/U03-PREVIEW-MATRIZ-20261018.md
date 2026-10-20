@@ -345,3 +345,5 @@ El ledger `test-results/u03-hosted/8e2fe576-1cf8-46cf-a98c-3117070ada81.jsonl` s
 | Contención con rol propio | **PASS local simulado** | Sigue exigiendo marcador del run, NOLOGIN, terminación de sesiones propias y verificación antes de rollback. |
 
 Prueba dirigida del módulo: 14/14 PASS; self-test real PowerShell 5.1 incluye salida diagnóstica simulada. No hubo SQL, despliegue o fixtures alojados. El siguiente comando read-only y pins exactos están en el runbook; el nuevo rol por Session pooler, I-2/I-5 alojado y H1-A siguen BLOCKED hasta gates posteriores. No se repitieron Data API, B-4, V-4 ni campañas aprobadas.
+
+TLS del diagnostico read-only: PASS local. El control `CLIENT_TLS` observa el TLSSocket de Node y exige socket cifrado/autorizado, CA fijada, host/SNI del pooler y `rejectUnauthorized=true`. `pg_stat_ssl` queda como `backend_tls_active`, dato del pooler a PostgreSQL que no determina TLS del cliente. El run alojado 48bfd21f tuvo un falso bloqueo por esa mezcla; no se repitio. El nuevo diagnostico alojado queda pendiente.

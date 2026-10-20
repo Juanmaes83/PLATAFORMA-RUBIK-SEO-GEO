@@ -16,6 +16,7 @@ export const POOLER_HOST = 'aws-1-eu-west-3.pooler.supabase.com';
 export const ROLE = 'rubik_preview_u03_writer';
 export const WRITER = 'rubik_audit_writer';
 export const POLICY_PREFIX = 'u03_preflight_writer_';
+export const PINNED_POOLER_CA = SUPABASE_ROOT_2021_CA;
 export { EXPECTED_N1_MIGRATIONS };
 export const EXPECTED_DEFINERS = Object.freeze([
   'private.audit_writer_actor(uuid, uuid)',
@@ -140,6 +141,22 @@ function poolConfig({ user, password, host = POOLER_HOST, port = 5432, ssl = tru
   return { host, port, user, password, database: 'postgres', max: 1, connectionTimeoutMillis: 8000,
     idleTimeoutMillis: 3000, ssl: ssl ? { ca: SUPABASE_ROOT_2021_CA, rejectUnauthorized: true, servername: POOLER_HOST } : false };
 }
+
+// pg_stat_ssl describes the pooler's backend connection. This check inspects
+// the actual Node -> pooler TLSSocket and the exact pinned pg connection config.
+export function assertNodeClientTls(client, pool) {
+  const ssl = pool?.options?.ssl;
+  const stream = client?.connection?.stream;
+  if (pool?.options?.host !== POOLER_HOST || pool?.options?.port !== 5432 ||
+      !ssl || ssl === false || ssl.rejectUnauthorized !== true ||
+      ssl.servername !== POOLER_HOST || ssl.ca !== PINNED_POOLER_CA ||
+      stream?.encrypted !== true || stream?.authorized !== true ||
+      stream?.authorizationError != null) {
+    throw new PreflightConditionError('TLS_VERIFICATION_FAILED');
+  }
+  return true;
+}
+
 export function createPreviewAdminPool(password, PoolClass = Pool) {
   const pool = new PoolClass(poolConfig({ user: `postgres.${PREVIEW_REF}`, password }));
   pool.on?.('error', () => {});
@@ -185,7 +202,7 @@ const READ_ONLY_SQL = `select current_database() = 'postgres' as database_ok,
   (select count(*)::int from private.provider_spend) as provider_spend,
   (select count(*)::int from private.openseo_google_properties) as openseo_google_properties,
   (select count(*)::int from private.google_captures) as google_captures,
-  (select ssl from pg_stat_ssl where pid=pg_backend_pid()) as tls_verified`;
+  (select ssl from pg_stat_ssl where pid=pg_backend_pid()) as backend_tls_active`;
 
 const DEFiner_SQL = `select coalesce(array_agg(format('%I.%I(%s)',n.nspname,p.proname,oidvectortypes(p.proargtypes)) order by 1),array[]::text[]) as executable,
   coalesce(array_agg(format('%I.%I(%s)',n.nspname,p.proname,oidvectortypes(p.proargtypes)) order by 1) filter (where p.prosecdef),array[]::text[]) as definers
@@ -195,7 +212,7 @@ const DEFiner_SQL = `select coalesce(array_agg(format('%I.%I(%s)',n.nspname,p.pr
 
 const READ_ONLY_RESULT_FIELDS = Object.freeze(['database_ok','exact_admin','exact_identity','closed_identity','migration_count',
   'latest_migration','migrations','writer_locked','may_manage_role','may_terminate_session','writer_sessions',
-  'writer_role_sessions','temporary_role_sessions','temporary_role_count','temporary_policy_count','tls_verified',
+  'writer_role_sessions','temporary_role_sessions','temporary_role_count','temporary_policy_count','backend_tls_active',
   ...INVENTORY.map(([, field]) => field),'pending_outbox']);
 
 export function assertReadOnlyState(row, { allowOwnedTemporaryResidue = false } = {}) {
@@ -217,15 +234,18 @@ export function assertReadOnlyState(row, { allowOwnedTemporaryResidue = false } 
   if (allowOwnedTemporaryResidue && (row.temporary_role_count > 1 || row.temporary_policy_count > TABLES.length ||
       row.writer_sessions !== row.writer_role_sessions + row.temporary_role_sessions))
     throw new PreflightConditionError('TEMPORARY_ROLE_RESIDUE');
-  if (row.tls_verified !== true) throw new PreflightConditionError('TLS_VERIFICATION_FAILED');
   if (INVENTORY.some(([, field]) => Number(row[field]) !== 0)) throw new PreflightConditionError('INVENTORY_NOT_EMPTY');
   if (Number(row.pending_outbox) !== 0) throw new PreflightConditionError('PENDING_OUTBOX_NOT_EMPTY');
 }
 
-async function runReadOnlyPreflight(pool) {
-  const result = await pool.query(READ_ONLY_SQL, [PREVIEW_REF]);
-  assertReadOnlyState(result.rows[0]);
-  return result.rows[0];
+async function runReadOnlyPreflight(pool, { allowOwnedTemporaryResidue = false } = {}) {
+  const client = await pool.connect();
+  try {
+    assertNodeClientTls(client, pool);
+    const result = await client.query(READ_ONLY_SQL, [PREVIEW_REF]);
+    assertReadOnlyState(result.rows[0], { allowOwnedTemporaryResidue });
+    return result.rows[0];
+  } finally { client.release(); }
 }
 
 function expectedPolicyNames(runId) {
@@ -275,6 +295,7 @@ async function checkPooler(password, PoolClass = Pool, rolePoolFactory = createP
   let client;
   try {
     client = await pool.connect();
+    assertNodeClientTls(client, pool);
     const noSet = (await client.query(`select session_user::text as session_user,current_user::text as current_user,
       not has_table_privilege(current_user,'public.audit_events','insert') as no_writer_privileges,
       not has_table_privilege(current_user,'public.provider_results','insert') as no_results_privileges,
@@ -306,13 +327,13 @@ async function checkPooler(password, PoolClass = Pool, rolePoolFactory = createP
       has_table_privilege(current_user,'private.audit_outbox','delete') as outbox_delete,
       has_schema_privilege(current_user,'public','create') as public_create,
       has_schema_privilege(current_user,'private','create') as private_create,
-      (select ssl from pg_stat_ssl where pid=pg_backend_pid()) as tls_verified`)).rows[0];
+      (select ssl from pg_stat_ssl where pid=pg_backend_pid()) as backend_tls_active`)).rows[0];
     if (identity.session_user !== ROLE || identity.current_user !== WRITER || !identity.audit_insert || !identity.audit_select ||
         !identity.result_insert || !identity.result_select || !identity.idempotency_insert || !identity.outbox_select ||
         !identity.outbox_state_update || identity.public_create || identity.private_create ||
         identity.import_insert || identity.imports_select || identity.auth_schema || identity.org_members_select || identity.project_members_select ||
         identity.organizations_select || identity.projects_select ||
-        identity.audit_delete || identity.outbox_delete || !identity.tls_verified) throw new Error('POOLER_EFFECTIVE_PRIVILEGES_REJECTED');
+        identity.audit_delete || identity.outbox_delete) throw new Error('POOLER_EFFECTIVE_PRIVILEGES_REJECTED');
     const functions = (await client.query(DEFiner_SQL)).rows[0];
     if (JSON.stringify(functions.definers) !== JSON.stringify(EXPECTED_DEFINERS)) throw new Error('SECURITY_DEFINER_ALLOWLIST_REJECTED');
     const tablePolicies = (await client.query(`select count(*)::int as rls_count from pg_class c join pg_namespace n on n.oid=c.relnamespace
@@ -323,7 +344,8 @@ async function checkPooler(password, PoolClass = Pool, rolePoolFactory = createP
       (select count(*)=0 from private.audit_idempotency) as receipts_hidden,
       (select count(*)=0 from private.audit_outbox) as outbox_hidden`)).rows[0];
     if (!Object.values(deny).every(Boolean)) throw new Error('PREFLIGHT_DENY_RLS_FAILED');
-    return { sessionUser: identity.session_user, currentUser: identity.current_user, tlsVerified: identity.tls_verified,
+    return { sessionUser: identity.session_user, currentUser: identity.current_user, clientTlsVerified: true,
+      backendTlsActive: identity.backend_tls_active === true,
       preSetRoleSecurityDefinerCount: preRoleFunctions.definers.length,
       executableFunctionCount: functions.executable.length, securityDefinerCount: functions.definers.length,
       denyPoliciesVerified: true, positiveRlsDeferred: true };
@@ -493,7 +515,7 @@ export async function diagnoseReadOnlyPreflight({ databasePassword, runId = rand
     await runReadOnlyPreflight(pool);
     await ledger('readonly-diagnostic', 'PASS', 'PREFLIGHT');
     return { status: 'PASS', runId, category: 'NONE', code: 'NONE', sqlstate: null, condition: null,
-      checks: ['IDENTITY','MIGRATIONS','WRITER_LOCK','ADMIN_CAPABILITIES','INVENTORY','OUTBOX','TLS'] };
+      checks: ['IDENTITY','MIGRATIONS','WRITER_LOCK','ADMIN_CAPABILITIES','INVENTORY','OUTBOX','CLIENT_TLS'] };
   } catch (error) {
     const diagnostic = classifyDiagnosticError(error);
     await ledger('readonly-diagnostic', 'BLOCKED', diagnostic.category, diagnostic.sqlstate,
@@ -516,7 +538,7 @@ export async function runIndependentContainment({ databasePassword, runId, PoolC
   const admin = adminPoolFactory(databasePassword, PoolClass);
   const rolePassword = deriveTemporaryPassword(databasePassword, runId);
   try {
-    const state = (await admin.query(READ_ONLY_SQL, [PREVIEW_REF])).rows[0];
+    const state = await runReadOnlyPreflight(admin, { allowOwnedTemporaryResidue: true });
     // The independent path first proves database identity, schema, migration,
     // TLS, inventory and the general writer state while allowing only the
     // expected temporary-role residue to be reconciled below.
