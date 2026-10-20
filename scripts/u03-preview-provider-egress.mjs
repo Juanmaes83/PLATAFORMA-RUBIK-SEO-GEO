@@ -5,6 +5,10 @@ import { PIN, GateError, chromiumEnvironment, installScopedRoutes, login, create
 
 const origin = `https://${PIN.host}`;
 
+export function sameOriginActionResponseReceived(status) {
+  return Number.isInteger(status) && status >= 200 && status <= 599;
+}
+
 /** Calls the product's owner-authorized Server Actions with both providers disabled in Preview. */
 export async function runProviderEgressOnly({ env, account, path, ledger, runId, captureRoot,
   launch = () => chromium.launch({ headless: true, env: chromiumEnvironment() }) } = {}) {
@@ -43,23 +47,24 @@ export async function runProviderEgressOnly({ env, account, path, ledger, runId,
     const probe = page.locator('[aria-labelledby="provider-egress-probe"]');
     if (await probe.count() !== 1) throw new GateError('PROVIDER_EGRESS_PROBE_NOT_RENDERED');
     phase = 'openseo';
-    const openSeoPostsBefore = routeEvents.filter(event => event === 'auth-action-post').length;
     await probe.getByRole('button', { name: 'Comprobar guarda OpenSEO' }).click();
     const openSeoStatus = probe.locator('[role="status"]').nth(0);
     await openSeoStatus.waitFor({ state: 'visible' });
-    const openSeoRequestReceived = routeEvents.filter(event => event === 'auth-action-post').length === openSeoPostsBefore + 1;
+    // Next.js can issue a same-origin Server Action POST without the CDP route classifier
+    // identifying its `next-action` header. A same-origin POST response received after the
+    // click is the stronger evidence that this action completed; login is already over.
+    const openSeoRequestReceived = sameOriginActionResponseReceived(openSeoActionHttp);
     const openSeoObserved = openSeoRequestReceived && (await openSeoStatus.innerText()).includes('bloqueado antes del transporte') && openSeoActionHttp === 200;
     await ledger('provider-egress-openseo', openSeoObserved ? 'PASS' : 'FAIL', { category: 'CAPABILITY', result: openSeoObserved ? 'BLOCKED' : 'UNEXPECTED', http: openSeoActionHttp, count: openSeoRequestReceived ? 1 : 0 });
     if (!openSeoObserved) throw new GateError('OPENSEO_GUARD_RESULT_UNEXPECTED');
 
     phase = 'google';
-    const googlePostsBefore = routeEvents.filter(event => event === 'auth-action-post').length;
     const googlePath = `${path}/google`;
     await Promise.all([
       page.waitForURL(url => url.origin === origin && url.pathname === googlePath && url.searchParams.get('error') === 'DISABLED', { timeout: 15000 }),
       probe.getByRole('button', { name: 'Comprobar guarda Google' }).click(),
     ]);
-    const googleRequestReceived = routeEvents.filter(event => event === 'auth-action-post').length === googlePostsBefore + 1;
+    const googleRequestReceived = sameOriginActionResponseReceived(googleActionHttp);
     const googleObserved = googleRequestReceived && (await page.locator('body').innerText()).includes('Las lecturas de Google están desactivadas en esta instalación. No se ha consultado nada.') && googleActionHttp === 303;
     await ledger('provider-egress-google', googleObserved ? 'PASS' : 'FAIL', { category: 'CAPABILITY', result: googleObserved ? 'BLOCKED' : 'UNEXPECTED', http: googleActionHttp, count: googleRequestReceived ? 1 : 0 });
     if (!googleObserved) throw new GateError('GOOGLE_GUARD_RESULT_UNEXPECTED');

@@ -18,7 +18,7 @@
     "verify": "npm run check:core-pin && npm run check:secrets && npm run lint && npm run typecheck && npm run test && npm run build",
     "verify:s1-local": "node scripts/verify-s1-local.mjs",
     "test:e2e": "playwright test",
-    "test:u03-b4": "node --test scripts/u03-preview-b4.test.mjs scripts/u03-preview-b4-orchestrator.test.mjs scripts/u03-preview-data-api-lifecycle.test.mjs scripts/u03-preview-v4-receipt.test.mjs scripts/u03-preview-v4-operator.test.mjs scripts/u03-preview-session-providers.test.mjs",
+    "test:u03-b4": "node --test scripts/u03-preview-b4.test.mjs scripts/u03-preview-b4-orchestrator.test.mjs scripts/u03-preview-data-api-lifecycle.test.mjs scripts/u03-preview-v4-receipt.test.mjs scripts/u03-preview-v4-operator.test.mjs scripts/u03-preview-session-providers.test.mjs scripts/u03-preview-provider-egress.test.mjs",
     "visual:evidence": "node scripts/visual-evidence.mjs",
     "verify:export": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/verify-export.mjs",
     "db:start": "npx --yes supabase@2.118.0 start -x postgres-meta,imgproxy,vector,logflare,supavisor,studio,realtime,storage-api,edge-runtime",
