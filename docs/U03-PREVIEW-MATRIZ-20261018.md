@@ -1,5 +1,19 @@
 # U03 · matriz alojada de Preview · 18/10/2026
 
+## Estado separado de transporte y flujos · actualización 20/10/2026
+
+PR #143 continúa OPEN/Draft desde HEAD `6149206f62d6c9ed7059aa344b8ff3acd558d6e5`, base `main@a0a40b776361f292d910e285b390d5e753da8d7b`. No se hicieron escrituras alojadas.
+
+| Gate | Estado | Evidencia y límite |
+|---|---|---|
+| Lógica firmada local con rol limitado | **PASS** | Stack nuevo `rubik-u03-window-20261020`, migraciones 27/27 hasta `20261015210000`; run `55a32ed0-9b4a-4118-b165-8d3ab6ee2ba7`, transporte PostgreSQL directo. Pasaron `provenance.integration`, `imports.integration` y `restore.integration`: firmas reales de la app, aislamiento con filas pobladas, recibos, verificación offline, restauración idempotente y rollback ante conflicto. Inventario/outbox final cero; rol temporal retirado. No valida Session pooler ni exportación HTTP de Next. |
+| Pooler local (Supavisor) | **BLOCKED** | Run `df4840bc-ff22-4a7f-8932-765fde34952f`: `CLIENT_ERROR`; el mismo run valida por conexión directa identidad, SET ROLE, grants, RLS, allowlist SECURITY DEFINER, TTL y rollback. Inspección de solo lectura del contenedor: CLI arranca Supavisor pero no establece `POOLER_TENANT_ID`; la guía de self-hosted requiere tenant/bootstrap separado (`pooler.exs`). El código de error de cliente no se eleva a diagnóstico de protocolo más específico. La ruta directa no acredita pooler. |
+| HTTP local de exportación H1-A | **BLOCKED** | Run `12798f0f-686e-4c86-809f-2ec18acc6694`: login Auth real, actor SQL y scope DB pasaron; `appendTrustedAudit` devolvió `NOT_ALLOWED`, por lo que el recorrido HTTP no llegó a exportar. `finally` dejó el rol NOLOGIN, retiró fixtures del run y verificó inventario/outbox cero. Se conserva como fallo del arnés/contrato aún no aislado, no como fallo de exportación ni PASS. |
+| Session pooler de Preview | **BLOCKED / no ejecutado** | No se creó ni activó rol en `rhnnplewqsekrnaousyl`. El PASS de V-4 usa otro rol y no acredita `rubik_preview_u03_writer`, `SET ROLE` ni esta conexión. |
+| I-2/I-5 alojado y H1-A alojado | **BLOCKED** | Sin fixtures alojados, claves activadas ni escritura. Preflight/rollback del nuevo rol y Session pooler de Preview deben pasar antes de cualquier fixture. |
+
+Ledgers locales ignorados por Git: `test-results/u03-window-local-flows.jsonl`, `test-results/u03-window-local-security.jsonl` y `test-results/u03-window-local-http.jsonl`. El intento HTTP `0e224a3c-64a2-451e-b047-afb267ff122c` dejó políticas temporales propias; se retiraron por sus cuatro nombres exactos y su estado final es cero políticas `u03_http_%`. Los usuarios de namespace local `u03-*` se reconciliaron; el inventario Auth/org/proyecto/auditoría/resultados/import/outbox quedó en cero. `rubik_audit_writer` volvió a NOLOGIN, no quedan roles `u03_window_%`, y `node scripts/u03-window-local-stack.mjs stop` retiró este stack: cero contenedores etiquetados y workdir eliminado.
+
 ## Corte reconciliado tras #142 · 20/10/2026
 
 ### Revisión local de ventana · 20/10/2026

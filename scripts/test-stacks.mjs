@@ -21,6 +21,8 @@ export const STACKS = {
   fops2Combined: { selector: "RUBIK_TEST_FOPS2_COMBINED_STACK", apiPort: 63321, dbPort: 63322, projectId: "rubik-fops2-n2-combined-20261016" },
   // Combined N2-12/N2-13 integration after #119; exclusive, disposable.
   n2ContentGeo: { selector: "RUBIK_TEST_N2_CONTENT_GEO_STACK", apiPort: 52321, dbPort: 52322, projectId: "rubik-n2-final-20261017" },
+  // Isolated U03 writer-window rehearsal; direct Postgres/API ports only, never hosted.
+  u03Window: { selector: "RUBIK_TEST_U03_WINDOW_STACK", apiPort: 63421, dbPort: 63422, projectId: "rubik-u03-window-20261020" },
   // PR #119 Medición integration stack; distinct ports and project identity.
   pr119Integration: { selector: "RUBIK_TEST_PR119_STACK", apiPort: 62321, dbPort: 62322, projectId: "rubik-pr119-integration-20261016" },
 };
