@@ -20,6 +20,17 @@ $campaignRunId = $null
 $currentStage = 'operator_preflight'
 
 function Stop-S5([string]$Code) { throw "U03 S-5 BLOCKED: $Code" }
+function Invoke-S5Native([string]$Executable, [string[]]$Arguments) {
+  $previousErrorAction = $ErrorActionPreference
+  try {
+    # Windows PowerShell 5.1 promotes native stderr to a terminating RemoteException
+    # under Stop. Capture it in memory and rely on the native exit code instead.
+    $ErrorActionPreference = 'Continue'
+    $nativeOutput = @(& $Executable @Arguments 2>&1)
+    $nativeExitCode = $LASTEXITCODE
+    return [pscustomobject]@{ ExitCode=$nativeExitCode; Output=$nativeOutput }
+  } finally { $ErrorActionPreference = $previousErrorAction }
+}
 function Clear-S5Environment {
   foreach ($name in @('U03_PREVIEW_PUBLIC_KEY','U03_FOREIGN_ISSUER_URL','U03_FOREIGN_ISSUER_ANON_KEY','U03_FOREIGN_ISSUER_SERVICE_KEY','U03_FOREIGN_ISSUER_STATUS','U03_VERCEL_CLI','U03_SUPABASE_CLI','VERCEL_OIDC_TOKEN')) {
     Remove-Item -LiteralPath "Env:$name" -ErrorAction SilentlyContinue
@@ -62,8 +73,9 @@ try {
   if ($credentials.ProjectRef -cne 'rhnnplewqsekrnaousyl' -or [string]::IsNullOrWhiteSpace($credentials.PublicKey)) { Stop-S5 'PREVIEW_CREDENTIAL_REF_MISMATCH' }
   $env:U03_PREVIEW_PUBLIC_KEY = $credentials.PublicKey
   $currentStage = 'preview_identity_preflight'
-  & node $runner --preflight-only
-  if ($LASTEXITCODE -ne 0) { Stop-S5 'PREVIEW_IDENTITY_PREFLIGHT_FAILED' }
+  $preflightResult = Invoke-S5Native 'node' @($runner, '--preflight-only')
+  if ($preflightResult.ExitCode -ne 0) { Stop-S5 'PREVIEW_IDENTITY_PREFLIGHT_FAILED' }
+  Write-Output 'S5_PREVIEW_PREFLIGHT: PASS'
 
   $runId = [guid]::NewGuid().ToString('D')
   $campaignRunId = $runId
@@ -73,8 +85,8 @@ try {
   if (Test-Path -LiteralPath $issuerRoot) { Stop-S5 'TEMP_PROJECT_COLLISION' }
   $null = New-Item -ItemType Directory -Path $issuerRoot
   $currentStage = 'local_issuer_init'
-  $initOutput = & $env:U03_SUPABASE_CLI --yes supabase@2.118.0 init --workdir $issuerRoot --force 2>&1
-  if ($LASTEXITCODE -ne 0) { Stop-S5 'LOCAL_ISSUER_INIT_FAILED' }
+  $initResult = Invoke-S5Native $env:U03_SUPABASE_CLI @('--yes','supabase@2.118.0','init','--workdir',$issuerRoot,'--force')
+  if ($initResult.ExitCode -ne 0) { Stop-S5 'LOCAL_ISSUER_INIT_FAILED' }
 
   $configPath = Join-Path $issuerRoot 'supabase\config.toml'
   $config = [IO.File]::ReadAllText($configPath)
@@ -88,11 +100,12 @@ try {
   # Capture all CLI output; local service keys are never echoed or stored in the repo.
   $currentStage = 'local_issuer_start'
   $issuerStarted = $true
-  $startOutput = & $env:U03_SUPABASE_CLI --yes supabase@2.118.0 start --workdir $issuerRoot --exclude realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector,supavisor 2>&1
-  if ($LASTEXITCODE -ne 0) { Stop-S5 'LOCAL_ISSUER_START_FAILED' }
+  $startResult = Invoke-S5Native $env:U03_SUPABASE_CLI @('--yes','supabase@2.118.0','start','--workdir',$issuerRoot,'--exclude','realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector,supavisor')
+  if ($startResult.ExitCode -ne 0) { Stop-S5 'LOCAL_ISSUER_START_FAILED' }
   $currentStage = 'local_issuer_status'
-  $statusOutput = & $env:U03_SUPABASE_CLI --yes supabase@2.118.0 status --workdir $issuerRoot --output env 2>$null
-  if ($LASTEXITCODE -ne 0) { Stop-S5 'LOCAL_ISSUER_STATUS_FAILED' }
+  $statusResult = Invoke-S5Native $env:U03_SUPABASE_CLI @('--yes','supabase@2.118.0','status','--workdir',$issuerRoot,'--output','env')
+  if ($statusResult.ExitCode -ne 0) { Stop-S5 'LOCAL_ISSUER_STATUS_FAILED' }
+  $statusOutput = $statusResult.Output
   $statusText = $statusOutput -join "`n"
   $localStatus = $null
   try { $localStatus = $statusText | ConvertFrom-Json } catch { }
@@ -107,11 +120,10 @@ try {
   $env:U03_FOREIGN_ISSUER_ANON_KEY = $localStatus.ANON_KEY
   $env:U03_FOREIGN_ISSUER_SERVICE_KEY = $localStatus.SERVICE_ROLE_KEY
   $currentStage = 'foreign_issuer_campaign'
-  $runnerOutput = @(& node $runner --run-id $runId 2>&1)
-  $runnerExit = $LASTEXITCODE
-  if ($runnerExit -ne 0) {
+  $campaignResult = Invoke-S5Native 'node' @($runner, '--run-id', $runId)
+  if ($campaignResult.ExitCode -ne 0) {
     $safeCode = 'S5_SAFE_FAILURE'
-    foreach ($line in $runnerOutput) {
+    foreach ($line in $campaignResult.Output) {
       if ([string]$line -match 'S5_FOREIGN_ISSUER: BLOCKED code=([A-Z0-9_]+)') { $safeCode = $Matches[1]; break }
     }
     Stop-S5 $safeCode
@@ -132,8 +144,8 @@ try {
   throw 'S5_OPERATOR_SAFE_FAILURE'
 } finally {
   if ($issuerStarted -and $issuerRoot) {
-    $stopOutput = & $env:U03_SUPABASE_CLI --yes supabase@2.118.0 stop --no-backup --workdir $issuerRoot 2>&1
-    if ($LASTEXITCODE -ne 0) {
+    $stopResult = Invoke-S5Native $env:U03_SUPABASE_CLI @('--yes','supabase@2.118.0','stop','--no-backup','--workdir',$issuerRoot)
+    if ($stopResult.ExitCode -ne 0) {
       $cleanupBlocked = $true
       Add-S5Ledger 'BLOCKED'
       Write-Warning 'S5_LOCAL_ISSUER_CLEANUP_BLOCKED: temporary stack and ledger retained for recovery.'
@@ -160,7 +172,14 @@ try {
   if ($credentials) { $credentials.AdminKey = $null; $credentials.PublicKey = $null }
   $credentials = $null
   $localStatus = $null
+  $preflightResult = $null
+  $initResult = $null
+  $startResult = $null
+  $statusResult = $null
+  $campaignResult = $null
+  $stopResult = $null
   $statusOutput = $null
+  $statusText = $null
   $startOutput = $null
   $statusText = $null
   $runId = $null
