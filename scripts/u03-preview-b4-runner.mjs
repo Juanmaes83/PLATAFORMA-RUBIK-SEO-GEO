@@ -18,6 +18,7 @@ export const PIN = Object.freeze({
 });
 
 const OIDC_HEADER = "x-vercel-trusted-oidc-idp-token";
+const U03_RUN_ID_HEADER = "x-rubik-u03-run-id";
 const ORIGIN = `https://${PIN.host}`;
 const CHILD_ENV_KEYS = ["PATH", "SystemRoot", "WINDIR", "TEMP", "TMP", "USERPROFILE", "LOCALAPPDATA", "APPDATA", "HOMEDRIVE", "HOMEPATH", "COMSPEC", "PATHEXT", "PROCESSOR_ARCHITECTURE", "NUMBER_OF_PROCESSORS", "OS"];
 const NETWORK_ENV_KEYS = ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "all_proxy", "no_proxy", "NODE_USE_ENV_PROXY", "NODE_USE_SYSTEM_CA", "NODE_EXTRA_CA_CERTS", "SSL_CERT_FILE", "SSL_CERT_DIR"];
@@ -52,11 +53,15 @@ export function deploymentMatches(actual, pin = PIN) {
   return true;
 }
 
-export function scopedHeaders(url, inputHeaders, token, allowedOrigin = ORIGIN) {
-  const headers = Object.fromEntries(Object.entries(inputHeaders ?? {}).filter(([key]) => key.toLowerCase() !== OIDC_HEADER));
+export function scopedHeaders(url, inputHeaders, token, allowedOrigin = ORIGIN, runId = null) {
+  const headers = Object.fromEntries(Object.entries(inputHeaders ?? {}).filter(([key]) =>
+    key.toLowerCase() !== OIDC_HEADER && key.toLowerCase() !== U03_RUN_ID_HEADER));
   let origin = "";
   try { origin = new URL(url).origin; } catch { return headers; }
-  if (origin === allowedOrigin && token) headers[OIDC_HEADER] = token;
+  if (origin === allowedOrigin) {
+    if (token) headers[OIDC_HEADER] = token;
+    if (typeof runId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(runId)) headers[U03_RUN_ID_HEADER] = runId;
+  }
   return headers;
 }
 
@@ -66,7 +71,7 @@ export function isExternalRedirect(requestUrl, redirectedFromUrl, allowedOrigin 
   catch { return true; }
 }
 
-export async function installScopedRoutes(context, page, token, allowedOrigin = ORIGIN, onEvent = () => {}, onRouteEvent = () => {}) {
+export async function installScopedRoutes(context, page, token, allowedOrigin = ORIGIN, onEvent = () => {}, onRouteEvent = () => {}, runId = null) {
   // Playwright routes are called once for a redirect chain. CDP Fetch pauses each
   // Chromium request, including the GET produced by an action's 303 response.
   const session = await context.newCDPSession(page);
@@ -108,7 +113,7 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
         (parsed.pathname === "/acceso" || Object.keys(inputHeaders).some(name => name.toLowerCase() === "next-action"));
       if (authAction) onRouteEvent("auth-action-post");
       else if (origin === allowedOrigin) onRouteEvent(navigation ? "pinned-navigation" : "pinned-request");
-      const headers = scopedHeaders(url, inputHeaders, token, allowedOrigin);
+      const headers = scopedHeaders(url, inputHeaders, token, allowedOrigin, runId);
       await session.send("Fetch.continueRequest", {
         requestId: paused.requestId,
         headers: Object.entries(headers).map(([name, value]) => ({ name, value: String(value) })),

@@ -1,4 +1,5 @@
 import "server-only";
+import { recordProviderInvocation, type ProviderDestination } from "./provider-egress";
 
 // Minimal MCP Streamable HTTP client for OpenSEO (ADR 0006), server-side only. It implements
 // the slice of the protocol the Core bridge needs: `initialize`, `notifications/initialized`
@@ -49,6 +50,9 @@ export interface McpClientOptions {
   googleReads?: boolean;
   fetchImpl?: FetchLike;
   timeoutMs?: number;
+  /** Validated request correlation ID; never used for authorization. */
+  runId?: string;
+  destination?: ProviderDestination;
 }
 
 export interface ToolResult {
@@ -159,6 +163,7 @@ export function createOpenSeoMcpClient(opts: McpClientOptions): OpenSeoMcpClient
     if (sessionId) headers["mcp-session-id"] = sessionId;
     let res: Response;
     try {
+      recordProviderInvocation(opts.runId, opts.destination ?? "openseo");
       res = await fetchImpl(opts.mcpUrl, { method: "POST", headers, body: JSON.stringify(body), redirect: "error", cache: "no-store", signal: AbortSignal.timeout(timeoutMs) });
     } catch (error) {
       const name = (error as { name?: string })?.name;
@@ -229,6 +234,7 @@ export function createOpenSeoMcpClient(opts: McpClientOptions): OpenSeoMcpClient
       sessionId = null;
       initialized = false;
       try {
+        recordProviderInvocation(opts.runId, opts.destination ?? "openseo");
         const res = await fetchImpl(opts.mcpUrl, { method: "DELETE", headers, redirect: "error", cache: "no-store", signal: AbortSignal.timeout(timeoutMs) });
         await res.body?.cancel();
       } catch {

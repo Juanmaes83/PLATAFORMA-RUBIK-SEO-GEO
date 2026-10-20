@@ -54,7 +54,7 @@ async function capture(client: Client, projectId: string, command: "begin" | "st
 export async function captureGoogleReport(
   client: Client, project: ProjectRef, query: ManualGoogleQuery, key: string, actor: AuditInput["actor"], keyring: Keyring | null,
   deps: { env?: Record<string, string | undefined>; mcpFactory?: (opts: McpClientOptions) => Pick<OpenSeoMcpClient, "callTool" | "close">;
-    clock?: () => Date; store?: typeof completeTrustedProviderCommand; receipt?: typeof signProviderReceipt;
+    clock?: () => Date; runId?: string | null; store?: typeof completeTrustedProviderCommand; receipt?: typeof signProviderReceipt;
     preflight?: typeof preflightTrustedWriter } = {},
 ): Promise<CaptureOutcome> {
   const env = deps.env ?? process.env;

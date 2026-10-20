@@ -1,5 +1,9 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
+## Reconciliación vigente · 20/10/2026
+
+La fuente de código vigente es `main@a0a40b776361f292d910e285b390d5e753da8d7b`; PR #129, #141 y #142 están fusionadas. Los cortes fechados abajo son históricos salvo que se indiquen como evidencia reutilizable. #142 (`24d0ac0f-5688-4f82-ba0d-101b4f085c30`) acredita S-2, S-3a, S-4 y P-1 navegador con limpieza; no repetir. U03 mantiene pendientes S-5 con emisor ajeno aislado, positivos firmados I-2/I-5 y egress servidor; S-3b queda NO APLICABLE por decisión de alcance de Juanma. H1-A/H1-B y H2 siguen abiertos. La matriz reconciliada es [U03-PREVIEW-MATRIZ](U03-PREVIEW-MATRIZ-20261018.md); no declarar Actions verde por bloqueo de facturación.
+
 ## Actualización vigente · V-4 alojado cerrado como subgate · 19/10/2026
 
 #129@`e213238c136909c652907b026eac5e412077329a` sigue Draft. El run V-4 Preview `b170134c-5538-4f81-b459-1bb762b95bad` pasó transporte/conexión psql y Node, retirada con el mismo JWT vigente, recibo firmado, limpieza y contención. Consulta independiente al ref `rhnnplewqsekrnaousyl`: centinela exacto; cero usuarios, organizaciones, proyectos, membresías, auditoría y outbox; rol/políticas temporales ausentes y escritor de producto `NOLOGIN`. Conservar Data API 12/12 y B-4 Chromium/aceptación visual como evidencia previa, sin repetirlas. U03 global sigue abierto por roles, invitaciones/consentimiento, sesión/JWT y superficies restantes; H1 necesita el ensayo ficticio integral y U04/Sarah, y H2 los gates operativos/comerciales. Las instrucciones V-4 de los cortes inferiores son históricas. No declarar CI verde: Actions sigue sin ejecutar jobs por facturación.

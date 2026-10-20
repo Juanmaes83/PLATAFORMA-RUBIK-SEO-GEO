@@ -1,5 +1,15 @@
 # N1-05/U03: matriz dirigida pendiente
 
+## Reconciliación de corte tras #142 · 20/10/2026
+
+La base ahora es `main@a0a40b776361f292d910e285b390d5e753da8d7b`. #129, #141 y #142 están fusionadas. El estado de arriba queda como historial de diseño; para PASS anteriores y pendientes actuales rige la [matriz reconciliada](U03-PREVIEW-MATRIZ-20261018.md).
+
+- S-2, S-3a (cookie alterada), S-4 y P-1 navegador: PASS del run #142 `24d0ac0f-5688-4f82-ba0d-101b4f085c30`; no repetir. S-3b: **NO APLICABLE por decisión expresa de Juanma**, porque la cookie bearer válida no está vinculada al dispositivo. Logout y revocación conservan sus pruebas separadas; no se implementa device binding.
+- S-5: Juanma autoriza sustituir el JWT literal de Production por un token auténtico de Auth de otro stack de prueba. El nuevo operador llama solo al ref Preview `rhnnplewqsekrnaousyl` y al deployment exacto de #141; registra `iss`/`exp`, no el bearer; etiqueta la evidencia «emisor ajeno aislado», que no es un JWT de Production. Prueba local real de Auth: `scripts/test-u03-s5-local-auth.mjs`; operador Windows: `scripts/u03-preview-s5-owner.ps1`; campaña alojada aún pendiente.
+- Salida de proveedores: se añadió una correlación `x-rubik-u03-run-id`, validada como UUID y transportada solo al origen fijado. La guarda escribe eventos JSON sanitizados en Preview; el cliente MCP escribe una señal justo antes de cada fetch efectivo con categoría fija (`openseo` o `google-via-openseo`). No registra URL, cabeceras ni cuerpos. Tests dirigidos demuestran bandera heredada `true` bloqueada en Preview, cero fetch al cliente y formato seguro de los eventos. Aún falta deployment con este cambio y lectura acotada de Functions para la evidencia alojada.
+- I-2/I-5 poblados: siguen BLOCKED hasta disponer de una organización Supabase para el proyecto desechable autorizado y completar el gate de coste/provisionamiento. El Preview actual no recibe escrituras y el writer general permanece bloqueado.
+- H1-A/H1-B/H2: no se ejecutaron. La decisión R1 de consistencia de exportación concurrente sigue pendiente antes de Sarah; el paquete U04 requiere sus tareas/consentimiento y aceptación humana. H2 continúa supeditado a H1 y a la auditoría N1-07/08.
+
 Base de revisión: `main@2d20ad32a91d5ffe9aeb101119749d40d5e4919d`. La ejecución alojada solo puede dirigirse a Preview `rhnnplewqsekrnaousyl`. El deployment Preview observado para el SHA fusionado de #140 es `dpl_78trCyuKPiKXGGbxnsVSGwzv7pyE`, host `plataforma-rubik-seo-bc6tt7hiy-juanma-espinosas-projects.vercel.app`, SHA `0c9d2db0b70be79ef900715fb122405dcd757fca`. Revalidar ref, SHA, deployment, protección y estado antes de cada run.
 
 | Caso | Actor y fixture | Petición/acción | Resultado esperado | Limpieza | Evidencia y dependencia |

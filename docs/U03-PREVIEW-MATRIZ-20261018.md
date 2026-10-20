@@ -1,5 +1,26 @@
 # U03 · matriz alojada de Preview · 18/10/2026
 
+## Corte reconciliado tras #142 · 20/10/2026
+
+La base vigente es `main@a0a40b776361f292d910e285b390d5e753da8d7b`; #129, #141 y #142 están fusionadas. Este corte prevalece sobre las filas históricas inferiores, que se conservan como registro y no describen el estado actual.
+
+| Gate | Estado reutilizable | Evidencia/alcance | Pendiente real |
+|---|---|---|---|
+| U02 | PASS acotado | #129 fusionada; Preview aislado `rhnnplewqsekrnaousyl` | Ninguno en el alcance U02 probado |
+| Data API 12/12 | PASS | Run `2c72f352-fd79-43d1-8aa0-3f4ba34b33e1`; no repetir | Ninguno salvo invalidación por cambio contractual |
+| B-4 | PASS | Run `5847ce5a-43b9-4dde-9931-61bd8113b27e`; aceptación visual de Juanma registrada después del ledger | Ninguno salvo invalidación |
+| V-4 | PASS | Run `b170134c-5538-4f81-b459-1bb762b95bad`; JWT vigente tras retirada, recibo firmado, contención y limpieza | Ninguno salvo invalidación |
+| V-1/V-2/V-3 | PASS acotado | #138, run `4fe31225-3194-4913-a7dc-319c0fe88cf1` | Ninguno en el alcance probado |
+| I-8/P-2 | PASS acotado | #140, run `59b8ec61-3db5-44ee-80e9-ef3918da0ec4` | No demuestra aislamiento cruzado de filas firmadas pobladas |
+| S-2/S-3a/S-4/P-1 navegador | PASS | #142, run `24d0ac0f-5688-4f82-ba0d-101b4f085c30`, deployment #141 `28fd3927`; limpieza final independiente a cero | Solo repetir el tramo afectado si cambia su contrato |
+| S-3b | NO APLICABLE por decisión expresa de Juanma | Una cookie bearer válida es transferible entre contextos si no existe vinculación al dispositivo; implementar device binding cambiaría el producto y no forma parte del contrato | Se mantienen separados los PASS de cookie alterada (S-3a), logout y revocación; no se atribuye PASS a S-3b |
+| S-5 | BLOCKED, sustitución de alcance autorizada | Se acepta probar JWT real emitido por Auth de un stack de prueba aislado; se etiquetará «emisor ajeno aislado» y no como JWT de Production | Preparar y ejecutar el emisor aislado contra la Data API y rutas del Preview fijado; confirmar issuer/exp sin token |
+| I-2 / I-5 filas firmadas | BLOCKED | #140 solo acreditó tablas firmadas vacías; las escrituras requieren flujos legítimos de firma/outbox | Hace falta proyecto alojado desechable aislado, sin habilitar writer general del Preview actual |
+| P-1 egreso de servidor | BLOCKED | #142 acredita estado UI y egress del navegador, no llamadas servidor→proveedor | Añadir correlación segura por `runId` en guardas y transporte; medir intentos/calls en Functions del Preview |
+| H1-A / H1-B / H2 | BLOCKED | No hay pasada integral nueva | H1-A completo; después decisión R1 y piloto U04 con aceptación humana de Sarah; H2 tras H1 y gates N1-07/08 |
+
+El Preview destino autorizado de las pruebas de rechazo es `rhnnplewqsekrnaousyl`. Un S-5 alojado se considerará prueba de rechazo contra Preview solamente; el emisor será un stack ficticio separado y no se accederá a Production.
+
 ## Estado verificado · V-4 alojado PASS · 19/10/2026
 
 En `rhnnplewqsekrnaousyl`, el run `b170134c-5538-4f81-b459-1bb762b95bad` terminó `campaign-global: PASS` y `receipt-role-containment: PASS` sobre #129@`e213238c136909c652907b026eac5e412077329a`. La misma entrada segura dio `admin-password-transport: PASS` y `admin-connection-diagnostic: PASS`; después pasaron `membership-grant-before-withdrawal`, `membership-revocation-after-withdrawal` con el JWT aún vigente, `withdrawal-receipt`, `fixture-cleanup`, `final-inventory`, `outbox-final` y `capabilities-final`. Data API 12/12 (`2c72f352-fd79-4360-8c9b-3c619715c574`) y B-4 Chromium escritorio/móvil con aceptación visual posterior de Juanma (`5847ce5a-43b9-4dde-9931-61bd8113b27e`) son evidencia anterior; no se repitieron en V-4.

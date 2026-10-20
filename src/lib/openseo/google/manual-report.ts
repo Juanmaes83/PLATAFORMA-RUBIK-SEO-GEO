@@ -42,7 +42,7 @@ export const validQuery = (q: ManualGoogleQuery) => {
 export async function runManualGoogleReport(
   client: SupabaseClient<Database>, projectId: string, query: ManualGoogleQuery,
   deps: { env?: Record<string, string | undefined>; mcpFactory?: (opts: McpClientOptions) => Pick<OpenSeoMcpClient, "callTool" | "close">;
-    clock?: () => Date } = {},
+    clock?: () => Date; runId?: string | null } = {},
 ): Promise<ReportOutcome> {
   const env = deps.env ?? process.env;
   if (!googleReadsEnabled(env)) return { ok: false, error: "DISABLED" };
@@ -58,7 +58,8 @@ export async function runManualGoogleReport(
   const sourceContext = { connectionId: source.connectionId, propertyBindingId: source.propertyBindingId,
     providerProjectId: source.openseoProjectId, grantedAt: source.grantedAt };
   const mcp = (deps.mcpFactory ?? createOpenSeoMcpClient)({ mcpUrl: config.mcpUrl,
-    apiKey: config.apiKey, maxPages: 10, googleReads: true, timeoutMs: 20_000 });
+    apiKey: config.apiKey, maxPages: 10, googleReads: true, timeoutMs: 20_000,
+    runId: deps.runId ?? undefined, destination: "google-via-openseo" });
   try {
     if (query.provider === "search-console") {
       const input = { siteUrl: source.externalPropertyId, startDate: query.startDate, endDate: query.endDate,

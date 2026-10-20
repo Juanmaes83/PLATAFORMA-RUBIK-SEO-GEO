@@ -4,6 +4,7 @@ import { providers } from "@/lib/core";
 import { checkGoogleCatalog, EXPECTED_REQUIRED } from "@/lib/openseo/google/catalog";
 import { createOpenSeoSearchConsoleTransport, searchConsoleFailure } from "@/lib/openseo/google/search-console";
 import { createOpenSeoMcpClient, GOOGLE_READ_TOOLS, googleCatalogCheckEnabled, googleReadsEnabled, type ListedTool } from "@/lib/openseo/mcp-client";
+import { recordProviderGate } from "@/lib/openseo/provider-egress";
 import type { ProjectRef } from "@/lib/provenance/audit";
 import { loadKeyring } from "@/lib/provenance/keyring";
 import { openProviderResult, sealProviderResult } from "@/lib/provenance/results";
@@ -112,6 +113,47 @@ describe("OpenSEO MCP client guard for Google tools", () => {
     expect(googleCatalogCheckEnabled({})).toBe(false);
     expect(googleCatalogCheckEnabled({ OPENSEO_GOOGLE_CATALOG_CHECK_ENABLED: "1" })).toBe(false);
     expect(googleCatalogCheckEnabled({ OPENSEO_GOOGLE_CATALOG_CHECK_ENABLED: "true" })).toBe(true);
+  });
+});
+
+describe("preview provider egress audit", () => {
+  it("records only the run ID and provider category at the actual transport boundary", async () => {
+    const prior = process.env.VERCEL_ENV;
+    process.env.VERCEL_ENV = "preview";
+    const log = vi.spyOn(console, "info").mockImplementation(() => {});
+    const runId = "524c744e-2563-42b5-8d53-b33b03748d94";
+    const key = "never-log-this-key";
+    const fetchImpl = vi.fn(async (_url: string, init: RequestInit) => {
+      if (init.method === "DELETE") return new Response(null, { status: 200 });
+      const body = JSON.parse(String(init.body));
+      if (body.method === "notifications/initialized") return new Response(null, { status: 202 });
+      return Response.json({ jsonrpc: "2.0", id: body.id, result: { structuredContent: { ok: true } } });
+    });
+    try {
+      const client = createOpenSeoMcpClient({ mcpUrl: "https://private-provider.example/mcp", apiKey: key,
+        maxPages: 10, runId, fetchImpl });
+      await client.callTool("whoami", {});
+      await client.close();
+      expect(fetchImpl).toHaveBeenCalledTimes(3);
+      expect(log).toHaveBeenCalledTimes(3);
+      const output = JSON.stringify(log.mock.calls.map(([line]) => JSON.parse(String(line))));
+      expect(output).toContain(runId);
+      expect(output).toContain('"destination":"openseo"');
+      expect(output).toContain('"outbound":true');
+      expect(output).not.toContain(key);
+      expect(output).not.toContain("private-provider.example");
+      log.mockClear();
+      recordProviderGate(runId, "google-via-openseo", "blocked");
+      const blocked = JSON.stringify(log.mock.calls.map(([line]) => JSON.parse(String(line))));
+      expect(blocked).toContain('"phase":"gate"');
+      expect(blocked).toContain('"outbound":false');
+      expect(blocked).toContain('"destination":"google-via-openseo"');
+      expect(blocked).not.toContain(key);
+    } finally {
+      log.mockRestore();
+      if (prior === undefined) delete process.env.VERCEL_ENV;
+      else process.env.VERCEL_ENV = prior;
+    }
   });
 });
 

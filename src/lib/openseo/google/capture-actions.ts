@@ -8,6 +8,8 @@ import { serverKeyring } from "@/lib/provenance/keyring";
 import { createClient } from "@/lib/supabase/server";
 import { myProjectMembership } from "@/lib/tenancy";
 import { captureGoogleReport } from "./capture";
+import { recordProviderGate, requestProviderRunId } from "../provider-egress";
+import { googleReadsEnabled } from "../mcp-client";
 import type { ManualGoogleQuery } from "./manual-report";
 import { connectGoogleProperty, revokeGoogleProperty, type GoogleProvider } from "./properties";
 
@@ -27,11 +29,13 @@ export async function captureGoogleAction(formData: FormData): Promise<void> {
   if (!ref) redirect("/proyectos");
   const base = `/proyectos/${ref.scope.tenantId}/${ref.scope.projectId}/google`;
   const provider = field(formData, "provider");
+  const runId = await requestProviderRunId();
+  if (!googleReadsEnabled()) recordProviderGate(runId, "google-via-openseo", "blocked");
   const common = { startDate: field(formData, "startDate"), endDate: field(formData, "endDate") };
   const query: ManualGoogleQuery = provider === "google-analytics"
     ? { provider, ...common, limit: int(field(formData, "limit")), offset: int(field(formData, "offset") || "0") }
     : { provider: "search-console", ...common, dimensions: formData.getAll("dimensions").map(String), rowLimit: int(field(formData, "rowLimit")) };
-  const r = await captureGoogleReport(supabase, ref, query, field(formData, "key"), { role: membership.role as Role, id: user.id }, serverKeyring());
+  const r = await captureGoogleReport(supabase, ref, query, field(formData, "key"), { role: membership.role as Role, id: user.id }, serverKeyring(), { runId });
   if (!r.ok) redirect(`${base}?error=${r.error}`);
   redirect(`${base}/${r.resultId}?aviso=${r.replayed ? "repetida" : r.audited ? "guardada" : "guardada-sin-auditoria"}`);
 }

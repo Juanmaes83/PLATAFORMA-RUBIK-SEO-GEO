@@ -45,6 +45,7 @@ test("deployment pin requires exact deployment, host, SHA, project, branch and R
 
 test("similar hosts, aliases and other origins never receive the OIDC header", () => {
   const token = "fictional-oidc-token-not-real";
+  const runId = "524c744e-2563-42b5-8d53-b33b03748d94";
   const allowed = `https://${PIN.host}`;
   for (const url of [
     `https://x${PIN.host}`,
@@ -53,10 +54,14 @@ test("similar hosts, aliases and other origins never receive the OIDC header", (
     "https://funding-os.vercel.app",
     "https://rhnnplewqsekrnaousyl.supabase.co",
   ]) {
-    const headers = scopedHeaders(url, { ["X-Vercel-Trusted-OIDC-IdP-Token"]: "inherited" }, token, allowed);
+    const headers = scopedHeaders(url, { ["X-Vercel-Trusted-OIDC-IdP-Token"]: "inherited", "x-rubik-u03-run-id": runId }, token, allowed, runId);
     assert.equal(Object.keys(headers).some((name) => name.toLowerCase() === "x-vercel-trusted-oidc-idp-token"), false, url);
+    assert.equal(Object.keys(headers).some((name) => name.toLowerCase() === "x-rubik-u03-run-id"), false, url);
   }
-  assert.equal(scopedHeaders(`${allowed}/api/salud`, {}, token, allowed)["x-vercel-trusted-oidc-idp-token"], token);
+  const pinnedHeaders = scopedHeaders(`${allowed}/api/salud`, {}, token, allowed, runId);
+  assert.equal(pinnedHeaders["x-vercel-trusted-oidc-idp-token"], token);
+  assert.equal(pinnedHeaders["x-rubik-u03-run-id"], runId);
+  assert.equal("x-rubik-u03-run-id" in scopedHeaders(`${allowed}/api/salud`, {}, token, allowed, "invalid"), false);
 });
 
 test("external redirects from the pinned host are rejected", () => {

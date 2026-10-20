@@ -1,5 +1,11 @@
 # ROADMAP MAESTRO · Rubik SEO/GEO
 
+## Reconciliación vigente · 20/10/2026
+
+La base de trabajo es `main@a0a40b776361f292d910e285b390d5e753da8d7b`; #129, #141 y #142 están fusionadas. Para los gates U03/H1/H2 prevalece la [matriz U03 reconciliada](U03-PREVIEW-MATRIZ-20261018.md) y el [protocolo H1/H2](GATE-ACEPTACION-INTEGRAL-H1-H2-20261018.md), no los cortes históricos de este archivo. U02, Data API 12/12, B-4, V-4, V-1/V-2/V-3, I-8, P-2 y S-2/S-3a/S-4/P-1 de navegador tienen evidencia reutilizable; S-3b es NO APLICABLE por decisión de Juanma. U03 sigue pendiente de S-5 con emisor de prueba alojado, positivos firmados I-2/I-5 y evidencia de salida de proveedor en servidor. H1-A, U04/Sarah y H2 siguen abiertos. R1 (consistencia de exportación durante escrituras concurrentes) requiere decisión antes de Sarah. GitHub Actions sigue bloqueada por facturación.
+
+El paquete de aceptación de Sarah está en [U04](U04-PAQUETE-ACEPTACION-20261020.md); la auditoría operativa N1-07/08 está en [H2](H2-AUDITORIA-OPERATIVA-20261020.md). Ninguno acredita ejecución o aceptación humana.
+
 **Gate de aceptación integral incorporado el 18/10/2026:** [protocolo de dos pasadas para H1 y H2](GATE-ACEPTACION-INTEGRAL-H1-H2-20261018.md). Primero, tras #129 y U03 esencial, un único recorrido ficticio alojado desde login hasta exportación/verificación/restauración y limpieza; después, U04 con Sarah y aceptación humana. Esta prueba de producto completa faltaba como criterio ejecutable explícito. Sigue PENDIENTE: los PASS locales y parciales alojados no cierran H1/H2. La exportación firmada se realiza solo en el entorno expresamente autorizado, sin habilitar escritor en Preview por conveniencia.
 
 **Estado vigente, 18/10/2026:** [Estado de los tres niveles y plan de cierre](ESTADO-TRES-NIVELES-Y-CIERRE-20261018.md). main@b99893e incorpora el checkpoint documental #134 después del merge de #133 en 42e8bcf. #129 sigue Draft en b68244f: U02 aislada en alcance verificado, U03 Data API parcial (12/12 reportados para tres actores), navegador y roles restantes pendientes. H1/H2 abiertos; N2 primeros incrementos en main sin acreditación alojada. La tabla de bloques más abajo conserva el plan original y cortes históricos; usar el estado vigente enlazado para decidir trabajo y responsables.
