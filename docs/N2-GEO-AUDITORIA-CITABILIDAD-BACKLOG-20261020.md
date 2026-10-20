@@ -1,0 +1,38 @@
+# Propuesta N2 posterior · Diagnóstico GEO de páginas públicas y observación de citas
+
+**Estado:** backlog aprobado para estudio e implementación posterior; sin código, despliegue, proveedor ni activación alojada. **Decisión:** 20/10/2026. **Prioridad:** después de U03 esencial y H1; no añade un gate para cerrar U03/H1 ni sustituye U04 con Sarah. No asignar una versión N2 numerada sin reconciliar el Roadmap Maestro.
+
+## Propósito y límite de la medición
+
+Ayudar al cliente y al analista a saber **qué página pública mejorar, qué evidencia lo justifica y qué cambio revisar**. Separar siempre dos preguntas: (A) «¿la página es accesible, comprensible, atribuible y fácil de citar?» y (B) «¿un motor citó o mencionó realmente al cliente en una consulta observada?». A no demuestra B ni predice un ranking, tráfico, cuota de citas o ventas.
+
+Fuente de investigación: [geo-audit-skill, fork de Juanma](https://github.com/Juanmaes83/geo-audit-skill) (MIT; upstream SEOmator). En el corte de análisis el fork y upstream tenían el mismo HEAD `17fd0d29d41317c07e6d3b64daa99756ddcabc46`; **no hay integración con Rubik**. Su CLI Python calcula señales y guarda evidencia; sus skills de Claude explican el JSON. Es una referencia evaluable, no una dependencia aprobada. El propio proyecto [delimita el score](https://github.com/Juanmaes83/geo-audit-skill/blob/main/docs/concepts/scoring-methodology.md) como preparación del contenido, no cuota de citas. Se respetará MIT y su aviso de copyright si se reutiliza código.
+
+## Cuatro bloques de producto
+
+| Bloque | Alcance propuesto | Relación con Rubik | Criterio de aceptación futuro |
+|---|---|---|---|
+| **1. Legibilidad y citabilidad de una página publicada** | Leer una URL pública autorizada; inspeccionar HTML inicial y, cuando sea necesario, renderizado; identificar pasajes autosuficientes, respuesta directa a la pregunta, encabezados, atribución, datos con fuente y diferencias HTML/JS. Generar hallazgos por URL y propuestas de brief revisables, no cambios automáticos. | El Core publica HTML/metadata y N2-12 crea oportunidades y briefs; N2-13 registra observaciones. Falta comprobar el resultado público de una página con criterios de citabilidad. | Cada hallazgo muestra URL, fecha, prueba acotada, cobertura, gravedad justificada, acción propuesta y enlace a oportunidad/brief; el analista puede aceptar, corregir o descartar. Páginas sin contenido o no medibles no se etiquetan como «sin problemas». |
+| **2. Acceso de rastreadores y datos estructurados** | Comprobar HTTP, indexabilidad, robots por agente y finalidad (búsqueda frente a entrenamiento), sitemap, canonicals/hreflang aplicables y JSON-LD, incluyendo organización/autoría donde corresponda. Registrar discrepancias entre lo que Core genera y lo que el sitio entrega. | Core puede generar varias señales y OpenSEO ya audita parte del SEO técnico. Comparar hallazgos en la misma URL antes de incorporar un segundo rastreador. | Tabla por URL/agente/señal con evidencia HTTP/HTML, estado medido/no medido/no aplicable y remediación; deduplicación con OpenSEO. Un bloqueo de entrenamiento no se presenta automáticamente como bloqueo de búsqueda. |
+| **3. Evidencia y comparación** | Conservar versión de reglas, normalizador, instante, método, límites del rastreo, huella del contenido evaluado y muestras mínimas; recalcular desde evidencia guardada si el contrato lo permite. Separar informe para cliente y detalle para operador. | Extender, no reemplazar, procedencia y firma de resultados, estados de cobertura, RLS, aislamiento por proyecto y el informe N2-14. Definir política de retención y exportación antes de almacenar HTML o fragmentos de terceros. | Comparación de la misma URL y método solo con versiones compatibles; «sin medir», «no aplicable», «parcial» y «cero» distintos; impedir inferir mejora cuando cambian reglas/cobertura. Un informe de cliente no expone datos de operador ni contenido sensible. |
+| **4. Presencia real en respuestas de IA** | Enlazar diagnósticos de páginas con observaciones N2-13: consulta exacta, motor/modelo, fecha, mercado, método, fuente citada, mención/cita/ausencia y verificación. Proponer hipótesis y volver a observar bajo condiciones comparables. | N2-13 ya implementa observaciones manuales y propuestas con cautelas. Se evalúa después automatización opcional de captura con proveedor, consentimiento y presupuesto propios; ninguna muestra aislada se convierte en frecuencia o score de visibilidad. | El panel distingue claramente preparación de página y presencia observada; cada afirmación de cita enlaza evidencia verificable; comparación exige misma consulta, motor, mercado y método. Sin promesas causales ni publicación automática. |
+
+## Recorrido mínimo y orden
+
+1. **Después de U03/H1:** piloto de diagnóstico de 2–3 URLs públicas autorizadas, de distinto tipo y al menos una en español, sin llamadas de pago. Fijar commit/versión de la herramienta. Comparar hallazgos con OpenSEO y revisión humana; anotar duplicados, falsos positivos, tiempo y recomendaciones accionables.
+2. Si el piloto aporta hallazgos diferenciales, diseñar un adaptador de lectura aislado con límites de páginas, tiempo, tamaño, robots, redirecciones, SSRF, retención y coste. Acordar si se invoca un CLI fijado o se implementan solo reglas seleccionadas en Core. No instalar skills del agente como funcionalidad del producto.
+3. Persistir únicamente después de definir contrato de evidencia, aislamiento, permisos, recibos/firmas y recuperación compatibles con N1/N2; mostrar al cliente máximo tres acciones ordenadas por evidencia y esfuerzo, con aprobación humana.
+4. Enlazar esos hallazgos a oportunidades/briefs N2-12 y observaciones N2-13; evaluar utilidad con un profesional ajeno al desarrollo y un cliente antes de generalizar. Medir acciones aceptadas y cambios verificables, no solo variación del score.
+
+## Exclusiones y riesgos a resolver
+
+- El 0–100 del CLI es una heurística de preparación, **no visibilidad real**. No mezclarlo con tasas de cita, GA4, GSC ni con el score de OpenSEO; comparar solo ejecuciones compatibles de la misma herramienta.
+- No recomendar `llms.txt` como prioridad universal solo porque sume puntos; exigir contexto y evidencia de utilidad para el cliente.
+- El código de ejemplo contiene heurísticas lingüísticas orientadas al inglés y el modo opcional de asistentes usa parámetros de EE. UU.; validar español y mercados del cliente antes de reutilizar reglas o activar muestras.
+- No activar `--assistants`/scrape.do ni otro proveedor de pago por este documento. Necesitaría decisión de coste, privacidad, consentimiento, mercados y custodia de clave. Production y datos de Sarah no forman parte del piloto técnico sin su gate propio.
+- Evitar duplicar OpenSEO y los contratos del Core. Crawling externo y fragmentos de páginas no confiables exigen límites de red, protección contra inyección y política de retención.
+- La [evaluación externa propuesta por la herramienta](https://github.com/Juanmaes83/geo-audit-skill/blob/main/tests/evals/README.md) aún no constituye un PASS comercial para Rubik. Reproducibilidad del número y utilidad de las tres recomendaciones son gates distintos.
+
+## Decisión de continuación
+
+Este documento aprueba **el alcance de investigación e incorporación al backlog**, no la instalación, gasto, migraciones, trabajo alojado, publicación ni cierre de U03/H1/H2. El primer siguiente paso cuando esos gates estén cerrados es el piloto comparativo de URLs con revisión humana, y después decidir si integrar un subconjunto de señales.
