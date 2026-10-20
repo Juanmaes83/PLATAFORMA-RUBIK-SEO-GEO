@@ -253,6 +253,10 @@ test('PowerShell mode prompts once and always launches an independent contain-on
   assert.match(ps, /Invoke-U03WindowRoleChild -Mode 'run'/);
   assert.match(ps, /finally \{[\s\S]*Invoke-U03WindowRoleChild -Mode 'contain'/);
   assert.match(ps, /RedirectStandardInput = \$true/);
+  assert.match(ps, /StandardInput\.BaseStream/);
+  assert.match(ps, /\[Text\.UTF8Encoding\]::new\(\$false\)\.GetBytes/);
+  assert.doesNotMatch(ps, /StandardInputEncoding/);
+  assert.match(ps, /catch \{\s*\$windowRoleContainFailed = \$true\s*\}/);
   assert.doesNotMatch(ps, /--database-password|--connection-string|U03_WINDOW_ROLE_DATABASE_PASSWORD/);
   assert.match(ps, /WINDOW_ROLE_DEPLOYMENT_PIN_REJECTED/);
   assert.ok(ps.indexOf('& node $runner --readonly-preflight') < ps.indexOf('& node $runner --credential-preflight-only'));
@@ -264,6 +268,18 @@ test('PowerShell mode prompts once and always launches an independent contain-on
   assert.ok(containLine);
   assert.match('U03_WINDOW_ROLE_RESULT PASS runId=5b02bb37-2ef8-4af1-8954-56fd496cd121 roleRemoved=true policies=0 inventoryZero=true outboxTotal=0 pending=0', new RegExp(resultLine));
   assert.match('U03_WINDOW_ROLE_CONTAINMENT PASS runId=5b02bb37-2ef8-4af1-8954-56fd496cd121 rolePresent=false roleLocked=null policies=0 activeSessions=0 inventoryZero=true outboxTotal=0 pending=0', new RegExp(containLine));
+});
+
+test('real Windows PowerShell 5.1 wrapper transports fictional non-ASCII JSON and contains a failed child in finally', async t => {
+  if (process.platform !== 'win32') { t.skip('Windows PowerShell 5.1 process test'); return; }
+  const script = new URL('./u03-preview-b4-owner.ps1', import.meta.url).pathname.replace(/^\//, '').replaceAll('/', '\\');
+  const { spawnSync } = await import('node:child_process');
+  const result = spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script,
+    '-WindowRoleTransportSelfTestOnly'], { encoding: 'utf8', timeout: 30000, maxBuffer: 1024 * 1024 });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /U03_WINDOW_ROLE_CONTAINMENT PASS/);
+  assert.match(result.stdout, /U03_WINDOW_ROLE_TRANSPORT_SELFTEST PASS utf8NonAscii=true simulatedChildFailure=true finallyContainment=true preparationFailureSafe=true/);
+  assert.doesNotMatch(result.stdout + result.stderr, /Ficticia|東京|🔐|databasePassword|StandardInputEncoding/);
 });
 
 test('optional Windows PowerShell parser accepts the visible operator', async t => {

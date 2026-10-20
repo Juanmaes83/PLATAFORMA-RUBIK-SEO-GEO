@@ -265,3 +265,13 @@ Estados: operador local PASS; preflight alojado no ejecutado; nuevo rol por Sess
 El preflight anterior clasificó como inventario ocupado tres campos ausentes del resultado SQL: provider_results, imports y audit_idempotency. El SQL ahora selecciona los tres conteos, y el validador falla con PREVIEW_READ_ONLY_RESULT_SCHEMA_INCOMPLETE si falta cualquier columna requerida; un valor ausente nunca se sustituye por cero.
 
 Validación de este corte: prueba dirigida unitaria y consulta real contra un stack local nuevo con exactamente 27 migraciones N1, ambas PASS. Una tabla centinela efímera modeló el sentinel que se instala aparte en Preview y se retiró al terminar. La lectura independiente de Preview, solo conteos/flags, confirmó ref exacto, migraciones 27/27 hasta 20261015210000, inventario y outbox cero, escritor general bloqueado y rol/políticas/sesiones temporales ausentes. No hubo escritura alojada, instalación del rol ni fixtures. El único paso operativo siguiente es repetir el modo -WindowRolePreflightOnly tras actualizar el checkout al nuevo HEAD; el prompt de contraseña solo aparecerá después de pasar los controles sin credenciales.
+
+## Corrección de transporte PowerShell 5.1 · 20/10/2026
+
+El run dc1242ff-670e-4bf0-82c1-ea56cc87f7f1 alcanzó el prompt, pero falló antes de Process.Start: Windows PowerShell 5.1 no expone ProcessStartInfo.StandardInputEncoding. No hubo conexión administrativa, instalación/bloqueo de rol, políticas ni fixtures en ese intento.
+
+El wrapper ahora serializa JSON en memoria con UTF-8 sin BOM y escribe bytes directamente en StandardInput.BaseStream; la contraseña no va en argumentos, archivos ni stdout. Toda preparación/ejecución del hijo está dentro de try/catch/finally y devuelve un resultado estructurado saneado. El finally captura errores propios del child launch, ejecuta la vía de contención y no reemplaza la excepción primaria.
+
+Prueba real en powershell.exe 5.1: modo local WindowRoleTransportSelfTestOnly ejecutó el wrapper y procesos Node hijos con texto ficticio no ASCII; el hijo validó los mismos caracteres, se simuló una salida de fallo, un error preparando el hijo y la contención desde finally. PASS; stdout no contiene el texto ficticio. Suite dirigida del rol 10/10 PASS; npm run verify 624 PASS / 1 SKIP, build y escaneo de secretos PASS. No hubo otra campaña.
+
+Lectura independiente, counts-only, del Preview rhnnplewqsekrnaousyl tras el run: 27 migraciones hasta 20261015210000; inventario y outbox total/pending a cero; writer general bloqueado; rubik_preview_u03_writer, políticas y sesiones temporales ausentes. No hay limpieza pendiente. U03/H1/H2 siguen abiertos.

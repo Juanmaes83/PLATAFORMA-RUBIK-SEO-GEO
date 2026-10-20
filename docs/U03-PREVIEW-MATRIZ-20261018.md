@@ -322,3 +322,13 @@ Regresión local: prueba unitaria de columnas/categorías y prueba de integraci�
 El modo -WindowRolePreflightOnly se detuvo antes de pedir credenciales con PREVIEW_INITIAL_INVENTORY_NOT_EMPTY. La causa fue una discrepancia del SQL: el validador exigía provider_results, imports y audit_idempotency, pero PREFLIGHT_SQL no los seleccionaba. Se añadieron los tres COUNT(*); una columna ausente ahora produce PREVIEW_READ_ONLY_RESULT_SCHEMA_INCOMPLETE, separado de un conteo no cero. No se convierten campos ausentes en cero.
 
 Regresión local: prueba unitaria de columnas/categorías y prueba de integración que ejecuta el PREFLIGHT_SQL real contra un stack local aislado N1 27/27. Las migraciones no incluyen private.environment_identity, instalada aparte en Preview; la integración crea y elimina una tabla/registro efímero solo dentro del stack propio. Ambas pruebas pasan. La lectura independiente solo de conteos en Preview rhnnplewqsekrnaousyl confirmó identidad exacta, 27 migraciones hasta 20261015210000, inventario/outbox cero, escritor general bloqueado y rol/políticas/sesiones temporales ausentes. No se instaló rol ni se crearon fixtures alojados. El preflight de rol podrá repetirse tras publicar el fix; no se repiten campañas aprobadas.
+
+## Corrección de transporte PowerShell 5.1 · 20/10/2026
+
+El run dc1242ff-670e-4bf0-82c1-ea56cc87f7f1 alcanzó el prompt, pero falló antes de Process.Start: Windows PowerShell 5.1 no expone ProcessStartInfo.StandardInputEncoding. No hubo conexión administrativa, instalación/bloqueo de rol, políticas ni fixtures en ese intento.
+
+El wrapper ahora serializa JSON en memoria con UTF-8 sin BOM y escribe bytes directamente en StandardInput.BaseStream; la contraseña no va en argumentos, archivos ni stdout. Toda preparación/ejecución del hijo está dentro de try/catch/finally y devuelve un resultado estructurado saneado. El finally captura errores propios del child launch, ejecuta la vía de contención y no reemplaza la excepción primaria.
+
+Prueba real en powershell.exe 5.1: modo local WindowRoleTransportSelfTestOnly ejecutó el wrapper y procesos Node hijos con texto ficticio no ASCII; el hijo validó los mismos caracteres, se simuló una salida de fallo, un error preparando el hijo y la contención desde finally. PASS; stdout no contiene el texto ficticio. Suite dirigida del rol 10/10 PASS; npm run verify 624 PASS / 1 SKIP, build y escaneo de secretos PASS. No hubo otra campaña.
+
+Lectura independiente, counts-only, del Preview rhnnplewqsekrnaousyl tras el run: 27 migraciones hasta 20261015210000; inventario y outbox total/pending a cero; writer general bloqueado; rubik_preview_u03_writer, políticas y sesiones temporales ausentes. No hay limpieza pendiente. U03/H1/H2 siguen abiertos.

@@ -2,6 +2,7 @@ param(
   [switch]$ReadOnlyPreflightOnly,
   [switch]$V4ConnectionDiagnosticOnly,
   [switch]$WindowRolePreflightOnly,
+  [switch]$WindowRoleTransportSelfTestOnly,
   [switch]$PlaywrightOnly,
   [switch]$RolesInvitationsOnly,
   [switch]$CrossSurfaceOnly,
@@ -31,35 +32,46 @@ Import-Module -Name $v4PoolerModule -Force -ErrorAction Stop
 
 function Stop-B4([string]$Code) { throw "U03 B-4 BLOCKED: $Code. No fixtures will be created unless every preflight passes." }
 
-function Invoke-U03WindowRoleChild([string]$Mode, [string]$RunId, [string]$PasswordText) {
-  if ($Mode -notin @('run','contain') -or $RunId -cnotmatch '^[0-9a-fA-F-]{36}$') { Stop-B4 'WINDOW_ROLE_CHILD_ARGUMENT_REJECTED' }
-  $nodePath = (Get-Command node.exe -ErrorAction Stop).Source
-  $psi = [Diagnostics.ProcessStartInfo]::new()
-  $psi.FileName = $nodePath
-  $psi.Arguments = '"' + $windowRoleOperator + '"'
-  $psi.WorkingDirectory = $repo
-  $psi.UseShellExecute = $false
-  $psi.CreateNoWindow = $true
-  $psi.RedirectStandardInput = $true
-  $psi.RedirectStandardOutput = $true
-  $psi.RedirectStandardError = $true
-  $psi.StandardInputEncoding = [Text.UTF8Encoding]::new($false)
-  $psi.EnvironmentVariables.Clear()
-  foreach ($name in @('PATH','SystemRoot','WINDIR','TEMP','TMP','USERPROFILE','LOCALAPPDATA','APPDATA','ProgramFiles')) {
-    $value = [Environment]::GetEnvironmentVariable($name)
-    if (-not [string]::IsNullOrEmpty($value)) { $psi.EnvironmentVariables[$name] = $value }
-  }
-  $psi.EnvironmentVariables['U03_FUNCTIONAL_SHA'] = (& git -C $repo rev-parse HEAD).Trim()
-  $process = [Diagnostics.Process]::new()
-  $process.StartInfo = $psi
+function Invoke-U03WindowRoleChild([string]$Mode, [string]$RunId, [string]$PasswordText, [string]$ChildPath = $windowRoleOperator) {
+  $process = $null
+  $payload = $null
+  $payloadBytes = $null
   try {
-    if (-not $process.Start()) { Stop-B4 'WINDOW_ROLE_CHILD_START_FAILED' }
+    if ($Mode -notin @('run','contain') -or $RunId -cnotmatch '^[0-9a-fA-F-]{36}$' -or
+        [string]::IsNullOrWhiteSpace($PasswordText) -or -not (Test-Path -LiteralPath $ChildPath -PathType Leaf)) {
+      return [pscustomobject]@{ Passed = $false; SafeLine = $null; Code = 'SAFE_CHILD_PREPARATION_FAILED' }
+    }
+    $nodePath = (Get-Command node.exe -ErrorAction Stop).Source
+    $psi = [Diagnostics.ProcessStartInfo]::new()
+    $psi.FileName = $nodePath
+    $psi.Arguments = '"' + $ChildPath + '"'
+    $psi.WorkingDirectory = $repo
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow = $true
+    $psi.RedirectStandardInput = $true
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $psi.EnvironmentVariables.Clear()
+    foreach ($name in @('PATH','SystemRoot','WINDIR','TEMP','TMP','USERPROFILE','LOCALAPPDATA','APPDATA','ProgramFiles')) {
+      $value = [Environment]::GetEnvironmentVariable($name)
+      if (-not [string]::IsNullOrEmpty($value)) { $psi.EnvironmentVariables[$name] = $value }
+    }
+    $psi.EnvironmentVariables['U03_FUNCTIONAL_SHA'] = (& git -C $repo rev-parse HEAD).Trim()
+    $process = [Diagnostics.Process]::new()
+    $process.StartInfo = $psi
+    if (-not $process.Start()) { return [pscustomobject]@{ Passed = $false; SafeLine = $null; Code = 'SAFE_CHILD_START_FAILED' } }
     $stdoutTask = $process.StandardOutput.ReadToEndAsync()
     $stderrTask = $process.StandardError.ReadToEndAsync()
     $payload = @{ mode = $Mode; runId = $RunId; databasePassword = $PasswordText } | ConvertTo-Json -Compress
-    $process.StandardInput.WriteLine($payload)
-    $process.StandardInput.Close()
-    if (-not $process.WaitForExit(240000)) { $process.Kill(); Stop-B4 'WINDOW_ROLE_CHILD_TIMEOUT' }
+    $payloadBytes = [Text.UTF8Encoding]::new($false).GetBytes($payload + "`n")
+    $stdin = $process.StandardInput.BaseStream
+    $stdin.Write($payloadBytes, 0, $payloadBytes.Length)
+    $stdin.Flush()
+    $stdin.Close()
+    if (-not $process.WaitForExit(240000)) {
+      try { $process.Kill(); $null = $process.WaitForExit(5000) } catch { }
+      return [pscustomobject]@{ Passed = $false; SafeLine = $null; Code = 'SAFE_CHILD_TIMEOUT' }
+    }
     $stdout = $stdoutTask.GetAwaiter().GetResult()
     $null = $stderrTask.GetAwaiter().GetResult()
     $pattern = if ($Mode -eq 'run') {
@@ -68,13 +80,15 @@ function Invoke-U03WindowRoleChild([string]$Mode, [string]$RunId, [string]$Passw
       '^U03_WINDOW_ROLE_CONTAINMENT PASS runId=[0-9a-fA-F-]{36} rolePresent=(?:true|false|True|False) roleLocked=(?:true|false|True|False|null) policies=\d+ activeSessions=\d+ inventoryZero=(?:true|false|True|False) outboxTotal=\d+ pending=\d+$'
     }
     $safeLine = @($stdout -split "`r?`n" | Where-Object { $_ -cmatch $pattern } | Select-Object -Last 1)
-    if ($safeLine.Count -eq 0) { Write-Output "U03_WINDOW_ROLE_CHILD BLOCKED mode=$Mode code=SAFE_CHILD_RESULT_MISSING"; return $false }
-    Write-Output $safeLine[0]
-    return ($process.ExitCode -eq 0 -and $safeLine[0] -match ' PASS ')
+    if ($safeLine.Count -eq 0) { return [pscustomobject]@{ Passed = $false; SafeLine = $null; Code = 'SAFE_CHILD_RESULT_MISSING' } }
+    return [pscustomobject]@{ Passed = ($process.ExitCode -eq 0 -and $safeLine[0] -match ' PASS '); SafeLine = $safeLine[0]; Code = 'NONE' }
   } catch {
-    Write-Output "U03_WINDOW_ROLE_CHILD BLOCKED mode=$Mode code=SAFE_CHILD_FAILURE"
-    return $false
-  } finally { $process.Dispose() }
+    return [pscustomobject]@{ Passed = $false; SafeLine = $null; Code = 'SAFE_CHILD_FAILURE' }
+  } finally {
+    if ($payloadBytes) { [Array]::Clear($payloadBytes, 0, $payloadBytes.Length) }
+    $payload = $null
+    if ($process) { try { $process.Dispose() } catch { } }
+  }
 }
 
 function Invoke-U03PreviewAdminConnectionComparison([System.Security.SecureString]$SecurePassword) {
@@ -153,6 +167,7 @@ foreach ($requested in @($ProvisionPreviewKeys.IsPresent, $CheckPreviewKeys.IsPr
   if ($requested) { $credentialOperations++ }
 }
 $campaignModes = @($ReadOnlyPreflightOnly.IsPresent, $V4ConnectionDiagnosticOnly.IsPresent, $WindowRolePreflightOnly.IsPresent,
+  $WindowRoleTransportSelfTestOnly.IsPresent,
   $PlaywrightOnly.IsPresent, $MembershipRevocationOnly.IsPresent, $RolesInvitationsOnly.IsPresent,
   $CrossSurfaceOnly.IsPresent, $SessionProvidersOnly.IsPresent, $ProviderEgressOnly.IsPresent) | Where-Object { $_ }
 if ($credentialOperations -gt 1 -or ($credentialOperations -gt 0 -and $campaignModes.Count -gt 0) -or
@@ -187,7 +202,7 @@ if ($RolesInvitationsOnly -and $branch -notin @('codex/u03-roles-invitations-202
     'codex/u03-cross-surface-20261019')) { Stop-B4 'WRONG_MODE_BRANCH' }
 $link = Get-Content -LiteralPath $linkFile -Raw | ConvertFrom-Json
 if ($link.projectId -ne 'prj_HgnTtNtisi9Kt1A4Dq2pxoCQBook' -or $link.orgId -ne 'team_hLhdb3M9MviTIysXD9whFF2c') { Stop-B4 'VERCEL_LINK_MISMATCH' }
-if ([string]::IsNullOrWhiteSpace($env:VERCEL_OIDC_TOKEN)) { Stop-B4 'VERCEL_ENV_RUN_DID_NOT_PROVIDE_OIDC_TOKEN' }
+if (-not $WindowRoleTransportSelfTestOnly -and [string]::IsNullOrWhiteSpace($env:VERCEL_OIDC_TOKEN)) { Stop-B4 'VERCEL_ENV_RUN_DID_NOT_PROVIDE_OIDC_TOKEN' }
 
 $vercelCommand = Get-Command vercel.cmd -ErrorAction SilentlyContinue
 if (-not $vercelCommand) { $vercelCommand = Get-Command vercel -ErrorAction SilentlyContinue }
@@ -232,7 +247,24 @@ $adminDatabaseUrl = $null
 $windowRoleRunId = $null
 $windowRoleContainFailed = $false
 $windowRolePlainPassword = $null
+$windowRoleTransportSelfTestPassed = $false
+$windowRoleChildOverride = $null
 try {
+  if ($WindowRoleTransportSelfTestOnly) {
+    $testChild = Join-Path $PSScriptRoot 'u03-window-role-transport-child.mjs'
+    $fakePassword = 'Ficticia-' + [char]0x00f1 + '-' + [char]0x6771 + [char]0x4eac + '-' + [char]0xd83d + [char]0xdd10
+    $successId = 'a8f2d946-07ab-4bb9-8901-35f7993f1266'
+    $windowRoleRunId = 'f9c7f203-3f09-4eb2-bcc0-37db2cc6a782'
+    $successChild = Invoke-U03WindowRoleChild -Mode 'run' -RunId $successId -PasswordText $fakePassword -ChildPath $testChild
+    if (-not $successChild.Passed -or $successChild.SafeLine -notmatch '^U03_WINDOW_ROLE_RESULT PASS ') { Stop-B4 'WINDOW_ROLE_UTF8_TRANSPORT_TEST_FAILED' }
+    $windowRolePlainPassword = $fakePassword
+    $windowRoleChildOverride = $testChild
+    $failedChild = Invoke-U03WindowRoleChild -Mode 'run' -RunId $windowRoleRunId -PasswordText $fakePassword -ChildPath $testChild
+    if ($failedChild.Passed -or $failedChild.SafeLine -notmatch '^U03_WINDOW_ROLE_RESULT BLOCKED ') { Stop-B4 'WINDOW_ROLE_CHILD_FAILURE_TEST_FAILED' }
+    $prepareFailure = Invoke-U03WindowRoleChild -Mode 'run' -RunId $windowRoleRunId -PasswordText $fakePassword -ChildPath (Join-Path $env:TEMP 'u03-missing-child-test.mjs')
+    if ($prepareFailure.Passed) { Stop-B4 'WINDOW_ROLE_CHILD_PREPARATION_FAILURE_TEST_FAILED' }
+    $windowRoleTransportSelfTestPassed = $true
+  } else {
   # Preserve the machine's authorized proxy route for Node fetch and CLI reads.
   # Never print these values; they may contain proxy authentication material.
   $proxyNames = @('HTTP_PROXY','HTTPS_PROXY','ALL_PROXY','NO_PROXY','http_proxy','https_proxy','all_proxy','no_proxy')
@@ -288,14 +320,15 @@ try {
       if ([string]::IsNullOrEmpty($windowRolePlainPassword)) { Stop-B4 'WINDOW_ROLE_DATABASE_PASSWORD_EMPTY' }
       $windowRoleRunId = [guid]::NewGuid().ToString()
       Write-Output "U03_WINDOW_ROLE_RUN_ID: $windowRoleRunId"
-      $runPass = Invoke-U03WindowRoleChild -Mode 'run' -RunId $windowRoleRunId -PasswordText $windowRolePlainPassword
-      if (-not $runPass) { Stop-B4 'WINDOW_ROLE_PREFLIGHT_BLOCKED_NO_FIXTURES' }
+      $runResult = Invoke-U03WindowRoleChild -Mode 'run' -RunId $windowRoleRunId -PasswordText $windowRolePlainPassword
+      if ($runResult.SafeLine) { Write-Output $runResult.SafeLine }
+      if (-not $runResult.Passed) { Stop-B4 'WINDOW_ROLE_PREFLIGHT_BLOCKED_NO_FIXTURES' }
     } finally {
       if ($passwordBstr -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($passwordBstr) }
       if ($secureDatabasePassword) { $secureDatabasePassword.Dispose(); $secureDatabasePassword = $null }
     }
-    return
   }
+  if (-not $WindowRolePreflightOnly -and -not $WindowRoleTransportSelfTestOnly) {
   # Deployment protection and database identity/counts/migrations do not need
   # Auth keys. Fail here before loading credentials if any read-only gate is not exact.
   & node $runner --readonly-preflight
@@ -364,12 +397,22 @@ try {
   elseif ($PlaywrightOnly) { & node $runner --playwright-only }
   else { & node $runner }
   if ($LASTEXITCODE -ne 0) { Stop-B4 'U03_B4_CAMPAIGN_FAILED_OR_CLEANUP_UNVERIFIED' }
+  }
+  }
 } finally {
-  if ($WindowRolePreflightOnly -and $windowRoleRunId -and -not [string]::IsNullOrEmpty($windowRolePlainPassword)) {
-    $containPass = Invoke-U03WindowRoleChild -Mode 'contain' -RunId $windowRoleRunId -PasswordText $windowRolePlainPassword
-    if (-not $containPass) {
+  if (($WindowRolePreflightOnly -or $WindowRoleTransportSelfTestOnly) -and $windowRoleRunId -and -not [string]::IsNullOrEmpty($windowRolePlainPassword)) {
+    try {
+      $containPath = if ($windowRoleChildOverride) { $windowRoleChildOverride } else { $windowRoleOperator }
+      $containResult = Invoke-U03WindowRoleChild -Mode 'contain' -RunId $windowRoleRunId -PasswordText $windowRolePlainPassword -ChildPath $containPath
+      if ($containResult.SafeLine) { Write-Output $containResult.SafeLine }
+      if (-not $containResult.Passed) { $windowRoleContainFailed = $true }
+    } catch {
       $windowRoleContainFailed = $true
+    }
+    if ($windowRoleContainFailed) {
       Write-Warning 'U03_WINDOW_ROLE_CONTAINMENT BLOCKED; keep the sanitized ledger and do not create fixtures.'
+    } elseif ($WindowRoleTransportSelfTestOnly -and $windowRoleTransportSelfTestPassed) {
+      Write-Output 'U03_WINDOW_ROLE_TRANSPORT_SELFTEST PASS utf8NonAscii=true simulatedChildFailure=true finallyContainment=true preparationFailureSafe=true'
     }
   }
   if ($MembershipRevocationOnly) {
