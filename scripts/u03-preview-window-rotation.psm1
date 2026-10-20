@@ -21,21 +21,40 @@ function Test-U03WindowEnvSnapshot($Result,[string[]]$Names,[bool]$RequireSensit
     return $true
   } catch { return $false }
 }
+function Get-U03WindowEnvRows($Result) {
+  if ($null -eq $Result -or $Result.ExitCode -ne 0 -or [string]::IsNullOrEmpty($Result.Output)) { return $null }
+  try {
+    $start=$Result.Output.IndexOf('{'); if ($start -lt 0) { return $null }
+    $parsed=$Result.Output.Substring($start) | ConvertFrom-Json -ErrorAction Stop
+    if ($null -eq $parsed.PSObject.Properties['envs']) { return $null }
+    if ($null -eq $parsed.envs) { return ,([object[]]@()) }
+    return ,([object[]]@($parsed.envs))
+  } catch { return $null }
+}
 function Invoke-U03WindowRotation([Parameter(Mandatory)]$Batch,[Parameter(Mandatory)][scriptblock]$Cli,[string[]]$Names) {
   if ($Batch.Branch -cne $script:Branch -or $Batch.SupabaseRef -cne 'rhnnplewqsekrnaousyl' -or
       $Batch.Sha -cnotmatch '^[0-9a-f]{40}$' -or $Batch.RunId -cnotmatch '^[0-9a-f-]{36}$' -or $Names -notcontains $script:Flag) { throw 'WINDOW_ROTATION_IDENTITY_REJECTED' }
   $rotationStarted = $false
   try {
     $before = & $Cli -Arguments @('env','ls','preview',$script:Branch,'--format=json') -InputText ''
-    $sourcePresent = Test-U03WindowEnvSnapshot $before $Names $true
-    $sourceAbsent = Test-U03WindowEnvSnapshot $before $Names $false
-    if (-not $sourcePresent -and -not $sourceAbsent) { throw 'WINDOW_ROTATION_SOURCE_UNCONFIRMED' }
-    $rotationStarted = $true
-    if ($sourcePresent) {
-      foreach ($name in $Names) {
-        $result = & $Cli -Arguments @('env','rm',$name,'preview',$script:Branch,'--yes') -InputText ''
-        if ($result.ExitCode -ne 0) { throw 'WINDOW_ROTATION_REMOVE_FAILED' }
+    $rows = Get-U03WindowEnvRows $before
+    if ($null -eq $rows) { throw 'WINDOW_ROTATION_SOURCE_UNCONFIRMED' }
+    $present = @()
+    foreach ($name in $Names) {
+      $matches = @($rows | Where-Object { $_.key -ceq $name })
+      if ($matches.Count -gt 1) { throw 'WINDOW_ROTATION_SCOPE_UNCONFIRMED' }
+      if ($matches.Count -eq 1) {
+        $targets=@($matches[0].target)
+        $target=if ($matches[0].target -is [string]) { [string]$matches[0].target } elseif ($targets.Count -eq 1) { [string]$targets[0] } else { '' }
+        if ($matches[0].type -cne 'sensitive' -or $target -cne 'preview' -or $matches[0].gitBranch -cne $script:Branch) { throw 'WINDOW_ROTATION_SCOPE_UNCONFIRMED' }
+        $present += $name
       }
+    }
+    $rotationStarted = $true
+    if ($present.Count -gt 0) {
+      foreach ($name in $present) { try { $null = & $Cli -Arguments @('env','rm',$name,'preview',$script:Branch,'--yes') -InputText '' } catch { } }
+      $afterRemove = & $Cli -Arguments @('env','ls','preview',$script:Branch,'--format=json') -InputText ''
+      if (-not (Test-U03WindowEnvSnapshot $afterRemove $Names $false)) { throw 'WINDOW_ROTATION_REMOVE_VERIFY_FAILED' }
     }
     $ordered = @($Names | Where-Object { $_ -ne $script:Flag }) + @($script:Flag)
     foreach ($name in $ordered) {

@@ -236,7 +236,7 @@ export function classifySupabaseKeyFormat(value) {
   return 'inválido';
 }
 
-function assertPreviewKeyFormats(adminKey, publicKey) {
+export function assertPreviewKeyFormats(adminKey, publicKey) {
   const adminKeyFormat = classifySupabaseKeyFormat(adminKey);
   const publicKeyFormat = classifySupabaseKeyFormat(publicKey);
   const adminCompatible = adminKeyFormat === 'sb_secret_' || adminKeyFormat === 'legado';

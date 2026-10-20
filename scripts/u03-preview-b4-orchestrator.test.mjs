@@ -749,7 +749,9 @@ test('owner wrapper runs no-key preflight before DPAPI load; V-4 uses one hidden
   assert.doesNotMatch(script, /Read-B4Secret/);
   const generalEnvironmentKeep = script.match(/\$keep = @\(([^\r\n]+)\)/)?.[1] ?? '';
   assert.doesNotMatch(generalEnvironmentKeep, /U03_PREVIEW_ADMIN_KEY|U03_PREVIEW_PUBLIC_KEY/);
-  assert.match(script, /if \(\$Mode -in @\('sequence','attest','local'\)\)[\s\S]*'U03_PREVIEW_ADMIN_KEY','U03_PREVIEW_PUBLIC_KEY'/);
+  assert.match(script, /if \(\$Mode -in @\('keys','sequence'\) -and \$null -ne \$PreviewKeys\)[\s\S]*\['U03_PREVIEW_ADMIN_KEY'\] = \[string\]\$PreviewKeys\.AdminKey[\s\S]*\['U03_PREVIEW_PUBLIC_KEY'\] = \[string\]\$PreviewKeys\.PublicKey/);
+  assert.match(script, /Invoke-U03WindowRoleChild -Mode 'keys'[\s\S]*Read-Host -Prompt 'Database password existente/);
+  assert.match(script, /SEQUENCE_PREVIEW_KEYS_REQUIRED/);
   assert.match(script, /finally\s*\{[\s\S]*Get-ChildItem Env:[\s\S]*U03_\*/);
   assert.match(script, /finally\s*\{[\s\S]*previewCredentials\.AdminKey = \$null[\s\S]*previewCredentials\.PublicKey = \$null/);
 });

@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { createWindowLedger, pinIsExact, runPreviewWindowSequence, validateWindowRuntimeConfiguration, verifyProtectedWindowBatch } from './u03-preview-window-run.mjs';
+import { createWindowLedger, pinIsExact, preflightSequencePreviewKeys, runPreviewWindowSequence, validateWindowRuntimeConfiguration, verifyProtectedWindowBatch } from './u03-preview-window-run.mjs';
 import { createPreviewWindowAttestation } from '../src/lib/provenance/keyring.ts';
 
 const RUN = 'c14f4c11-570f-4e03-a3a1-33a702b85baa';
@@ -22,6 +22,12 @@ const VERIFIED = { vercel: { deploymentId: PIN.deploymentId, host: PIN.host, sha
 const ROLE = { runId: RUN, pooler: { clientTlsVerified: true, sessionUser: 'rubik_preview_u03_writer',
   currentUser: 'rubik_audit_writer', denyPoliciesVerified: true } };
 const CLEAN = { rolePresent: false, policies: 0, activeSessions: 0, inventoryZero: true, outboxTotal: 0, pendingOutbox: 0 };
+
+test('sequence child preflight rejects the former missing-key state and malformed values without exposing them', () => {
+  assert.equal(preflightSequencePreviewKeys({ env: { U03_PREVIEW_ADMIN_KEY:'header.payload.signature', U03_PREVIEW_PUBLIC_KEY:'header.payload.signature' } }), true);
+  assert.throws(() => preflightSequencePreviewKeys({ env: {} }), { message:'SEQUENCE_PREVIEW_KEYS_REQUIRED' });
+  assert.throws(() => preflightSequencePreviewKeys({ env: { U03_PREVIEW_ADMIN_KEY:'not-a-key-secret', U03_PREVIEW_PUBLIC_KEY:'header.payload.signature' } }), { message:'SEQUENCE_PREVIEW_KEYS_FORMAT_INVALID' });
+});
 
 async function execute(dir, failure = null) {
   const calls = [];

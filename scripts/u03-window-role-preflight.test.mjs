@@ -507,7 +507,8 @@ test('real Windows PowerShell 5.1 wrapper transports fictional non-ASCII JSON an
     '-WindowRoleTransportSelfTestOnly'], { encoding: 'utf8', timeout: 30000, maxBuffer: 1024 * 1024 });
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /U03_WINDOW_ROLE_CONTAINMENT PASS/);
-  assert.match(result.stdout, /U03_WINDOW_ROLE_TRANSPORT_SELFTEST PASS utf8NonAscii=true simulatedChildFailure=true diagnosticOutputSanitized=true finallyContainment=true preparationFailureSafe=true/);
+  assert.match(result.stdout, /U03_WINDOW_ROLE_TRANSPORT_SELFTEST PASS utf8NonAscii=true childKeysPresent=true missingKeysRegression=true simulatedChildFailure=true diagnosticOutputSanitized=true finallyContainment=true preparationFailureSafe=true vercelStderrCaptured=true cleanupIdempotent=true partialRotationRecovery=true/);
+  assert.doesNotMatch(result.stdout + result.stderr, /header\.payload\.signature|databasePassword|StandardInputEncoding/);
   assert.doesNotMatch(result.stdout + result.stderr, /Ficticia|東京|🔐|databasePassword|StandardInputEncoding/);
 });
 

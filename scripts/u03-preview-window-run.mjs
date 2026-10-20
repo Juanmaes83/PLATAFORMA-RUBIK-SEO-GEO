@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { preflight } from './u03-preview-b4-runner.mjs';
 import { verifyPreviewWindowAttestationProof, previewWindowAttestationContext } from '../src/lib/provenance/keyring.ts';
-import { runHostedU03Campaign, verifyInitialPreviewState, verifyProtectedWindowRuntime } from './u03-preview-b4-orchestrator.mjs';
+import { assertPreviewKeyFormats, runHostedU03Campaign, verifyInitialPreviewState, verifyProtectedWindowRuntime } from './u03-preview-b4-orchestrator.mjs';
 import { PIN } from './u03-preview-b4-runner.mjs';
 import { installAndProbeRunScopedRole, runIndependentContainment, previewWindowRolePassword, PREVIEW_REF } from './u03-window-role-preflight.mjs';
 
@@ -12,6 +12,16 @@ const SAFE = /^[A-Z][A-Z0-9_]{1,79}$/;
 const RUN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const LEDGER_ID_KEYS = new Set(['id','userIds','organizationIds','projectIds','resultIds','importIds','auditEventIds','receiptIds']);
+
+export function preflightSequencePreviewKeys({ env = process.env } = {}) {
+  const adminKey = env.U03_PREVIEW_ADMIN_KEY;
+  const publicKey = env.U03_PREVIEW_PUBLIC_KEY;
+  if (typeof adminKey !== 'string' || !adminKey || typeof publicKey !== 'string' || !publicKey)
+    throw new Error('SEQUENCE_PREVIEW_KEYS_REQUIRED');
+  try { assertPreviewKeyFormats(adminKey, publicKey); }
+  catch { throw new Error('SEQUENCE_PREVIEW_KEYS_FORMAT_INVALID'); }
+  return true;
+}
 
 export async function createWindowLedger(path, metadata, append = appendFile) {
   await mkdir(dirname(path), { recursive: true });
@@ -173,6 +183,18 @@ export async function runPreviewWindowSequence({ databasePassword, runId = rando
 }
 
 async function main() {
+  if (process.argv.includes('--preview-key-preflight-only')) {
+    try {
+      preflightSequencePreviewKeys();
+      process.stdout.write('U03_PREVIEW_KEYS_CHILD_PREFLIGHT PASS keys=present-format-valid\n');
+    } catch (error) {
+      const code = ['SEQUENCE_PREVIEW_KEYS_REQUIRED','SEQUENCE_PREVIEW_KEYS_FORMAT_INVALID'].includes(error?.message)
+        ? error.message : 'SEQUENCE_PREVIEW_KEYS_PREFLIGHT_FAILED';
+      process.stderr.write(`U03_PREVIEW_KEYS_CHILD_PREFLIGHT BLOCKED code=${code}; no database password was requested\n`);
+      process.exitCode = 1;
+    }
+    return;
+  }
   if (process.argv.includes('--attest-window-batch-only')) {
     try {
       const result = await verifyProtectedWindowBatch();
