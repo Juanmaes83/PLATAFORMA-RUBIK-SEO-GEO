@@ -17,6 +17,7 @@ $localStatus = $null
 $statusOutput = $null
 $startOutput = $null
 $campaignRunId = $null
+$currentStage = 'operator_preflight'
 
 function Stop-S5([string]$Code) { throw "U03 S-5 BLOCKED: $Code" }
 function Clear-S5Environment {
@@ -24,11 +25,12 @@ function Clear-S5Environment {
     Remove-Item -LiteralPath "Env:$name" -ErrorAction SilentlyContinue
   }
 }
-function Add-S5Ledger([string]$Status) {
+function Add-S5Ledger([string]$Status, [string]$CaseId = 's5-foreign-issuer-stack-cleanup', [string]$Code = '') {
   if (-not $campaignRunId) { return }
   $ledgerPath = Join-Path $repo "test-results\u03-hosted\$campaignRunId.jsonl"
   $null = New-Item -ItemType Directory -Path (Split-Path -Parent $ledgerPath) -Force
-  $row = [ordered]@{ utc=[DateTime]::UtcNow.ToString('o'); runId=$campaignRunId; deploymentId='dpl_Hmpevn3Vds4pFUzbiiFFB3vVGCKD'; sha='28fd3927f9acce8ba9b27b43d3afb86b12aa0a86'; ref='rhnnplewqsekrnaousyl'; caseId='s5-foreign-issuer-stack-cleanup'; status=$Status; issuerProject=$issuerProject }
+  $row = [ordered]@{ utc=[DateTime]::UtcNow.ToString('o'); runId=$campaignRunId; deploymentId='dpl_Hmpevn3Vds4pFUzbiiFFB3vVGCKD'; sha='28fd3927f9acce8ba9b27b43d3afb86b12aa0a86'; ref='rhnnplewqsekrnaousyl'; caseId=$CaseId; status=$Status; stage=$currentStage; issuerProject=$issuerProject }
+  if ($Code) { $row.code = $Code }
   Add-Content -LiteralPath $ledgerPath -Value ($row | ConvertTo-Json -Compress) -Encoding UTF8
 }
 
@@ -59,6 +61,7 @@ try {
   try { $credentials = Get-B4PreviewCredentials } catch { Stop-S5 'PREVIEW_PUBLIC_CREDENTIAL_UNAVAILABLE' }
   if ($credentials.ProjectRef -cne 'rhnnplewqsekrnaousyl' -or [string]::IsNullOrWhiteSpace($credentials.PublicKey)) { Stop-S5 'PREVIEW_CREDENTIAL_REF_MISMATCH' }
   $env:U03_PREVIEW_PUBLIC_KEY = $credentials.PublicKey
+  $currentStage = 'preview_identity_preflight'
   & node $runner --preflight-only
   if ($LASTEXITCODE -ne 0) { Stop-S5 'PREVIEW_IDENTITY_PREFLIGHT_FAILED' }
 
@@ -69,6 +72,7 @@ try {
   $issuerProject = $issuerName
   if (Test-Path -LiteralPath $issuerRoot) { Stop-S5 'TEMP_PROJECT_COLLISION' }
   $null = New-Item -ItemType Directory -Path $issuerRoot
+  $currentStage = 'local_issuer_init'
   $initOutput = & $env:U03_SUPABASE_CLI --yes supabase@2.118.0 init --workdir $issuerRoot --force 2>&1
   if ($LASTEXITCODE -ne 0) { Stop-S5 'LOCAL_ISSUER_INIT_FAILED' }
 
@@ -82,9 +86,11 @@ try {
   [IO.File]::WriteAllText($configPath, $config, [Text.UTF8Encoding]::new($false))
 
   # Capture all CLI output; local service keys are never echoed or stored in the repo.
+  $currentStage = 'local_issuer_start'
   $issuerStarted = $true
   $startOutput = & $env:U03_SUPABASE_CLI --yes supabase@2.118.0 start --workdir $issuerRoot --exclude realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector,supavisor 2>&1
   if ($LASTEXITCODE -ne 0) { Stop-S5 'LOCAL_ISSUER_START_FAILED' }
+  $currentStage = 'local_issuer_status'
   $statusOutput = & $env:U03_SUPABASE_CLI --yes supabase@2.118.0 status --workdir $issuerRoot --output env 2>$null
   if ($LASTEXITCODE -ne 0) { Stop-S5 'LOCAL_ISSUER_STATUS_FAILED' }
   $statusText = $statusOutput -join "`n"
@@ -100,6 +106,7 @@ try {
   $env:U03_FOREIGN_ISSUER_URL = $localStatus.API_URL
   $env:U03_FOREIGN_ISSUER_ANON_KEY = $localStatus.ANON_KEY
   $env:U03_FOREIGN_ISSUER_SERVICE_KEY = $localStatus.SERVICE_ROLE_KEY
+  $currentStage = 'foreign_issuer_campaign'
   $runnerOutput = @(& node $runner --run-id $runId 2>&1)
   $runnerExit = $LASTEXITCODE
   if ($runnerExit -ne 0) {
@@ -111,9 +118,17 @@ try {
   }
   Write-Output "S5_FOREIGN_ISSUER: PASS label=emisor-ajeno-aislado runId=$runId"
 } catch {
-  $safeFailureCode = 'S5_SAFE_FAILURE'
+  $safeFailureCode = switch ($currentStage) {
+    'local_issuer_init' { 'LOCAL_ISSUER_INIT_PROCESS_FAILED'; break }
+    'local_issuer_start' { 'LOCAL_ISSUER_START_PROCESS_FAILED'; break }
+    'local_issuer_status' { 'LOCAL_ISSUER_STATUS_PROCESS_FAILED'; break }
+    'foreign_issuer_campaign' { 'S5_RUNNER_PROCESS_FAILED'; break }
+    'preview_identity_preflight' { 'S5_PREVIEW_PREFLIGHT_PROCESS_FAILED'; break }
+    default { 'S5_SAFE_FAILURE' }
+  }
   if ($_.Exception.Message -match 'U03 S-5 BLOCKED: ([A-Z0-9_]+)') { $safeFailureCode = $Matches[1] }
-  Write-Output "S5_FOREIGN_ISSUER: BLOCKED code=$safeFailureCode; review the sanitized run ledger and local stack status."
+  Add-S5Ledger 'BLOCKED' 's5-diagnostic' $safeFailureCode
+  Write-Output "S5_FOREIGN_ISSUER: BLOCKED code=$safeFailureCode stage=$currentStage; review the sanitized run ledger and local stack status."
   throw 'S5_OPERATOR_SAFE_FAILURE'
 } finally {
   if ($issuerStarted -and $issuerRoot) {
