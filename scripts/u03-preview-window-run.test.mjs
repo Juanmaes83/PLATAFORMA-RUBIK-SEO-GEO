@@ -133,10 +133,15 @@ test('window ledger preserves owned UUIDs for reconciliation and only numeric cl
       deploymentId: PIN.deploymentId, host: PIN.host, ref: 'rhnnplewqsekrnaousyl' });
     const id = '6739e760-420f-4ad3-b2d0-9d3aa674e802';
     await ledger('fixture-created', 'PASS', { id, userIds: [id], email: 'owner@fixture.invalid', password: 'fictional-password' });
+    await ledger('security-definer-allowlist', 'BLOCKED', { category: 'PREFLIGHT',
+      code: 'SECDEF_QUERY_FAILED', sqlstate: '42501', message: 'private fixture error' });
+    await ledger('writer-rls', 'BLOCKED', { category: 'PREFLIGHT',
+      code: 'RLS_QUERY_FAILED', sqlstate: 'XX999' });
     await ledger('cleanup', 'PASS', { resultRowsErased: 1, importsErased: 1, receiptsProcessed: 1, message: 'private free text' });
     const text = await readFile(path, 'utf8');
     assert.match(text, new RegExp(id));
     assert.match(text, /"receiptsProcessed":1/);
-    assert.doesNotMatch(text, /owner@fixture.invalid|fictional-password|private free text/);
+    assert.match(text, /"code":"SECDEF_QUERY_FAILED","sqlstate":"42501"/);
+    assert.doesNotMatch(text, /XX999|owner@fixture.invalid|fictional-password|private free text|private fixture error/);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });

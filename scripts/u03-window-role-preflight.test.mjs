@@ -6,7 +6,8 @@ import test from 'node:test';
 import { deriveTemporaryPassword, EXPECTED_DEFINERS, EXPECTED_N1_MIGRATIONS,
   createPreviewAdminPool, createPreviewRolePool, POOLER_HOST, PINNED_POOLER_CA, PREVIEW_REF, ROLE, WRITER,
   assertNodeClientTls, assertReadOnlyState, classifyDiagnosticError, diagnoseReadOnlyPreflight, PreflightConditionError,
-  runIndependentContainment, runWindowRolePreflight, buildRunScopedPolicySql, buildRunScopedInstallSql,
+  runIndependentContainment, runWindowRolePreflight, installAndProbeRunScopedRole,
+  buildRunScopedPolicySql, buildRunScopedInstallSql,
   previewWindowRolePassword } from './u03-window-role-preflight.mjs';
 
 const RUN = '5b02bb37-2ef8-4af1-8954-56fd496cd121';
@@ -14,9 +15,11 @@ const DB_PASSWORD = 'fictional:/?#% +&=[]quote!()*';
 const secrets = [DB_PASSWORD, 'fictional-user-uuid-111111111111', 'fictional-project-uuid-222222222222'];
 
 function freshState({ failNoLogin = false, failInstallAfterApply = false, failActivationAfterApply = false,
-  failPoolerConnect = false, extraPreRoleDefiner = false, readOnlyError = null, readOnlyOverrides = {} } = {}) {
+  failPoolerConnect = false, extraPreRoleDefiner = false, readOnlyError = null, readOnlyOverrides = {},
+  writerDefiners = EXPECTED_DEFINERS, definerError = null, rlsError = null, rlsCount = 4 } = {}) {
   return { role: false, login: false, expired: false, policies: 0, sessions: 0, failNoLogin,
     failInstallAfterApply, failActivationAfterApply, failPoolerConnect, extraPreRoleDefiner, readOnlyError, readOnlyOverrides,
+    writerDefiners, definerError, rlsError, rlsCount,
     readOnlyQueries: 0, writeQueries: 0,
     marker: `u03-window:${RUN}` };
 }
@@ -57,8 +60,16 @@ class AdminPool {
       openseo_project_connections: 0, webmaster_properties: 0, provider_budgets: 0, provider_spend: 0,
       openseo_google_properties: 0, google_captures: 0, backend_tls_active: false, ...this.state.readOnlyOverrides }] };
     }
-    if (sql.includes('from pg_proc p join pg_namespace')) return { rows: [{ executable: [...EXPECTED_DEFINERS], definers: [...EXPECTED_DEFINERS] }] };
-    if (sql.includes('relrowsecurity')) return { rows: [{ n: 4 }] };
+    if (sql.includes('from pg_proc p join pg_namespace')) {
+      // An admin-principal query sees far more capabilities than the target writer.
+      if (!sql.includes("'rubik_audit_writer'")) return { rows: [{ definers: [...EXPECTED_DEFINERS, 'private.admin_only()'] }] };
+      if (this.state.definerError) throw this.state.definerError;
+      return { rows: [{ executable: this.state.writerDefiners, definers: this.state.writerDefiners }] };
+    }
+    if (sql.includes('relrowsecurity')) {
+      if (this.state.rlsError) throw this.state.rlsError;
+      return { rows: [{ n: this.state.rlsCount }] };
+    }
     if (sql.startsWith('begin;')) {
       this.state.writeQueries++;
       this.state.role = true; this.state.policies = 4;
@@ -159,6 +170,70 @@ test('pins Preview Session pooler, expected role contract and derived secret wit
   assert.equal(one, deriveTemporaryPassword(DB_PASSWORD, RUN));
   assert.doesNotMatch(one, /[/:?#[\]@%]/);
   assert.notEqual(one, DB_PASSWORD);
+});
+
+test('run role preinstall gates identify the exact failure and never start installation', async () => {
+  const providerFunctions = [...EXPECTED_DEFINERS, 'private.google_capture_command(uuid, text, jsonb)',
+    'private.openseo_job(uuid, text, uuid, jsonb)'];
+  const cases = [
+    [{ writerDefiners: providerFunctions }, 'security-definer-allowlist', 'SECDEF_UNEXPECTED_RESULT', null],
+    [{ definerError: Object.assign(new Error(DB_PASSWORD), { code: '42501' }) },
+      'security-definer-allowlist', 'SECDEF_QUERY_FAILED', '42501'],
+    [{ definerError: Object.assign(new Error(DB_PASSWORD), { code: 'XX999' }) },
+      'security-definer-allowlist', 'SECDEF_QUERY_FAILED', null],
+    [{ rlsCount: 3 }, 'writer-rls', 'RLS_UNEXPECTED_RESULT', null],
+    [{ rlsError: Object.assign(new Error(DB_PASSWORD), { code: '42501' }) }, 'writer-rls', 'RLS_QUERY_FAILED', '42501'],
+  ];
+  for (const [options, phase, code, sqlstate] of cases) {
+    const state = freshState(options);
+    const entries = [];
+    await assert.rejects(installAndProbeRunScopedRole({ databasePassword: DB_PASSWORD, runId: RUN,
+      expiresAt: '2030-01-01T00:00:00.000Z', ...createMocks(state),
+      ledger: async (...entry) => { entries.push(entry); } }), /RUN_SCOPED_ROLE_PREFLIGHT_BLOCKED/);
+    assert.equal(state.writeQueries, 0);
+    assert.equal(state.role, false);
+    assert.deepEqual(entries.filter(([name]) => name === phase).map(([, result]) => result), ['ATTEMPTED','BLOCKED']);
+    const blocked = entries.find(([name, result]) => name === phase && result === 'BLOCKED');
+    assert.equal(blocked[3], code);
+    assert.equal(blocked[4] ?? null, sqlstate);
+    assert.equal(entries.some(([name]) => name === 'install-role-nologin'), false);
+    assert.doesNotMatch(JSON.stringify(entries), /fictional|google_capture_command|openseo_job|private\.admin_only|XX999/i);
+  }
+});
+
+test('preinstall ledger append failure is diagnosed without installing a role', async () => {
+  for (const failedResult of ['ATTEMPTED','PASS','BLOCKED']) {
+    const state = freshState({ writerDefiners: failedResult === 'BLOCKED' ? [] : EXPECTED_DEFINERS });
+    const entries = [];
+    let injected = false;
+    await assert.rejects(installAndProbeRunScopedRole({ databasePassword: DB_PASSWORD, runId: RUN,
+      expiresAt: '2030-01-01T00:00:00.000Z', ...createMocks(state),
+      ledger: async (...entry) => {
+        if (!injected && entry[0] === 'security-definer-allowlist' && entry[1] === failedResult) {
+          injected = true; throw new Error(DB_PASSWORD);
+        }
+        entries.push(entry);
+      } }), /RUN_SCOPED_ROLE_PREFLIGHT_BLOCKED/);
+    assert.equal(state.writeQueries, 0);
+    assert.ok(entries.some(([phase,result,,code]) => phase === 'security-definer-allowlist' &&
+      result === 'BLOCKED' && code === 'SECDEF_LEDGER_FAILED'));
+    assert.doesNotMatch(JSON.stringify(entries), /fictional/i);
+  }
+});
+
+test('standalone role ledger stores only allowlisted SQLSTATE for preinstall rejection', async () => {
+  const folder = await mkdtemp(join(tmpdir(), 'u03-window-preinstall-ledger-'));
+  const state = freshState({ definerError: Object.assign(new Error(DB_PASSWORD), { code: '42501' }) });
+  try {
+    const path = join(folder, 'run.jsonl');
+    await assert.rejects(runWindowRolePreflight({ databasePassword: DB_PASSWORD, runId: RUN,
+      ledgerPath: path, ...createMocks(state) }), /WINDOW_ROLE_PREFLIGHT_BLOCKED/);
+    const ledger = await readFile(path, 'utf8');
+    assert.match(ledger, /"phase":"security-definer-allowlist"[^\n]*"result":"ATTEMPTED"/);
+    assert.match(ledger, /"phase":"security-definer-allowlist"[^\n]*"result":"BLOCKED"[^\n]*"sqlstate":"42501"[^\n]*"code":"SECDEF_QUERY_FAILED"/);
+    assert.equal(state.writeQueries, 0);
+    assert.doesNotMatch(ledger, /fictional|install-nologin-role-and-deny-policies/);
+  } finally { await rm(folder, { recursive: true, force: true }); }
 });
 
 test('read-only preflight counts the actual run-window policy namespace', async () => {

@@ -9,6 +9,7 @@ import { PIN } from './u03-preview-b4-runner.mjs';
 import { installAndProbeRunScopedRole, runIndependentContainment, previewWindowRolePassword, PREVIEW_REF } from './u03-window-role-preflight.mjs';
 
 const SAFE = /^[A-Z][A-Z0-9_]{1,79}$/;
+const SAFE_SQLSTATES = new Set(['42501','28P01','28000','57P01','0A000','42704','42710']);
 const RUN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const LEDGER_ID_KEYS = new Set(['id','userIds','organizationIds','projectIds','resultIds','importIds','auditEventIds','receiptIds']);
@@ -30,6 +31,7 @@ export async function createWindowLedger(path, metadata, append = appendFile) {
     if (!/^[a-z0-9-]{1,80}$/.test(caseId) || !/^[A-Z_]{2,32}$/.test(status)) throw new Error('WINDOW_LEDGER_FIELD_REJECTED');
     const safe = {};
     for (const [key, value] of Object.entries(detail)) {
+      if (key === 'sqlstate' && SAFE_SQLSTATES.has(value)) { safe.sqlstate = value; continue; }
       if (!['code','category','httpStatus','cases','count','restoreCount','resultRowsErased','importsErased','receiptsProcessed',
         'inventoryZero','outboxTotal','pendingOutbox','rolePresent','roleLocked','activeSessions'].includes(key)) continue;
       if (typeof value === 'string' && SAFE.test(value) || typeof value === 'number' || typeof value === 'boolean' || value === null) safe[key] = value;
@@ -135,7 +137,8 @@ export async function runPreviewWindowSequence({ databasePassword, runId = rando
     await ledger('install-and-probe-new-role', 'ATTEMPTED');
     const expiresAt = new Date(Date.now() + 15 * 60_000).toISOString();
     const roleProof = await installFn({ databasePassword: dbPassword, rolePassword, runId, expiresAt,
-      ledger: async (phase, result, category) => ledger(phase.replaceAll('_','-'), result, { category }) });
+      ledger: async (phase, result, category, code, sqlstate) => ledger(phase.replaceAll('_','-'), result,
+        { category, ...(code ? { code } : {}), ...(sqlstate ? { sqlstate } : {}) }) });
     if (roleProof?.runId !== runId || roleProof?.pooler?.clientTlsVerified !== true ||
         roleProof?.pooler?.sessionUser !== 'rubik_preview_u03_writer' || roleProof?.pooler?.currentUser !== 'rubik_audit_writer' ||
         roleProof?.pooler?.denyPoliciesVerified !== true) throw new Error('WINDOW_ROLE_POOLER_PROOF_REJECTED');

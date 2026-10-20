@@ -51,7 +51,10 @@ const PREFLIGHT_CONDITIONS = new Set(['PREVIEW_READ_ONLY_RESULT_SCHEMA_INCOMPLET
   'WRITER_SESSION_RESIDUE','TEMPORARY_ROLE_RESIDUE','TEMPORARY_POLICY_RESIDUE','TLS_VERIFICATION_FAILED',
   'INVENTORY_NOT_EMPTY','PENDING_OUTBOX_NOT_EMPTY','ROLE_OWNERSHIP_UNVERIFIED','ROLE_ABSENCE_NOT_VERIFIED',
   'ROLE_POLICY_RESIDUE','ROLE_SESSION_RESIDUE','FINAL_INVENTORY_NOT_EMPTY','TEMP_ROLE_CREDENTIAL_MISSING','TEMP_ROLE_CREDENTIAL_INVALID']);
-const LEDGER_PHASES = new Set(['readonly-diagnostic','admin-read-only-preflight','writer-allowlist-preflight','install-nologin-role-and-deny-policies',
+const PREINSTALL_CODES = new Set(['SECDEF_QUERY_FAILED','SECDEF_UNEXPECTED_RESULT','SECDEF_LEDGER_FAILED',
+  'RLS_QUERY_FAILED','RLS_UNEXPECTED_RESULT','RLS_LEDGER_FAILED']);
+const LEDGER_PHASES = new Set(['readonly-diagnostic','admin-read-only-preflight','security-definer-allowlist','writer-rls',
+  'writer-allowlist-preflight','install-nologin-role-and-deny-policies',
   'independent-nologin-terminate-probe','activate-three-minute-role','preview-session-pooler-set-role','expire-login-window',
   'expired-login-rejected','nologin-and-session-termination','independent-final-state','operator-phase-failure',
   'finally-independent-containment','containment-only-read-only-preflight','containment-only-final-state']);
@@ -122,7 +125,7 @@ function makeLedger(runId, sha, ledgerPath, append = appendFile) {
     if (!LEDGER_PHASES.has(phase) || !['PASS', 'FAIL', 'BLOCKED', 'ATTEMPTED'].includes(result) ||
         !/^(?:NONE|PREFLIGHT|ADMIN|POOLER|CONTAINMENT|ROLLBACK|IDENTITY|CAPABILITY|DNS|TCP|TLS|AUTHENTICATION|PERMISSION|DATABASE)$/.test(category) ||
         (sqlstate !== null && !SAFE_SQLSTATES.has(sqlstate)) ||
-        (code !== null && !SAFE_TRANSPORT_CODES.has(code) && !PREFLIGHT_CONDITIONS.has(code) && !/^SQLSTATE_(?:42501|28P01|28000|57P01|0A000|42704|42710)$/.test(code) && code !== 'DATABASE_ERROR_UNCLASSIFIED') ||
+        (code !== null && !SAFE_TRANSPORT_CODES.has(code) && !PREFLIGHT_CONDITIONS.has(code) && !PREINSTALL_CODES.has(code) && !/^SQLSTATE_(?:42501|28P01|28000|57P01|0A000|42704|42710)$/.test(code) && code !== 'DATABASE_ERROR_UNCLASSIFIED') ||
         (condition !== null && !PREFLIGHT_CONDITIONS.has(condition))) throw new Error('LEDGER_FIELD_REJECTED');
     const row = { utc: new Date().toISOString(), runId, sha, ref: PREVIEW_REF, phase, category, result,
       ...(sqlstate ? { sqlstate } : {}), ...(code ? { code } : {}), ...(condition ? { condition } : {}) };
@@ -219,11 +222,45 @@ const READ_ONLY_SQL = `select current_database() = 'postgres' as database_ok,
   (select count(*)::int from private.google_captures) as google_captures,
   (select ssl from pg_stat_ssl where pid=pg_backend_pid()) as backend_tls_active`;
 
-const DEFiner_SQL = `select coalesce(array_agg(format('%I.%I(%s)',n.nspname,p.proname,oidvectortypes(p.proargtypes)) order by 1),array[]::text[]) as executable,
+const definerSql = role => `select coalesce(array_agg(format('%I.%I(%s)',n.nspname,p.proname,oidvectortypes(p.proargtypes)) order by 1),array[]::text[]) as executable,
   coalesce(array_agg(format('%I.%I(%s)',n.nspname,p.proname,oidvectortypes(p.proargtypes)) order by 1) filter (where p.prosecdef),array[]::text[]) as definers
   from pg_proc p join pg_namespace n on n.oid=p.pronamespace
-  where p.prokind in ('f','p') and has_schema_privilege(current_user,n.oid,'USAGE')
-    and has_function_privilege(current_user,p.oid,'EXECUTE')`;
+  where p.prokind in ('f','p') and has_schema_privilege(${role},n.oid,'USAGE')
+    and has_function_privilege(${role},p.oid,'EXECUTE')`;
+const DEFiner_SQL = definerSql('current_user');
+// The admin's executable functions are not the temporary role's effective capabilities.
+const WRITER_DEFINER_SQL = definerSql("'rubik_audit_writer'");
+
+const PREINSTALL_RLS_SQL = `select count(*)::int as n from pg_class c join pg_namespace n on n.oid=c.relnamespace
+  where (n.nspname,c.relname) in (('public','audit_events'),('public','provider_results'),('private','audit_idempotency'),('private','audit_outbox')) and c.relrowsecurity`;
+
+async function recordPreinstallCheck(ledger, phase, result, code = null, sqlstate = null) {
+  try { await ledger(phase, result, 'PREFLIGHT', code, sqlstate); }
+  catch {
+    // A one-off append failure can still leave a safe diagnostic. Persistent ledger
+    // failure remains fatal; neither case permits the first installation write.
+    try { await ledger(phase, 'BLOCKED', 'PREFLIGHT', `${phase === 'security-definer-allowlist' ? 'SECDEF' : 'RLS'}_LEDGER_FAILED`); }
+    catch { /* no trustworthy evidence channel remains */ }
+    throw new Error(`${phase === 'security-definer-allowlist' ? 'SECDEF' : 'RLS'}_LEDGER_FAILED`);
+  }
+}
+
+async function probePreinstallCheck(admin, ledger, { phase, sql, valid, prefix }) {
+  await recordPreinstallCheck(ledger, phase, 'ATTEMPTED');
+  let row;
+  try { row = (await admin.query(sql)).rows[0]; }
+  catch (error) {
+    const sqlstate = typeof error?.code === 'string' && SAFE_SQLSTATES.has(error.code.toUpperCase())
+      ? error.code.toUpperCase() : null;
+    await recordPreinstallCheck(ledger, phase, 'BLOCKED', `${prefix}_QUERY_FAILED`, sqlstate);
+    throw new Error(`${prefix}_QUERY_FAILED`);
+  }
+  if (!valid(row)) {
+    await recordPreinstallCheck(ledger, phase, 'BLOCKED', `${prefix}_UNEXPECTED_RESULT`);
+    throw new Error(`${prefix}_UNEXPECTED_RESULT`);
+  }
+  await recordPreinstallCheck(ledger, phase, 'PASS');
+}
 
 const READ_ONLY_RESULT_FIELDS = Object.freeze(['database_ok','exact_admin','exact_identity','closed_identity','migration_count',
   'latest_migration','migrations','writer_locked','may_manage_role','may_terminate_session','writer_sessions',
@@ -351,11 +388,11 @@ export async function installAndProbeRunScopedRole({ databasePassword, runId, ex
     await ledger('admin-read-only-preflight', 'ATTEMPTED', 'PREFLIGHT');
     await runReadOnlyPreflight(admin);
     await ledger('admin-read-only-preflight', 'PASS', 'PREFLIGHT');
-    const functions = (await admin.query(DEFiner_SQL)).rows[0];
-    if (JSON.stringify(functions.definers) !== JSON.stringify(EXPECTED_DEFINERS)) throw new Error('WRITER_SECURITY_DEFINER_UNSAFE');
-    const rls = (await admin.query(`select count(*)::int as n from pg_class c join pg_namespace n on n.oid=c.relnamespace
-      where (n.nspname,c.relname) in (('public','audit_events'),('public','provider_results'),('private','audit_idempotency'),('private','audit_outbox')) and c.relrowsecurity`)).rows[0];
-    if (rls.n !== TABLES.length) throw new Error('WRITER_RLS_NOT_ENABLED');
+    await probePreinstallCheck(admin, ledger, { phase: 'security-definer-allowlist', sql: WRITER_DEFINER_SQL,
+      valid: row => Array.isArray(row?.definers) && JSON.stringify(row.definers) === JSON.stringify(EXPECTED_DEFINERS),
+      prefix: 'SECDEF' });
+    await probePreinstallCheck(admin, ledger, { phase: 'writer-rls', sql: PREINSTALL_RLS_SQL,
+      valid: row => row?.n === TABLES.length, prefix: 'RLS' });
     installAttempted = true;
     await ledger('install-role-nologin', 'ATTEMPTED', 'ADMIN_WRITE');
     await admin.query(buildRunScopedInstallSql(runId, rolePassword, expiresAt));
@@ -541,6 +578,8 @@ export async function runWindowRolePreflight({ databasePassword, runId = randomU
   await mkdir(join(path, '..'), { recursive: true });
   await appendFile(path, '', { flag: 'wx', mode: 0o600 });
   const ledger = makeLedger(runId, sha, path);
+  const preinstallLedger = (phase, result, category, code, sqlstate) =>
+    ledger(phase, result, category, sqlstate, code);
   const rolePassword = deriveTemporaryPassword(databasePassword, runId);
   let admin = null; let installAttempted = false; let failure = null; let final = null;
   try {
@@ -548,11 +587,11 @@ export async function runWindowRolePreflight({ databasePassword, runId = randomU
     await ledger('admin-read-only-preflight', 'ATTEMPTED', 'PREFLIGHT');
     await runReadOnlyPreflight(admin);
     await ledger('admin-read-only-preflight', 'PASS', 'PREFLIGHT');
-    const secdef = (await admin.query(DEFiner_SQL)).rows[0];
-    if (JSON.stringify(secdef.definers) !== JSON.stringify(EXPECTED_DEFINERS)) throw new Error('WRITER_SECURITY_DEFINER_UNSAFE');
-    const rls = (await admin.query(`select count(*)::int as n from pg_class c join pg_namespace n on n.oid=c.relnamespace
-      where (n.nspname,c.relname) in (('public','audit_events'),('public','provider_results'),('private','audit_idempotency'),('private','audit_outbox')) and c.relrowsecurity`)).rows[0];
-    if (rls.n !== TABLES.length) throw new Error('WRITER_RLS_NOT_ENABLED');
+    await probePreinstallCheck(admin, preinstallLedger, { phase: 'security-definer-allowlist', sql: WRITER_DEFINER_SQL,
+      valid: row => Array.isArray(row?.definers) && JSON.stringify(row.definers) === JSON.stringify(EXPECTED_DEFINERS),
+      prefix: 'SECDEF' });
+    await probePreinstallCheck(admin, preinstallLedger, { phase: 'writer-rls', sql: PREINSTALL_RLS_SQL,
+      valid: row => row?.n === TABLES.length, prefix: 'RLS' });
     await ledger('writer-allowlist-preflight', 'PASS', 'CAPABILITY');
     installAttempted = true;
     await ledger('install-nologin-role-and-deny-policies', 'ATTEMPTED', 'ADMIN');
