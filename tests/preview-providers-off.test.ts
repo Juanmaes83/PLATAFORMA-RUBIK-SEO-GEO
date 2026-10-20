@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PREVIEW_PROVIDER_LOCK, readOpenSeoConfig, readOpenSeoMcpConfig } from "@/lib/openseo/config";
+import { googleCatalogCheckEnabled, googleReadsEnabled } from "@/lib/openseo/mcp-client";
 
 // U02: Preview never calls OpenSEO or Google through OpenSEO, even with an approved isolated
 // database and inherited provider variables. Production/local parsing is unchanged.
@@ -13,6 +14,8 @@ describe("providers in Vercel Preview", () => {
     for (const VERCEL_ENV of ["preview", " preview "]) {
       expect(readOpenSeoConfig({ ...configured, VERCEL_ENV })).toEqual({ state: "invalid", problems: [PREVIEW_PROVIDER_LOCK] });
       expect(readOpenSeoMcpConfig({ ...configured, VERCEL_ENV })).toEqual({ state: "not-configured" });
+      expect(googleReadsEnabled({ VERCEL_ENV, OPENSEO_GOOGLE_READS_ENABLED: "true" })).toBe(false);
+      expect(googleCatalogCheckEnabled({ VERCEL_ENV, OPENSEO_GOOGLE_CATALOG_CHECK_ENABLED: "true" })).toBe(false);
     }
   });
   it("keep their normal configuration outside Preview", () => {
