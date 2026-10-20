@@ -302,7 +302,7 @@ El nuevo modo `-WindowRolePreflightOnly` está implementado y sus pruebas locale
 
 | Caso | Resultado | Entorno y evidencia | Siguiente gate |
 |---|---|---|---|
-| Operador: destino, TLS, TTL, SET ROLE, privilegios, allowlist SECURITY DEFINER, NOLOGIN, terminación y rollback bajo fallos simulados | **PASS local** | Tests Node de mocks + parser PowerShell; no prueba PostgreSQL ni pooler real. | Juanma ejecuta solo el preflight del rol en PowerShell visible. |
+| Operador: destino, TLS, TTL, SET ROLE, privilegios, allowlist SECURITY DEFINER antes/después de SET ROLE, NOLOGIN, terminación y rollback bajo fallos simulados | **PASS local** | 9 tests Node de mocks + parser PowerShell, incluido bloqueo por SECURITY DEFINER extra heredado de PUBLIC; no prueba PostgreSQL ni pooler real. | Juanma ejecuta solo el preflight del rol en PowerShell visible. |
 | Conexión PostgreSQL directa local y flujos firmados/HTTP/restore | **PASS local, previo reutilizado** | Run HTTP/restore `c45dfdd6-3a84-4b13-8185-13b820b9e0e5`. | Sin repetición. |
 | Supavisor local | **BLOCKED por entorno** | `CLIENT_ERROR` del intento previo; no se repitió. | No se usa como sustituto ni se reabre el bucle. |
 | Nuevo `rubik_preview_u03_writer` por Session pooler Preview | **BLOCKED / no ejecutado** | No se pidió ni usó Database password; no SQL alojado. | Ejecutar el comando visible fijado en el runbook; entrada única oculta solo si pasan preflights. |
