@@ -1,6 +1,7 @@
 param(
   [switch]$ReadOnlyPreflightOnly,
   [switch]$V4ConnectionDiagnosticOnly,
+  [switch]$WindowRolePreflightOnly,
   [switch]$PlaywrightOnly,
   [switch]$RolesInvitationsOnly,
   [switch]$CrossSurfaceOnly,
@@ -21,6 +22,7 @@ $ErrorActionPreference = 'Stop'
 $repo = (Get-Location).Path
 $runner = Join-Path $repo 'scripts\u03-preview-b4-orchestrator.mjs'
 $v4Operator = Join-Path $repo 'scripts\u03-preview-v4-operator.mjs'
+$windowRoleOperator = Join-Path $repo 'scripts\u03-window-role-preflight.mjs'
 $v4PoolerModule = Join-Path $PSScriptRoot 'u03-preview-v4-pooler.psm1'
 $linkFile = Join-Path $repo '.vercel\project.json'
 $clipboardModule = Join-Path $PSScriptRoot 'u03-preview-b4-clipboard.psm1'
@@ -28,6 +30,52 @@ Import-Module -Name $clipboardModule -Force -ErrorAction Stop
 Import-Module -Name $v4PoolerModule -Force -ErrorAction Stop
 
 function Stop-B4([string]$Code) { throw "U03 B-4 BLOCKED: $Code. No fixtures will be created unless every preflight passes." }
+
+function Invoke-U03WindowRoleChild([string]$Mode, [string]$RunId, [string]$PasswordText) {
+  if ($Mode -notin @('run','contain') -or $RunId -cnotmatch '^[0-9a-fA-F-]{36}$') { Stop-B4 'WINDOW_ROLE_CHILD_ARGUMENT_REJECTED' }
+  $nodePath = (Get-Command node.exe -ErrorAction Stop).Source
+  $psi = [Diagnostics.ProcessStartInfo]::new()
+  $psi.FileName = $nodePath
+  $psi.Arguments = '"' + $windowRoleOperator + '"'
+  $psi.WorkingDirectory = $repo
+  $psi.UseShellExecute = $false
+  $psi.CreateNoWindow = $true
+  $psi.RedirectStandardInput = $true
+  $psi.RedirectStandardOutput = $true
+  $psi.RedirectStandardError = $true
+  $psi.StandardInputEncoding = [Text.UTF8Encoding]::new($false)
+  $psi.EnvironmentVariables.Clear()
+  foreach ($name in @('PATH','SystemRoot','WINDIR','TEMP','TMP','USERPROFILE','LOCALAPPDATA','APPDATA','ProgramFiles')) {
+    $value = [Environment]::GetEnvironmentVariable($name)
+    if (-not [string]::IsNullOrEmpty($value)) { $psi.EnvironmentVariables[$name] = $value }
+  }
+  $psi.EnvironmentVariables['U03_FUNCTIONAL_SHA'] = (& git -C $repo rev-parse HEAD).Trim()
+  $process = [Diagnostics.Process]::new()
+  $process.StartInfo = $psi
+  try {
+    if (-not $process.Start()) { Stop-B4 'WINDOW_ROLE_CHILD_START_FAILED' }
+    $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+    $stderrTask = $process.StandardError.ReadToEndAsync()
+    $payload = @{ mode = $Mode; runId = $RunId; databasePassword = $PasswordText } | ConvertTo-Json -Compress
+    $process.StandardInput.WriteLine($payload)
+    $process.StandardInput.Close()
+    if (-not $process.WaitForExit(240000)) { $process.Kill(); Stop-B4 'WINDOW_ROLE_CHILD_TIMEOUT' }
+    $stdout = $stdoutTask.GetAwaiter().GetResult()
+    $null = $stderrTask.GetAwaiter().GetResult()
+    $pattern = if ($Mode -eq 'run') {
+      '^U03_WINDOW_ROLE_RESULT (PASS|BLOCKED) runId=[0-9a-fA-F-]{36} roleRemoved=(?:true|false|True|False) policies=\d+ inventoryZero=(?:true|false|True|False) outboxTotal=\d+ pending=\d+$'
+    } else {
+      '^U03_WINDOW_ROLE_CONTAINMENT PASS runId=[0-9a-fA-F-]{36} rolePresent=(?:true|false|True|False) roleLocked=(?:true|false|True|False|null) policies=\d+ activeSessions=\d+ inventoryZero=(?:true|false|True|False) outboxTotal=\d+ pending=\d+$'
+    }
+    $safeLine = @($stdout -split "`r?`n" | Where-Object { $_ -cmatch $pattern } | Select-Object -Last 1)
+    if ($safeLine.Count -eq 0) { Write-Output "U03_WINDOW_ROLE_CHILD BLOCKED mode=$Mode code=SAFE_CHILD_RESULT_MISSING"; return $false }
+    Write-Output $safeLine[0]
+    return ($process.ExitCode -eq 0 -and $safeLine[0] -match ' PASS ')
+  } catch {
+    Write-Output "U03_WINDOW_ROLE_CHILD BLOCKED mode=$Mode code=SAFE_CHILD_FAILURE"
+    return $false
+  } finally { $process.Dispose() }
+}
 
 function Invoke-U03PreviewAdminConnectionComparison([System.Security.SecureString]$SecurePassword) {
   $psql = Get-Command psql.exe -ErrorAction SilentlyContinue
@@ -104,7 +152,7 @@ $credentialOperations = 0
 foreach ($requested in @($ProvisionPreviewKeys.IsPresent, $CheckPreviewKeys.IsPresent, $ReplacePreviewKeys.IsPresent, $DeletePreviewKeys.IsPresent)) {
   if ($requested) { $credentialOperations++ }
 }
-$campaignModes = @($ReadOnlyPreflightOnly.IsPresent, $V4ConnectionDiagnosticOnly.IsPresent,
+$campaignModes = @($ReadOnlyPreflightOnly.IsPresent, $V4ConnectionDiagnosticOnly.IsPresent, $WindowRolePreflightOnly.IsPresent,
   $PlaywrightOnly.IsPresent, $MembershipRevocationOnly.IsPresent, $RolesInvitationsOnly.IsPresent,
   $CrossSurfaceOnly.IsPresent, $SessionProvidersOnly.IsPresent, $ProviderEgressOnly.IsPresent) | Where-Object { $_ }
 if ($credentialOperations -gt 1 -or ($credentialOperations -gt 0 -and $campaignModes.Count -gt 0) -or
@@ -134,6 +182,7 @@ if ($branch -notin @('codex/u02-preview-isolation-20261017', 'codex/u03-roles-in
 if ($CrossSurfaceOnly -and $branch -ne 'codex/u03-cross-surface-20261019') { Stop-B4 'WRONG_MODE_BRANCH' }
 if ($SessionProvidersOnly -and $branch -ne 'codex/u03-session-gates-20261020') { Stop-B4 'WRONG_MODE_BRANCH' }
 if ($ProviderEgressOnly -and $branch -ne 'codex/u03-final-gates-20261020') { Stop-B4 'WRONG_MODE_BRANCH' }
+if ($WindowRolePreflightOnly -and $branch -ne 'codex/u03-final-gates-20261020') { Stop-B4 'WRONG_MODE_BRANCH' }
 if ($RolesInvitationsOnly -and $branch -notin @('codex/u03-roles-invitations-20261019',
     'codex/u03-cross-surface-20261019')) { Stop-B4 'WRONG_MODE_BRANCH' }
 $link = Get-Content -LiteralPath $linkFile -Raw | ConvertFrom-Json
@@ -180,6 +229,9 @@ $operatorRunId = $null
 $operatorContainFailed = $false
 $secureDatabasePassword = $null
 $adminDatabaseUrl = $null
+$windowRoleRunId = $null
+$windowRoleContainFailed = $false
+$windowRolePlainPassword = $null
 try {
   # Preserve the machine's authorized proxy route for Node fetch and CLI reads.
   # Never print these values; they may contain proxy authentication material.
@@ -203,6 +255,47 @@ try {
 
   Push-Location -LiteralPath $repo
   $pushed = $true
+  if ($WindowRolePreflightOnly) {
+    if (-not (Test-Path -LiteralPath $windowRoleOperator)) { Stop-B4 'WINDOW_ROLE_OPERATOR_MISSING' }
+    if ($DeploymentId -cne 'dpl_FX2BbLxBZPg38hYqikhhsEprGdPL' -or
+        $DeploymentHost -cne 'plataforma-rubik-seo-9lkzlkvr1-juanma-espinosas-projects.vercel.app' -or
+        $DeploymentSha -cne '85f93a5b7f7b9db26a2ade4f75fdf3d12aaf18d4') { Stop-B4 'WINDOW_ROLE_DEPLOYMENT_PIN_REJECTED' }
+    $env:U03_PIN_DEPLOYMENT_ID = $DeploymentId
+    $env:U03_PIN_DEPLOYMENT_HOST = $DeploymentHost
+    $env:U03_PIN_DEPLOYMENT_SHA = $DeploymentSha
+    $env:U03_PIN_DEPLOYMENT_BRANCH = 'codex/u03-final-gates-20261020'
+    & node $runner --readonly-preflight
+    if ($LASTEXITCODE -ne 0) { Stop-B4 'WINDOW_ROLE_PROTECTED_DEPLOYMENT_PREFLIGHT_FAILED' }
+    try { $previewCredentials = Get-B4PreviewCredentials }
+    catch { Stop-B4 'WINDOW_ROLE_PREVIEW_CREDENTIALS_UNAVAILABLE' }
+    if ($previewCredentials.ProjectRef -cne 'rhnnplewqsekrnaousyl') { Stop-B4 'PREVIEW_CREDENTIAL_REF_MISMATCH' }
+    $env:U03_PREVIEW_ADMIN_KEY = $previewCredentials.AdminKey
+    $env:U03_PREVIEW_PUBLIC_KEY = $previewCredentials.PublicKey
+    & node $runner --credential-preflight-only
+    $credentialPreflightExit = $LASTEXITCODE
+    Remove-Item Env:U03_PREVIEW_ADMIN_KEY -ErrorAction SilentlyContinue
+    Remove-Item Env:U03_PREVIEW_PUBLIC_KEY -ErrorAction SilentlyContinue
+    $previewCredentials.AdminKey = $null
+    $previewCredentials.PublicKey = $null
+    $previewCredentials = $null
+    if ($credentialPreflightExit -ne 0) { Stop-B4 'WINDOW_ROLE_CREDENTIAL_PREFLIGHT_FAILED' }
+
+    $secureDatabasePassword = Read-Host -Prompt 'Database password existente de Supabase Preview rhnnplewqsekrnaousyl (entrada oculta)' -AsSecureString
+    $passwordBstr = [IntPtr]::Zero
+    try {
+      $passwordBstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureDatabasePassword)
+      $windowRolePlainPassword = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($passwordBstr)
+      if ([string]::IsNullOrEmpty($windowRolePlainPassword)) { Stop-B4 'WINDOW_ROLE_DATABASE_PASSWORD_EMPTY' }
+      $windowRoleRunId = [guid]::NewGuid().ToString()
+      Write-Output "U03_WINDOW_ROLE_RUN_ID: $windowRoleRunId"
+      $runPass = Invoke-U03WindowRoleChild -Mode 'run' -RunId $windowRoleRunId -PasswordText $windowRolePlainPassword
+      if (-not $runPass) { Stop-B4 'WINDOW_ROLE_PREFLIGHT_BLOCKED_NO_FIXTURES' }
+    } finally {
+      if ($passwordBstr -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($passwordBstr) }
+      if ($secureDatabasePassword) { $secureDatabasePassword.Dispose(); $secureDatabasePassword = $null }
+    }
+    return
+  }
   # Deployment protection and database identity/counts/migrations do not need
   # Auth keys. Fail here before loading credentials if any read-only gate is not exact.
   & node $runner --readonly-preflight
@@ -272,6 +365,13 @@ try {
   else { & node $runner }
   if ($LASTEXITCODE -ne 0) { Stop-B4 'U03_B4_CAMPAIGN_FAILED_OR_CLEANUP_UNVERIFIED' }
 } finally {
+  if ($WindowRolePreflightOnly -and $windowRoleRunId -and -not [string]::IsNullOrEmpty($windowRolePlainPassword)) {
+    $containPass = Invoke-U03WindowRoleChild -Mode 'contain' -RunId $windowRoleRunId -PasswordText $windowRolePlainPassword
+    if (-not $containPass) {
+      $windowRoleContainFailed = $true
+      Write-Warning 'U03_WINDOW_ROLE_CONTAINMENT BLOCKED; keep the sanitized ledger and do not create fixtures.'
+    }
+  }
   if ($MembershipRevocationOnly) {
     $installAttempted = $false
     $ledgerPath = if ($operatorRunId) { Join-Path $repo "test-results\u03-hosted\$operatorRunId.jsonl" } else { $null }
@@ -297,9 +397,11 @@ try {
   $adminKey = $null
   $publicKey = $null
   $adminDatabaseUrl = $null
+  $windowRolePlainPassword = $null
   $secureDatabasePassword = $null
   if ($previewCredentials) { $previewCredentials.AdminKey = $null; $previewCredentials.PublicKey = $null }
   $previewCredentials = $null
   Remove-Variable -Name previewCredentials, clipboardSessionActive, adminKey, publicKey, clipboardValue, confirmation, secureDatabasePassword, adminDatabaseUrl -ErrorAction SilentlyContinue
 }
 if ($operatorContainFailed) { Stop-B4 'V4_OPERATOR_CONTAINMENT_FAILED_PRESERVE_LEDGER' }
+if ($windowRoleContainFailed) { Stop-B4 'WINDOW_ROLE_CONTAINMENT_FAILED_PRESERVE_LEDGER' }

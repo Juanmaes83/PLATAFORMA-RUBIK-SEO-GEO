@@ -61,7 +61,7 @@ const passingPreflight = async () => ({
 });
 const passingFinal = async () => ({
   inventoriesClear: true, outboxClear: true, capabilitiesSafe: true,
-  state: { auth_users: 0, organizations: 0, projects: 0, organization_members: 0, project_members: 0, invitations: 0, audit_events: 0, outbox_total: 0, pending_outbox: 0, writer_locked: true, environment: 'preview', project_ref: PIN.supabaseRef },
+  state: { auth_users: 0, organizations: 0, projects: 0, organization_members: 0, project_members: 0, invitations: 0, audit_events: 0, provider_results: 0, imports: 0, audit_idempotency: 0, outbox_total: 0, pending_outbox: 0, openseo_project_jobs: 0, openseo_project_connections: 0, webmaster_properties: 0, provider_budgets: 0, provider_spend: 0, openseo_google_properties: 0, google_captures: 0, writer_locked: true, window_writer_present: false, window_policy_residue: 0, writer_sessions: 0, admin_can_manage_roles: true, admin_can_terminate_sessions: true, environment: 'preview', project_ref: PIN.supabaseRef },
 });
 
 async function withRoot(fn) {
@@ -543,7 +543,7 @@ test('read-only SQL uses pinned ref, --output json and --file, then removes its 
 test('no-key read-only preflight verifies identity, 27 migrations, empty counts and final inventory', async () => {
   const state = {
     auth_users: 0, organizations: 0, projects: 0, organization_members: 0, project_members: 0,
-    invitations: 0, audit_events: 0, outbox_total: 0, pending_outbox: 0, writer_locked: true,
+    invitations: 0, audit_events: 0, provider_results: 0, imports: 0, audit_idempotency: 0, outbox_total: 0, pending_outbox: 0, openseo_project_jobs: 0, openseo_project_connections: 0, webmaster_properties: 0, provider_budgets: 0, provider_spend: 0, openseo_google_properties: 0, google_captures: 0, writer_locked: true, window_writer_present: false, window_policy_residue: 0, writer_sessions: 0, admin_can_manage_roles: true, admin_can_terminate_sessions: true,
     environment: 'preview', project_ref: PIN.supabaseRef,
     migrations: [
       '20260928120000', '20260928150000', '20261007120000', '20261007150000', '20261009071705',
@@ -569,7 +569,7 @@ test('no-key read-only preflight verifies identity, 27 migrations, empty counts 
 test('read-only campaign preflight fails on an extra executable receipt-writer SECURITY DEFINER', async () => {
   const unsafe = async () => ({
     auth_users: 0, organizations: 0, projects: 0, organization_members: 0, project_members: 0,
-    invitations: 0, audit_events: 0, outbox_total: 0, pending_outbox: 0, writer_locked: true,
+    invitations: 0, audit_events: 0, provider_results: 0, imports: 0, audit_idempotency: 0, outbox_total: 0, pending_outbox: 0, openseo_project_jobs: 0, openseo_project_connections: 0, webmaster_properties: 0, provider_budgets: 0, provider_spend: 0, openseo_google_properties: 0, google_captures: 0, writer_locked: true, window_writer_present: false, window_policy_residue: 0, writer_sessions: 0, admin_can_manage_roles: true, admin_can_terminate_sessions: true,
     environment: 'preview', project_ref: PIN.supabaseRef,
     migrations: ['20260928120000', '20260928150000', '20261007120000', '20261007150000', '20261009071705',
       '20261009120000', '20261009150000', '20261009170000', '20261009180000', '20261010090000',
@@ -604,7 +604,7 @@ test('initial preflight completes with the mapped read-only state and reports mi
       assert.equal(ref, PIN.supabaseRef);
       return {
         auth_users: 0, organizations: 0, projects: 0, organization_members: 0, project_members: 0,
-        invitations: 0, audit_events: 0, outbox_total: 0, pending_outbox: 0, writer_locked: true,
+        invitations: 0, audit_events: 0, provider_results: 0, imports: 0, audit_idempotency: 0, outbox_total: 0, pending_outbox: 0, openseo_project_jobs: 0, openseo_project_connections: 0, webmaster_properties: 0, provider_budgets: 0, provider_spend: 0, openseo_google_properties: 0, google_captures: 0, writer_locked: true, window_writer_present: false, window_policy_residue: 0, writer_sessions: 0, admin_can_manage_roles: true, admin_can_terminate_sessions: true,
         environment: 'preview', project_ref: PIN.supabaseRef, migrations: migrationVersions,
       };
     },
@@ -622,7 +622,7 @@ test('owner wrapper runs no-key preflight before DPAPI load; V-4 uses one hidden
   const script = await readFile(new URL('./u03-preview-b4-owner.ps1', import.meta.url), 'utf8');
   const operator = await readFile(new URL('./u03-preview-v4-operator.mjs', import.meta.url), 'utf8');
   const preflight = script.indexOf('& node $runner --readonly-preflight');
-  const credentialLoad = script.indexOf('$previewCredentials = Get-B4PreviewCredentials');
+  const credentialLoad = script.lastIndexOf('$previewCredentials = Get-B4PreviewCredentials');
   const credentialPreflight = script.indexOf('& node $runner --credential-preflight-only');
   const credentialSave = script.indexOf('Save-B4PreviewCredentials');
   const campaignPath = script.slice(credentialLoad, script.lastIndexOf('} finally'));

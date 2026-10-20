@@ -36,7 +36,19 @@ export const PREFLIGHT_SQL = `select
   (select count(*)::int from public.audit_events) as audit_events,
   (select count(*)::int from private.audit_outbox) as outbox_total,
   (select count(*)::int from private.audit_outbox where state = 'pending') as pending_outbox,
+  (select count(*)::int from private.openseo_project_jobs) as openseo_project_jobs,
+  (select count(*)::int from private.openseo_project_connections) as openseo_project_connections,
+  (select count(*)::int from private.webmaster_properties) as webmaster_properties,
+  (select count(*)::int from private.provider_budgets) as provider_budgets,
+  (select count(*)::int from private.provider_spend) as provider_spend,
+  (select count(*)::int from private.openseo_google_properties) as openseo_google_properties,
+  (select count(*)::int from private.google_captures) as google_captures,
   (select not rolsuper and not rolcanlogin and not rolbypassrls from pg_roles where rolname = 'rubik_audit_writer') as writer_locked,
+  (select exists (select 1 from pg_roles where rolname = 'rubik_preview_u03_writer')) as window_writer_present,
+  (select count(*)::int from pg_policies where policyname like 'u03_preflight_writer_%') as window_policy_residue,
+  (select count(*)::int from pg_stat_activity where usename in ('rubik_audit_writer','rubik_preview_u03_writer')) as writer_sessions,
+  (select (rolsuper or rolcreaterole) from pg_roles where rolname=current_user) as admin_can_manage_roles,
+  ((select rolsuper from pg_roles where rolname=current_user) or pg_has_role(current_user,'pg_signal_backend','MEMBER')) as admin_can_terminate_sessions,
   (select exists (select 1 from pg_roles where rolname = 'rubik_preview_receipt_writer')) as receipt_writer_present,
   (select coalesce(array_agg(format('%I.%I(%s)', n.nspname, p.proname, oidvectortypes(p.proargtypes)) order by n.nspname, p.proname, oidvectortypes(p.proargtypes)), array[]::text[])
     from pg_roles r cross join pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -280,10 +292,17 @@ export async function verifyReadOnlyPreviewState({ sql = runPreviewReadOnlySql }
   if (!migrationMatch) throw new Error('N1_MIGRATION_SET_MISMATCH');
   if (state.environment !== 'preview' || state.project_ref !== U03_PREVIEW_REF) throw new Error('PREVIEW_DATABASE_IDENTITY_INVALID');
   if (state.writer_locked !== true) throw new Error('WRITER_CAPABILITY_NOT_LOCKED');
+  if (state.window_writer_present === true || state.window_policy_residue !== 0 || state.writer_sessions !== 0)
+    throw new Error('TEMPORARY_ROLE_OR_SESSION_RESIDUE');
+  if (state.admin_can_manage_roles !== true || state.admin_can_terminate_sessions !== true)
+    throw new Error('ADMIN_CONTAINMENT_CAPABILITY_MISSING');
   if (state.receipt_writer_present === true &&
       !isV4SecurityDefinerAllowlistOnly(state.receipt_writer_security_definers))
     throw new Error('PREVIEW_RECEIPT_SECURITY_DEFINER_UNSAFE');
-  const empty = ['auth_users', 'organizations', 'projects', 'organization_members', 'project_members', 'invitations', 'audit_events', 'outbox_total', 'pending_outbox'];
+  const empty = ['auth_users', 'organizations', 'projects', 'organization_members', 'project_members', 'invitations', 'audit_events',
+    'provider_results', 'imports', 'audit_idempotency', 'outbox_total', 'pending_outbox', 'openseo_project_jobs',
+    'openseo_project_connections', 'webmaster_properties', 'provider_budgets', 'provider_spend',
+    'openseo_google_properties', 'google_captures'];
   if (empty.some(field => state[field] !== 0)) throw new Error('PREVIEW_INITIAL_INVENTORY_NOT_EMPTY');
   return {
     authUsers: state.auth_users, organizations: state.organizations, projects: state.projects,
