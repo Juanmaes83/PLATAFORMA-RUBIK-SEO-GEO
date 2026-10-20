@@ -4,7 +4,7 @@
 
 ### Revisión local de ventana · 20/10/2026
 
-En stack nuevo y ya retirado `rubik-u03-window-20261020`, N1 27/27: Postgres directo confirmó SET ROLE, grants mínimos, no BYPASSRLS/Auth, allowlist SECURITY DEFINER, cuatro scopes RLS por UUID, rechazo fuera de scope, TTL en sesión persistente y rollback limpio (runs locales `dd1cb050-a230-4d6b-b6fa-d4477dce3904` y `47f00155-4a87-42e3-ac77-de05c5fdd558`). El intento de Session pooler quedó BLOCKED porque el Supavisor local no tiene tenant provisionado (`CLIENT_ERROR`); no se atribuye el resultado de Postgres directo al pooler. No se ejercitaron los flujos firmados audit/result/import ni todos los fallos/restores; operador integral pendiente. Sin escrituras alojadas.
+En stack nuevo y ya retirado `rubik-u03-window-20261020`, N1 27/27: Postgres directo confirmó SET ROLE, grants mínimos, no BYPASSRLS/Auth, allowlist SECURITY DEFINER, cuatro scopes RLS por UUID, rechazo fuera de scope, TTL en sesión persistente y rollback limpio (runs locales `dd1cb050-a230-4d6b-b6fa-d4477dce3904`, `47f00155-4a87-42e3-ac77-de05c5fdd558` y `f108d27c-d46a-474b-b23c-8c5599f91b35`). El intento de Session pooler quedó BLOCKED porque el Supavisor local no tiene tenant provisionado (`CLIENT_ERROR`); no se atribuye el resultado de Postgres directo al pooler. No se ejercitaron los flujos firmados audit/result/import ni todos los fallos/restores; operador integral pendiente. Sin escrituras alojadas.
 
 La base vigente es `main@a0a40b776361f292d910e285b390d5e753da8d7b`; #129, #141 y #142 están fusionadas. Este corte prevalece sobre las filas históricas inferiores, que se conservan como registro y no describen el estado actual.
 

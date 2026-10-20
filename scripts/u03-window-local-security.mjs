@@ -81,7 +81,7 @@ async function main() {
   phase = "session-pooler-login";
   try {
     const result = await poolerProbe.query("select session_user, current_user");
-    poolerAuthenticated = result.rows[0]?.session_user === LOGIN && result.rows[0]?.current_user === LOGIN;
+    poolerAuthenticated = result.rows[0]?.session_user === LOGIN && result.rows[0]?.current_user === WRITER;
   }
   catch (error) {
     const candidate = String(error?.code ?? "").toUpperCase();
@@ -89,7 +89,7 @@ async function main() {
   }
   await poolerProbe.end();
   record("session-pooler-prerequisite", poolerAuthenticated ? "PASS" : "BLOCKED", poolerAuthenticated
-    ? { category: "POOLER_AUTH", authenticatedAs: LOGIN }
+    ? { category: "POOLER_AUTH", sessionUser: LOGIN, currentUser: WRITER, setRole: true }
     : { category: "POOLER_AUTH", code: poolerErrorCode });
 
   const url = new URL(`postgresql://${encodeURIComponent(LOGIN)}:${temporaryRoleCredential}@127.0.0.1:63422/postgres`);
