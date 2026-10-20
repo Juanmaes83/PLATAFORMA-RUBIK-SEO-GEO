@@ -310,3 +310,15 @@ El nuevo modo `-WindowRolePreflightOnly` está implementado y sus pruebas locale
 | H1-A alojado | **BLOCKED** | No desplegado/ejecutado en esta iteración. | Tras gates de rol y campaña poblada. |
 
 La evidencia histórica V-4 no acredita el rol nuevo. El deployment `dpl_FX2BbLxBZPg38hYqikhhsEprGdPL` / SHA `85f93a5b7f7b9db26a2ade4f75fdf3d12aaf18d4` / host `plataforma-rubik-seo-9lkzlkvr1-juanma-espinosas-projects.vercel.app` se usa como pin del control de protección/ref; no incluye el operador de este SHA. El comando y condiciones están en `docs/U03-I2-I5-H1A-VENTANA-20261020.md`.
+
+### Corrección del preflight de inventario · 20/10/2026
+
+El run posterior de `-WindowRolePreflightOnly` se detuvo antes de pedir credenciales con `PREVIEW_INITIAL_INVENTORY_NOT_EMPTY`. La causa fue una discrepancia del propio SQL: el validador exigía los conteos `provider_results`, `imports` y `audit_idempotency`, pero la consulta no los seleccionaba. Se añadieron los tres `COUNT(*)`; una columna ausente ahora produce `PREVIEW_READ_ONLY_RESULT_SCHEMA_INCOMPLETE`, separado de un conteo no cero. No se convierten campos ausentes en cero.
+
+Regresión local: prueba unitaria de columnas/categorías y prueba de integración que ejecuta el `PREFLIGHT_SQL` real contra un stack aislado N1 27/27. Las migraciones no incluyen el centinela `private.environment_identity`, instalado aparte en Preview; la integración lo crea y retira efímeramente en ese stack. Ambas pruebas pasan. Lectura independiente solo de conteos en Preview `rhnnplewqsekrnaousyl`: identidad exacta, 27 migraciones hasta `20261015210000`, todos los conteos de inventario/outbox en cero, writer general bloqueado y rol/políticas/sesiones temporales ausentes. No se instaló rol ni se crearon fixtures. El preflight podrá repetirse tras publicar el fix; no se repiten campañas alojadas ya aprobadas.
+
+### Corrección del preflight de inventario · 20/10/2026
+
+El modo -WindowRolePreflightOnly se detuvo antes de pedir credenciales con PREVIEW_INITIAL_INVENTORY_NOT_EMPTY. La causa fue una discrepancia del SQL: el validador exigía provider_results, imports y audit_idempotency, pero PREFLIGHT_SQL no los seleccionaba. Se añadieron los tres COUNT(*); una columna ausente ahora produce PREVIEW_READ_ONLY_RESULT_SCHEMA_INCOMPLETE, separado de un conteo no cero. No se convierten campos ausentes en cero.
+
+Regresión local: prueba unitaria de columnas/categorías y prueba de integración que ejecuta el PREFLIGHT_SQL real contra un stack local aislado N1 27/27. Las migraciones no incluyen private.environment_identity, instalada aparte en Preview; la integración crea y elimina una tabla/registro efímero solo dentro del stack propio. Ambas pruebas pasan. La lectura independiente solo de conteos en Preview rhnnplewqsekrnaousyl confirmó identidad exacta, 27 migraciones hasta 20261015210000, inventario/outbox cero, escritor general bloqueado y rol/políticas/sesiones temporales ausentes. No se instaló rol ni se crearon fixtures alojados. El preflight de rol podrá repetirse tras publicar el fix; no se repiten campañas aprobadas.

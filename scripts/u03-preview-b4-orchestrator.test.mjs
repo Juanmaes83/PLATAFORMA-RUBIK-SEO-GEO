@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { chromiumEnvironment, networkEnvironment, PIN } from './u03-preview-b4-runner.mjs';
-import { PRIOR_DATA_API_RUN_ID, parseCliJson, readPreviewAuthSettings, runHostedU03Campaign, runPreviewReadOnlySql, runReadOnlyPreflight, safeLedgerDetail, verifyFinalPreviewState, verifyInitialPreviewState, verifyReadOnlyPreviewState } from './u03-preview-b4-orchestrator.mjs';
+import { PREFLIGHT_RESULT_FIELDS, PREFLIGHT_SQL, PRIOR_DATA_API_RUN_ID, parseCliJson, readPreviewAuthSettings, runHostedU03Campaign, runPreviewReadOnlySql, runReadOnlyPreflight, safeLedgerDetail, verifyFinalPreviewState, verifyInitialPreviewState, verifyReadOnlyPreviewState } from './u03-preview-b4-orchestrator.mjs';
 import { V4_SECURITY_DEFINER_ALLOWLIST } from './u03-preview-v4-receipt.mjs';
 
 const runId = 'u03-orchestrator-test-run';
@@ -543,7 +543,7 @@ test('read-only SQL uses pinned ref, --output json and --file, then removes its 
 test('no-key read-only preflight verifies identity, 27 migrations, empty counts and final inventory', async () => {
   const state = {
     auth_users: 0, organizations: 0, projects: 0, organization_members: 0, project_members: 0,
-    invitations: 0, audit_events: 0, provider_results: 0, imports: 0, audit_idempotency: 0, outbox_total: 0, pending_outbox: 0, openseo_project_jobs: 0, openseo_project_connections: 0, webmaster_properties: 0, provider_budgets: 0, provider_spend: 0, openseo_google_properties: 0, google_captures: 0, writer_locked: true, window_writer_present: false, window_policy_residue: 0, writer_sessions: 0, admin_can_manage_roles: true, admin_can_terminate_sessions: true,
+    invitations: 0, audit_events: 0, provider_results: 0, imports: 0, audit_idempotency: 0, outbox_total: 0, pending_outbox: 0, openseo_project_jobs: 0, openseo_project_connections: 0, webmaster_properties: 0, provider_budgets: 0, provider_spend: 0, openseo_google_properties: 0, google_captures: 0, writer_locked: true, window_writer_present: false, window_policy_residue: 0, writer_sessions: 0, admin_can_manage_roles: true, admin_can_terminate_sessions: true, receipt_writer_present: false, receipt_writer_executable_functions: [], receipt_writer_security_definers: [],
     environment: 'preview', project_ref: PIN.supabaseRef,
     migrations: [
       '20260928120000', '20260928150000', '20261007120000', '20261007150000', '20261009071705',
@@ -566,10 +566,39 @@ test('no-key read-only preflight verifies identity, 27 migrations, empty counts 
   assert.equal(final.inventoriesClear && final.outboxClear && final.capabilitiesSafe, true);
 });
 
+test('preflight SQL selects every required inventory count and missing result columns have a schema error', async () => {
+  for (const field of ['provider_results', 'imports', 'audit_idempotency']) {
+    assert.match(PREFLIGHT_SQL, new RegExp(`count\\(\\*\\)::int from (?:public|private)\\.${field}\\) as ${field}`));
+  }
+  const state = {
+    auth_users: 0, organizations: 0, projects: 0, organization_members: 0, project_members: 0,
+    invitations: 0, audit_events: 0, provider_results: 0, imports: 0, audit_idempotency: 0,
+    outbox_total: 0, pending_outbox: 0, openseo_project_jobs: 0, openseo_project_connections: 0,
+    webmaster_properties: 0, provider_budgets: 0, provider_spend: 0, openseo_google_properties: 0,
+    google_captures: 0, writer_locked: true, window_writer_present: false, window_policy_residue: 0,
+    writer_sessions: 0, admin_can_manage_roles: true, admin_can_terminate_sessions: true,
+    receipt_writer_present: false, receipt_writer_executable_functions: [], receipt_writer_security_definers: [],
+    environment: 'preview', project_ref: PIN.supabaseRef,
+    migrations: ['20260928120000', '20260928150000', '20261007120000', '20261007150000', '20261009071705',
+      '20261009120000', '20261009150000', '20261009170000', '20261009180000', '20261010090000',
+      '20261010150000', '20261010160000', '20261012090000', '20261012100000', '20261012110000',
+      '20261012120000', '20261012130000', '20261015115750', '20261015145025', '20261015170000',
+      '20261015171000', '20261015172000', '20261015180000', '20261015183000', '20261015190000',
+      '20261015201500', '20261015210000'],
+  };
+  assert.deepEqual(PREFLIGHT_RESULT_FIELDS.filter(field => !Object.hasOwn(state, field)), []);
+  delete state.provider_results;
+  await assert.rejects(verifyReadOnlyPreviewState({ sql: async () => state }),
+    error => error.message === 'PREVIEW_READ_ONLY_RESULT_SCHEMA_INCOMPLETE');
+  state.provider_results = 1;
+  await assert.rejects(verifyReadOnlyPreviewState({ sql: async () => state }),
+    error => error.message === 'PREVIEW_INITIAL_INVENTORY_NOT_EMPTY');
+});
+
 test('read-only campaign preflight fails on an extra executable receipt-writer SECURITY DEFINER', async () => {
   const unsafe = async () => ({
     auth_users: 0, organizations: 0, projects: 0, organization_members: 0, project_members: 0,
-    invitations: 0, audit_events: 0, provider_results: 0, imports: 0, audit_idempotency: 0, outbox_total: 0, pending_outbox: 0, openseo_project_jobs: 0, openseo_project_connections: 0, webmaster_properties: 0, provider_budgets: 0, provider_spend: 0, openseo_google_properties: 0, google_captures: 0, writer_locked: true, window_writer_present: false, window_policy_residue: 0, writer_sessions: 0, admin_can_manage_roles: true, admin_can_terminate_sessions: true,
+    invitations: 0, audit_events: 0, provider_results: 0, imports: 0, audit_idempotency: 0, outbox_total: 0, pending_outbox: 0, openseo_project_jobs: 0, openseo_project_connections: 0, webmaster_properties: 0, provider_budgets: 0, provider_spend: 0, openseo_google_properties: 0, google_captures: 0, writer_locked: true, window_writer_present: false, window_policy_residue: 0, writer_sessions: 0, admin_can_manage_roles: true, admin_can_terminate_sessions: true, receipt_writer_present: true, receipt_writer_executable_functions: [...V4_SECURITY_DEFINER_ALLOWLIST, 'public.unapproved_definer()'],
     environment: 'preview', project_ref: PIN.supabaseRef,
     migrations: ['20260928120000', '20260928150000', '20261007120000', '20261007150000', '20261009071705',
       '20261009120000', '20261009150000', '20261009170000', '20261009180000', '20261010090000',
@@ -578,6 +607,7 @@ test('read-only campaign preflight fails on an extra executable receipt-writer S
       '20261015171000', '20261015172000', '20261015180000', '20261015183000', '20261015190000',
       '20261015201500', '20261015210000'],
     receipt_writer_present: true,
+    receipt_writer_executable_functions: [...V4_SECURITY_DEFINER_ALLOWLIST, 'public.unapproved_definer()'],
     receipt_writer_security_definers: [...V4_SECURITY_DEFINER_ALLOWLIST, 'public.unapproved_definer()'],
   });
   await assert.rejects(verifyReadOnlyPreviewState({ sql: unsafe }), /PREVIEW_RECEIPT_SECURITY_DEFINER_UNSAFE/);
@@ -604,14 +634,14 @@ test('initial preflight completes with the mapped read-only state and reports mi
       assert.equal(ref, PIN.supabaseRef);
       return {
         auth_users: 0, organizations: 0, projects: 0, organization_members: 0, project_members: 0,
-        invitations: 0, audit_events: 0, provider_results: 0, imports: 0, audit_idempotency: 0, outbox_total: 0, pending_outbox: 0, openseo_project_jobs: 0, openseo_project_connections: 0, webmaster_properties: 0, provider_budgets: 0, provider_spend: 0, openseo_google_properties: 0, google_captures: 0, writer_locked: true, window_writer_present: false, window_policy_residue: 0, writer_sessions: 0, admin_can_manage_roles: true, admin_can_terminate_sessions: true,
+        invitations: 0, audit_events: 0, provider_results: 0, imports: 0, audit_idempotency: 0, outbox_total: 0, pending_outbox: 0, openseo_project_jobs: 0, openseo_project_connections: 0, webmaster_properties: 0, provider_budgets: 0, provider_spend: 0, openseo_google_properties: 0, google_captures: 0, writer_locked: true, window_writer_present: false, window_policy_residue: 0, writer_sessions: 0, admin_can_manage_roles: true, admin_can_terminate_sessions: true, receipt_writer_present: false, receipt_writer_executable_functions: [], receipt_writer_security_definers: [],
         environment: 'preview', project_ref: PIN.supabaseRef, migrations: migrationVersions,
       };
     },
   });
   assert.deepEqual(result.initial, {
     authUsers: 0, organizations: 0, projects: 0, organizationMembers: 0, projectMembers: 0, invitations: 0,
-    auditEvents: 0, outboxTotal: 0, pendingOutbox: 0, migrationCount: 27,
+    auditEvents: 0, providerResults: 0, imports: 0, auditIdempotency: 0, outboxTotal: 0, pendingOutbox: 0, migrationCount: 27,
     latestMigration: '20261015210000', writerLocked: true, environment: 'preview', projectRef: PIN.supabaseRef,
     authSettingsHttpStatus: 200,
   });

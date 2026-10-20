@@ -36,6 +36,9 @@ export const PREFLIGHT_SQL = `select
   (select count(*)::int from public.audit_events) as audit_events,
   (select count(*)::int from private.audit_outbox) as outbox_total,
   (select count(*)::int from private.audit_outbox where state = 'pending') as pending_outbox,
+  (select count(*)::int from public.provider_results) as provider_results,
+  (select count(*)::int from public.imports) as imports,
+  (select count(*)::int from private.audit_idempotency) as audit_idempotency,
   (select count(*)::int from private.openseo_project_jobs) as openseo_project_jobs,
   (select count(*)::int from private.openseo_project_connections) as openseo_project_connections,
   (select count(*)::int from private.webmaster_properties) as webmaster_properties,
@@ -83,6 +86,7 @@ const LEDGER_KEYS = new Set([
   'path', 'viewport', 'conclusion', 'viewportWidth', 'documentWidth', 'bodyWidth', 'visibleErrorCount',
   'consoleErrorCount', 'pageErrorCount', 'hydrationErrorCount', 'version', 'projectIds', 'organizationIds',
   'userIds', 'authUsers', 'organizations', 'projects', 'organizationMembers', 'projectMembers', 'invitations', 'auditEvents',
+  'providerResults', 'imports', 'auditIdempotency',
   'outboxTotal', 'pendingOutbox', 'writerLocked', 'migrationCount', 'latestMigration', 'environment',
   'projectRef', 'deploymentId', 'sha', 'host', 'result', 'visualReview',
   'adminKeyFormat', 'publicKeyFormat',
@@ -276,7 +280,8 @@ export async function verifyInitialPreviewState({ env = process.env, fetchImpl =
     initial: {
       authUsers: state.authUsers, organizations: state.organizations, projects: state.projects,
       organizationMembers: state.organizationMembers, projectMembers: state.projectMembers, invitations: state.invitations,
-      auditEvents: state.auditEvents, outboxTotal: state.outboxTotal, pendingOutbox: state.pendingOutbox,
+      auditEvents: state.auditEvents, providerResults: state.providerResults, imports: state.imports,
+      auditIdempotency: state.auditIdempotency, outboxTotal: state.outboxTotal, pendingOutbox: state.pendingOutbox,
       migrationCount: state.migrationCount, latestMigration: state.latestMigration,
       writerLocked: state.writerLocked, environment: state.environment, projectRef: state.projectRef,
       authSettingsHttpStatus,
@@ -284,8 +289,20 @@ export async function verifyInitialPreviewState({ env = process.env, fetchImpl =
   };
 }
 
+export const PREFLIGHT_RESULT_FIELDS = Object.freeze([
+  'auth_users', 'organizations', 'projects', 'organization_members', 'project_members', 'invitations',
+  'audit_events', 'outbox_total', 'pending_outbox', 'provider_results', 'imports', 'audit_idempotency',
+  'openseo_project_jobs', 'openseo_project_connections', 'webmaster_properties', 'provider_budgets',
+  'provider_spend', 'openseo_google_properties', 'google_captures', 'writer_locked',
+  'window_writer_present', 'window_policy_residue', 'writer_sessions', 'admin_can_manage_roles',
+  'admin_can_terminate_sessions', 'receipt_writer_present', 'receipt_writer_executable_functions',
+  'receipt_writer_security_definers', 'environment', 'project_ref', 'migrations',
+]);
+
 export async function verifyReadOnlyPreviewState({ sql = runPreviewReadOnlySql } = {}) {
   const state = await sql(PREFLIGHT_SQL, { ref: U03_PREVIEW_REF });
+  const missingFields = PREFLIGHT_RESULT_FIELDS.filter(field => !Object.hasOwn(state ?? {}, field));
+  if (missingFields.length) throw new Error('PREVIEW_READ_ONLY_RESULT_SCHEMA_INCOMPLETE');
   const expected = EXPECTED_N1_MIGRATIONS;
   const migrationMatch = Array.isArray(state.migrations) && state.migrations.length === expected.length &&
     expected.every((version, index) => state.migrations[index] === version);
@@ -307,7 +324,8 @@ export async function verifyReadOnlyPreviewState({ sql = runPreviewReadOnlySql }
   return {
     authUsers: state.auth_users, organizations: state.organizations, projects: state.projects,
     organizationMembers: state.organization_members, projectMembers: state.project_members, invitations: state.invitations,
-    auditEvents: state.audit_events, outboxTotal: state.outbox_total, pendingOutbox: state.pending_outbox,
+    auditEvents: state.audit_events, providerResults: state.provider_results, imports: state.imports,
+    auditIdempotency: state.audit_idempotency, outboxTotal: state.outbox_total, pendingOutbox: state.pending_outbox,
     migrationCount: state.migrations.length, latestMigration: state.migrations.at(-1),
     writerLocked: state.writer_locked, environment: state.environment, projectRef: state.project_ref,
   };
