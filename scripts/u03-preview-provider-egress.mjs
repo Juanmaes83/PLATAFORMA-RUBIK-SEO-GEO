@@ -9,6 +9,11 @@ export function sameOriginActionResponseReceived(status) {
   return Number.isInteger(status) && status >= 200 && status <= 599;
 }
 
+export function googleGuardResult({ status, pathname, error, disabledTextVisible }) {
+  return (status === 200 || status === 303) && pathname.endsWith('/google') &&
+    error === 'DISABLED' && disabledTextVisible === true;
+}
+
 /** Calls the product's owner-authorized Server Actions with both providers disabled in Preview. */
 export async function runProviderEgressOnly({ env, account, path, ledger, runId, captureRoot,
   launch = () => chromium.launch({ headless: true, env: chromiumEnvironment() }) } = {}) {
@@ -65,7 +70,13 @@ export async function runProviderEgressOnly({ env, account, path, ledger, runId,
       probe.getByRole('button', { name: 'Comprobar guarda Google' }).click(),
     ]);
     const googleRequestReceived = sameOriginActionResponseReceived(googleActionHttp);
-    const googleObserved = googleRequestReceived && (await page.locator('body').innerText()).includes('Las lecturas de Google están desactivadas en esta instalación. No se ha consultado nada.') && googleActionHttp === 303;
+    const googleUrl = new URL(page.url());
+    const googleObserved = googleRequestReceived && googleGuardResult({
+      status: googleActionHttp,
+      pathname: googleUrl.pathname,
+      error: googleUrl.searchParams.get('error'),
+      disabledTextVisible: (await page.locator('body').innerText()).includes('Lecturas de Google desactivadas'),
+    });
     await ledger('provider-egress-google', googleObserved ? 'PASS' : 'FAIL', { category: 'CAPABILITY', result: googleObserved ? 'BLOCKED' : 'UNEXPECTED', http: googleActionHttp, count: googleRequestReceived ? 1 : 0 });
     if (!googleObserved) throw new GateError('GOOGLE_GUARD_RESULT_UNEXPECTED');
 
