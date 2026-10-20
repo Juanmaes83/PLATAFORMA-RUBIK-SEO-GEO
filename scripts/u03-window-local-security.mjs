@@ -22,6 +22,7 @@ const EXPECTED_DEFINERS = ["private.audit_writer_actor(uuid, uuid)", "private.au
 const RELATIONS = ["public.audit_events", "public.provider_results", "private.audit_idempotency", "private.audit_outbox"];
 const PROBE = "private.u03_local_scope_probe";
 let pool;
+let activeSessionClient;
 let roleCreated = false;
 let probeCreated = false;
 let phase = "initialization";
@@ -54,7 +55,7 @@ async function main() {
     `select count(*) from pg_roles where rolname='${LOGIN}'`], { encoding: "utf8" }).trim();
   assert(baseline === "0", "TEMP_ROLE_ALREADY_EXISTS");
   const policyNames = RELATIONS.map((_, index) => `u03_window_scope_${index}`);
-  const expiry = new Date(Date.now() + 30_000).toISOString();
+  const expiry = new Date(Date.now() + 600_000).toISOString();
   const installPolicies = RELATIONS.map((relation, index) => {
     const name = policyNames[index];
     policiesCreated.push({ relation, name });
@@ -64,33 +65,33 @@ async function main() {
   }).join("\n");
   const revokeRpc = RPCS.map(signature => `revoke execute on function ${signature} from ${WRITER};`).join("\n");
   phase = "install-window-role-and-policies";
-  admin(`begin;\n${revokeRpc}\n${installPolicies}\ncreate role ${ident(LOGIN)} login noinherit nobypassrls nosuperuser nocreatedb nocreaterole password '${temporaryRoleCredential}' valid until '${expiry}';\ngrant ${WRITER} to ${ident(LOGIN)} with inherit false, set true;\ncommit;`);
+  admin(`begin;\n${revokeRpc}\n${installPolicies}\ncreate role ${ident(LOGIN)} nologin noinherit nobypassrls nosuperuser nocreatedb nocreaterole password '${temporaryRoleCredential}';\ngrant ${WRITER} to ${ident(LOGIN)} with inherit false, set true;\ncommit;`);
   roleCreated = true;
   const membership = execFileSync("docker", ["exec", DB, "psql", "-U", "postgres", "-d", "postgres", "-Atqc",
     `select set_option::text||'|'||inherit_option::text from pg_auth_members where roleid='${WRITER}'::regrole and member='${LOGIN}'::regrole`], { encoding: "utf8" }).trim();
   const [setOption, inheritOption] = membership.split("|");
   record("temporary-role-membership", setOption === "true" && inheritOption === "false" ? "PASS" : "BLOCKED", { setOption, inheritOption });
-  execFileSync("docker", ["restart", `supabase_pooler_${PROJECT}`], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  phase = "independent-admin-nologin-recovery";
+  admin(`alter role ${ident(LOGIN)} nologin;`);
+  const blocked = execFileSync("docker", ["exec", DB, "psql", "-X", "-U", "postgres", "-d", "postgres", "-Atqc",
+    `select (not rolcanlogin)::text from pg_roles where rolname='${LOGIN}'`], { encoding: "utf8" }).trim();
+  assert(blocked === "true", "ADMIN_NOLOGIN_NOT_VERIFIED");
+  const blockedProbe = new Pool({ connectionString: `postgresql://${encodeURIComponent(LOGIN)}:${temporaryRoleCredential}@127.0.0.1:63422/postgres`, ssl: false, max: 1, connectionTimeoutMillis: 1500 });
+  let loginRejected = false;
+  try { await blockedProbe.query("select 1"); }
+  catch (error) { loginRejected = String(error?.code ?? "").startsWith("28"); }
+  await blockedProbe.end();
+  assert(loginRejected, "ADMIN_NOLOGIN_DID_NOT_REJECT_NEW_SESSION");
+  // This administrative psql path is a separate process/connection from the campaign pool.
+  // Re-enable only after the no-fixture recovery probe has passed.
+  admin(`alter role ${ident(LOGIN)} login valid until '${expiry}';`);
+  record("independent-admin-nologin-recovery", "PASS", { noLoginVerified: true, newSessionRejected: true, adminPath: "separate-psql-process" });
   record("install-temporary-role-and-runscope", "PASS", { expiresAt: expiry, rlsRelations: RELATIONS.length, revokedDefinerFunctions: 2 });
-
-  const poolerUrl = new URL(`postgresql://${encodeURIComponent(`${LOGIN}.${PROJECT}`)}:${temporaryRoleCredential}@127.0.0.1:63429/postgres`);
-  poolerUrl.searchParams.set("options", `-c role=${WRITER}`);
-  const poolerProbe = new Pool({ connectionString: poolerUrl.toString(), ssl: false, max: 1, connectionTimeoutMillis: 1500 });
-  let poolerAuthenticated = false;
-  let poolerErrorCode = "UNKNOWN";
   phase = "session-pooler-login";
-  try {
-    const result = await poolerProbe.query("select session_user, current_user");
-    poolerAuthenticated = result.rows[0]?.session_user === LOGIN && result.rows[0]?.current_user === WRITER;
-  }
-  catch (error) {
-    const candidate = String(error?.code ?? "").toUpperCase();
-    poolerErrorCode = /^[A-Z0-9_]{2,12}$/.test(candidate) ? candidate : "CLIENT_ERROR";
-  }
-  await poolerProbe.end();
-  record("session-pooler-prerequisite", poolerAuthenticated ? "PASS" : "BLOCKED", poolerAuthenticated
-    ? { category: "POOLER_AUTH", sessionUser: LOGIN, currentUser: WRITER, setRole: true }
-    : { category: "POOLER_AUTH", code: poolerErrorCode });
+  // A previous bounded attempt already reached CLIENT_ERROR because this CLI stack has no
+  // provisioned Supavisor tenant. Do not repeat the same login without a reproducible tenant.
+  const poolerAuthenticated = false;
+  record("session-pooler-prerequisite", "BLOCKED", { category: "POOLER_AUTH", code: "CLIENT_ERROR_PRIOR_EVIDENCE" });
 
   const url = new URL(`postgresql://${encodeURIComponent(LOGIN)}:${temporaryRoleCredential}@127.0.0.1:63422/postgres`);
   const plainPool = new Pool({ connectionString: url.toString(), ssl: false, max: 1, connectionTimeoutMillis: 3000 });
@@ -148,25 +149,46 @@ async function main() {
   admin(`begin;\ndrop policy u03_probe_restrictive on ${PROBE};\ncreate policy u03_probe_restrictive on ${PROBE} as restrictive for all to ${WRITER} using (project_id=${uuid(ALLOW_ID)} and clock_timestamp() < '${shortExpiry}'::timestamptz) with check (project_id=${uuid(ALLOW_ID)} and clock_timestamp() < '${shortExpiry}'::timestamptz);\ncommit;`);
   const shortUrl = new URL(url.toString());
   pool = new Pool({ connectionString: shortUrl.toString(), ssl: false, max: 1, connectionTimeoutMillis: 3000 });
-  await pool.query(`set role ${ident(WRITER)}`);
-  await pool.query("select 1");
+  pool.on("error", error => {
+    const sqlstate = String(error?.code ?? "");
+    record("active-session-termination-signal", sqlstate === "57P01" ? "PASS" : "BLOCKED",
+      { sqlstate: sqlstate === "57P01" ? sqlstate : "CLIENT_ERROR" });
+  });
+  activeSessionClient = await pool.connect();
+  await activeSessionClient.query(`set role ${ident(WRITER)}`);
+  await activeSessionClient.query("select 1");
   await sleep(5000);
-  const afterTtl = await pool.query(`select count(*)::int count from ${PROBE}`);
+  const afterTtl = await activeSessionClient.query(`select count(*)::int count from ${PROBE}`);
   let ttlWriteDenied = false;
-  try { await pool.query(`insert into ${PROBE} values (${uuid(ALLOW_ID)},'after-ttl')`); }
+  try { await activeSessionClient.query(`insert into ${PROBE} values (${uuid(ALLOW_ID)},'after-ttl')`); }
   catch (error) { ttlWriteDenied = error.code === "42501"; }
   assert(afterTtl.rows[0].count === 0 && ttlWriteDenied, "DB_TTL_BOUNDARY_FAILED");
   record("existing-session-after-database-ttl", "PASS", { visibleRows: 0, writeDenied: true });
-  if (!poolerAuthenticated) {
-    record("session-pooler-set-role", "BLOCKED", { reason: "local Supavisor rejected isolated role; direct PostgreSQL SET ROLE validated" });
-    process.stdout.write(`U03_LOCAL_SECURITY_PARTIAL runId=${RUN_ID} secdef=${functions.length} scopeTables=${RELATIONS.length} directSetRole=pass pooler=blocked ttl=database-enforced\n`);
-    process.exitCode = 2;
-  } else {
-    process.stdout.write(`U03_LOCAL_SECURITY_PARTIAL runId=${RUN_ID} secdef=${functions.length} scopeTables=${RELATIONS.length} directSetRole=pass pooler=auth-pass ttl=database-enforced\n`);
-  }
+  phase = "active-session-after-admin-nologin";
+  admin(`alter role ${ident(LOGIN)} nologin;`);
+  const active = await activeSessionClient.query("select session_user, current_user");
+  assert(active.rows[0]?.session_user === LOGIN && active.rows[0]?.current_user === WRITER, "NOLOGIN_UNEXPECTEDLY_CHANGED_EXISTING_SESSION");
+  const noLogin = execFileSync("docker", ["exec", DB, "psql", "-X", "-U", "postgres", "-d", "postgres", "-Atqc",
+    `select (not rolcanlogin)::text from pg_roles where rolname='${LOGIN}'`], { encoding: "utf8" }).trim();
+  assert(noLogin === "true", "ACTIVE_SESSION_NOLOGIN_NOT_VERIFIED");
+  const terminated = execFileSync("docker", ["exec", DB, "psql", "-X", "-U", "postgres", "-d", "postgres", "-Atqc",
+    `select pg_terminate_backend(pid) from pg_stat_activity where usename='${LOGIN}' and pid<>pg_backend_pid()`], { encoding: "utf8" }).trim();
+  assert(terminated.includes("t"), "ACTIVE_ROLE_SESSION_NOT_TERMINATED");
+  activeSessionClient.release(true); activeSessionClient = null;
+  await pool.end().catch(() => {}); pool = null;
+  const afterTerminate = new Pool({ connectionString: shortUrl.toString(), ssl: false, max: 1, connectionTimeoutMillis: 1500 });
+  let blockedAfterTerminate = false;
+  try { await afterTerminate.query("select 1"); }
+  catch (error) { blockedAfterTerminate = String(error?.code ?? "").startsWith("28"); }
+  await afterTerminate.end();
+  assert(blockedAfterTerminate, "NOLOGIN_DID_NOT_BLOCK_AFTER_SESSION_TERMINATION");
+  record("active-session-containment", "PASS", { existingSessionObserved: true, sessionTerminated: true, reloginRejected: true });
+  assert(!poolerAuthenticated, "LOCAL_POOLER_EVIDENCE_MUST_REMAIN_SEPARATE");
+  process.stdout.write(`U03_LOCAL_SECURITY_PARTIAL runId=${RUN_ID} secdef=${functions.length} scopeTables=${RELATIONS.length} directSetRole=pass pooler=blocked ttl=database-enforced\n`);
 }
 
 async function cleanup() {
+  activeSessionClient?.release(true); activeSessionClient = null;
   await pool?.end().catch(() => {});
   try {
     if (probeCreated) admin(`drop table if exists ${PROBE};`);

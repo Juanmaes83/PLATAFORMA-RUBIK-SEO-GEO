@@ -125,3 +125,9 @@ esta evidencia y sigue condicionado por facturación. S2 solo planificado; no im
 ## Fuentes internas
 
 `docs/ROADMAP.md`; `docs/HANDOFF.md`; `docs/OPERATIONS-STATUS.md`; `docs/SECURITY-AUDIT-MEMBERSHIP-HMAC-20261015.md`; `docs/GRUPO-3-PROTOCOLO-AISLAMIENTO-ALOJADO-20261014.md`; `docs/PILOTO-SARAH-CIERRE-TECNICO-20261015.md` (fusionada en #86).
+
+## Corte U03/#143 · 20/10/2026 · HTTP local y contención
+
+#143 continúa OPEN/Draft; HEAD de origen `26e8cb26004c0a96e0df4db862c9dcb2b61c2499`, base `main@a0a40b776361f292d910e285b390d5e753da8d7b`. P-1 servidor y PASS alojados anteriores permanecen reutilizables; no se repitieron. En el nuevo ensayo local `c45dfdd6-3a84-4b13-8185-13b820b9e0e5` (nota: ledger canónico local `test-results/u03-window-http-restore.jsonl` identifica el run exacto) Next atendió solo loopback, exportó HTTP 200, verificó firma offline, rechazó alteración y restauró dos veces en otro stack local con N1 27/27. Cleanup source/destination/outbox cero y stacks retirados. La prueba de contención local `c54f8e86-80ed-4b4d-83b1-31a63698f31d` pasó NOLOGIN, TTL RLS para sesión persistente, terminación administrativa (`57P01`), rechazo de relogin y rollback.
+
+El Session pooler CLI sigue BLOCKED por tenant no provisionado con CLIENT_ERROR previo; no se reintentó. No hubo conexión/SQL/fixtures/despliegue en Preview y no se instaló el rol nuevo. Por ello I-2/I-5 alojado y H1-A alojado siguen BLOCKED; U03/H1/H2 abiertos. `npm run verify`: 624 PASS/1 SKIP; secret scan 735 archivos. GitHub Actions bloqueada por facturación. Próximo gate: preparar modo seguro de preflight/NOLOGIN del nuevo rol y luego una única prueba desde PowerShell visible; el owner introduciría solo la Database password Preview con `Read-Host -AsSecureString` cuando el operador revisado esté listo.

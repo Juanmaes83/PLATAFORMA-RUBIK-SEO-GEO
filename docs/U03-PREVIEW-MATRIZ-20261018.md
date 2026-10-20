@@ -1,5 +1,22 @@
 # U03 · matriz alojada de Preview · 18/10/2026
 
+## Corte actual #143 · HTTP/restauración local real y contención · 20/10/2026
+
+HEAD de trabajo al iniciar: `26e8cb26004c0a96e0df4db862c9dcb2b61c2499`; `main@a0a40b776361f292d910e285b390d5e753da8d7b`; #143 OPEN/Draft. El nuevo código de ensayo es local y no requiere despliegue de aplicación; no se publicó un deployment nuevo ni se escribió en Preview.
+
+| Gate | Estado | Evidencia y límite |
+|---|---|---|
+| Exportación por socket HTTP local | **PASS local** | Run `c45dfdd6-3a84-4b13-8185-13b820b9e0e5`: Next 16 real escuchó solo en `127.0.0.1`; sesión ficticia iniciada en Auth local; ruta `/proyectos/<namespace>/a1/exportar` respondió HTTP 200. No es Preview ni Chromium. |
+| Manifiesto, manipulación y restore | **PASS local, destino separado** | El manifiesto se verificó offline; una copia alterada se rechazó por firma/cadena. Restore doble a `rubik-u03-restore-20261020`, segundo stack vacío con 27/27 N1, conservó filas/hash/firma y fue idempotente. No acredita H1-A alojado. |
+| Contención administrativa y TTL | **PASS local, PostgreSQL directo** | Run `c54f8e86-80ed-4b4d-83b1-31a63698f31d`: NOLOGIN independiente rechazó conexión nueva antes de fixtures; sesión ya abierta observada; TTL RLS denegó la escritura; PostgreSQL confirmó `57P01` al terminar sesión; relogin rechazado; rollback retiró rol/políticas/tabla de prueba. |
+| Session pooler local | **BLOCKED por entorno** | Evidencia previa: Supavisor CLI no tiene tenant local reproducible (`CLIENT_ERROR`). No se repitió login; el ensayo directo no se etiqueta como prueba de pooler. El stack de destino excluyó Supavisor. |
+| Session pooler Preview / nuevo rol | **BLOCKED / no ejecutado** | No se proporcionó entrada segura visible en esta sesión; no se instaló ni activó rol, no se cambió configuración y no se probó TLS/`SET ROLE` para `rubik_preview_u03_writer`. V-4 usó otro rol. |
+| I-2/I-5 alojados y H1-A alojado | **BLOCKED** | Sin campaña, deployment ni fixtures en Preview. Se requieren primero el preflight de conexión y la prueba NOLOGIN/terminación de sesiones del rol nuevo por una vía administrativa independiente. |
+
+Limpieza independiente antes de retirar contenedores: fuente `0|0|0|0|0|0|0|0|0|0|0` (Auth/org/proyecto/audit/result/import/outbox total/pending, roles temporales, políticas temporales); destino `0|0|0|0|0|0|0|0`. El operador retiró ambos workdirs/containers. Ledgers locales ignorados por Git: `test-results/u03-window-http-restore.jsonl` y `test-results/u03-window-local-security.jsonl`; contienen runId, fases enumeradas y estados, sin cookies/tokens/contraseñas/IDs de fixture.
+
+U03 conserva sus PASS alojados previos, pero sigue abierto; H1-A, U04/Sarah, R1 y H2 también. GitHub Actions sigue bloqueada por facturación; no se declara CI verde.
+
 ## Estado separado de transporte y flujos · actualización 20/10/2026
 
 PR #143 continúa OPEN/Draft desde HEAD `6149206f62d6c9ed7059aa344b8ff3acd558d6e5`, base `main@a0a40b776361f292d910e285b390d5e753da8d7b`. No se hicieron escrituras alojadas.
