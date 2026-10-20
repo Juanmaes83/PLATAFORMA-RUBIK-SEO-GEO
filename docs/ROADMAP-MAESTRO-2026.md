@@ -1,5 +1,7 @@
 # ROADMAP MAESTRO · Rubik SEO/GEO
 
+**Ampliación N2 aprobada el 19/10/2026:** [árbol SEO/GEO completo, entregas N2-A–E y piloto Jev N2-J](N2-AMPLIACION-SEO-GEO-20261019.md). Es alcance de producto y contrato de implementación; no acredita código nuevo ni funcionamiento alojado. Conservar la secuencia H1/H2/U03 y los gates de activación N2 indicados abajo.
+
 **Gate de aceptación integral incorporado el 18/10/2026:** [protocolo de dos pasadas para H1 y H2](GATE-ACEPTACION-INTEGRAL-H1-H2-20261018.md). Primero, tras #129 y U03 esencial, un único recorrido ficticio alojado desde login hasta exportación/verificación/restauración y limpieza; después, U04 con Sarah y aceptación humana. Esta prueba de producto completa faltaba como criterio ejecutable explícito. Sigue PENDIENTE: los PASS locales y parciales alojados no cierran H1/H2. La exportación firmada se realiza solo en el entorno expresamente autorizado, sin habilitar escritor en Preview por conveniencia.
 
 **Estado vigente, 18/10/2026:** [Estado de los tres niveles y plan de cierre](ESTADO-TRES-NIVELES-Y-CIERRE-20261018.md). main@b99893e incorpora el checkpoint documental #134 después del merge de #133 en 42e8bcf. #129 sigue Draft en b68244f: U02 aislada en alcance verificado, U03 Data API parcial (12/12 reportados para tres actores), navegador y roles restantes pendientes. H1/H2 abiertos; N2 primeros incrementos en main sin acreditación alojada. La tabla de bloques más abajo conserva el plan original y cortes históricos; usar el estado vigente enlazado para decidir trabajo y responsables.
