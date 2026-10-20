@@ -1,7 +1,9 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { appendFile, mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { preflight } from './u03-preview-b4-runner.mjs';
+import { verifyPreviewWindowAttestationProof, previewWindowAttestationContext } from '../src/lib/provenance/keyring.ts';
 import { runHostedU03Campaign, verifyInitialPreviewState, verifyProtectedWindowRuntime } from './u03-preview-b4-orchestrator.mjs';
 import { PIN } from './u03-preview-b4-runner.mjs';
 import { installAndProbeRunScopedRole, runIndependentContainment, previewWindowRolePassword, PREVIEW_REF } from './u03-window-role-preflight.mjs';
@@ -50,6 +52,38 @@ export async function validateWindowRuntimeConfiguration({ env = process.env, ru
   const loaded = loadKeyring(env);
   if (!loaded.ok) throw new Error('WINDOW_SIGNING_KEYRING_INVALID');
   return { runId, deploymentId: pin.deploymentId, host: pin.host, sha: pin.sha, ref: PREVIEW_REF };
+}
+
+/** Verify exact protected deployment and byte-equality proofs before prompting for a DB password. */
+export async function verifyProtectedWindowBatch({ env = process.env, pin = PIN, fetchImpl = fetch,
+  preflightFn = preflight, nonce = randomBytes(32).toString('base64url') } = {}) {
+  const runId = env.U03_PREVIEW_WRITER_WINDOW_RUN_ID;
+  await validateWindowRuntimeConfiguration({ env, runId, pin });
+  const deployment = await preflightFn({ token: env.VERCEL_OIDC_TOKEN, fetchImpl });
+  if (deployment.deploymentId !== pin.deploymentId || deployment.host !== pin.host || deployment.sha !== pin.sha || deployment.supabaseRef !== PREVIEW_REF)
+    throw new Error('WINDOW_DEPLOYMENT_PROTECTION_REJECTED');
+  const origin = `https://${pin.host}`;
+  let response;
+  try {
+    response = await fetchImpl(`${origin}/api/u03/window-challenge`, {
+      method: 'POST', headers: { 'content-type': 'application/json', 'x-vercel-trusted-oidc-idp-token': env.VERCEL_OIDC_TOKEN },
+      body: JSON.stringify({ runId, nonce }), redirect: 'manual', signal: AbortSignal.timeout(15000),
+    });
+  } catch { throw new Error('WINDOW_CHALLENGE_TRANSPORT_FAILED'); }
+  if (response.status !== 200 || response.headers?.get?.('location')) throw new Error('WINDOW_CHALLENGE_REJECTED');
+  let proof;
+  try { proof = await response.json(); } catch { throw new Error('WINDOW_CHALLENGE_RESPONSE_INVALID'); }
+  const context = previewWindowAttestationContext({ runId, nonce }, pin.deploymentId, pin.host, pin.sha);
+  const sameIdentity = proof?.ok === true && proof.runId === runId && proof.nonce === nonce &&
+    proof.deploymentId === pin.deploymentId && proof.host === pin.host && proof.sha === pin.sha &&
+    proof.ref === PREVIEW_REF && proof.branch === pin.branch && proof.databaseIdentity?.host === 'aws-1-eu-west-3.pooler.supabase.com' &&
+    proof.databaseIdentity?.port === 5432 && proof.databaseIdentity?.role === 'rubik_preview_u03_writer' && proof.databaseIdentity?.ref === PREVIEW_REF;
+  const matches = sameIdentity && verifyPreviewWindowAttestationProof(env.U03_PREVIEW_WRITER_WINDOW_SECRET, context, proof.proofs?.window) &&
+    verifyPreviewWindowAttestationProof(env.RUBIK_AUDIT_DATABASE_URL, context, proof.proofs?.databaseUrl) &&
+    verifyPreviewWindowAttestationProof(env.PROVENANCE_SIGNING_KEYS, context, proof.proofs?.signingKeys) &&
+    verifyPreviewWindowAttestationProof(env.PROVENANCE_ACTIVE_KEY_ID, context, proof.proofs?.activeKeyId);
+  if (!matches) throw new Error('WINDOW_BATCH_DEPLOYMENT_MISMATCH');
+  return { deploymentId: pin.deploymentId, host: pin.host, sha: pin.sha, ref: PREVIEW_REF, runId };
 }
 
 /** One fail-closed owner sequence. No fixtures begin before deployment, read-only, role and runtime proofs pass. */
@@ -132,6 +166,17 @@ export async function runPreviewWindowSequence({ databasePassword, runId = rando
 }
 
 async function main() {
+  if (process.argv.includes('--attest-window-batch-only')) {
+    try {
+      const result = await verifyProtectedWindowBatch();
+      process.stdout.write(`U03_WINDOW_BATCH_ATTESTATION PASS runId=${result.runId} deploymentId=${result.deploymentId} sha=${result.sha}\n`);
+    } catch (error) {
+      const code = SAFE.test(error?.message ?? '') ? error.message : 'WINDOW_BATCH_ATTESTATION_FAILED';
+      process.stderr.write(`U03_WINDOW_BATCH_ATTESTATION BLOCKED code=${code}; no database password was requested\n`);
+      process.exitCode = 1;
+    }
+    return;
+  }
   if (process.argv.includes('--local-preflight-only')) {
     try {
       const result = await validateWindowRuntimeConfiguration();

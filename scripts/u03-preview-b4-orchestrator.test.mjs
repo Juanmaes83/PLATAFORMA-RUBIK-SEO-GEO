@@ -749,21 +749,24 @@ test('owner wrapper runs no-key preflight before DPAPI load; V-4 uses one hidden
   assert.doesNotMatch(script, /Read-B4Secret/);
   const generalEnvironmentKeep = script.match(/\$keep = @\(([^\r\n]+)\)/)?.[1] ?? '';
   assert.doesNotMatch(generalEnvironmentKeep, /U03_PREVIEW_ADMIN_KEY|U03_PREVIEW_PUBLIC_KEY/);
-  assert.match(script, /if \(\$Mode -eq 'sequence'\)[\s\S]*'U03_PREVIEW_ADMIN_KEY','U03_PREVIEW_PUBLIC_KEY'/);
+  assert.match(script, /if \(\$Mode -in @\('sequence','attest','local'\)\)[\s\S]*'U03_PREVIEW_ADMIN_KEY','U03_PREVIEW_PUBLIC_KEY'/);
   assert.match(script, /finally\s*\{[\s\S]*Get-ChildItem Env:[\s\S]*U03_\*/);
   assert.match(script, /finally\s*\{[\s\S]*previewCredentials\.AdminKey = \$null[\s\S]*previewCredentials\.PublicKey = \$null/);
 });
 
 test('H1-A owner mode checks branch vars, deployment and local signing config before one password prompt and finally containment', async () => {
   const script = await readFile(new URL('./u03-preview-b4-owner.ps1', import.meta.url), 'utf8');
-  const modeStart = script.indexOf('if ($WindowRolePreflightOnly -or $WindowRoleReadOnlyDiagnosticOnly -or $WindowI2I5H1A)');
-  const localConfig = script.indexOf('& node $windowSequenceOperator --local-preflight-only', modeStart);
+  const modeStart = script.indexOf('if ($WindowRolePreflightOnly -or $WindowRoleReadOnlyDiagnosticOnly -or $WindowI2I5H1A -or $WindowBatchAttestationOnly)');
+  const localConfig = script.indexOf("Invoke-U03WindowRoleChild -Mode 'local'", modeStart);
+  const attestation = script.indexOf("Invoke-U03WindowRoleChild -Mode 'attest'", localConfig);
   const passwordPrompt = script.indexOf('Read-Host -Prompt', localConfig);
   const sequenceLaunch = script.indexOf("$childMode = if ($WindowI2I5H1A) { 'sequence' }", passwordPrompt);
   const finallyBlock = script.slice(script.indexOf('} finally {', sequenceLaunch));
-  assert.ok(modeStart >= 0 && localConfig > modeStart && passwordPrompt > localConfig && sequenceLaunch > passwordPrompt);
+  assert.ok(modeStart >= 0 && localConfig > modeStart && attestation > localConfig && passwordPrompt > attestation && sequenceLaunch > passwordPrompt);
   assert.match(script, /if \(\$WindowI2I5H1A -and \$branch -ne 'codex\/u03-final-gates-20261020'\)/);
-  assert.match(script, /U03_PREVIEW_WRITER_WINDOW_RUN_ID -cnotmatch/);
+  assert.match(script, /WINDOW_BATCH_IDENTITY_MISMATCH/);
+  assert.match(script, /\$psi\.Arguments = '--conditions=react-server/);
+  assert.match(script, /\$Mode -eq 'local'[\s\S]*--local-preflight-only/);
   assert.match(finallyBlock, /\$WindowI2I5H1A[\s\S]*Invoke-U03WindowRoleChild -Mode 'contain'/);
   assert.match(script, /'RUBIK_AUDIT_DATABASE_URL','PROVENANCE_SIGNING_KEYS','PROVENANCE_ACTIVE_KEY_ID'/);
   assert.match(script, /if \(-not \$WindowRolePreflightOnly -and -not \$WindowRoleReadOnlyDiagnosticOnly -and -not \$WindowI2I5H1A/);

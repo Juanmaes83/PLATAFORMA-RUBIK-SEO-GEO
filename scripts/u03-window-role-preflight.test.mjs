@@ -473,7 +473,7 @@ test('PowerShell mode prompts once and always launches an independent contain-on
   assert.match(ps, /\[switch\]\$WindowRoleReadOnlyDiagnosticOnly/);
   assert.match(ps, /Invoke-U03WindowRoleChild -Mode \$childMode/);
   assert.match(ps, /if \(\$WindowRoleReadOnlyDiagnosticOnly\) \{ 'diagnose' \}/);
-  assert.match(ps, /if \(\$WindowRolePreflightOnly -or \$WindowRoleReadOnlyDiagnosticOnly -or \$WindowI2I5H1A\)/);
+  assert.match(ps, /if \(\$WindowRolePreflightOnly -or \$WindowRoleReadOnlyDiagnosticOnly -or \$WindowI2I5H1A -or \$WindowBatchAttestationOnly\)/);
   assert.match(ps, /if \(-not \$WindowRolePreflightOnly -and -not \$WindowRoleReadOnlyDiagnosticOnly -and -not \$WindowI2I5H1A/);
   assert.match(ps, /\$WindowI2I5H1A[\s\S]*Invoke-U03WindowRoleChild -Mode 'contain'/);
   assert.ok(ps.indexOf('elseif ($PlaywrightOnly)') > ps.indexOf('if ($ProviderEgressOnly)'));

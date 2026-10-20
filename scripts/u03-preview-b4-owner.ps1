@@ -4,6 +4,9 @@ param(
   [switch]$WindowRolePreflightOnly,
   [switch]$WindowRoleReadOnlyDiagnosticOnly,
   [switch]$WindowI2I5H1A,
+  [switch]$WindowBatchAttestationOnly,
+  [switch]$ProvisionWindowSecrets,
+  [switch]$WindowTransportSelfTestOnly,
   [switch]$WindowRoleTransportSelfTestOnly,
   [switch]$PlaywrightOnly,
   [switch]$RolesInvitationsOnly,
@@ -30,8 +33,12 @@ $windowSequenceOperator = Join-Path $repo 'scripts\u03-preview-window-run.mjs'
 $v4PoolerModule = Join-Path $PSScriptRoot 'u03-preview-v4-pooler.psm1'
 $linkFile = Join-Path $repo '.vercel\project.json'
 $clipboardModule = Join-Path $PSScriptRoot 'u03-preview-b4-clipboard.psm1'
+$windowVaultModule = Join-Path $PSScriptRoot 'u03-preview-window-vault.psm1'
+$windowRotationModule = Join-Path $PSScriptRoot 'u03-preview-window-rotation.psm1'
 Import-Module -Name $clipboardModule -Force -ErrorAction Stop
 Import-Module -Name $v4PoolerModule -Force -ErrorAction Stop
+Import-Module -Name $windowVaultModule -Force -ErrorAction Stop
+Import-Module -Name $windowRotationModule -Force -ErrorAction Stop
 
 function Stop-B4([string]$Code) { throw "U03 B-4 BLOCKED: $Code. No fixtures will be created unless every preflight passes." }
 
@@ -55,14 +62,14 @@ function Invoke-U03WindowRoleChild([string]$Mode, [string]$RunId, [string]$Passw
   $payload = $null
   $payloadBytes = $null
   try {
-    if ($Mode -notin @('run','contain','diagnose','sequence') -or $RunId -cnotmatch '^[0-9a-fA-F-]{36}$' -or
-        [string]::IsNullOrWhiteSpace($PasswordText) -or -not (Test-Path -LiteralPath $ChildPath -PathType Leaf)) {
+    if ($Mode -notin @('run','contain','diagnose','sequence','attest','local') -or $RunId -cnotmatch '^[0-9a-fA-F-]{36}$' -or
+        (($Mode -notin @('attest','local')) -and [string]::IsNullOrWhiteSpace($PasswordText)) -or -not (Test-Path -LiteralPath $ChildPath -PathType Leaf)) {
       return [pscustomobject]@{ Passed = $false; SafeLine = $null; Code = 'SAFE_CHILD_PREPARATION_FAILED' }
     }
     $nodePath = (Get-Command node.exe -ErrorAction Stop).Source
     $psi = [Diagnostics.ProcessStartInfo]::new()
     $psi.FileName = $nodePath
-    $psi.Arguments = '"' + $ChildPath + '"'
+    $psi.Arguments = '--conditions=react-server "' + $ChildPath + '"' + $(if ($Mode -eq 'attest') { ' --attest-window-batch-only' } elseif ($Mode -eq 'local') { ' --local-preflight-only' } else { '' })
     $psi.WorkingDirectory = $repo
     $psi.UseShellExecute = $false
     $psi.CreateNoWindow = $true
@@ -74,7 +81,7 @@ function Invoke-U03WindowRoleChild([string]$Mode, [string]$RunId, [string]$Passw
       $value = [Environment]::GetEnvironmentVariable($name)
       if (-not [string]::IsNullOrEmpty($value)) { $psi.EnvironmentVariables[$name] = $value }
     }
-    if ($Mode -eq 'sequence') {
+    if ($Mode -in @('sequence','attest','local')) {
       foreach ($name in @('VERCEL_OIDC_TOKEN','U03_VERCEL_CLI','U03_SUPABASE_CLI','U03_PIN_DEPLOYMENT_ID',
           'U03_PIN_DEPLOYMENT_HOST','U03_PIN_DEPLOYMENT_SHA','U03_PIN_DEPLOYMENT_BRANCH','U03_FUNCTIONAL_SHA',
           'U03_PREVIEW_ADMIN_KEY','U03_PREVIEW_PUBLIC_KEY','U03_PREVIEW_WRITER_WINDOW','U03_PREVIEW_WRITER_WINDOW_REF',
@@ -94,7 +101,7 @@ function Invoke-U03WindowRoleChild([string]$Mode, [string]$RunId, [string]$Passw
     if (-not $process.Start()) { return [pscustomobject]@{ Passed = $false; SafeLine = $null; Code = 'SAFE_CHILD_START_FAILED' } }
     $stdoutTask = $process.StandardOutput.ReadToEndAsync()
     $stderrTask = $process.StandardError.ReadToEndAsync()
-    $payload = @{ mode = $Mode; runId = $RunId; databasePassword = $PasswordText } | ConvertTo-Json -Compress
+    $payload = if ($Mode -eq 'attest') { '{}' } else { @{ mode = $Mode; runId = $RunId; databasePassword = $PasswordText } | ConvertTo-Json -Compress }
     $payloadBytes = [Text.UTF8Encoding]::new($false).GetBytes($payload + "`n")
     $stdin = $process.StandardInput.BaseStream
     $stdin.Write($payloadBytes, 0, $payloadBytes.Length)
@@ -106,8 +113,12 @@ function Invoke-U03WindowRoleChild([string]$Mode, [string]$RunId, [string]$Passw
       return [pscustomobject]@{ Passed = $false; SafeLine = $null; Code = 'SAFE_CHILD_TIMEOUT' }
     }
     $stdout = $stdoutTask.GetAwaiter().GetResult()
-    $null = $stderrTask.GetAwaiter().GetResult()
-    $pattern = if ($Mode -eq 'sequence') {
+    $stderr = $stderrTask.GetAwaiter().GetResult()
+    $pattern = if ($Mode -eq 'local') {
+      '^U03_PREVIEW_WINDOW_LOCAL_PREFLIGHT (?:PASS runId=[0-9a-fA-F-]{36} deploymentId=dpl_[A-Za-z0-9]+ sha=[0-9a-f]{40}|BLOCKED; no database operation was attempted)$'
+    } elseif ($Mode -eq 'attest') {
+      '^U03_WINDOW_BATCH_ATTESTATION (?:PASS runId=[0-9a-fA-F-]{36} deploymentId=dpl_[A-Za-z0-9]+ sha=[0-9a-f]{40}|BLOCKED code=[A-Z][A-Z0-9_]{1,79}; no database password was requested)$'
+    } elseif ($Mode -eq 'sequence') {
       '^U03_PREVIEW_WINDOW_SEQUENCE (PASS|BLOCKED) runId=[0-9a-fA-F-]{36} ledger=[^\r\n]+$'
     } elseif ($Mode -eq 'run') {
       '^U03_WINDOW_ROLE_RESULT (PASS|BLOCKED) runId=[0-9a-fA-F-]{36} roleRemoved=(?:true|false|True|False) policies=\d+ inventoryZero=(?:true|false|True|False) outboxTotal=\d+ pending=\d+$'
@@ -117,15 +128,116 @@ function Invoke-U03WindowRoleChild([string]$Mode, [string]$RunId, [string]$Passw
       '^U03_WINDOW_ROLE_READONLY_DIAGNOSTIC (PASS runId=[0-9a-fA-F-]{36} checks=IDENTITY,MIGRATIONS,WRITER_LOCK,ADMIN_CAPABILITIES,INVENTORY,OUTBOX,TLS|BLOCKED runId=[0-9a-fA-F-]{36} category=(?:DNS|TCP|TLS|AUTHENTICATION|PERMISSION|DATABASE|PREFLIGHT) code=(?:ENOTFOUND|EAI_AGAIN|EAI_FAIL|ETIMEDOUT|ECONNREFUSED|ECONNRESET|EHOSTUNREACH|ENETUNREACH|EPIPE|ENETDOWN|ECONNABORTED|ERR_TLS_CERT_ALTNAME_INVALID|CERT_HAS_EXPIRED|UNABLE_TO_VERIFY_LEAF_SIGNATURE|UNABLE_TO_GET_ISSUER_CERT_LOCALLY|DEPTH_ZERO_SELF_SIGNED_CERT|SELF_SIGNED_CERT_IN_CHAIN|ERR_TLS_CERT_SIGNATURE_ALGORITHM_UNSUPPORTED|ERR_TLS_HANDSHAKE_TIMEOUT|ERR_SSL_WRONG_VERSION_NUMBER|TLS_ERROR_UNCLASSIFIED|SQLSTATE_(?:42501|28P01|28000|57P01|0A000|42704|42710)|DATABASE_ERROR_UNCLASSIFIED|PREVIEW_READ_ONLY_RESULT_SCHEMA_INCOMPLETE|DATABASE_IDENTITY_MISMATCH|PREVIEW_IDENTITY_MISMATCH|MIGRATION_SET_MISMATCH|GENERAL_WRITER_NOT_LOCKED|ADMIN_CAPABILITY_MISSING|WRITER_SESSION_RESIDUE|TEMPORARY_ROLE_RESIDUE|TEMPORARY_POLICY_RESIDUE|TLS_VERIFICATION_FAILED|INVENTORY_NOT_EMPTY|PENDING_OUTBOX_NOT_EMPTY|ROLE_OWNERSHIP_UNVERIFIED|ROLE_ABSENCE_NOT_VERIFIED|ROLE_POLICY_RESIDUE|ROLE_SESSION_RESIDUE|FINAL_INVENTORY_NOT_EMPTY) sqlstate=(?:NONE|42501|28P01|28000|57P01|0A000|42704|42710) condition=(?:NONE|PREVIEW_READ_ONLY_RESULT_SCHEMA_INCOMPLETE|DATABASE_IDENTITY_MISMATCH|PREVIEW_IDENTITY_MISMATCH|MIGRATION_SET_MISMATCH|GENERAL_WRITER_NOT_LOCKED|ADMIN_CAPABILITY_MISSING|WRITER_SESSION_RESIDUE|TEMPORARY_ROLE_RESIDUE|TEMPORARY_POLICY_RESIDUE|TLS_VERIFICATION_FAILED|INVENTORY_NOT_EMPTY|PENDING_OUTBOX_NOT_EMPTY|ROLE_OWNERSHIP_UNVERIFIED|ROLE_ABSENCE_NOT_VERIFIED|ROLE_POLICY_RESIDUE|ROLE_SESSION_RESIDUE|FINAL_INVENTORY_NOT_EMPTY))$'
     }
     $safeLine = @($stdout -split "`r?`n" | Where-Object { $_ -cmatch $pattern } | Select-Object -Last 1)
-    if ($safeLine.Count -eq 0) { return [pscustomobject]@{ Passed = $false; SafeLine = $null; Code = 'SAFE_CHILD_RESULT_MISSING' } }
-    return [pscustomobject]@{ Passed = ($process.ExitCode -eq 0 -and $safeLine[0] -match ' PASS '); SafeLine = $safeLine[0]; Code = 'NONE' }
+    if ($safeLine.Count -eq 0) {
+      $missingCode = if ($Mode -eq 'attest' -and $stderr -match 'This module cannot be imported from a Client Component module') { 'SERVER_ONLY_IMPORT_REJECTED' }
+        elseif (-not [string]::IsNullOrWhiteSpace($stderr)) { 'SAFE_CHILD_STDERR_NONEMPTY' } else { 'SAFE_CHILD_RESULT_MISSING' }
+      return [pscustomobject]@{ Passed = $false; SafeLine = $null; Code = $missingCode }
+    }
+    $lineText = [string]$safeLine[0]
+    $attestBlocked = if ($Mode -eq 'attest') { [regex]::Match($lineText,'BLOCKED code=([A-Z][A-Z0-9_]{1,79})') } else { $null }
+    return [pscustomobject]@{ Passed = ($process.ExitCode -eq 0 -and $lineText -match ' PASS '); SafeLine = $lineText; Code = if ($attestBlocked -and $attestBlocked.Success) { $attestBlocked.Groups[1].Value } else { 'NONE' } }
   } catch {
     return [pscustomobject]@{ Passed = $false; SafeLine = $null; Code = 'SAFE_CHILD_FAILURE' }
   } finally {
     if ($payloadBytes) { [Array]::Clear($payloadBytes, 0, $payloadBytes.Length) }
     $payload = $null
+    $stderr = $null
     if ($process) { try { $process.Dispose() } catch { } }
   }
+}
+
+function Invoke-U03WindowVercelCli([string[]]$Arguments, [string]$InputText = '') {
+  $process = $null; $inputBytes = $null
+  try {
+    $cli = $env:U03_VERCEL_CLI
+    if ([string]::IsNullOrWhiteSpace($cli) -or $Arguments.Count -lt 2) { Stop-B4 'WINDOW_VERCEL_CLI_INPUT_REJECTED' }
+    $psi = [Diagnostics.ProcessStartInfo]::new()
+    $psi.FileName = $env:ComSpec
+    $psi.Arguments = '/d /s /c ""' + $cli + '" ' + ($Arguments -join ' ') + '"'
+    $psi.WorkingDirectory = $repo
+    $psi.UseShellExecute = $false; $psi.CreateNoWindow = $true
+    $psi.RedirectStandardInput = $true; $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true
+    $psi.EnvironmentVariables.Clear()
+    foreach ($name in @('PATH','SystemRoot','WINDIR','TEMP','TMP','USERPROFILE','LOCALAPPDATA','APPDATA','ProgramFiles','HOMEDRIVE','HOMEPATH','COMSPEC','PATHEXT','HTTP_PROXY','HTTPS_PROXY','ALL_PROXY','NO_PROXY','http_proxy','https_proxy','all_proxy','no_proxy')) {
+      $value = [Environment]::GetEnvironmentVariable($name)
+      if (-not [string]::IsNullOrEmpty($value)) { $psi.EnvironmentVariables[$name] = $value }
+    }
+    $process = [Diagnostics.Process]::new(); $process.StartInfo = $psi
+    if (-not $process.Start()) { Stop-B4 'WINDOW_VERCEL_CHILD_START_FAILED' }
+    $stdoutTask = $process.StandardOutput.ReadToEndAsync(); $stderrTask = $process.StandardError.ReadToEndAsync()
+    if (-not [string]::IsNullOrEmpty($InputText)) {
+      $inputBytes = [Text.UTF8Encoding]::new($false).GetBytes($InputText + "`n")
+      $stream = $process.StandardInput.BaseStream; $stream.Write($inputBytes,0,$inputBytes.Length); $stream.Flush()
+    }
+    $process.StandardInput.Close()
+    if (-not $process.WaitForExit(120000)) { try { $process.Kill() } catch { }; Stop-B4 'WINDOW_VERCEL_CHILD_TIMEOUT' }
+    $stdout = $stdoutTask.GetAwaiter().GetResult(); $null = $stderrTask.GetAwaiter().GetResult()
+    return [pscustomobject]@{ ExitCode=$process.ExitCode; Output=$stdout }
+  } catch {
+    if ($_.Exception.Message -like 'U03 B-4 BLOCKED:*') { throw }
+    return [pscustomobject]@{ ExitCode=1; Output='' }
+  } finally {
+    if ($inputBytes) { [Array]::Clear($inputBytes,0,$inputBytes.Length) }
+    if ($process) { $process.Dispose() }
+    $InputText = $null
+  }
+}
+
+function Invoke-U03WindowBatchProvision {
+  $head = (& git -C $repo rev-parse HEAD 2>$null).Trim()
+  $dirty = (& git -C $repo status --porcelain 2>$null | Out-String).Trim()
+  if ($branch -cne 'codex/u03-final-gates-20261020' -or $head -cnotmatch '^[0-9a-f]{40}$' -or $dirty) { Stop-B4 'WINDOW_PROVISION_GIT_PIN_REJECTED' }
+  $vaultPath = Get-U03WindowVaultPath
+  if (Test-Path -LiteralPath $vaultPath -PathType Leaf) {
+    try { $previousBatch = Get-U03WindowBatch } catch { Stop-B4 'WINDOW_BATCH_EXISTING_VAULT_UNAVAILABLE' }
+    if ($previousBatch.Sha -ceq $head -and $previousBatch.Branch -ceq $branch) { $batch = $previousBatch }
+    else {
+      foreach ($name in @($previousBatch.Values.Keys)) { $previousBatch.Values[$name] = '' }
+      $previousBatch = $null
+      $batch = New-U03WindowBatch -Sha $head
+      $null = Save-U03WindowBatch -Batch $batch
+    }
+  } else {
+    $batch = New-U03WindowBatch -Sha $head
+    $null = Save-U03WindowBatch -Batch $batch
+  }
+  $windowVariableNames = Get-U03WindowVariableNames
+  try {
+    $cliInvoker = { param($Arguments,$InputText) Invoke-U03WindowVercelCli -Arguments $Arguments -InputText $InputText }
+    $rotation = Invoke-U03WindowRotation -Batch $batch -Cli $cliInvoker -Names $windowVariableNames
+    if (-not $rotation.Passed) { Stop-B4 $rotation.Code }
+    Write-Output "U03_WINDOW_BATCH_PROVISIONED runId=$($batch.RunId) branch=$($batch.Branch) sha=$($batch.Sha) ref=$($batch.SupabaseRef) count=8 vault=DPAPI_CURRENT_USER deployment=REDEPLOY_REQUIRED"
+  } catch {
+    $failure = [regex]::Match($_.Exception.Message,'(?:BLOCKED:\s*|)(ROTATION_[A-Z_]+|WINDOW_[A-Z_]+)')
+    $failureCode = if ($failure.Success) { $failure.Groups[1].Value } else { 'ROTATION_INCOMPLETE' }
+    Write-Output "U03_WINDOW_BATCH_PROVISION BLOCKED code=$failureCode vault=RETAINED runId=$($batch.RunId)"
+    throw
+  } finally {
+    foreach ($name in @($batch.Values.Keys)) { $batch.Values[$name] = '' }
+    $batch = $null
+  }
+}
+
+function Test-U03WindowVercelStdinTransport {
+  $name = 'U03_WINDOW_TRANSPORT_SELFTEST_' + [guid]::NewGuid().ToString('N')
+  $value = 'fake-only-' + [char]0x00f1 + '-' + [char]0x6771 + [char]0x4eac + '-' + [char]0xd83d + [char]0xdd10 + '-:/?&%'
+  $ownedName = $false; $verifiedAbsent = $false
+  try {
+    $before = Invoke-U03WindowVercelCli -Arguments @('env','ls','preview','codex/u03-final-gates-20261020')
+    if ($before.ExitCode -ne 0 -or $before.Output -match ('\b' + [regex]::Escape($name) + '\b')) { Stop-B4 'WINDOW_TRANSPORT_SELFTEST_PRECONDITION_FAILED' }
+    $ownedName = $true
+    $add = Invoke-U03WindowVercelCli -Arguments @('env','add',$name,'preview','codex/u03-final-gates-20261020','--yes','--sensitive') -InputText $value
+    if ($add.ExitCode -ne 0) { Stop-B4 'WINDOW_TRANSPORT_SELFTEST_STDIN_FAILED' }
+    $middle = Invoke-U03WindowVercelCli -Arguments @('env','ls','preview','codex/u03-final-gates-20261020')
+    if ($middle.ExitCode -ne 0 -or $middle.Output -notmatch ('\b' + [regex]::Escape($name) + '\b')) { Stop-B4 'WINDOW_TRANSPORT_SELFTEST_PERSISTENCE_FAILED' }
+  } finally {
+    if ($ownedName) { $null = Invoke-U03WindowVercelCli -Arguments @('env','rm',$name,'preview','codex/u03-final-gates-20261020','--yes') }
+    $after = Invoke-U03WindowVercelCli -Arguments @('env','ls','preview','codex/u03-final-gates-20261020')
+    $verifiedAbsent = $after.ExitCode -eq 0 -and $after.Output -notmatch ('\b' + [regex]::Escape($name) + '\b')
+    $value = $null
+    if (-not $verifiedAbsent) { Stop-B4 'WINDOW_TRANSPORT_SELFTEST_CLEANUP_UNVERIFIED' }
+  }
+  Write-Output 'U03_WINDOW_VERCEL_STDIN_SELFTEST PASS transport=ProcessStartInfo.BaseStream encoding=UTF8 sensitive=true scope=PreviewBranch cleanup=verified'
 }
 
 function Invoke-U03PreviewAdminConnectionComparison([System.Security.SecureString]$SecurePassword) {
@@ -204,7 +316,9 @@ foreach ($requested in @($ProvisionPreviewKeys.IsPresent, $CheckPreviewKeys.IsPr
   if ($requested) { $credentialOperations++ }
 }
 $campaignModes = @($ReadOnlyPreflightOnly.IsPresent, $V4ConnectionDiagnosticOnly.IsPresent, $WindowRolePreflightOnly.IsPresent,
-  $WindowRoleReadOnlyDiagnosticOnly.IsPresent, $WindowI2I5H1A.IsPresent,
+  $WindowRoleReadOnlyDiagnosticOnly.IsPresent, $WindowI2I5H1A.IsPresent, $WindowBatchAttestationOnly.IsPresent,
+  $ProvisionWindowSecrets.IsPresent,
+  $WindowTransportSelfTestOnly.IsPresent,
   $WindowRoleTransportSelfTestOnly.IsPresent,
   $PlaywrightOnly.IsPresent, $MembershipRevocationOnly.IsPresent, $RolesInvitationsOnly.IsPresent,
   $CrossSurfaceOnly.IsPresent, $SessionProvidersOnly.IsPresent, $ProviderEgressOnly.IsPresent) | Where-Object { $_ }
@@ -238,6 +352,9 @@ if ($ProviderEgressOnly -and $branch -ne 'codex/u03-final-gates-20261020') { Sto
 if ($WindowRolePreflightOnly -and $branch -ne 'codex/u03-final-gates-20261020') { Stop-B4 'WRONG_MODE_BRANCH' }
 if ($WindowRoleReadOnlyDiagnosticOnly -and $branch -ne 'codex/u03-final-gates-20261020') { Stop-B4 'WRONG_MODE_BRANCH' }
 if ($WindowI2I5H1A -and $branch -ne 'codex/u03-final-gates-20261020') { Stop-B4 'WRONG_MODE_BRANCH' }
+if ($WindowBatchAttestationOnly -and $branch -ne 'codex/u03-final-gates-20261020') { Stop-B4 'WRONG_MODE_BRANCH' }
+if ($ProvisionWindowSecrets -and $branch -ne 'codex/u03-final-gates-20261020') { Stop-B4 'WRONG_MODE_BRANCH' }
+if ($WindowTransportSelfTestOnly -and $branch -ne 'codex/u03-final-gates-20261020') { Stop-B4 'WRONG_MODE_BRANCH' }
 if ($RolesInvitationsOnly -and $branch -notin @('codex/u03-roles-invitations-20261019',
     'codex/u03-cross-surface-20261019')) { Stop-B4 'WRONG_MODE_BRANCH' }
 $link = Get-Content -LiteralPath $linkFile -Raw | ConvertFrom-Json
@@ -289,7 +406,17 @@ $windowRoleContainFailed = $false
 $windowRolePlainPassword = $null
 $windowRoleTransportSelfTestPassed = $false
 $windowRoleChildOverride = $null
+$windowBatch = $null
+$windowBatchAttested = $false
 try {
+  if ($WindowTransportSelfTestOnly) {
+    Test-U03WindowVercelStdinTransport
+    return
+  }
+  if ($ProvisionWindowSecrets) {
+    Invoke-U03WindowBatchProvision
+    return
+  }
   if ($WindowRoleTransportSelfTestOnly) {
     $testChild = Join-Path $PSScriptRoot 'u03-window-role-transport-child.mjs'
     $fakePassword = 'Ficticia-' + [char]0x00f1 + '-' + [char]0x6771 + [char]0x4eac + '-' + [char]0xd83d + [char]0xdd10
@@ -329,21 +456,21 @@ try {
 
   Push-Location -LiteralPath $repo
   $pushed = $true
-  if ($WindowRolePreflightOnly -or $WindowRoleReadOnlyDiagnosticOnly -or $WindowI2I5H1A) {
+  if ($WindowRolePreflightOnly -or $WindowRoleReadOnlyDiagnosticOnly -or $WindowI2I5H1A -or $WindowBatchAttestationOnly) {
     if (-not (Test-Path -LiteralPath $windowRoleOperator)) { Stop-B4 'WINDOW_ROLE_OPERATOR_MISSING' }
-    if ($WindowI2I5H1A) {
+    if ($WindowI2I5H1A -or $WindowBatchAttestationOnly) {
       $head = (& git -C $repo rev-parse HEAD 2>$null).Trim()
       if ($DeploymentId -cnotmatch '^dpl_[A-Za-z0-9]+$' -or
           $DeploymentHost -cnotmatch '^[a-z0-9][a-z0-9.-]+\.vercel\.app$' -or
           $DeploymentSha -cne $head -or $DeploymentSha -cnotmatch '^[0-9a-f]{40}$') { Stop-B4 'WINDOW_ROLE_DEPLOYMENT_PIN_REJECTED' }
-      if ($env:U03_PREVIEW_WRITER_WINDOW -cne 'armed-run-capability' -or
-          $env:U03_PREVIEW_WRITER_WINDOW_REF -cne 'rhnnplewqsekrnaousyl' -or
-          $env:U03_PREVIEW_WRITER_WINDOW_SHA -cne $DeploymentSha -or
-          $env:U03_PREVIEW_WRITER_WINDOW_RUN_ID -cnotmatch '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$' -or
-          [string]::IsNullOrWhiteSpace($env:U03_PREVIEW_WRITER_WINDOW_SECRET) -or
-          [string]::IsNullOrWhiteSpace($env:RUBIK_AUDIT_DATABASE_URL) -or
-          [string]::IsNullOrWhiteSpace($env:PROVENANCE_SIGNING_KEYS) -or
-          [string]::IsNullOrWhiteSpace($env:PROVENANCE_ACTIVE_KEY_ID)) { Stop-B4 'WINDOW_BRANCH_ENV_NOT_READY' }
+      try { $windowBatch = Get-U03WindowBatch } catch {
+        $vaultCode = [regex]::Match($_.Exception.Message,'U03_WINDOW_VAULT:([A-Z0-9_]+)').Groups[1].Value
+        if ($vaultCode -in @('VAULT_ABSENT','IDENTITY_MISMATCH','BATCH_INCOMPLETE','BATCH_FORMAT_INVALID','VAULT_CORRUPT','VAULT_UNPROTECT_FAILED')) { Stop-B4 "WINDOW_BATCH_$vaultCode" }
+        Stop-B4 'WINDOW_BATCH_STORE_UNAVAILABLE'
+      }
+      if ($windowBatch.ProjectId -cne 'prj_HgnTtNtisi9Kt1A4Dq2pxoCQBook' -or $windowBatch.SupabaseRef -cne 'rhnnplewqsekrnaousyl' -or
+          $windowBatch.Branch -cne $branch -or $windowBatch.Sha -cne $DeploymentSha -or $windowBatch.RunId -cnotmatch '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$') { Stop-B4 'WINDOW_BATCH_IDENTITY_MISMATCH' }
+      foreach ($name in (Get-U03WindowVariableNames)) { Set-Item -LiteralPath "Env:$name" -Value ([string]$windowBatch.Values.$name) }
       $env:U03_FUNCTIONAL_SHA = $head
       $env:U03_PIN_DEPLOYMENT_BRANCH = 'codex/u03-final-gates-20261020'
     } elseif ($DeploymentId -cne 'dpl_FX2BbLxBZPg38hYqikhhsEprGdPL' -or
@@ -355,7 +482,7 @@ try {
     $env:U03_PIN_DEPLOYMENT_BRANCH = 'codex/u03-final-gates-20261020'
     & node $runner --readonly-preflight
     if ($LASTEXITCODE -ne 0) { Stop-B4 'WINDOW_ROLE_PROTECTED_DEPLOYMENT_PREFLIGHT_FAILED' }
-    if ($WindowRolePreflightOnly -or $WindowI2I5H1A) {
+  if ($WindowRolePreflightOnly -or $WindowI2I5H1A -or $WindowBatchAttestationOnly) {
       try { $previewCredentials = Get-B4PreviewCredentials }
       catch { Stop-B4 'WINDOW_ROLE_PREVIEW_CREDENTIALS_UNAVAILABLE' }
       if ($previewCredentials.ProjectRef -cne 'rhnnplewqsekrnaousyl') { Stop-B4 'PREVIEW_CREDENTIAL_REF_MISMATCH' }
@@ -371,10 +498,22 @@ try {
       if ($credentialPreflightExit -ne 0) { Stop-B4 'WINDOW_ROLE_CREDENTIAL_PREFLIGHT_FAILED' }
     }
 
-    if ($WindowI2I5H1A) {
+    if ($WindowI2I5H1A -or $WindowBatchAttestationOnly) {
       if (-not (Test-Path -LiteralPath $windowSequenceOperator)) { Stop-B4 'WINDOW_SEQUENCE_OPERATOR_MISSING' }
-      & node $windowSequenceOperator --local-preflight-only
-      if ($LASTEXITCODE -ne 0) { Stop-B4 'WINDOW_SEQUENCE_LOCAL_CONFIGURATION_REJECTED' }
+      $localConfiguration = Invoke-U03WindowRoleChild -Mode 'local' -RunId $windowBatch.RunId -PasswordText '' -ChildPath $windowSequenceOperator
+      if ($localConfiguration.SafeLine) { Write-Output $localConfiguration.SafeLine }
+      if (-not $localConfiguration.Passed) { Stop-B4 'WINDOW_SEQUENCE_LOCAL_CONFIGURATION_REJECTED' }
+      $windowRoleRunId = $windowBatch.RunId
+      $attestResult = Invoke-U03WindowRoleChild -Mode 'attest' -RunId $windowRoleRunId -PasswordText '' -ChildPath $windowSequenceOperator
+      if ($attestResult.SafeLine) { Write-Output $attestResult.SafeLine }
+      if (-not $attestResult.Passed) {
+        if ($attestResult.Code -match '^WINDOW_[A-Z0-9_]+$') { Stop-B4 $attestResult.Code }
+        Stop-B4 'WINDOW_BATCH_CHILD_TRANSPORT_FAILED'
+      }
+      $windowBatchAttested = $true
+      if ($WindowBatchAttestationOnly) {
+        return
+      }
     }
 
     $secureDatabasePassword = Read-Host -Prompt 'Database password existente de Supabase Preview rhnnplewqsekrnaousyl (entrada oculta)' -AsSecureString
@@ -383,7 +522,7 @@ try {
       $passwordBstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureDatabasePassword)
       $windowRolePlainPassword = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($passwordBstr)
       if ([string]::IsNullOrEmpty($windowRolePlainPassword)) { Stop-B4 'WINDOW_ROLE_DATABASE_PASSWORD_EMPTY' }
-      $windowRoleRunId = if ($WindowI2I5H1A) { $env:U03_PREVIEW_WRITER_WINDOW_RUN_ID } else { [guid]::NewGuid().ToString() }
+      if (-not $WindowI2I5H1A) { $windowRoleRunId = [guid]::NewGuid().ToString() }
       Write-Output "U03_WINDOW_ROLE_RUN_ID: $windowRoleRunId"
       $childMode = if ($WindowI2I5H1A) { 'sequence' } elseif ($WindowRoleReadOnlyDiagnosticOnly) { 'diagnose' } else { 'run' }
       $childPath = if ($WindowI2I5H1A) { $windowSequenceOperator } else { $windowRoleOperator }
@@ -398,7 +537,7 @@ try {
       if ($secureDatabasePassword) { $secureDatabasePassword.Dispose(); $secureDatabasePassword = $null }
     }
   }
-  if (-not $WindowRolePreflightOnly -and -not $WindowRoleReadOnlyDiagnosticOnly -and -not $WindowI2I5H1A -and -not $WindowRoleTransportSelfTestOnly) {
+  if (-not $WindowRolePreflightOnly -and -not $WindowRoleReadOnlyDiagnosticOnly -and -not $WindowI2I5H1A -and -not $WindowBatchAttestationOnly -and -not $WindowRoleTransportSelfTestOnly) {
   # Deployment protection and database identity/counts/migrations do not need
   # Auth keys. Fail here before loading credentials if any read-only gate is not exact.
   & node $runner --readonly-preflight
@@ -481,10 +620,10 @@ try {
     }
     if ($windowRoleContainFailed) {
       Write-Warning 'U03_WINDOW_ROLE_CONTAINMENT BLOCKED; keep the sanitized ledger and do not create fixtures.'
-    } elseif ($WindowI2I5H1A) {
+    } elseif ($WindowI2I5H1A -and $windowBatchAttested) {
       if ($containResult.SafeLine -notmatch '^U03_WINDOW_ROLE_CONTAINMENT PASS .*rolePresent=(?:false|False) roleLocked=(?:null|true|True) policies=0 activeSessions=0 inventoryZero=(?:true|True) outboxTotal=0 pending=0$') {
         Write-Warning 'U03_WINDOW_TEARDOWN BLOCKED; temporary deployment variables retained because final Preview state was not clean.'
-      } elseif (Remove-U03WindowDeploymentConfiguration -DeploymentId $DeploymentId) {
+      } elseif ((Remove-U03WindowDeploymentConfiguration -DeploymentId $DeploymentId) -and (Remove-U03WindowBatch)) {
         Write-Output 'U03_WINDOW_TEARDOWN PASS branchVariablesRemoved=true deploymentRemoved=true'
       } else {
         Write-Warning 'U03_WINDOW_TEARDOWN BLOCKED; inspect the exact run ledger and Vercel variable inventory.'

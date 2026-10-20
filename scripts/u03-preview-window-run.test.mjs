@@ -3,7 +3,8 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { createWindowLedger, pinIsExact, runPreviewWindowSequence, validateWindowRuntimeConfiguration } from './u03-preview-window-run.mjs';
+import { createWindowLedger, pinIsExact, runPreviewWindowSequence, validateWindowRuntimeConfiguration, verifyProtectedWindowBatch } from './u03-preview-window-run.mjs';
+import { createPreviewWindowAttestation } from '../src/lib/provenance/keyring.ts';
 
 const RUN = 'c14f4c11-570f-4e03-a3a1-33a702b85baa';
 const PIN = { deploymentId: 'dpl_Fictional123', host: 'preview-fixed.example', sha: 'a'.repeat(40), branch: 'codex/u03-final-gates-20261020' };
@@ -57,6 +58,22 @@ test('local configuration preflight validates TLS-pooler URL shape and signing k
   assert.equal(result.ref, 'rhnnplewqsekrnaousyl');
   assert.equal(result.sha, PIN.sha);
   await assert.rejects(validateWindowRuntimeConfiguration({ env: { ...env, RUBIK_AUDIT_DATABASE_URL: writerUrl.toString().replace('aws-1-eu-west-3', 'elsewhere') }, runId: RUN, pin: PIN }), /TEMP_ROLE_CREDENTIAL_INVALID/);
+});
+
+test('attestation compares every secret field with the fixed protected deployment before password prompt', async () => {
+  const writerUrl = new URL('postgresql://rubik_preview_u03_writer.rhnnplewqsekrnaousyl:FictionalRolePassword_123456789012345678901234@aws-1-eu-west-3.pooler.supabase.com:5432/postgres?options=-c%20role%3Drubik_audit_writer');
+  const env = { ...ENV, VERCEL_OIDC_TOKEN:'fictional-oidc-token-long-enough', RUBIK_AUDIT_DATABASE_URL:writerUrl.toString(),
+    PROVENANCE_SIGNING_KEYS:'u03-preview-window:' + Buffer.alloc(32,7).toString('base64'), PROVENANCE_ACTIVE_KEY_ID:'u03-preview-window' };
+  const nonce = Buffer.alloc(32,9).toString('base64url');
+  const serverEnv = { ...env, VERCEL_ENV:'preview', VERCEL_DEPLOYMENT_ID:PIN.deploymentId,
+    VERCEL_URL:PIN.host, VERCEL_GIT_COMMIT_REF:PIN.branch, VERCEL_GIT_COMMIT_SHA:PIN.sha };
+  const attestation = createPreviewWindowAttestation(serverEnv,PIN.host,{runId:RUN,nonce});
+  const preflightFn = async () => ({deploymentId:PIN.deploymentId,host:PIN.host,sha:PIN.sha,supabaseRef:'rhnnplewqsekrnaousyl'});
+  const fetchImpl = async (url,init) => { assert.equal(url,`https://${PIN.host}/api/u03/window-challenge`); assert.equal(init.redirect,'manual'); return {status:200,headers:{get:()=>null},json:async()=>attestation}; };
+  const passed = await verifyProtectedWindowBatch({env,pin:PIN,nonce,preflightFn,fetchImpl});
+  assert.equal(passed.runId,RUN);
+  const wrongUrl = new URL(writerUrl); wrongUrl.password = 'AnotherFictionalPassword_12345678901234567890';
+  await assert.rejects(verifyProtectedWindowBatch({env:{...env,RUBIK_AUDIT_DATABASE_URL:wrongUrl.toString()},pin:PIN,nonce,preflightFn,fetchImpl}),/WINDOW_BATCH_DEPLOYMENT_MISMATCH/);
 });
 
 test('successful operator orders all gates, campaign, then independent containment', async () => {
