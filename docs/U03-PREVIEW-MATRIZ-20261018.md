@@ -295,3 +295,18 @@ Pruebas de esta revisión: `tests/integration/u03-window-http-diagnostic.integra
 Siguiente gate de Preview preparado, pero no ejecutado: tras instalar el rol temporal por un procedimiento aparte aprobado, comprobar TLS `verify-full`, `session_user`, `current_user` después de `SET ROLE`, privilegios efectivos/allowlist SECURITY DEFINER, centinela exacto, RLS dentro/fuera de scope y NOLOGIN/rollback en finally antes de fixtures. El operador futuro necesita solo la contraseña Database existente de Preview, introducida por `Read-Host -AsSecureString`; generará localmente la contraseña temporal. La entrada no se pide ahora. Resultado esperado: `POOLER_ROLE_PREFLIGHT PASS`, identidad Preview exacta, `session_user=rubik_preview_u03_writer`, `current_user=rubik_audit_writer`, allowlist exacta y rol temporal bloqueado/retirado con cero inventario/outbox. Hasta tener un operador probado, no hay comando de campaña ni autorización de escritura.
 
 U03, H1 y H2 siguen abiertos. U03 conserva sus PASS previos; el handler local no acredita I-2/I-5 alojado. H1-A requiere export HTTP bajo sesión real y restore a destino local separado; R1, aceptación humana, U04/Sarah y H2 siguen pendientes. Actions no está verde por el bloqueo de facturación.
+
+## Corte #143: operador de rol temporal sin fixtures · 20/10/2026
+
+El nuevo modo `-WindowRolePreflightOnly` está implementado y sus pruebas locales pasan, pero todavía **no se ha ejecutado en Preview**. No hubo conexión, SQL, cambios de rol/políticas, fixtures ni despliegue. Resultados separados:
+
+| Caso | Resultado | Entorno y evidencia | Siguiente gate |
+|---|---|---|---|
+| Operador: destino, TLS, TTL, SET ROLE, privilegios, allowlist SECURITY DEFINER, NOLOGIN, terminación y rollback bajo fallos simulados | **PASS local** | Tests Node de mocks + parser PowerShell; no prueba PostgreSQL ni pooler real. | Juanma ejecuta solo el preflight del rol en PowerShell visible. |
+| Conexión PostgreSQL directa local y flujos firmados/HTTP/restore | **PASS local, previo reutilizado** | Run HTTP/restore `c45dfdd6-3a84-4b13-8185-13b820b9e0e5`. | Sin repetición. |
+| Supavisor local | **BLOCKED por entorno** | `CLIENT_ERROR` del intento previo; no se repitió. | No se usa como sustituto ni se reabre el bucle. |
+| Nuevo `rubik_preview_u03_writer` por Session pooler Preview | **BLOCKED / no ejecutado** | No se pidió ni usó Database password; no SQL alojado. | Ejecutar el comando visible fijado en el runbook; entrada única oculta solo si pasan preflights. |
+| I-2/I-5 con filas pobladas en Preview | **BLOCKED** | Sin fixtures; positivos/negativos con RLS poblado siguen pendientes. | Solo tras PASS del nuevo rol, en una autorización posterior. |
+| H1-A alojado | **BLOCKED** | No desplegado/ejecutado en esta iteración. | Tras gates de rol y campaña poblada. |
+
+La evidencia histórica V-4 no acredita el rol nuevo. El deployment `dpl_FX2BbLxBZPg38hYqikhhsEprGdPL` / SHA `85f93a5b7f7b9db26a2ade4f75fdf3d12aaf18d4` / host `plataforma-rubik-seo-9lkzlkvr1-juanma-espinosas-projects.vercel.app` se usa como pin del control de protección/ref; no incluye el operador de este SHA. El comando y condiciones están en `docs/U03-I2-I5-H1A-VENTANA-20261020.md`.
