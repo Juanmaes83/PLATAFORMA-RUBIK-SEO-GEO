@@ -9,7 +9,7 @@ const ROOT = new URL("../", import.meta.url).pathname.replace(/^\/(\w:)/, "$1").
 const WORKDIR = `${ROOT}test-results\\u03-window-local-stack`;
 const PROJECT = "rubik-u03-window-20261020";
 const DB = `supabase_db_${PROJECT}`;
-// Supavisor's local auth maps this database role directly; hosted shared-pooler usernames append `.rhnnplewqsekrnaousyl`.
+// This CLI stack runs Supavisor. A tenant suffix is required, but the generated container has no POOLER_TENANT_ID.
 const LOGIN = "rubik_preview_u03_writer";
 const WRITER = "rubik_audit_writer";
 const LEDGER = `${ROOT}test-results\\u03-window-local-security.jsonl`;
