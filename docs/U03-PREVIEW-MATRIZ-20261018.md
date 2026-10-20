@@ -2,6 +2,10 @@
 
 ## Corte reconciliado tras #142 · 20/10/2026
 
+### Revisión local de ventana · 20/10/2026
+
+En stack nuevo y ya retirado `rubik-u03-window-20261020`, N1 27/27: Postgres directo confirmó SET ROLE, grants mínimos, no BYPASSRLS/Auth, allowlist SECURITY DEFINER, cuatro scopes RLS por UUID, rechazo fuera de scope, TTL en sesión persistente y rollback limpio (run `dd1cb050-a230-4d6b-b6fa-d4477dce3904`). El intento de Session pooler quedó BLOCKED porque el Supavisor local no tiene tenant provisionado (`CLIENT_ERROR`); no se atribuye el resultado de Postgres directo al pooler. No se ejercitaron los flujos firmados audit/result/import ni todos los fallos/restores; operador integral pendiente. Sin escrituras alojadas.
+
 La base vigente es `main@a0a40b776361f292d910e285b390d5e753da8d7b`; #129, #141 y #142 están fusionadas. Este corte prevalece sobre las filas históricas inferiores, que se conservan como registro y no describen el estado actual.
 
 | Gate | Estado reutilizable | Evidencia/alcance | Pendiente real |
@@ -15,7 +19,7 @@ La base vigente es `main@a0a40b776361f292d910e285b390d5e753da8d7b`; #129, #141 y
 | S-2/S-3a/S-4/P-1 navegador | PASS | #142, run `24d0ac0f-5688-4f82-ba0d-101b4f085c30`, deployment #141 `28fd3927`; limpieza final independiente a cero | Solo repetir el tramo afectado si cambia su contrato |
 | S-3b | NO APLICABLE por decisión expresa de Juanma | Una cookie bearer válida es transferible entre contextos si no existe vinculación al dispositivo; implementar device binding cambiaría el producto y no forma parte del contrato | Se mantienen separados los PASS de cookie alterada (S-3a), logout y revocación; no se atribuye PASS a S-3b |
 | S-5 | PASS · emisor ajeno aislado | Run `87fff99a-3176-45b7-9308-07985dd1d5e8`, deployment #141 `dpl_Hmpevn3Vds4pFUzbiiFFB3vVGCKD`, Preview `rhnnplewqsekrnaousyl`; Auth local real emitió `iss=http://127.0.0.1:55421/auth/v1` con `exp` futuro; Data API 401 y `/panel` redirigió a `/acceso`; usuario local eliminado y stack/carpeta temporal retirados. [Resumen de ledger/evidencia](evidence/U03-S5-EMISOR-AJENO-20261020.md) | No equivale a JWT de Production. No se accedió a Production ni se crearon fixtures allí; el ledger local conserva ID y limpieza PASS |
-| I-2 / I-5 filas firmadas | BLOCKED | #140 solo acreditó tablas firmadas vacías; diseño de ventana de alcance limitado documentado abajo, sin proyecto ni branch alojados nuevos | Falta ensayo local real de 27 migraciones/SET ROLE y operador completo; no hay SQL ni fixtures alojados |
+| I-2 / I-5 filas firmadas | BLOCKED | #140 solo acreditó tablas firmadas vacías; run local `dd1cb050-a230-4d6b-b6fa-d4477dce3904` probó grants/RLS/TTL por Postgres directo, pero no Session pooler ni flujos firmados de audit/result/import | Provisionar tenant del pooler en un nuevo stack local aislado y terminar ensayo de flujos/fallos/rollback; operador completo pendiente. No hubo SQL ni fixtures alojados |
 | P-1 egreso de servidor | PASS acotado | Run `6311c85c-5d97-4af4-9569-7336f2232222`, Preview `rhnnplewqsekrnaousyl`, deployment `dpl_FX2BbLxBZPg38hYqikhhsEprGdPL`, SHA funcional `85f93a5b7f7b9db26a2ade4f75fdf3d12aaf18d4`, host `plataforma-rubik-seo-9lkzlkvr1-juanma-espinosas-projects.vercel.app`; dos acciones autenticadas (OpenSEO y Google vía OpenSEO), dos eventos `gate/outbound:false`, cero eventos `transport` en Functions logs filtrados por run/deployment | PASS limitado a las rutas instrumentadas y observadas; no se consultó un backend de tracing para spans. Otras rutas no cubiertas no quedan probadas |
 | H1-A / H1-B / H2 | BLOCKED | No hay pasada integral nueva | H1-A completo; después decisión R1 y piloto U04 con aceptación humana de Sarah; H2 tras H1 y gates N1-07/08 |
 
