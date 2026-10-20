@@ -37,7 +37,7 @@ export function writerPool(): Pool | null {
     || /^db\.[a-z0-9]+\.supabase\.co$/.test(parsed.hostname);
   poolUrl = url;
   sharedPool = new Pool({ connectionString: url, max: 4, connectionTimeoutMillis: 3000,
-    idleTimeoutMillis: 10000, ssl: local ? false : { rejectUnauthorized: true,
+    idleTimeoutMillis: 10000, ssl: local ? false : { rejectUnauthorized: true, servername: parsed.hostname,
       ...(supabaseHost ? { ca: SUPABASE_ROOT_2021_CA } : {}) } });
   sharedPool.on("error", () => { /* idle client failure: next checkout reconnects */ });
   return sharedPool;

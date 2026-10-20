@@ -15,7 +15,7 @@ export const PREVIEW_REF = 'rhnnplewqsekrnaousyl';
 export const POOLER_HOST = 'aws-1-eu-west-3.pooler.supabase.com';
 export const ROLE = 'rubik_preview_u03_writer';
 export const WRITER = 'rubik_audit_writer';
-export const POLICY_PREFIX = 'u03_preflight_writer_';
+export const POLICY_PREFIX = 'u03_preview_writer_';
 export const PINNED_POOLER_CA = SUPABASE_ROOT_2021_CA;
 export { EXPECTED_N1_MIGRATIONS };
 export const EXPECTED_DEFINERS = Object.freeze([
@@ -50,7 +50,7 @@ const PREFLIGHT_CONDITIONS = new Set(['PREVIEW_READ_ONLY_RESULT_SCHEMA_INCOMPLET
   'PREVIEW_IDENTITY_MISMATCH','MIGRATION_SET_MISMATCH','GENERAL_WRITER_NOT_LOCKED','ADMIN_CAPABILITY_MISSING',
   'WRITER_SESSION_RESIDUE','TEMPORARY_ROLE_RESIDUE','TEMPORARY_POLICY_RESIDUE','TLS_VERIFICATION_FAILED',
   'INVENTORY_NOT_EMPTY','PENDING_OUTBOX_NOT_EMPTY','ROLE_OWNERSHIP_UNVERIFIED','ROLE_ABSENCE_NOT_VERIFIED',
-  'ROLE_POLICY_RESIDUE','ROLE_SESSION_RESIDUE','FINAL_INVENTORY_NOT_EMPTY']);
+  'ROLE_POLICY_RESIDUE','ROLE_SESSION_RESIDUE','FINAL_INVENTORY_NOT_EMPTY','TEMP_ROLE_CREDENTIAL_MISSING','TEMP_ROLE_CREDENTIAL_INVALID']);
 const LEDGER_PHASES = new Set(['readonly-diagnostic','admin-read-only-preflight','writer-allowlist-preflight','install-nologin-role-and-deny-policies',
   'independent-nologin-terminate-probe','activate-three-minute-role','preview-session-pooler-set-role','expire-login-window',
   'expired-login-rejected','nologin-and-session-termination','independent-final-state','operator-phase-failure',
@@ -136,6 +136,21 @@ export function deriveTemporaryPassword(databasePassword, runId) {
   return createHmac('sha256', databasePassword).update(`rubik-u03-preview-window:${PREVIEW_REF}:${runId}`).digest('base64url');
 }
 
+export function previewWindowRolePassword(env = process.env) {
+  const raw = env.RUBIK_AUDIT_DATABASE_URL;
+  if (!raw) throw new PreflightConditionError('TEMP_ROLE_CREDENTIAL_MISSING');
+  let url;
+  try { url = new URL(raw); } catch { throw new PreflightConditionError('TEMP_ROLE_CREDENTIAL_INVALID'); }
+  let username; let password;
+  try { username = decodeURIComponent(url.username); password = decodeURIComponent(url.password); }
+  catch { throw new PreflightConditionError('TEMP_ROLE_CREDENTIAL_INVALID'); }
+  if (url.protocol !== 'postgresql:' || url.hostname !== POOLER_HOST || url.port !== '5432' ||
+      username !== `${ROLE}.${PREVIEW_REF}` || url.pathname !== '/postgres' || !/^[A-Za-z0-9_-]{40,50}$/.test(password) ||
+      url.searchParams.get('options') !== '-c role=rubik_audit_writer' || [...url.searchParams.keys()].length !== 1 || url.hash)
+    throw new PreflightConditionError('TEMP_ROLE_CREDENTIAL_INVALID');
+  return password;
+}
+
 function poolConfig({ user, password, host = POOLER_HOST, port = 5432, ssl = true }) {
   if (host !== POOLER_HOST || port !== 5432) throw new Error('POOLER_TARGET_REJECTED');
   return { host, port, user, password, database: 'postgres', max: 1, connectionTimeoutMillis: 8000,
@@ -182,7 +197,7 @@ const READ_ONLY_SQL = `select current_database() = 'postgres' as database_ok,
   (select count(*)::int from pg_stat_activity where usename='rubik_audit_writer') as writer_role_sessions,
   (select count(*)::int from pg_stat_activity where usename='rubik_preview_u03_writer') as temporary_role_sessions,
   (select count(*)::int from pg_roles where rolname='rubik_preview_u03_writer') as temporary_role_count,
-  (select count(*)::int from pg_policies where policyname like 'u03_preflight_writer_%') as temporary_policy_count,
+  (select count(*)::int from pg_policies where policyname like 'u03_preview_writer_%') as temporary_policy_count,
   (select count(*)::int from auth.users) as auth_users,
   (select count(*)::int from public.organizations) as organizations,
   (select count(*)::int from public.organization_members) as organization_members,
@@ -215,7 +230,7 @@ const READ_ONLY_RESULT_FIELDS = Object.freeze(['database_ok','exact_admin','exac
   'writer_role_sessions','temporary_role_sessions','temporary_role_count','temporary_policy_count','backend_tls_active',
   ...INVENTORY.map(([, field]) => field),'pending_outbox']);
 
-export function assertReadOnlyState(row, { allowOwnedTemporaryResidue = false } = {}) {
+export function assertReadOnlyState(row, { allowOwnedTemporaryResidue = false, allowOwnedFixtureInventory = false } = {}) {
   if (!row || READ_ONLY_RESULT_FIELDS.some(field => !Object.hasOwn(row, field)))
     throw new PreflightConditionError('PREVIEW_READ_ONLY_RESULT_SCHEMA_INCOMPLETE');
   if (!row.database_ok || !row.exact_admin) throw new PreflightConditionError('DATABASE_IDENTITY_MISMATCH');
@@ -234,16 +249,18 @@ export function assertReadOnlyState(row, { allowOwnedTemporaryResidue = false } 
   if (allowOwnedTemporaryResidue && (row.temporary_role_count > 1 || row.temporary_policy_count > TABLES.length ||
       row.writer_sessions !== row.writer_role_sessions + row.temporary_role_sessions))
     throw new PreflightConditionError('TEMPORARY_ROLE_RESIDUE');
-  if (INVENTORY.some(([, field]) => Number(row[field]) !== 0)) throw new PreflightConditionError('INVENTORY_NOT_EMPTY');
-  if (Number(row.pending_outbox) !== 0) throw new PreflightConditionError('PENDING_OUTBOX_NOT_EMPTY');
+  if (!allowOwnedFixtureInventory) {
+    if (INVENTORY.some(([, field]) => Number(row[field]) !== 0)) throw new PreflightConditionError('INVENTORY_NOT_EMPTY');
+    if (Number(row.pending_outbox) !== 0) throw new PreflightConditionError('PENDING_OUTBOX_NOT_EMPTY');
+  }
 }
 
-async function runReadOnlyPreflight(pool, { allowOwnedTemporaryResidue = false } = {}) {
+async function runReadOnlyPreflight(pool, { allowOwnedTemporaryResidue = false, allowOwnedFixtureInventory = false } = {}) {
   const client = await pool.connect();
   try {
     assertNodeClientTls(client, pool);
     const result = await client.query(READ_ONLY_SQL, [PREVIEW_REF]);
-    assertReadOnlyState(result.rows[0], { allowOwnedTemporaryResidue });
+    assertReadOnlyState(result.rows[0], { allowOwnedTemporaryResidue, allowOwnedFixtureInventory });
     return result.rows[0];
   } finally { client.release(); }
 }
@@ -251,6 +268,17 @@ async function runReadOnlyPreflight(pool, { allowOwnedTemporaryResidue = false }
 function expectedPolicyNames(runId) {
   const tag = runId.replaceAll('-', '').slice(0, 12);
   return TABLES.map(([, , suffix]) => `${POLICY_PREFIX}${tag}_${suffix}`);
+}
+export function buildRunScopedPolicySql(runId, expiresAt) {
+  if (!/^[0-9a-f-]{36}$/i.test(runId) || !Number.isSafeInteger(Date.parse(expiresAt)) || Date.parse(expiresAt) <= Date.now())
+    throw new Error('RUN_SCOPE_EXPIRY_REJECTED');
+  const namespace = `u03-${runId.replaceAll('-', '').slice(0, 12).toLowerCase()}`;
+  const names = expectedPolicyNames(runId);
+  const predicate = `(statement_timestamp() < '${new Date(expiresAt).toISOString()}'::timestamptz and exists (select 1 from private.audit_writer_project(project_id) s where
+    (s.tenant_slug = '${namespace}-a' and s.project_slug in ('a1','a2')) or
+    (s.tenant_slug = '${namespace}-b' and s.project_slug = 'b1')))`;
+  return TABLES.map(([schema, table], index) => `create policy ${qIdent(names[index])} on ${qIdent(schema)}.${qIdent(table)}
+    as restrictive for all to ${WRITER} using (${predicate}) with check (${predicate});`).join('\n');
 }
 function installSql(runId, rolePassword) {
   const comment = `u03-window:${runId}`;
@@ -268,6 +296,100 @@ comment on role ${ROLE} is '${comment}';
 grant ${WRITER} to ${ROLE} with inherit false, set true;
 ${policies}
 commit;`;
+}
+
+export function buildRunScopedInstallSql(runId, rolePassword, expiresAt) {
+  if (!/^[0-9a-f-]{36}$/i.test(runId) || typeof rolePassword !== 'string' || rolePassword.length < 32 ||
+      !Number.isSafeInteger(Date.parse(expiresAt)) || Date.parse(expiresAt) <= Date.now() || Date.parse(expiresAt) > Date.now() + 30 * 60_000)
+    throw new Error('RUN_SCOPE_INSTALL_INPUT_REJECTED');
+  const comment = `u03-window:${runId}`;
+  return `begin;
+do $u03$ begin
+ if not exists (select 1 from private.environment_identity where environment='preview' and project_ref='${PREVIEW_REF}') or (select count(*) from private.environment_identity)<>1 then raise exception 'U03_REF_REJECTED'; end if;
+ if exists(select 1 from pg_roles where rolname='${ROLE}') then raise exception 'U03_ROLE_ALREADY_EXISTS'; end if;
+ if exists(select 1 from pg_policies where policyname like '${POLICY_PREFIX}%') then raise exception 'U03_POLICY_RESIDUE'; end if;
+ if not exists(select 1 from pg_roles where rolname='${WRITER}' and rolcanlogin=false and rolsuper=false and rolbypassrls=false and rolinherit=false) then raise exception 'U03_WRITER_NOT_LOCKED'; end if;
+end $u03$;
+create role ${ROLE} nologin noinherit nobypassrls nosuperuser nocreatedb nocreaterole password ${qPassword(rolePassword)} valid until '${new Date(expiresAt).toISOString()}';
+comment on role ${ROLE} is '${comment}';
+grant ${WRITER} to ${ROLE} with inherit false, set true;
+${buildRunScopedPolicySql(runId, expiresAt)}
+commit;`;
+}
+
+async function inspectRunScopedRole(pool, runId, expiresAt) {
+  const role = (await pool.query(`select r.rolcanlogin,r.rolsuper,r.rolbypassrls,r.rolinherit,r.rolcreaterole,r.rolcreatedb,
+      shobj_description(r.oid,'pg_authid') as marker,
+      coalesce((select set_option and not inherit_option from pg_auth_members where roleid='${WRITER}'::regrole and member=r.oid),false) as set_only_membership
+      from pg_roles r where r.rolname=$1`, [ROLE])).rows[0];
+  if (!role || role.rolcanlogin || role.rolsuper || role.rolbypassrls || role.rolinherit || role.rolcreaterole || role.rolcreatedb ||
+      role.marker !== `u03-window:${runId}` || !role.set_only_membership) throw new Error('TEMP_ROLE_ATTRIBUTES_REJECTED');
+  const rows = (await pool.query(`select policyname,schemaname,tablename,cmd,permissive,qual,with_check,roles::text[] as roles
+    from pg_policies where policyname = any($1::text[]) order by policyname`, [expectedPolicyNames(runId)])).rows;
+  const namespace = `u03-${runId.replaceAll('-', '').slice(0, 12).toLowerCase()}`;
+  const policiesExact = TABLES.every(([schema, table], index) => {
+    const row = rows.find(candidate => candidate.policyname === expectedPolicyNames(runId)[index]);
+    return row?.schemaname === schema && row?.tablename === table && row?.cmd === 'ALL' && row?.permissive === 'RESTRICTIVE' &&
+      row.roles.includes(WRITER) && row.qual.includes(`${namespace}-a`) && row.qual.includes(`${namespace}-b`) &&
+      row.qual.includes('statement_timestamp()') && row.qual.includes(new Date(expiresAt).toISOString().slice(0, 10)) && row.with_check === row.qual;
+  });
+  if (rows.length !== TABLES.length || !policiesExact) throw new Error('RUN_SCOPE_POLICIES_REJECTED');
+  return true;
+}
+
+/** Installs and proves only the temporary run role; it deliberately creates no fixture. */
+export async function installAndProbeRunScopedRole({ databasePassword, runId, expiresAt,
+  rolePassword: suppliedRolePassword, PoolClass = Pool, adminPoolFactory = createPreviewAdminPool, rolePoolFactory = createPreviewRolePool,
+  ledger = async () => {} } = {}) {
+  if (typeof databasePassword !== 'string' || !databasePassword || !/^[0-9a-f-]{36}$/i.test(runId ?? ''))
+    throw new Error('RUN_SCOPE_INPUT_REJECTED');
+  let rolePassword = suppliedRolePassword ?? deriveTemporaryPassword(databasePassword, runId);
+  if (!/^[A-Za-z0-9_-]{40,50}$/.test(rolePassword)) throw new Error('TEMP_ROLE_CREDENTIAL_INVALID');
+  let admin; let installAttempted = false; let succeeded = false;
+  try {
+    admin = adminPoolFactory(databasePassword, PoolClass);
+    await ledger('admin-read-only-preflight', 'ATTEMPTED', 'PREFLIGHT');
+    await runReadOnlyPreflight(admin);
+    await ledger('admin-read-only-preflight', 'PASS', 'PREFLIGHT');
+    const functions = (await admin.query(DEFiner_SQL)).rows[0];
+    if (JSON.stringify(functions.definers) !== JSON.stringify(EXPECTED_DEFINERS)) throw new Error('WRITER_SECURITY_DEFINER_UNSAFE');
+    const rls = (await admin.query(`select count(*)::int as n from pg_class c join pg_namespace n on n.oid=c.relnamespace
+      where (n.nspname,c.relname) in (('public','audit_events'),('public','provider_results'),('private','audit_idempotency'),('private','audit_outbox')) and c.relrowsecurity`)).rows[0];
+    if (rls.n !== TABLES.length) throw new Error('WRITER_RLS_NOT_ENABLED');
+    installAttempted = true;
+    await ledger('install-role-nologin', 'ATTEMPTED', 'ADMIN_WRITE');
+    await admin.query(buildRunScopedInstallSql(runId, rolePassword, expiresAt));
+    await inspectRunScopedRole(admin, runId, expiresAt);
+    await ledger('install-role-nologin', 'PASS', 'ADMIN_WRITE');
+    const independent = adminPoolFactory(databasePassword, PoolClass);
+    try {
+      await blockRole(independent, rolePassword, PoolClass, runId, rolePoolFactory);
+      await ledger('independent-containment-probe', 'PASS', 'CONTAINMENT');
+    } finally { await independent.end().catch(() => {}); }
+    await admin.query(`alter role ${ROLE} with login password ${qPassword(rolePassword)} valid until '${new Date(expiresAt).toISOString()}'`);
+    const active = (await admin.query(`select rolcanlogin and rolvaliduntil > now() as active from pg_roles where rolname=$1`, [ROLE])).rows[0];
+    if (!active?.active) throw new Error('TEMP_ROLE_ACTIVATION_REJECTED');
+    await ledger('activate-temporary-role', 'PASS', 'ADMIN_WRITE');
+    const proof = await checkPooler(rolePassword, PoolClass, rolePoolFactory);
+    if (!proof.denyPoliciesVerified) throw new Error('RUN_SCOPE_RLS_PROBE_FAILED');
+    await inspectRunScopedRole(admin, runId, expiresAt);
+    await ledger('session-pooler-set-role', 'PASS', 'POOLER');
+    succeeded = true;
+    return { runId, rolePassword, expiresAt, pooler: proof };
+  } catch (error) {
+    await ledger('role-sequence-failure', 'BLOCKED', 'ROLE_OR_POOLER');
+    throw Object.assign(new Error('RUN_SCOPED_ROLE_PREFLIGHT_BLOCKED'), { cause: error });
+  } finally {
+    if (!succeeded && installAttempted) {
+      try {
+        const emergency = adminPoolFactory(databasePassword, PoolClass);
+        try { await blockRole(emergency, rolePassword, PoolClass, runId, rolePoolFactory); } finally { await emergency.end().catch(() => {}); }
+      } catch { await ledger('independent-role-containment', 'BLOCKED', 'ADMIN_CONTAINMENT'); }
+    }
+    await admin?.end().catch(() => {});
+    databasePassword = '';
+    if (!succeeded) rolePassword = '';
+  }
 }
 
 async function inspectRole(pool, runId) {
@@ -527,7 +649,7 @@ export async function diagnoseReadOnlyPreflight({ databasePassword, runId = rand
   }
 }
 
-export async function runIndependentContainment({ databasePassword, runId, PoolClass = Pool,
+export async function runIndependentContainment({ databasePassword, runId, rolePassword: suppliedRolePassword, PoolClass = Pool,
   adminPoolFactory = createPreviewAdminPool, rolePoolFactory = createPreviewRolePool, ledgerPath = null } = {}) {
   if (typeof databasePassword !== 'string' || !databasePassword || !/^[0-9a-f-]{36}$/i.test(runId ?? ''))
     throw new Error('CONTAINMENT_INPUT_REJECTED');
@@ -536,13 +658,15 @@ export async function runIndependentContainment({ databasePassword, runId, PoolC
   const sha = process.env.U03_FUNCTIONAL_SHA ?? 'LOCAL_TEST_ONLY';
   const ledger = makeLedger(runId, sha, path);
   const admin = adminPoolFactory(databasePassword, PoolClass);
-  const rolePassword = deriveTemporaryPassword(databasePassword, runId);
+  const rolePassword = suppliedRolePassword ?? deriveTemporaryPassword(databasePassword, runId);
   try {
-    const state = await runReadOnlyPreflight(admin, { allowOwnedTemporaryResidue: true });
+    // Containment must happen even when fixture/outbox rows remain. This read-only mode
+    // still checks identity, schema, TLS, general-writer lock and admin capabilities first.
+    const state = await runReadOnlyPreflight(admin, { allowOwnedTemporaryResidue: true, allowOwnedFixtureInventory: true });
     // The independent path first proves database identity, schema, migration,
     // TLS, inventory and the general writer state while allowing only the
     // expected temporary-role residue to be reconciled below.
-    assertReadOnlyState(state, { allowOwnedTemporaryResidue: true });
+    assertReadOnlyState(state, { allowOwnedTemporaryResidue: true, allowOwnedFixtureInventory: true });
     await ledger('containment-only-read-only-preflight', 'PASS', 'PREFLIGHT');
     const owned = (await admin.query(`select shobj_description(oid,'pg_authid') as marker,rolcanlogin
       from pg_roles where rolname=$1`, [ROLE])).rows[0];
@@ -593,7 +717,8 @@ async function main() {
       const result = await runWindowRolePreflight({ databasePassword, runId });
       process.stdout.write(`U03_WINDOW_ROLE_RESULT PASS runId=${result.runId} roleRemoved=${!result.final.rolePresent} policies=${result.final.policies} inventoryZero=${result.final.inventoryZero} outboxTotal=${result.final.outboxTotal} pending=${result.final.pendingOutbox}\n`);
     } else if (input.mode === 'contain') {
-      const final = await runIndependentContainment({ databasePassword, runId });
+      const rolePassword = process.env.RUBIK_AUDIT_DATABASE_URL ? previewWindowRolePassword(process.env) : undefined;
+      const final = await runIndependentContainment({ databasePassword, rolePassword, runId });
       process.stdout.write(`U03_WINDOW_ROLE_CONTAINMENT PASS runId=${runId} rolePresent=${final.rolePresent} roleLocked=${final.roleLocked} policies=${final.policies} activeSessions=${final.activeSessions} inventoryZero=${final.inventoryZero} outboxTotal=${final.outboxTotal} pending=${final.pendingOutbox}\n`);
     } else {
       const result = await diagnoseReadOnlyPreflight({ databasePassword, runId });

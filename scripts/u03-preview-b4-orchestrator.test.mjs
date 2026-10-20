@@ -595,6 +595,30 @@ test('preflight SQL selects every required inventory count and missing result co
     error => error.message === 'PREVIEW_INITIAL_INVENTORY_NOT_EMPTY');
 });
 
+test('final inventory gate counts populated result/import/idempotency surfaces and requires window rollback', async () => {
+  const state = { auth_users: 0, organizations: 0, projects: 0, organization_members: 0, project_members: 0,
+    invitations: 0, audit_events: 0, provider_results: 0, imports: 0, audit_idempotency: 0,
+    outbox_total: 0, pending_outbox: 0, openseo_project_jobs: 0, openseo_project_connections: 0,
+    webmaster_properties: 0, provider_budgets: 0, provider_spend: 0, openseo_google_properties: 0,
+    google_captures: 0, window_writer_present: false, window_policy_residue: 0, writer_sessions: 0,
+    writer_locked: true, environment: 'preview', project_ref: PIN.supabaseRef };
+  const sql = async () => state;
+  assert.equal((await verifyFinalPreviewState({ sql })).inventoriesClear, true);
+  state.provider_results = 1;
+  assert.equal((await verifyFinalPreviewState({ sql })).inventoriesClear, false);
+  state.provider_results = 0;
+  state.imports = 1;
+  assert.equal((await verifyFinalPreviewState({ sql })).inventoriesClear, false);
+  state.imports = 0;
+  delete state.audit_idempotency;
+  assert.equal((await verifyFinalPreviewState({ sql })).inventoriesClear, false);
+  state.audit_idempotency = 0;
+  state.window_writer_present = true;
+  state.window_policy_residue = 4;
+  assert.equal((await verifyFinalPreviewState({ sql, allowTemporaryWindowCapability: true })).capabilitiesSafe, true);
+  assert.equal((await verifyFinalPreviewState({ sql })).capabilitiesSafe, false);
+});
+
 test('read-only campaign preflight fails on an extra executable receipt-writer SECURITY DEFINER', async () => {
   const unsafe = async () => ({
     auth_users: 0, organizations: 0, projects: 0, organization_members: 0, project_members: 0,
@@ -648,6 +672,56 @@ test('initial preflight completes with the mapped read-only state and reports mi
   assert.deepEqual([settingsRead, identityRead, usersRead, sqlRead], [1, 1, 1, 1]);
 });
 
+test('directed window campaign proves runtime before fixtures and never repeats prior matrix or B-4', async () => {
+  const events = [];
+  const runId = 'c14f4c11-570f-4e03-a3a1-33a702b85baa';
+  const env = { U03_PREVIEW_ADMIN_KEY: 'sb_secret_fictional', U03_PREVIEW_PUBLIC_KEY: 'sb_publishable_fictional',
+    U03_PREVIEW_WRITER_WINDOW: 'armed-run-capability', U03_PREVIEW_WRITER_WINDOW_RUN_ID: runId };
+  const fixtures = { namespace: `u03-${runId.replaceAll('-','').slice(0,12)}`,
+    createUsers: async () => events.push('users'), createOrganizations: async () => { events.push('organizations'); return {}; },
+    createProjects: async () => { events.push('projects'); return { a1: 'fictional-project-id' }; },
+    actorBearer: async () => ({ accessToken: 'fictional-token' }),
+    cleanup: async () => ({ ok: true }), snapshot: () => ({ projectIds: [] }) };
+  const verified = { vercel: { deploymentId: PIN.deploymentId, sha: PIN.sha, host: PIN.host },
+    initial: { projectRef: PIN.supabaseRef, authSettingsHttpStatus: 200 } };
+  const result = await runHostedU03Campaign({ env, sha: PIN.sha, runId, mode: 'window-i2-i5',
+    preflightFn: async () => verified, fixtureFactory: () => { events.push('fixture-factory'); return fixtures; },
+    runtimePreflightFn: async () => { events.push('runtime'); return { passed: true, status: 200 }; },
+    windowSurfacesFn: async () => { events.push('surfaces'); return { passed: true }; },
+    windowCleanupFn: async () => { events.push('window-cleanup'); return true; },
+    finalCheckFn: async ({ allowTemporaryWindowCapability }) => { events.push(`final:${allowTemporaryWindowCapability}`);
+      return { inventoriesClear: true, outboxClear: true, capabilitiesSafe: true, state: { writer_locked: true,
+        environment: 'preview', project_ref: PIN.supabaseRef, auth_users: 0, organizations: 0, projects: 0,
+        organization_members: 0, project_members: 0, invitations: 0, audit_events: 0, outbox_total: 0, pending_outbox: 0 } }; },
+    ledger: async () => {}, root: process.cwd() });
+  assert.equal(result.status, 'PASS');
+  assert.ok(events.indexOf('runtime') < events.indexOf('fixture-factory'));
+  assert.deepEqual(events.slice(-3), ['surfaces','window-cleanup','final:true']);
+  assert.equal(events.includes('matrix'), false);
+  assert.equal(events.includes('browser'), false);
+});
+
+test('directed window never deletes projects when product receipt reconciliation fails', async () => {
+  const events = [];
+  const runId = 'c14f4c11-570f-4e03-a3a1-33a702b85baa';
+  const env = { U03_PREVIEW_ADMIN_KEY: 'sb_secret_fictional', U03_PREVIEW_PUBLIC_KEY: 'sb_publishable_fictional',
+    U03_PREVIEW_WRITER_WINDOW: 'armed-run-capability', U03_PREVIEW_WRITER_WINDOW_RUN_ID: runId };
+  const fixtures = { namespace: `u03-${runId.replaceAll('-','').slice(0,12)}`,
+    createUsers: async () => {}, createOrganizations: async () => ({}), createProjects: async () => ({}),
+    cleanup: async () => { events.push('fixture-cleanup'); return { ok: true }; }, snapshot: () => ({ projectIds: [] }) };
+  const verified = { vercel: { deploymentId: PIN.deploymentId, sha: PIN.sha, host: PIN.host },
+    initial: { projectRef: PIN.supabaseRef, authSettingsHttpStatus: 200 } };
+  const result = await runHostedU03Campaign({ env, sha: PIN.sha, runId, mode: 'window-i2-i5',
+    preflightFn: async () => verified, fixtureFactory: () => fixtures,
+    runtimePreflightFn: async () => ({ passed: true, status: 200 }), windowSurfacesFn: async () => ({ passed: true }),
+    windowCleanupFn: async () => { events.push('receipt-cleanup'); throw new Error('WINDOW_RECEIPT_RECONCILIATION_FAILED'); },
+    finalCheckFn: async () => ({ inventoriesClear: false, outboxClear: false, capabilitiesSafe: true, state: {} }),
+    ledger: async () => {}, root: process.cwd() });
+  assert.equal(result.status, 'FAIL_CLEANUP_PARTIAL');
+  assert.deepEqual(events, ['receipt-cleanup']);
+  assert.equal(result.cleanupResult?.ok, false);
+});
+
 test('owner wrapper runs no-key preflight before DPAPI load; V-4 uses one hidden admin URL and automatic containment', async () => {
   const script = await readFile(new URL('./u03-preview-b4-owner.ps1', import.meta.url), 'utf8');
   const operator = await readFile(new URL('./u03-preview-v4-operator.mjs', import.meta.url), 'utf8');
@@ -673,7 +747,24 @@ test('owner wrapper runs no-key preflight before DPAPI load; V-4 uses one hidden
   assert.match(operator, /\$\{RECEIPT_ROLE\}\.\$\{PREVIEW_REF\}/);
   assert.match(script, /-ExpectedPrefix 'sb_secret_'[\s\S]*-ExpectedPrefix 'sb_publishable_'/);
   assert.doesNotMatch(script, /Read-B4Secret/);
-  assert.doesNotMatch(script, /'U03_PREVIEW_ADMIN_KEY','U03_PREVIEW_PUBLIC_KEY'/);
+  const generalEnvironmentKeep = script.match(/\$keep = @\(([^\r\n]+)\)/)?.[1] ?? '';
+  assert.doesNotMatch(generalEnvironmentKeep, /U03_PREVIEW_ADMIN_KEY|U03_PREVIEW_PUBLIC_KEY/);
+  assert.match(script, /if \(\$Mode -eq 'sequence'\)[\s\S]*'U03_PREVIEW_ADMIN_KEY','U03_PREVIEW_PUBLIC_KEY'/);
   assert.match(script, /finally\s*\{[\s\S]*Get-ChildItem Env:[\s\S]*U03_\*/);
   assert.match(script, /finally\s*\{[\s\S]*previewCredentials\.AdminKey = \$null[\s\S]*previewCredentials\.PublicKey = \$null/);
+});
+
+test('H1-A owner mode checks branch vars, deployment and local signing config before one password prompt and finally containment', async () => {
+  const script = await readFile(new URL('./u03-preview-b4-owner.ps1', import.meta.url), 'utf8');
+  const modeStart = script.indexOf('if ($WindowRolePreflightOnly -or $WindowRoleReadOnlyDiagnosticOnly -or $WindowI2I5H1A)');
+  const localConfig = script.indexOf('& node $windowSequenceOperator --local-preflight-only', modeStart);
+  const passwordPrompt = script.indexOf('Read-Host -Prompt', localConfig);
+  const sequenceLaunch = script.indexOf("$childMode = if ($WindowI2I5H1A) { 'sequence' }", passwordPrompt);
+  const finallyBlock = script.slice(script.indexOf('} finally {', sequenceLaunch));
+  assert.ok(modeStart >= 0 && localConfig > modeStart && passwordPrompt > localConfig && sequenceLaunch > passwordPrompt);
+  assert.match(script, /if \(\$WindowI2I5H1A -and \$branch -ne 'codex\/u03-final-gates-20261020'\)/);
+  assert.match(script, /U03_PREVIEW_WRITER_WINDOW_RUN_ID -cnotmatch/);
+  assert.match(finallyBlock, /\$WindowI2I5H1A[\s\S]*Invoke-U03WindowRoleChild -Mode 'contain'/);
+  assert.match(script, /'RUBIK_AUDIT_DATABASE_URL','PROVENANCE_SIGNING_KEYS','PROVENANCE_ACTIVE_KEY_ID'/);
+  assert.match(script, /if \(-not \$WindowRolePreflightOnly -and -not \$WindowRoleReadOnlyDiagnosticOnly -and -not \$WindowI2I5H1A/);
 });

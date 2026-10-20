@@ -6,7 +6,8 @@ import test from 'node:test';
 import { deriveTemporaryPassword, EXPECTED_DEFINERS, EXPECTED_N1_MIGRATIONS,
   createPreviewAdminPool, createPreviewRolePool, POOLER_HOST, PINNED_POOLER_CA, PREVIEW_REF, ROLE, WRITER,
   assertNodeClientTls, assertReadOnlyState, classifyDiagnosticError, diagnoseReadOnlyPreflight, PreflightConditionError,
-  runIndependentContainment, runWindowRolePreflight } from './u03-window-role-preflight.mjs';
+  runIndependentContainment, runWindowRolePreflight, buildRunScopedPolicySql, buildRunScopedInstallSql,
+  previewWindowRolePassword } from './u03-window-role-preflight.mjs';
 
 const RUN = '5b02bb37-2ef8-4af1-8954-56fd496cd121';
 const DB_PASSWORD = 'fictional:/?#% +&=[]quote!()*';
@@ -70,7 +71,7 @@ class AdminPool {
     if (sql.includes('from pg_policies where policyname = any')) {
       const tables = [['public','audit_events'],['public','provider_results'],['private','audit_idempotency'],['private','audit_outbox']];
       return { rows: Array.from({ length: this.state.policies }, (_, i) => ({
-        policyname: `u03_preflight_writer_${RUN.replaceAll('-','').slice(0,12)}_${tables[i][1]}`,
+        policyname: `u03_preview_writer_${RUN.replaceAll('-','').slice(0,12)}_${tables[i][1]}`,
         schemaname: tables[i][0], tablename: tables[i][1], cmd: 'ALL', permissive: 'RESTRICTIVE', qual: 'false', with_check: 'false', roles: [WRITER] })) };
     }
     if (sql.includes('alter role rubik_preview_u03_writer with login')) {
@@ -96,7 +97,7 @@ class AdminPool {
     if (sql.includes("select shobj_description(oid,'pg_authid') as marker,rolcanlogin")) return { rows: this.state.role ? [{ marker: this.state.marker, rolcanlogin: this.state.login }] : [] };
     if (sql.includes('select count(*)::int as n from pg_stat_activity')) return { rows: [{ n: this.state.sessions }] };
     if (sql.includes('select count(*)::int as n from pg_policies where policyname=any')) return { rows: [{ n: this.state.policies }] };
-    if (sql.includes('select (select count(*) from auth.users)')) return { rows: [emptyCounts] };
+    if (sql.includes('select (select count(*) from auth.users)')) return { rows: [{ ...emptyCounts, ...this.state.readOnlyOverrides, writer_locked: true }] };
     if (sql.startsWith('drop policy')) { this.state.policies--; return { rows: [] }; }
     if (sql.startsWith('revoke rubik_audit_writer')) return { rows: [] };
     if (sql.startsWith('drop role rubik_preview_u03_writer')) { this.state.role = false; this.state.login = false; return { rows: [] }; }
@@ -158,6 +159,25 @@ test('pins Preview Session pooler, expected role contract and derived secret wit
   assert.equal(one, deriveTemporaryPassword(DB_PASSWORD, RUN));
   assert.doesNotMatch(one, /[/:?#[\]@%]/);
   assert.notEqual(one, DB_PASSWORD);
+});
+
+test('read-only preflight counts the actual run-window policy namespace', async () => {
+  const pool = createPreviewAdminPool(DB_PASSWORD, class CapturePool { constructor(config) { this.config = config; } on() {} });
+  assert.match(pool.config.user, /^postgres\./);
+  const source = (await readFile(new URL('./u03-window-role-preflight.mjs', import.meta.url), 'utf8'));
+  assert.match(source, /pg_policies where policyname like 'u03_preview_writer_%'\) as temporary_policy_count/);
+  assert.doesNotMatch(source, /pg_policies where policyname like 'u03_preflight_writer_%'/);
+});
+
+test('temporary role credential is accepted only from the exact Preview writer Session pooler URL', () => {
+  const password = 'FictionalRolePassword_123456789012345678901234';
+  const url = new URL('postgresql://rubik_preview_u03_writer.rhnnplewqsekrnaousyl@aws-1-eu-west-3.pooler.supabase.com:5432/postgres');
+  url.password = password;
+  url.searchParams.set('options', '-c role=rubik_audit_writer');
+  assert.equal(previewWindowRolePassword({ RUBIK_AUDIT_DATABASE_URL: url.toString() }), password);
+  url.hostname = 'another.pooler.supabase.com';
+  assert.throws(() => previewWindowRolePassword({ RUBIK_AUDIT_DATABASE_URL: url.toString() }), /TEMP_ROLE_CREDENTIAL_INVALID/);
+  assert.throws(() => previewWindowRolePassword({}), /TEMP_ROLE_CREDENTIAL_MISSING/);
 });
 
 test('readonly diagnostic classifies transport, TLS, SQLSTATE and explicit preflight conditions without messages', async () => {
@@ -292,7 +312,35 @@ test('client TLS is proven from node-postgres TLSSocket and pinned config, indep
       pool.connect = async () => ({ connection: { stream: { encrypted: false, authorized: false } },
         query: (sql, params) => pool.query(sql, params), release() {} });
       return pool;
-    };
+};
+
+test('run-scoped restrictive policies allow only this run A1/A2 and B1 project identities', () => {
+  const sql = buildRunScopedPolicySql(RUN, '2030-01-01T00:00:00.000Z');
+  assert.equal((sql.match(/create policy/g) ?? []).length, 4);
+  assert.match(sql, /as restrictive for all to rubik_audit_writer/);
+  assert.match(sql, /u03-5b02bb372ef8-a/);
+  assert.match(sql, /u03-5b02bb372ef8-b/);
+  assert.match(sql, /s\.project_slug in \('a1','a2'\)/);
+  assert.match(sql, /s\.project_slug = 'b1'/);
+  assert.doesNotMatch(sql, /using \(true\)|with check \(true\)/i);
+  assert.match(sql, /statement_timestamp\(\) < '2030-01-01T00:00:00.000Z'::timestamptz/);
+  assert.throws(() => buildRunScopedPolicySql('not-a-run-id', '2030-01-01T00:00:00.000Z'), /RUN_SCOPE_EXPIRY_REJECTED/);
+});
+
+test('campaign role installation is NOLOGIN first, NOINHERIT and run/TLL-scoped without general grants', () => {
+  const expiry = new Date(Date.now() + 15 * 60_000).toISOString();
+  const sql = buildRunScopedInstallSql(RUN, 'fictional-generated-password-that-is-not-a-secret', expiry);
+  const createRole = sql.match(/create role[^\n]+/i)?.[0] ?? '';
+  assert.match(createRole, /rubik_preview_u03_writer nologin noinherit nobypassrls nosuperuser/i);
+  assert.doesNotMatch(createRole, /(?<!no)bypassrls/i);
+  assert.match(sql, /valid until/);
+  assert.match(sql, /grant rubik_audit_writer to rubik_preview_u03_writer with inherit false, set true/);
+  assert.match(sql, /as restrictive for all to rubik_audit_writer/);
+  assert.doesNotMatch(sql, /grant all|security definer/i);
+  assert.throws(() => buildRunScopedInstallSql(RUN, 'short', expiry), /RUN_SCOPE_INSTALL_INPUT_REJECTED/);
+  assert.throws(() => buildRunScopedInstallSql(RUN, 'fictional-generated-password-that-is-not-a-secret',
+    new Date(Date.now() + 31 * 60_000).toISOString()), /RUN_SCOPE_INSTALL_INPUT_REJECTED/);
+});
     const noTls = await diagnoseReadOnlyPreflight({ databasePassword: DB_PASSWORD, runId: RUN,
       ledgerPath: join(folder, 'no-tls.jsonl'), adminPoolFactory: noTlsPoolFactory });
     assert.equal(noTls.status, 'BLOCKED');
@@ -405,14 +453,29 @@ test('contain-only mode verifies absent role and independent zero state without 
   } finally { await rm(folder, { recursive: true, force: true }); }
 });
 
+test('containment blocks and terminates the owned role before refusing rollback on residual fixtures/outbox', async () => {
+  const folder = await mkdtemp(join(tmpdir(), 'u03-window-role-residue-'));
+  const state = freshState({ readOnlyOverrides: { audit_events: 1, outbox_total: 1, pending_outbox: 1 } });
+  state.role = true; state.login = true; state.policies = 4; state.sessions = 2;
+  try {
+    await assert.rejects(runIndependentContainment({ databasePassword: DB_PASSWORD, runId: RUN,
+      ledgerPath: join(folder, 'run.jsonl'), ...createMocks(state) }), /INDEPENDENT_CONTAINMENT_BLOCKED/);
+    assert.equal(state.login, false);
+    assert.equal(state.sessions, 0);
+    assert.equal(state.role, true);
+    assert.equal(state.policies, 4);
+  } finally { await rm(folder, { recursive: true, force: true }); }
+});
+
 test('PowerShell mode prompts once and always launches an independent contain-only child', async () => {
   const ps = await readFile(new URL('./u03-preview-b4-owner.ps1', import.meta.url), 'utf8');
   assert.match(ps, /\[switch\]\$WindowRolePreflightOnly/);
   assert.match(ps, /\[switch\]\$WindowRoleReadOnlyDiagnosticOnly/);
   assert.match(ps, /Invoke-U03WindowRoleChild -Mode \$childMode/);
   assert.match(ps, /if \(\$WindowRoleReadOnlyDiagnosticOnly\) \{ 'diagnose' \}/);
-  assert.match(ps, /if \(\$WindowRolePreflightOnly -or \$WindowRoleReadOnlyDiagnosticOnly\)/);
-  assert.match(ps, /if \(-not \$WindowRolePreflightOnly -and -not \$WindowRoleReadOnlyDiagnosticOnly/);
+  assert.match(ps, /if \(\$WindowRolePreflightOnly -or \$WindowRoleReadOnlyDiagnosticOnly -or \$WindowI2I5H1A\)/);
+  assert.match(ps, /if \(-not \$WindowRolePreflightOnly -and -not \$WindowRoleReadOnlyDiagnosticOnly -and -not \$WindowI2I5H1A/);
+  assert.match(ps, /\$WindowI2I5H1A[\s\S]*Invoke-U03WindowRoleChild -Mode 'contain'/);
   assert.ok(ps.indexOf('elseif ($PlaywrightOnly)') > ps.indexOf('if ($ProviderEgressOnly)'));
   assert.doesNotMatch(ps, /if \(\$windowRolePlainPassword\)[\s\S]{0,150}elseif \(\$PlaywrightOnly\)/);
   assert.match(ps, /Read-Host -Prompt 'Database password existente[^\n]*-AsSecureString/);

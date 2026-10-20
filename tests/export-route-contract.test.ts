@@ -14,7 +14,7 @@ const mocked = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/recovery/schema-contract", () => ({ recoverySchemaContract: mocked.schema }));
 vi.mock("@/lib/auth/session", () => ({ currentUser: mocked.user }));
-vi.mock("@/lib/supabase/server", () => ({ createClient: mocked.client }));
+vi.mock("@/lib/supabase/server", () => ({ createClient: mocked.client, createBearerClient: vi.fn().mockResolvedValue(null) }));
 vi.mock("@/lib/tenancy", () => ({ myProjectMembership: mocked.membership }));
 vi.mock("@/lib/access", () => ({ projectAccess: mocked.access }));
 vi.mock("@/lib/imports/repository", () => ({ loadProjectRef: mocked.ref }));

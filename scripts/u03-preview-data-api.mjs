@@ -395,8 +395,46 @@ export function createDataApiFixtureRun({ runId, sha, admin, publicKey, ledger, 
     return { namespace, userIds: [...new Set(users)], organizationIds: [...new Set(organizations)], projectIds: [...new Set(projects)] };
   }
 
+  function actorAccess(actor) {
+    const account = accounts[actor];
+    if (!account) throw new Error('AUTH_FIXTURES_REQUIRED');
+    return { id: account.id, api: account.api, email: account.email };
+  }
+
+  async function actorBearer(actor) {
+    const account = accounts[actor];
+    if (!account) throw new Error('AUTH_FIXTURES_REQUIRED');
+    const { data, error } = await account.api.auth.getSession();
+    if (error || !data.session?.access_token || data.session.expires_at <= Date.now() / 1000)
+      throw new Error('AUTH_FIXTURE_SESSION_UNAVAILABLE');
+    return { id: account.id, accessToken: data.session.access_token };
+  }
+
+  async function verifyPopulatedCrossSurface({ a1, auditSeq, resultId, importId }) {
+    if (![a1, auditSeq, resultId, importId].every(Boolean) || !accounts.ownerA || !accounts.ownerB)
+      throw new Error('POPULATED_CROSS_FIXTURES_INVALID');
+    const a = accounts.ownerA.api, b = accounts.ownerB.api;
+    const checks = [];
+    for (const [table, id] of [['audit_events', auditSeq], ['provider_results', resultId], ['imports', importId]]) {
+      const query = (client, value) => table === 'audit_events'
+        ? client.from(table).select('seq').eq('project_id', a1).eq('seq', value)
+        : client.from(table).select('id').eq('id', value);
+      const [own, foreign, missing] = await Promise.all([
+        query(a, id), query(b, id), query(b, table === 'audit_events' ? Number.MAX_SAFE_INTEGER : randomUUID()),
+      ]);
+      const key = table === 'audit_events' ? 'seq' : 'id';
+      const pass = !own.error && own.data?.length === 1 && own.data[0][key] === id &&
+        !foreign.error && foreign.data?.length === 0 && !missing.error && missing.data?.length === 0;
+      await ledger(`i5-populated-${table}`, pass ? 'PASS' : 'FAIL', { actor: 'ownerA' });
+      if (!pass) throw new Error(`POPULATED_CROSS_SCOPE_FAILED_${table}`);
+      checks.push(table);
+    }
+    return { passed: true, checks };
+  }
+
   return { runId, ref, namespace, createUsers, createOrganizations, createProjects, createRevocationFixtures, createSessionFixtures,
-    runMatrix, runMembershipRevocation, runRolesInvitations, runCrossSurface, cleanup, verifyOwnedAbsent, browserInputs, snapshot };
+    runMatrix, runMembershipRevocation, runRolesInvitations, runCrossSurface, verifyPopulatedCrossSurface,
+    actorAccess, actorBearer, cleanup, verifyOwnedAbsent, browserInputs, snapshot };
 }
 
 async function main() {

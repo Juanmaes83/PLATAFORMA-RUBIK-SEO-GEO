@@ -1,5 +1,15 @@
 # U03 · matriz alojada de Preview · 18/10/2026
 
+## Implementación de la secuencia I-2/I-5 + H1-A · PR #143
+
+En HEAD de esta actualización quedó implementado y probado localmente el coordinador fail-closed `-WindowI2I5H1A`: preflight del deployment/ref/27 migraciones/inventario, rol `rubik_preview_u03_writer` inicialmente NOLOGIN, prueba administrativa independiente de NOLOGIN y terminación de sesiones, activación corta y `SET ROLE` por Session pooler TLS verify-full, escritura autenticada limitada al run, filas firmadas por flujos reales, recibos, export HTTP, verificación offline y restore doble en otro stack local. `finally` bloquea y termina sesiones, reconcilia recibos, limpia solo IDs propios, comprueba inventario/outbox y retira las variables de rama y deployment solo después de verificar cero residuos.
+
+La ventana de aplicación usa las ocho variables Vercel sensibles limitadas a la rama exacta `codex/u03-final-gates-20261020`; no se definen variables Preview globales. El HMAC de autorización incluye `runId`, `VERCEL_DEPLOYMENT_ID`, host efectivo `VERCEL_URL`, SHA y expiración; la ruta también exige que el host de la petición coincida. La prueba negativa rechaza otro deployment, host, SHA, rama, run, scope y expiración. Así se evita el ciclo de necesitar un host efímero antes del deploy: se provisiona la configuración para el SHA ya fijado y, después, el operador consulta y fija el ID/host/SHA del deployment READY. Ninguna escritura se habilita con alias.
+
+El endpoint interno de cierre `/api/u03/window-cleanup/[tenantId]/[projectId]` permite al owner, bajo el mismo HMAC y namespace, borrar resultados e imports con `eraseProviderResults`/`eraseImport` y procesar recibos permitidos con `processAuditOutboxWithPool`, el firmante real del producto. Un recibo con acción o scope inesperado falla cerrado; si el cierre no acredita cero pendientes, el arnés conserva proyectos, IDs y ledger en vez de borrar su contexto.
+
+Estado de esta publicación: pruebas dirigidas y `npm run verify` locales PASS; sin campaña alojada ni filas creadas. La configuración branch-specific y el deployment nuevo deben comprobarse antes de entregar el comando de ejecución; hasta esa comprobación, nuevo rol por Session pooler, I-2/I-5 alojado y H1-A alojado siguen BLOCKED. La prueba local de export/restore no se etiqueta como PASS alojado. H1/H2 siguen abiertos.
+
 ## Corte actual #143 · HTTP/restauración local real y contención · 20/10/2026
 
 HEAD de trabajo al iniciar: `26e8cb26004c0a96e0df4db862c9dcb2b61c2499`; `main@a0a40b776361f292d910e285b390d5e753da8d7b`; #143 OPEN/Draft. El nuevo código de ensayo es local y no requiere despliegue de aplicación; no se publicó un deployment nuevo ni se escribió en Preview.
