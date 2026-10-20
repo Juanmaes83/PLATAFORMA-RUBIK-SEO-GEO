@@ -79,18 +79,24 @@ const signingKey = randomBytes(32).toString("base64");
 const keyring = loadKeyring({ PROVENANCE_SIGNING_KEYS: `u03-local:${signingKey}`, PROVENANCE_ACTIVE_KEY_ID: "u03-local" });
 
 function adminSql(statement: string) {
-  execFileSync("docker", ["exec", "-i", "supabase_db_rubik-u03-window-20261020", "psql", "-X", "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=1", "-q"],
-    { input: statement, stdio: ["pipe", "ignore", "pipe"] });
+  try {
+    execFileSync("docker", ["exec", "-i", "supabase_db_rubik-u03-window-20261020", "psql", "-X", "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=1", "-q"],
+      { input: statement, stdio: ["pipe", "ignore", "pipe"] });
+  } catch { throw new Error("LOCAL_ADMIN_SQL_FAILED"); }
 }
 function applyRestore(statement: string) {
-  execFileSync("docker", ["exec", "-i", "supabase_db_rubik-u03-window-20261020", "psql", "-X", "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=1", "-q"],
-    { input: statement, stdio: ["pipe", "ignore", "pipe"] });
+  try {
+    execFileSync("docker", ["exec", "-i", "supabase_db_rubik-u03-window-20261020", "psql", "-X", "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=1", "-q"],
+      { input: statement, stdio: ["pipe", "ignore", "pipe"] });
+  } catch { throw new Error("LOCAL_RESTORE_SQL_FAILED"); }
 }
 
 beforeAll(async () => {
   if (!keyring.ok) throw new Error("LOCAL_KEYRING_INVALID");
-  users.push(await createConfirmedUser("u03-http-owner"));
-  user = await signedIn("u03-http-owner");
+  try {
+    users.push(await createConfirmedUser("u03-http-owner"));
+    user = await signedIn("u03-http-owner");
+  } catch { throw new Error("LOCAL_AUTH_FIXTURE_FAILED"); }
   const createdOrg = await user.from("organizations").insert({ slug: tenant, name: "U03 local diagnostic" });
   if (createdOrg.error) throw new Error("LOCAL_ORGANIZATION_CREATE_FAILED");
   organizationCreated = true;
@@ -122,13 +128,21 @@ beforeAll(async () => {
   process.env.PROVENANCE_ACTIVE_KEY_ID = "u03-local";
   process.env.RUBIK_RECOVERY_SCHEMA_ATTESTATION = "pre-n2-through-20261015210000";
   pool = new Pool({ connectionString: connection.toString(), ssl: false, max: 1 });
-  const auth = await user.auth.getUser();
-  authCategory = !auth.error && auth.data.user?.id === users[0] ? null : "AUTH_USER_MISMATCH";
-  const actor = await pool.query<{ organization_id: string; actor_role: string; tenant_slug: string; project_slug: string }>(
-    "select * from private.audit_writer_actor($1::uuid,$2::uuid)", [project.projectId, users[0]]);
-  const row = actor.rows[0];
-  actorCategory = row && row.organization_id === organizationId && row.actor_role === "owner" && row.tenant_slug === tenant && row.project_slug === "a1"
-    ? null : "ACTOR_SCOPE_MISMATCH";
+  try {
+    const auth = await user.auth.getUser();
+    authCategory = !auth.error && auth.data.user?.id === users[0] ? null : "AUTH_USER_MISMATCH";
+  } catch { authCategory = "AUTH_USER_MISMATCH"; }
+  try {
+    const actor = await pool.query<{ organization_id: string; actor_role: string; tenant_slug: string; project_slug: string }>(
+      "select * from private.audit_writer_actor($1::uuid,$2::uuid)", [project.projectId, users[0]]);
+    const row = actor.rows[0];
+    actorCategory = row && row.organization_id === organizationId && row.actor_role === "owner" && row.tenant_slug === tenant && row.project_slug === "a1"
+      ? null : "ACTOR_SCOPE_MISMATCH";
+  } catch {
+    if (observedSqlFailure) record(observedSqlFailure.phase, "SQL_PRIVILEGE_DENIED", "FAIL", observedSqlFailure.sqlstate);
+    else record("other_sql", "OTHER_LOCAL_FAILURE", "FAIL");
+    actorCategory = "ACTOR_SCOPE_MISMATCH";
+  }
   record("auth_user_check", authCategory, authCategory === null ? "PASS" : "FAIL");
   record("actor_scope_check", actorCategory, actorCategory === null ? "PASS" : "FAIL");
   expect(await recoverySchemaContract()).toBe("legacy-v2");
@@ -143,8 +157,10 @@ afterAll(async () => {
   const scopedOutbox = execFileSync("docker", ["exec", "supabase_db_rubik-u03-window-20261020", "psql", "-X", "-U", "postgres", "-d", "postgres", "-Atqc",
     `select count(*) from private.audit_outbox o join public.organizations g on g.id=o.organization_id where g.slug='${tenant}' and o.state='pending'`], { encoding: "utf8" }).trim();
   if (scopedOutbox !== "0") { record("fixture_cleanup", "OTHER_LOCAL_FAILURE", "FAIL"); return; }
-  if (organizationCreated) await deleteOrganizations([tenant]);
-  if (users.length) await deleteUsers(users);
+  try {
+    if (organizationCreated) await deleteOrganizations([tenant]);
+    if (users.length) await deleteUsers(users);
+  } catch { record("fixture_cleanup", "OTHER_LOCAL_FAILURE", "FAIL"); return; }
   for (const policy of createdPolicies.reverse()) adminSql(`drop policy if exists "${policy.name}" on ${policy.relation};`);
   if (roleReady) adminSql(`revoke rubik_audit_writer from "${role}"; drop role "${role}";`);
   const final = execFileSync("docker", ["exec", "supabase_db_rubik-u03-window-20261020", "psql", "-X", "-U", "postgres", "-d", "postgres", "-Atqc",
@@ -155,8 +171,8 @@ afterAll(async () => {
 });
 
 it("classifies NOT_ALLOWED without exposing internal values", async () => {
-  if (authCategory !== null) return record("auth_user_check", "AUTH_USER_MISMATCH", "FAIL");
-  if (actorCategory !== null) return;
+  expect(authCategory).toBeNull();
+  expect(actorCategory).toBeNull();
   const result = await appendTrustedAudit(user, project, { actor: { id: users[0], role: "owner" }, action: "u03.diagnostic" }, keyring.ok ? keyring.keyring : (() => { throw new Error("KEYRING_INVALID"); })());
   if (!result.ok && observedSqlFailure) {
     record(observedSqlFailure.phase, "SQL_PRIVILEGE_DENIED", "FAIL", observedSqlFailure.sqlstate);
