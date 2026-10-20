@@ -14,6 +14,9 @@ process.stdin.on('end', () => {
       process.exitCode = 17;
     } else if (input.mode === 'contain' && input.runId === FAILURE_ID) {
       process.stdout.write(`U03_WINDOW_ROLE_CONTAINMENT PASS runId=${FAILURE_ID} rolePresent=false roleLocked=null policies=0 activeSessions=0 inventoryZero=true outboxTotal=0 pending=0\n`);
+    } else if (input.mode === 'diagnose' && input.runId === FAILURE_ID) {
+      process.stdout.write(`U03_WINDOW_ROLE_READONLY_DIAGNOSTIC BLOCKED runId=${FAILURE_ID} category=DNS code=EAI_AGAIN sqlstate=NONE condition=NONE\n`);
+      process.exitCode = 1;
     } else process.exitCode = 42;
   } catch {
     process.exitCode = 43;

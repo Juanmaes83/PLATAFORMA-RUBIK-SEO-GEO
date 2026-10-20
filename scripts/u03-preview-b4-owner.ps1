@@ -2,6 +2,7 @@ param(
   [switch]$ReadOnlyPreflightOnly,
   [switch]$V4ConnectionDiagnosticOnly,
   [switch]$WindowRolePreflightOnly,
+  [switch]$WindowRoleReadOnlyDiagnosticOnly,
   [switch]$WindowRoleTransportSelfTestOnly,
   [switch]$PlaywrightOnly,
   [switch]$RolesInvitationsOnly,
@@ -37,7 +38,7 @@ function Invoke-U03WindowRoleChild([string]$Mode, [string]$RunId, [string]$Passw
   $payload = $null
   $payloadBytes = $null
   try {
-    if ($Mode -notin @('run','contain') -or $RunId -cnotmatch '^[0-9a-fA-F-]{36}$' -or
+    if ($Mode -notin @('run','contain','diagnose') -or $RunId -cnotmatch '^[0-9a-fA-F-]{36}$' -or
         [string]::IsNullOrWhiteSpace($PasswordText) -or -not (Test-Path -LiteralPath $ChildPath -PathType Leaf)) {
       return [pscustomobject]@{ Passed = $false; SafeLine = $null; Code = 'SAFE_CHILD_PREPARATION_FAILED' }
     }
@@ -76,8 +77,10 @@ function Invoke-U03WindowRoleChild([string]$Mode, [string]$RunId, [string]$Passw
     $null = $stderrTask.GetAwaiter().GetResult()
     $pattern = if ($Mode -eq 'run') {
       '^U03_WINDOW_ROLE_RESULT (PASS|BLOCKED) runId=[0-9a-fA-F-]{36} roleRemoved=(?:true|false|True|False) policies=\d+ inventoryZero=(?:true|false|True|False) outboxTotal=\d+ pending=\d+$'
-    } else {
+    } elseif ($Mode -eq 'contain') {
       '^U03_WINDOW_ROLE_CONTAINMENT PASS runId=[0-9a-fA-F-]{36} rolePresent=(?:true|false|True|False) roleLocked=(?:true|false|True|False|null) policies=\d+ activeSessions=\d+ inventoryZero=(?:true|false|True|False) outboxTotal=\d+ pending=\d+$'
+    } else {
+      '^U03_WINDOW_ROLE_READONLY_DIAGNOSTIC (PASS runId=[0-9a-fA-F-]{36} checks=IDENTITY,MIGRATIONS,WRITER_LOCK,ADMIN_CAPABILITIES,INVENTORY,OUTBOX,TLS|BLOCKED runId=[0-9a-fA-F-]{36} category=(?:DNS|TCP|TLS|AUTHENTICATION|PERMISSION|DATABASE|PREFLIGHT) code=(?:ENOTFOUND|EAI_AGAIN|EAI_FAIL|ETIMEDOUT|ECONNREFUSED|ECONNRESET|EHOSTUNREACH|ENETUNREACH|EPIPE|ENETDOWN|ECONNABORTED|ERR_TLS_CERT_ALTNAME_INVALID|CERT_HAS_EXPIRED|UNABLE_TO_VERIFY_LEAF_SIGNATURE|UNABLE_TO_GET_ISSUER_CERT_LOCALLY|DEPTH_ZERO_SELF_SIGNED_CERT|SELF_SIGNED_CERT_IN_CHAIN|ERR_TLS_CERT_SIGNATURE_ALGORITHM_UNSUPPORTED|ERR_TLS_HANDSHAKE_TIMEOUT|ERR_SSL_WRONG_VERSION_NUMBER|TLS_ERROR_UNCLASSIFIED|SQLSTATE_(?:42501|28P01|28000|57P01|0A000|42704|42710)|DATABASE_ERROR_UNCLASSIFIED|PREVIEW_READ_ONLY_RESULT_SCHEMA_INCOMPLETE|DATABASE_IDENTITY_MISMATCH|PREVIEW_IDENTITY_MISMATCH|MIGRATION_SET_MISMATCH|GENERAL_WRITER_NOT_LOCKED|ADMIN_CAPABILITY_MISSING|WRITER_SESSION_RESIDUE|TEMPORARY_ROLE_RESIDUE|TEMPORARY_POLICY_RESIDUE|TLS_VERIFICATION_FAILED|INVENTORY_NOT_EMPTY|PENDING_OUTBOX_NOT_EMPTY|ROLE_OWNERSHIP_UNVERIFIED|ROLE_ABSENCE_NOT_VERIFIED|ROLE_POLICY_RESIDUE|ROLE_SESSION_RESIDUE|FINAL_INVENTORY_NOT_EMPTY) sqlstate=(?:NONE|42501|28P01|28000|57P01|0A000|42704|42710) condition=(?:NONE|PREVIEW_READ_ONLY_RESULT_SCHEMA_INCOMPLETE|DATABASE_IDENTITY_MISMATCH|PREVIEW_IDENTITY_MISMATCH|MIGRATION_SET_MISMATCH|GENERAL_WRITER_NOT_LOCKED|ADMIN_CAPABILITY_MISSING|WRITER_SESSION_RESIDUE|TEMPORARY_ROLE_RESIDUE|TEMPORARY_POLICY_RESIDUE|TLS_VERIFICATION_FAILED|INVENTORY_NOT_EMPTY|PENDING_OUTBOX_NOT_EMPTY|ROLE_OWNERSHIP_UNVERIFIED|ROLE_ABSENCE_NOT_VERIFIED|ROLE_POLICY_RESIDUE|ROLE_SESSION_RESIDUE|FINAL_INVENTORY_NOT_EMPTY))$'
     }
     $safeLine = @($stdout -split "`r?`n" | Where-Object { $_ -cmatch $pattern } | Select-Object -Last 1)
     if ($safeLine.Count -eq 0) { return [pscustomobject]@{ Passed = $false; SafeLine = $null; Code = 'SAFE_CHILD_RESULT_MISSING' } }
@@ -167,6 +170,7 @@ foreach ($requested in @($ProvisionPreviewKeys.IsPresent, $CheckPreviewKeys.IsPr
   if ($requested) { $credentialOperations++ }
 }
 $campaignModes = @($ReadOnlyPreflightOnly.IsPresent, $V4ConnectionDiagnosticOnly.IsPresent, $WindowRolePreflightOnly.IsPresent,
+  $WindowRoleReadOnlyDiagnosticOnly.IsPresent,
   $WindowRoleTransportSelfTestOnly.IsPresent,
   $PlaywrightOnly.IsPresent, $MembershipRevocationOnly.IsPresent, $RolesInvitationsOnly.IsPresent,
   $CrossSurfaceOnly.IsPresent, $SessionProvidersOnly.IsPresent, $ProviderEgressOnly.IsPresent) | Where-Object { $_ }
@@ -198,6 +202,7 @@ if ($CrossSurfaceOnly -and $branch -ne 'codex/u03-cross-surface-20261019') { Sto
 if ($SessionProvidersOnly -and $branch -ne 'codex/u03-session-gates-20261020') { Stop-B4 'WRONG_MODE_BRANCH' }
 if ($ProviderEgressOnly -and $branch -ne 'codex/u03-final-gates-20261020') { Stop-B4 'WRONG_MODE_BRANCH' }
 if ($WindowRolePreflightOnly -and $branch -ne 'codex/u03-final-gates-20261020') { Stop-B4 'WRONG_MODE_BRANCH' }
+if ($WindowRoleReadOnlyDiagnosticOnly -and $branch -ne 'codex/u03-final-gates-20261020') { Stop-B4 'WRONG_MODE_BRANCH' }
 if ($RolesInvitationsOnly -and $branch -notin @('codex/u03-roles-invitations-20261019',
     'codex/u03-cross-surface-20261019')) { Stop-B4 'WRONG_MODE_BRANCH' }
 $link = Get-Content -LiteralPath $linkFile -Raw | ConvertFrom-Json
@@ -261,6 +266,8 @@ try {
     $windowRoleChildOverride = $testChild
     $failedChild = Invoke-U03WindowRoleChild -Mode 'run' -RunId $windowRoleRunId -PasswordText $fakePassword -ChildPath $testChild
     if ($failedChild.Passed -or $failedChild.SafeLine -notmatch '^U03_WINDOW_ROLE_RESULT BLOCKED ') { Stop-B4 'WINDOW_ROLE_CHILD_FAILURE_TEST_FAILED' }
+    $diagnosticChild = Invoke-U03WindowRoleChild -Mode 'diagnose' -RunId $windowRoleRunId -PasswordText $fakePassword -ChildPath $testChild
+    if ($diagnosticChild.Passed -or $diagnosticChild.SafeLine -notmatch '^U03_WINDOW_ROLE_READONLY_DIAGNOSTIC BLOCKED .*category=DNS code=EAI_AGAIN sqlstate=NONE condition=NONE$') { Stop-B4 'WINDOW_ROLE_DIAGNOSTIC_OUTPUT_TEST_FAILED' }
     $prepareFailure = Invoke-U03WindowRoleChild -Mode 'run' -RunId $windowRoleRunId -PasswordText $fakePassword -ChildPath (Join-Path $env:TEMP 'u03-missing-child-test.mjs')
     if ($prepareFailure.Passed) { Stop-B4 'WINDOW_ROLE_CHILD_PREPARATION_FAILURE_TEST_FAILED' }
     $windowRoleTransportSelfTestPassed = $true
@@ -287,7 +294,7 @@ try {
 
   Push-Location -LiteralPath $repo
   $pushed = $true
-  if ($WindowRolePreflightOnly) {
+  if ($WindowRolePreflightOnly -or $WindowRoleReadOnlyDiagnosticOnly) {
     if (-not (Test-Path -LiteralPath $windowRoleOperator)) { Stop-B4 'WINDOW_ROLE_OPERATOR_MISSING' }
     if ($DeploymentId -cne 'dpl_FX2BbLxBZPg38hYqikhhsEprGdPL' -or
         $DeploymentHost -cne 'plataforma-rubik-seo-9lkzlkvr1-juanma-espinosas-projects.vercel.app' -or
@@ -298,19 +305,21 @@ try {
     $env:U03_PIN_DEPLOYMENT_BRANCH = 'codex/u03-final-gates-20261020'
     & node $runner --readonly-preflight
     if ($LASTEXITCODE -ne 0) { Stop-B4 'WINDOW_ROLE_PROTECTED_DEPLOYMENT_PREFLIGHT_FAILED' }
-    try { $previewCredentials = Get-B4PreviewCredentials }
-    catch { Stop-B4 'WINDOW_ROLE_PREVIEW_CREDENTIALS_UNAVAILABLE' }
-    if ($previewCredentials.ProjectRef -cne 'rhnnplewqsekrnaousyl') { Stop-B4 'PREVIEW_CREDENTIAL_REF_MISMATCH' }
-    $env:U03_PREVIEW_ADMIN_KEY = $previewCredentials.AdminKey
-    $env:U03_PREVIEW_PUBLIC_KEY = $previewCredentials.PublicKey
-    & node $runner --credential-preflight-only
-    $credentialPreflightExit = $LASTEXITCODE
-    Remove-Item Env:U03_PREVIEW_ADMIN_KEY -ErrorAction SilentlyContinue
-    Remove-Item Env:U03_PREVIEW_PUBLIC_KEY -ErrorAction SilentlyContinue
-    $previewCredentials.AdminKey = $null
-    $previewCredentials.PublicKey = $null
-    $previewCredentials = $null
-    if ($credentialPreflightExit -ne 0) { Stop-B4 'WINDOW_ROLE_CREDENTIAL_PREFLIGHT_FAILED' }
+    if ($WindowRolePreflightOnly) {
+      try { $previewCredentials = Get-B4PreviewCredentials }
+      catch { Stop-B4 'WINDOW_ROLE_PREVIEW_CREDENTIALS_UNAVAILABLE' }
+      if ($previewCredentials.ProjectRef -cne 'rhnnplewqsekrnaousyl') { Stop-B4 'PREVIEW_CREDENTIAL_REF_MISMATCH' }
+      $env:U03_PREVIEW_ADMIN_KEY = $previewCredentials.AdminKey
+      $env:U03_PREVIEW_PUBLIC_KEY = $previewCredentials.PublicKey
+      & node $runner --credential-preflight-only
+      $credentialPreflightExit = $LASTEXITCODE
+      Remove-Item Env:U03_PREVIEW_ADMIN_KEY -ErrorAction SilentlyContinue
+      Remove-Item Env:U03_PREVIEW_PUBLIC_KEY -ErrorAction SilentlyContinue
+      $previewCredentials.AdminKey = $null
+      $previewCredentials.PublicKey = $null
+      $previewCredentials = $null
+      if ($credentialPreflightExit -ne 0) { Stop-B4 'WINDOW_ROLE_CREDENTIAL_PREFLIGHT_FAILED' }
+    }
 
     $secureDatabasePassword = Read-Host -Prompt 'Database password existente de Supabase Preview rhnnplewqsekrnaousyl (entrada oculta)' -AsSecureString
     $passwordBstr = [IntPtr]::Zero
@@ -320,15 +329,19 @@ try {
       if ([string]::IsNullOrEmpty($windowRolePlainPassword)) { Stop-B4 'WINDOW_ROLE_DATABASE_PASSWORD_EMPTY' }
       $windowRoleRunId = [guid]::NewGuid().ToString()
       Write-Output "U03_WINDOW_ROLE_RUN_ID: $windowRoleRunId"
-      $runResult = Invoke-U03WindowRoleChild -Mode 'run' -RunId $windowRoleRunId -PasswordText $windowRolePlainPassword
+      $childMode = if ($WindowRoleReadOnlyDiagnosticOnly) { 'diagnose' } else { 'run' }
+      $runResult = Invoke-U03WindowRoleChild -Mode $childMode -RunId $windowRoleRunId -PasswordText $windowRolePlainPassword
       if ($runResult.SafeLine) { Write-Output $runResult.SafeLine }
-      if (-not $runResult.Passed) { Stop-B4 'WINDOW_ROLE_PREFLIGHT_BLOCKED_NO_FIXTURES' }
+      if (-not $runResult.Passed) {
+        if ($WindowRoleReadOnlyDiagnosticOnly) { Stop-B4 'WINDOW_ROLE_READONLY_DIAGNOSTIC_BLOCKED_NO_WRITES' }
+        Stop-B4 'WINDOW_ROLE_PREFLIGHT_BLOCKED_NO_FIXTURES'
+      }
     } finally {
       if ($passwordBstr -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($passwordBstr) }
       if ($secureDatabasePassword) { $secureDatabasePassword.Dispose(); $secureDatabasePassword = $null }
     }
   }
-  if (-not $WindowRolePreflightOnly -and -not $WindowRoleTransportSelfTestOnly) {
+  if (-not $WindowRolePreflightOnly -and -not $WindowRoleReadOnlyDiagnosticOnly -and -not $WindowRoleTransportSelfTestOnly) {
   # Deployment protection and database identity/counts/migrations do not need
   # Auth keys. Fail here before loading credentials if any read-only gate is not exact.
   & node $runner --readonly-preflight
@@ -412,7 +425,7 @@ try {
     if ($windowRoleContainFailed) {
       Write-Warning 'U03_WINDOW_ROLE_CONTAINMENT BLOCKED; keep the sanitized ledger and do not create fixtures.'
     } elseif ($WindowRoleTransportSelfTestOnly -and $windowRoleTransportSelfTestPassed) {
-      Write-Output 'U03_WINDOW_ROLE_TRANSPORT_SELFTEST PASS utf8NonAscii=true simulatedChildFailure=true finallyContainment=true preparationFailureSafe=true'
+      Write-Output 'U03_WINDOW_ROLE_TRANSPORT_SELFTEST PASS utf8NonAscii=true simulatedChildFailure=true diagnosticOutputSanitized=true finallyContainment=true preparationFailureSafe=true'
     }
   }
   if ($MembershipRevocationOnly) {

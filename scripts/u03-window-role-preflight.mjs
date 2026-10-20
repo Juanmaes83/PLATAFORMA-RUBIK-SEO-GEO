@@ -41,7 +41,16 @@ const INVENTORY = Object.freeze([
 ]);
 const LEDGER_ROOT = join(process.cwd(), 'test-results', 'u03-hosted');
 const SAFE_SQLSTATES = new Set(['42501', '28P01', '28000', '57P01', '0A000', '42704', '42710']);
-const LEDGER_PHASES = new Set(['admin-read-only-preflight','writer-allowlist-preflight','install-nologin-role-and-deny-policies',
+const SAFE_TRANSPORT_CODES = new Set(['ENOTFOUND','EAI_AGAIN','EAI_FAIL','ETIMEDOUT','ECONNREFUSED','ECONNRESET',
+  'EHOSTUNREACH','ENETUNREACH','EPIPE','ENETDOWN','ECONNABORTED','ERR_TLS_CERT_ALTNAME_INVALID','CERT_HAS_EXPIRED','UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+  'UNABLE_TO_GET_ISSUER_CERT_LOCALLY','DEPTH_ZERO_SELF_SIGNED_CERT','SELF_SIGNED_CERT_IN_CHAIN',
+  'ERR_TLS_CERT_SIGNATURE_ALGORITHM_UNSUPPORTED','ERR_TLS_HANDSHAKE_TIMEOUT','ERR_SSL_WRONG_VERSION_NUMBER']);
+const PREFLIGHT_CONDITIONS = new Set(['PREVIEW_READ_ONLY_RESULT_SCHEMA_INCOMPLETE','DATABASE_IDENTITY_MISMATCH',
+  'PREVIEW_IDENTITY_MISMATCH','MIGRATION_SET_MISMATCH','GENERAL_WRITER_NOT_LOCKED','ADMIN_CAPABILITY_MISSING',
+  'WRITER_SESSION_RESIDUE','TEMPORARY_ROLE_RESIDUE','TEMPORARY_POLICY_RESIDUE','TLS_VERIFICATION_FAILED',
+  'INVENTORY_NOT_EMPTY','PENDING_OUTBOX_NOT_EMPTY','ROLE_OWNERSHIP_UNVERIFIED','ROLE_ABSENCE_NOT_VERIFIED',
+  'ROLE_POLICY_RESIDUE','ROLE_SESSION_RESIDUE','FINAL_INVENTORY_NOT_EMPTY']);
+const LEDGER_PHASES = new Set(['readonly-diagnostic','admin-read-only-preflight','writer-allowlist-preflight','install-nologin-role-and-deny-policies',
   'independent-nologin-terminate-probe','activate-three-minute-role','preview-session-pooler-set-role','expire-login-window',
   'expired-login-rejected','nologin-and-session-termination','independent-final-state','operator-phase-failure',
   'finally-independent-containment','containment-only-read-only-preflight','containment-only-final-state']);
@@ -55,26 +64,67 @@ function qPassword(value) {
   if (typeof value !== 'string' || !/^[A-Za-z0-9_-]{40,50}$/.test(value)) throw new Error('TEMP_CREDENTIAL_REJECTED');
   return `'${value}'`;
 }
-function safeSqlstate(error) {
-  const value = typeof error?.code === 'string' ? error.code : '';
-  return SAFE_SQLSTATES.has(value) ? value : null;
+function errorCodes(error, depth = 0, seen = new Set()) {
+  if (!error || depth > 4 || seen.has(error)) return [];
+  seen.add(error);
+  const own = typeof error.code === 'string' ? [error.code.toUpperCase()] : [];
+  const nested = [error.cause, ...(Array.isArray(error.errors) ? error.errors : [])]
+    .flatMap(child => errorCodes(child, depth + 1, seen));
+  return [...own, ...nested];
 }
-function safeErrorCategory(error) {
-  const code = String(error?.code ?? '').toUpperCase();
-  if (['ENOTFOUND','EAI_AGAIN','EAI_FAIL'].includes(code)) return 'DNS';
-  if (['ETIMEDOUT','ECONNREFUSED','ECONNRESET','EHOSTUNREACH','ENETUNREACH'].includes(code)) return 'TCP';
-  if (code.startsWith('ERR_TLS_') || code.startsWith('ERR_SSL_') || code.includes('CERT')) return 'TLS';
-  if (code.startsWith('28')) return 'AUTHENTICATION';
-  if (code === '42501') return 'PERMISSION';
-  return 'DATABASE';
+
+export class PreflightConditionError extends Error {
+  constructor(condition) {
+    if (!PREFLIGHT_CONDITIONS.has(condition)) throw new Error('PREFLIGHT_CONDITION_REJECTED');
+    super(condition);
+    this.name = 'PreflightConditionError';
+    this.condition = condition;
+  }
 }
+
+export function classifyDiagnosticError(error) {
+  if (error instanceof PreflightConditionError)
+    return { category: 'PREFLIGHT', code: error.condition, sqlstate: null, condition: error.condition };
+  const codes = errorCodes(error);
+  const directSqlstate = typeof error?.code === 'string' && SAFE_SQLSTATES.has(error.code.toUpperCase())
+    ? error.code.toUpperCase() : null;
+  const sqlstate = directSqlstate ?? codes.find(value => SAFE_SQLSTATES.has(value)) ?? null;
+  if (sqlstate?.startsWith('28'))
+    return { category: 'AUTHENTICATION', code: `SQLSTATE_${sqlstate}`, sqlstate, condition: null };
+  if (sqlstate === '42501')
+    return { category: 'PERMISSION', code: `SQLSTATE_${sqlstate}`, sqlstate, condition: null };
+  if (sqlstate && directSqlstate)
+    return { category: 'DATABASE', code: `SQLSTATE_${sqlstate}`, sqlstate, condition: null };
+  const directCode = typeof error?.code === 'string' ? error.code.toUpperCase() : '';
+  if ((directCode.startsWith('ERR_TLS_') || directCode.startsWith('ERR_SSL_')) && !SAFE_TRANSPORT_CODES.has(directCode))
+    return { category: 'TLS', code: 'TLS_ERROR_UNCLASSIFIED', sqlstate: null, condition: null };
+  const code = codes.find(value => SAFE_TRANSPORT_CODES.has(value));
+  if (code && ['ENOTFOUND','EAI_AGAIN','EAI_FAIL'].includes(code))
+    return { category: 'DNS', code, sqlstate: null, condition: null };
+  if (code && ['ETIMEDOUT','ECONNREFUSED','ECONNRESET','EHOSTUNREACH','ENETUNREACH','EPIPE','ENETDOWN','ECONNABORTED'].includes(code))
+    return { category: 'TCP', code, sqlstate: null, condition: null };
+  if (code && !['ENOTFOUND','EAI_AGAIN','EAI_FAIL','ETIMEDOUT','ECONNREFUSED','ECONNRESET','EHOSTUNREACH','ENETUNREACH','EPIPE','ENETDOWN','ECONNABORTED'].includes(code))
+    return { category: 'TLS', code, sqlstate: null, condition: null };
+  if (codes.some(value => value.startsWith('ERR_TLS_') || value.startsWith('ERR_SSL_')))
+    return { category: 'TLS', code: 'TLS_ERROR_UNCLASSIFIED', sqlstate: null, condition: null };
+  if (sqlstate?.startsWith('28'))
+    return { category: 'AUTHENTICATION', code: `SQLSTATE_${sqlstate}`, sqlstate, condition: null };
+  if (sqlstate === '42501')
+    return { category: 'PERMISSION', code: `SQLSTATE_${sqlstate}`, sqlstate, condition: null };
+  if (sqlstate)
+    return { category: 'DATABASE', code: `SQLSTATE_${sqlstate}`, sqlstate, condition: null };
+  return { category: 'DATABASE', code: 'DATABASE_ERROR_UNCLASSIFIED', sqlstate: null, condition: null };
+}
+
 function makeLedger(runId, sha, ledgerPath, append = appendFile) {
-  return async (phase, result, category = 'NONE', sqlstate = null) => {
+  return async (phase, result, category = 'NONE', sqlstate = null, code = null, condition = null) => {
     if (!LEDGER_PHASES.has(phase) || !['PASS', 'FAIL', 'BLOCKED', 'ATTEMPTED'].includes(result) ||
         !/^(?:NONE|PREFLIGHT|ADMIN|POOLER|CONTAINMENT|ROLLBACK|IDENTITY|CAPABILITY|DNS|TCP|TLS|AUTHENTICATION|PERMISSION|DATABASE)$/.test(category) ||
-        (sqlstate !== null && !SAFE_SQLSTATES.has(sqlstate))) throw new Error('LEDGER_FIELD_REJECTED');
+        (sqlstate !== null && !SAFE_SQLSTATES.has(sqlstate)) ||
+        (code !== null && !SAFE_TRANSPORT_CODES.has(code) && !PREFLIGHT_CONDITIONS.has(code) && !/^SQLSTATE_(?:42501|28P01|28000|57P01|0A000|42704|42710)$/.test(code) && code !== 'DATABASE_ERROR_UNCLASSIFIED') ||
+        (condition !== null && !PREFLIGHT_CONDITIONS.has(condition))) throw new Error('LEDGER_FIELD_REJECTED');
     const row = { utc: new Date().toISOString(), runId, sha, ref: PREVIEW_REF, phase, category, result,
-      ...(sqlstate ? { sqlstate } : {}) };
+      ...(sqlstate ? { sqlstate } : {}), ...(code ? { code } : {}), ...(condition ? { condition } : {}) };
     await append(ledgerPath, `${JSON.stringify(row)}\n`, { mode: 0o600 });
   };
 }
@@ -112,6 +162,8 @@ const READ_ONLY_SQL = `select current_database() = 'postgres' as database_ok,
   (select rolsuper or rolcreaterole from pg_roles where rolname=current_user) as may_manage_role,
   ((select rolsuper from pg_roles where rolname=current_user) or pg_has_role(current_user,'pg_signal_backend','MEMBER')) as may_terminate_session,
   (select count(*)::int from pg_stat_activity where usename in ('rubik_audit_writer','rubik_preview_u03_writer')) as writer_sessions,
+  (select count(*)::int from pg_stat_activity where usename='rubik_audit_writer') as writer_role_sessions,
+  (select count(*)::int from pg_stat_activity where usename='rubik_preview_u03_writer') as temporary_role_sessions,
   (select count(*)::int from pg_roles where rolname='rubik_preview_u03_writer') as temporary_role_count,
   (select count(*)::int from pg_policies where policyname like 'u03_preflight_writer_%') as temporary_policy_count,
   (select count(*)::int from auth.users) as auth_users,
@@ -141,14 +193,33 @@ const DEFiner_SQL = `select coalesce(array_agg(format('%I.%I(%s)',n.nspname,p.pr
   where p.prokind in ('f','p') and has_schema_privilege(current_user,n.oid,'USAGE')
     and has_function_privilege(current_user,p.oid,'EXECUTE')`;
 
-function assertReadOnlyState(row) {
-  const bad = !row || !row.database_ok || !row.exact_admin || !row.exact_identity || !row.closed_identity ||
-    row.migration_count !== 27 || row.latest_migration !== '20261015210000' ||
-    JSON.stringify(row.migrations) !== JSON.stringify(EXPECTED_N1_MIGRATIONS) || !row.writer_locked ||
-    !row.may_manage_role || !row.may_terminate_session || row.writer_sessions !== 0 ||
-    row.temporary_role_count !== 0 || row.temporary_policy_count !== 0 || row.tls_verified !== true ||
-    INVENTORY.some(([, field]) => Number(row[field]) !== 0) || Number(row.pending_outbox) !== 0;
-  if (bad) throw new Error('PREVIEW_READ_ONLY_PREFLIGHT_REJECTED');
+const READ_ONLY_RESULT_FIELDS = Object.freeze(['database_ok','exact_admin','exact_identity','closed_identity','migration_count',
+  'latest_migration','migrations','writer_locked','may_manage_role','may_terminate_session','writer_sessions',
+  'writer_role_sessions','temporary_role_sessions','temporary_role_count','temporary_policy_count','tls_verified',
+  ...INVENTORY.map(([, field]) => field),'pending_outbox']);
+
+export function assertReadOnlyState(row, { allowOwnedTemporaryResidue = false } = {}) {
+  if (!row || READ_ONLY_RESULT_FIELDS.some(field => !Object.hasOwn(row, field)))
+    throw new PreflightConditionError('PREVIEW_READ_ONLY_RESULT_SCHEMA_INCOMPLETE');
+  if (!row.database_ok || !row.exact_admin) throw new PreflightConditionError('DATABASE_IDENTITY_MISMATCH');
+  if (!row.exact_identity || !row.closed_identity) throw new PreflightConditionError('PREVIEW_IDENTITY_MISMATCH');
+  if (row.migration_count !== 27 || row.latest_migration !== '20261015210000' ||
+      JSON.stringify(row.migrations) !== JSON.stringify(EXPECTED_N1_MIGRATIONS))
+    throw new PreflightConditionError('MIGRATION_SET_MISMATCH');
+  if (!row.writer_locked) throw new PreflightConditionError('GENERAL_WRITER_NOT_LOCKED');
+  if (!row.may_manage_role || !row.may_terminate_session) throw new PreflightConditionError('ADMIN_CAPABILITY_MISSING');
+  if (row.writer_role_sessions !== 0 || (!allowOwnedTemporaryResidue && row.writer_sessions !== 0))
+    throw new PreflightConditionError('WRITER_SESSION_RESIDUE');
+  if (!allowOwnedTemporaryResidue && row.temporary_role_count !== 0)
+    throw new PreflightConditionError('TEMPORARY_ROLE_RESIDUE');
+  if (!allowOwnedTemporaryResidue && row.temporary_policy_count !== 0)
+    throw new PreflightConditionError('TEMPORARY_POLICY_RESIDUE');
+  if (allowOwnedTemporaryResidue && (row.temporary_role_count > 1 || row.temporary_policy_count > TABLES.length ||
+      row.writer_sessions !== row.writer_role_sessions + row.temporary_role_sessions))
+    throw new PreflightConditionError('TEMPORARY_ROLE_RESIDUE');
+  if (row.tls_verified !== true) throw new PreflightConditionError('TLS_VERIFICATION_FAILED');
+  if (INVENTORY.some(([, field]) => Number(row[field]) !== 0)) throw new PreflightConditionError('INVENTORY_NOT_EMPTY');
+  if (Number(row.pending_outbox) !== 0) throw new PreflightConditionError('PENDING_OUTBOX_NOT_EMPTY');
 }
 
 async function runReadOnlyPreflight(pool) {
@@ -375,11 +446,15 @@ export async function runWindowRolePreflight({ databasePassword, runId = randomU
     return { status: 'PASS', runId, final };
   } catch (error) {
     failure = error;
-    const sqlstate = safeSqlstate(error);
-    await ledger('operator-phase-failure', 'BLOCKED', safeErrorCategory(error), sqlstate);
+    const diagnostic = classifyDiagnosticError(error);
+    await ledger('operator-phase-failure', 'BLOCKED', diagnostic.category, diagnostic.sqlstate,
+      diagnostic.code, diagnostic.condition);
     throw Object.assign(new Error('WINDOW_ROLE_PREFLIGHT_BLOCKED'), { cause: error });
   } finally {
-    if (admin && installAttempted) {
+    // Even a failure during the first read-only query gets an independent,
+    // read-only final-state/absence check. If install was attempted, the same
+    // path blocks and verifies the run-owned role before any rollback.
+    if (admin && (installAttempted || failure)) {
       try {
         // A fresh independent pool is used in addition to the finally on the main process.
         const emergency = adminPoolFactory(databasePassword, PoolClass);
@@ -389,11 +464,43 @@ export async function runWindowRolePreflight({ databasePassword, runId = randomU
           await ledger('finally-independent-containment', 'PASS', 'CONTAINMENT');
         } finally { await emergency.end().catch(() => {}); }
       } catch (containmentError) {
-        await ledger('finally-independent-containment', 'BLOCKED', 'CONTAINMENT', safeSqlstate(containmentError));
+        const diagnostic = classifyDiagnosticError(containmentError);
+        await ledger('finally-independent-containment', 'BLOCKED', diagnostic.category, diagnostic.sqlstate,
+          diagnostic.code, diagnostic.condition);
         if (!failure) throw new Error('INDEPENDENT_CONTAINMENT_BLOCKED');
       }
     }
     await admin?.end().catch(() => {});
+    databasePassword = '';
+  }
+}
+
+// Diagnostic-only entry point: one PostgreSQL read-only query bundle, no role
+// installation, temporary policies, Auth actions, fixtures or cleanup writes.
+export async function diagnoseReadOnlyPreflight({ databasePassword, runId = randomUUID(), PoolClass = Pool,
+  adminPoolFactory = createPreviewAdminPool, ledgerPath = null } = {}) {
+  if (typeof databasePassword !== 'string' || !databasePassword || !/^[0-9a-f-]{36}$/i.test(runId))
+    throw new Error('DIAGNOSTIC_INPUT_REJECTED');
+  const path = ledgerPath ?? join(LEDGER_ROOT, `${runId}.jsonl`);
+  await mkdir(join(path, '..'), { recursive: true });
+  await appendFile(path, '', { flag: 'wx', mode: 0o600 });
+  const sha = process.env.U03_FUNCTIONAL_SHA ?? 'LOCAL_TEST_ONLY';
+  const ledger = makeLedger(runId, sha, path);
+  let pool;
+  await ledger('readonly-diagnostic', 'ATTEMPTED', 'PREFLIGHT');
+  try {
+    pool = adminPoolFactory(databasePassword, PoolClass);
+    await runReadOnlyPreflight(pool);
+    await ledger('readonly-diagnostic', 'PASS', 'PREFLIGHT');
+    return { status: 'PASS', runId, category: 'NONE', code: 'NONE', sqlstate: null, condition: null,
+      checks: ['IDENTITY','MIGRATIONS','WRITER_LOCK','ADMIN_CAPABILITIES','INVENTORY','OUTBOX','TLS'] };
+  } catch (error) {
+    const diagnostic = classifyDiagnosticError(error);
+    await ledger('readonly-diagnostic', 'BLOCKED', diagnostic.category, diagnostic.sqlstate,
+      diagnostic.code, diagnostic.condition);
+    return { status: 'BLOCKED', runId, ...diagnostic };
+  } finally {
+    await pool?.end().catch(() => {});
     databasePassword = '';
   }
 }
@@ -410,16 +517,43 @@ export async function runIndependentContainment({ databasePassword, runId, PoolC
   const rolePassword = deriveTemporaryPassword(databasePassword, runId);
   try {
     const state = (await admin.query(READ_ONLY_SQL, [PREVIEW_REF])).rows[0];
-    // A role/policy belonging to this run is expected here; all unrelated safety
-    // assertions, identity, migration, writer state and zero business inventory remain mandatory.
-    assertReadOnlyState({ ...state, writer_sessions: 0, temporary_role_count: 0, temporary_policy_count: 0 });
+    // The independent path first proves database identity, schema, migration,
+    // TLS, inventory and the general writer state while allowing only the
+    // expected temporary-role residue to be reconciled below.
+    assertReadOnlyState(state, { allowOwnedTemporaryResidue: true });
     await ledger('containment-only-read-only-preflight', 'PASS', 'PREFLIGHT');
-    await blockRole(admin, rolePassword, PoolClass, runId, rolePoolFactory);
+    const owned = (await admin.query(`select shobj_description(oid,'pg_authid') as marker,rolcanlogin
+      from pg_roles where rolname=$1`, [ROLE])).rows[0];
+    const policyRows = (await admin.query(`select policyname from pg_policies where policyname = any($1::text[])`,
+      [expectedPolicyNames(runId)])).rows;
+    const roleSessions = Number((await admin.query(`select count(*)::int as count from pg_stat_activity
+      where usename='rubik_preview_u03_writer'`)).rows[0]?.count);
+    if (!owned) {
+      if (Number(state.temporary_role_count) !== 0)
+        throw new PreflightConditionError('ROLE_ABSENCE_NOT_VERIFIED');
+      if (policyRows.length !== 0 || Number(state.temporary_policy_count) !== 0)
+        throw new PreflightConditionError('ROLE_POLICY_RESIDUE');
+      if (roleSessions !== 0 || Number(state.temporary_role_sessions) !== 0)
+        throw new PreflightConditionError('ROLE_SESSION_RESIDUE');
+      if (Number(state.writer_role_sessions) !== 0)
+        throw new PreflightConditionError('WRITER_SESSION_RESIDUE');
+    } else {
+      if (owned.marker !== `u03-window:${runId}`)
+        throw new PreflightConditionError('ROLE_OWNERSHIP_UNVERIFIED');
+      if (Number(state.temporary_role_count) !== 1 || policyRows.length !== TABLES.length ||
+          Number(state.temporary_policy_count) !== TABLES.length)
+        throw new PreflightConditionError('ROLE_POLICY_RESIDUE');
+      if (roleSessions !== Number(state.temporary_role_sessions))
+        throw new PreflightConditionError('ROLE_SESSION_RESIDUE');
+      await blockRole(admin, rolePassword, PoolClass, runId, rolePoolFactory);
+    }
     const final = await finalState(admin, runId, { remove: true });
     await ledger('containment-only-final-state', 'PASS', 'ROLLBACK');
     return final;
   } catch (error) {
-    await ledger('containment-only-final-state', 'BLOCKED', 'CONTAINMENT', safeSqlstate(error));
+    const diagnostic = classifyDiagnosticError(error);
+    await ledger('containment-only-final-state', 'BLOCKED', diagnostic.category, diagnostic.sqlstate,
+      diagnostic.code, diagnostic.condition);
     throw new Error('INDEPENDENT_CONTAINMENT_BLOCKED');
   } finally { await admin.end().catch(() => {}); databasePassword = ''; }
 }
@@ -431,14 +565,24 @@ async function main() {
   try { input = JSON.parse(Buffer.concat(lines).toString('utf8')); } catch { process.stderr.write('WINDOW_ROLE_INPUT_REJECTED\n'); process.exitCode=2; return; }
   const databasePassword = input?.databasePassword;
   const runId = input?.runId;
-  if (!['run','contain'].includes(input?.mode) || typeof databasePassword !== 'string' || !runId) { process.stderr.write('WINDOW_ROLE_INPUT_REJECTED\n'); process.exitCode=2; return; }
+  if (!['run','contain','diagnose'].includes(input?.mode) || typeof databasePassword !== 'string' || !runId) { process.stderr.write('WINDOW_ROLE_INPUT_REJECTED\n'); process.exitCode=2; return; }
   try {
     if (input.mode === 'run') {
       const result = await runWindowRolePreflight({ databasePassword, runId });
       process.stdout.write(`U03_WINDOW_ROLE_RESULT PASS runId=${result.runId} roleRemoved=${!result.final.rolePresent} policies=${result.final.policies} inventoryZero=${result.final.inventoryZero} outboxTotal=${result.final.outboxTotal} pending=${result.final.pendingOutbox}\n`);
-    } else {
+    } else if (input.mode === 'contain') {
       const final = await runIndependentContainment({ databasePassword, runId });
       process.stdout.write(`U03_WINDOW_ROLE_CONTAINMENT PASS runId=${runId} rolePresent=${final.rolePresent} roleLocked=${final.roleLocked} policies=${final.policies} activeSessions=${final.activeSessions} inventoryZero=${final.inventoryZero} outboxTotal=${final.outboxTotal} pending=${final.pendingOutbox}\n`);
+    } else {
+      const result = await diagnoseReadOnlyPreflight({ databasePassword, runId });
+      if (result.status === 'PASS') {
+        process.stdout.write(`U03_WINDOW_ROLE_READONLY_DIAGNOSTIC PASS runId=${result.runId} checks=IDENTITY,MIGRATIONS,WRITER_LOCK,ADMIN_CAPABILITIES,INVENTORY,OUTBOX,TLS\n`);
+      } else {
+        const sqlstate = result.sqlstate ?? 'NONE';
+        const condition = result.condition ?? 'NONE';
+        process.stdout.write(`U03_WINDOW_ROLE_READONLY_DIAGNOSTIC BLOCKED runId=${result.runId} category=${result.category} code=${result.code} sqlstate=${sqlstate} condition=${condition}\n`);
+        process.exitCode = 1;
+      }
     }
   } catch {
     process.stderr.write('U03_WINDOW_ROLE_RESULT BLOCKED; inspect sanitized ledger, no fixtures were created\n');

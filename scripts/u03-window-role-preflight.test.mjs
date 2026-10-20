@@ -5,17 +5,18 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { deriveTemporaryPassword, EXPECTED_DEFINERS, EXPECTED_N1_MIGRATIONS,
   createPreviewAdminPool, createPreviewRolePool, POOLER_HOST, PREVIEW_REF, ROLE, WRITER,
-  runIndependentContainment,
-  runWindowRolePreflight } from './u03-window-role-preflight.mjs';
+  assertReadOnlyState, classifyDiagnosticError, diagnoseReadOnlyPreflight, PreflightConditionError,
+  runIndependentContainment, runWindowRolePreflight } from './u03-window-role-preflight.mjs';
 
 const RUN = '5b02bb37-2ef8-4af1-8954-56fd496cd121';
 const DB_PASSWORD = 'fictional:/?#% +&=[]quote!()*';
 const secrets = [DB_PASSWORD, 'fictional-user-uuid-111111111111', 'fictional-project-uuid-222222222222'];
 
 function freshState({ failNoLogin = false, failInstallAfterApply = false, failActivationAfterApply = false,
-  failPoolerConnect = false, extraPreRoleDefiner = false } = {}) {
+  failPoolerConnect = false, extraPreRoleDefiner = false, readOnlyError = null, readOnlyOverrides = {} } = {}) {
   return { role: false, login: false, expired: false, policies: 0, sessions: 0, failNoLogin,
-    failInstallAfterApply, failActivationAfterApply, failPoolerConnect, extraPreRoleDefiner,
+    failInstallAfterApply, failActivationAfterApply, failPoolerConnect, extraPreRoleDefiner, readOnlyError, readOnlyOverrides,
+    readOnlyQueries: 0, writeQueries: 0,
     marker: `u03-window:${RUN}` };
 }
 function createMocks(state) {
@@ -34,20 +35,28 @@ class AdminPool {
   async end() {}
   async query(sql, params = []) {
     if (sql.includes('select current_database()')) {
+      this.state.readOnlyQueries++;
+      if (this.state.readOnlyError) {
+        const error = this.state.readOnlyError;
+        this.state.readOnlyError = null;
+        throw error;
+      }
       assert.deepEqual(params, [PREVIEW_REF]);
       return { rows: [{ database_ok: true, exact_admin: true,
       exact_identity: true, closed_identity: true, migration_count: 27, latest_migration: '20261015210000',
       migrations: EXPECTED_N1_MIGRATIONS, writer_locked: true, may_manage_role: true, may_terminate_session: true,
-      writer_sessions: this.state.sessions, temporary_role_count: Number(this.state.role),
+      writer_sessions: this.state.sessions, writer_role_sessions: 0, temporary_role_sessions: this.state.sessions,
+      temporary_role_count: Number(this.state.role),
       temporary_policy_count: this.state.policies, auth_users: 0, organizations: 0, organization_members: 0,
       projects: 0, project_members: 0, audit_events: 0, provider_results: 0, imports: 0,
       invitations: 0, audit_idempotency: 0, outbox_total: 0, pending_outbox: 0, openseo_project_jobs: 0,
       openseo_project_connections: 0, webmaster_properties: 0, provider_budgets: 0, provider_spend: 0,
-      openseo_google_properties: 0, google_captures: 0, tls_verified: true }] };
+      openseo_google_properties: 0, google_captures: 0, tls_verified: true, ...this.state.readOnlyOverrides }] };
     }
     if (sql.includes('from pg_proc p join pg_namespace')) return { rows: [{ executable: [...EXPECTED_DEFINERS], definers: [...EXPECTED_DEFINERS] }] };
     if (sql.includes('relrowsecurity')) return { rows: [{ n: 4 }] };
     if (sql.startsWith('begin;')) {
+      this.state.writeQueries++;
       this.state.role = true; this.state.policies = 4;
       if (this.state.failInstallAfterApply) throw Object.assign(new Error(DB_PASSWORD), { code: 'ECONNRESET' });
       return { rows: [] };
@@ -68,7 +77,8 @@ class AdminPool {
     }
     if (sql.includes('select rolcanlogin and rolvaliduntil')) return { rows: [{ active: this.state.login }] };
     if (sql.includes('alter role rubik_preview_u03_writer valid until')) { this.state.expired = true; return { rows: [] }; }
-    if (sql.includes("select shobj_description(oid,'pg_authid') as marker from pg_roles")) {
+    if (sql.includes("select shobj_description(oid,'pg_authid') as marker from pg_roles") ||
+        sql.includes("select shobj_description(oid,'pg_authid') as marker,rolcanlogin\n      from pg_roles")) {
       return { rows: this.state.role ? [{ marker: this.state.marker }] : [] };
     }
     if (sql.includes('alter role rubik_preview_u03_writer nologin')) {
@@ -79,6 +89,7 @@ class AdminPool {
     if (sql.trim().startsWith('select oid from pg_roles')) return { rows: [{ oid: 7001 }] };
     if (sql.includes('pg_terminate_backend')) { this.state.sessions = 0; return { rows: [{ pg_terminate_backend: true }] }; }
     if (sql.includes('select count(*)::int as count from pg_stat_activity')) return { rows: [{ count: this.state.sessions }] };
+    if (sql.includes("where usename='rubik_preview_u03_writer'")) return { rows: [{ count: this.state.sessions }] };
     if (sql.includes("select shobj_description(oid,'pg_authid') as marker,rolcanlogin")) return { rows: this.state.role ? [{ marker: this.state.marker, rolcanlogin: this.state.login }] : [] };
     if (sql.includes('select count(*)::int as n from pg_stat_activity')) return { rows: [{ n: this.state.sessions }] };
     if (sql.includes('select count(*)::int as n from pg_policies where policyname=any')) return { rows: [{ n: this.state.policies }] };
@@ -143,6 +154,91 @@ test('pins Preview Session pooler, expected role contract and derived secret wit
   assert.equal(one, deriveTemporaryPassword(DB_PASSWORD, RUN));
   assert.doesNotMatch(one, /[/:?#[\]@%]/);
   assert.notEqual(one, DB_PASSWORD);
+});
+
+test('readonly diagnostic classifies transport, TLS, SQLSTATE and explicit preflight conditions without messages', async () => {
+  const cases = [
+    [Object.assign(new Error(DB_PASSWORD), { code: 'ENOTFOUND' }), 'DNS', 'ENOTFOUND', null],
+    [Object.assign(new Error(DB_PASSWORD), { cause: Object.assign(new Error('private'), { code: 'ECONNRESET' }) }), 'TCP', 'ECONNRESET', null],
+    [Object.assign(new Error(DB_PASSWORD), { code: 'ERR_TLS_CERT_ALTNAME_INVALID' }), 'TLS', 'ERR_TLS_CERT_ALTNAME_INVALID', null],
+    [Object.assign(new Error(DB_PASSWORD), { code: 'ERR_SSL_UNEXPECTED_PACKET' }), 'TLS', 'TLS_ERROR_UNCLASSIFIED', null],
+    [Object.assign(new Error(DB_PASSWORD), { code: 'EPIPE' }), 'TCP', 'EPIPE', null],
+    [Object.assign(new Error(DB_PASSWORD), { code: '28P01' }), 'AUTHENTICATION', 'SQLSTATE_28P01', '28P01'],
+    [Object.assign(new Error(DB_PASSWORD), { code: '42501' }), 'PERMISSION', 'SQLSTATE_42501', '42501'],
+    [Object.assign(new Error(DB_PASSWORD), { code: '42502' }), 'DATABASE', 'DATABASE_ERROR_UNCLASSIFIED', null],
+  ];
+  for (const [error, category, code, sqlstate] of cases) {
+    const classified = classifyDiagnosticError(error);
+    assert.deepEqual([classified.category, classified.code, classified.sqlstate], [category, code, sqlstate]);
+    assert.doesNotMatch(JSON.stringify(classified), /fictional|private|password|postgres/i);
+  }
+  const condition = classifyDiagnosticError(new PreflightConditionError('MIGRATION_SET_MISMATCH'));
+  assert.deepEqual(condition, { category: 'PREFLIGHT', code: 'MIGRATION_SET_MISMATCH',
+    sqlstate: null, condition: 'MIGRATION_SET_MISMATCH' });
+  const state = freshState();
+  const folder = await mkdtemp(join(tmpdir(), 'u03-window-readonly-diagnostic-'));
+  const ledgerPath = join(folder, 'diagnostic.jsonl');
+  try {
+    const result = await diagnoseReadOnlyPreflight({ databasePassword: DB_PASSWORD, runId: RUN,
+      ledgerPath, ...createMocks(state) });
+    assert.equal(result.status, 'PASS');
+    assert.deepEqual(result.checks, ['IDENTITY','MIGRATIONS','WRITER_LOCK','ADMIN_CAPABILITIES','INVENTORY','OUTBOX','TLS']);
+    assert.equal(state.role, false);
+    assert.equal(state.policies, 0);
+    assert.equal(state.readOnlyQueries, 1);
+    assert.equal(state.writeQueries, 0);
+    const ledger = await readFile(ledgerPath, 'utf8');
+    assert.match(ledger, /readonly-diagnostic.*PREFLIGHT.*PASS/);
+    for (const secret of secrets) assert.equal(ledger.includes(secret), false);
+  } finally { await rm(folder, { recursive: true, force: true }); }
+
+  const blockedFolder = await mkdtemp(join(tmpdir(), 'u03-window-readonly-condition-'));
+  const blockedPath = join(blockedFolder, 'diagnostic.jsonl');
+  const blockedState = freshState({ readOnlyOverrides: { migration_count: 26 } });
+  try {
+    const result = await diagnoseReadOnlyPreflight({ databasePassword: DB_PASSWORD, runId: RUN,
+      ledgerPath: blockedPath, ...createMocks(blockedState) });
+    assert.equal(result.status, 'BLOCKED');
+    assert.equal(result.category, 'PREFLIGHT');
+    assert.equal(result.condition, 'MIGRATION_SET_MISMATCH');
+    assert.equal(blockedState.writeQueries, 0);
+    const ledger = await readFile(blockedPath, 'utf8');
+    assert.match(ledger, /MIGRATION_SET_MISMATCH/);
+    for (const secret of secrets) assert.equal(ledger.includes(secret), false);
+  } finally { await rm(blockedFolder, { recursive: true, force: true }); }
+});
+
+test('first-query transient is classified and finally independently verifies absent role without containment warning', async () => {
+  const folder = await mkdtemp(join(tmpdir(), 'u03-window-role-first-read-failure-'));
+  const ledgerPath = join(folder, 'run.jsonl');
+  const state = freshState({ readOnlyError: Object.assign(new Error(DB_PASSWORD), { code: 'EAI_AGAIN' }) });
+  try {
+    await assert.rejects(runWindowRolePreflight({ databasePassword: DB_PASSWORD, runId: RUN,
+      ledgerPath, ...createMocks(state) }), /WINDOW_ROLE_PREFLIGHT_BLOCKED/);
+    assert.equal(state.role, false);
+    assert.equal(state.policies, 0);
+    const ledger = await readFile(ledgerPath, 'utf8');
+    assert.match(ledger, /operator-phase-failure.*DNS.*EAI_AGAIN/);
+    assert.match(ledger, /finally-independent-containment.*CONTAINMENT.*PASS/);
+    assert.doesNotMatch(ledger, /finally-independent-containment.*BLOCKED/);
+    for (const secret of secrets) assert.equal(ledger.includes(secret), false);
+  } finally { await rm(folder, { recursive: true, force: true }); }
+});
+
+test('missing SQL result columns and concrete failed conditions do not collapse into nonempty-inventory', () => {
+  assert.throws(() => assertReadOnlyState({}), error => {
+    assert.ok(error instanceof PreflightConditionError);
+    assert.equal(error.condition, 'PREVIEW_READ_ONLY_RESULT_SCHEMA_INCOMPLETE');
+    return true;
+  });
+  const row = { database_ok: true, exact_admin: true, exact_identity: false, closed_identity: true,
+    migration_count: 27, latest_migration: '20261015210000', migrations: EXPECTED_N1_MIGRATIONS,
+    writer_locked: true, may_manage_role: true, may_terminate_session: true, writer_sessions: 0,
+    writer_role_sessions: 0, temporary_role_sessions: 0, temporary_role_count: 0,
+    temporary_policy_count: 0, tls_verified: true, ...emptyCounts };
+  assert.throws(() => assertReadOnlyState(row), error => error.condition === 'PREVIEW_IDENTITY_MISMATCH');
+  assert.throws(() => assertReadOnlyState({ ...row, exact_identity: true, audit_events: 1 }),
+    error => error.condition === 'INVENTORY_NOT_EMPTY');
 });
 
 test('admin and temporary role pools use only the pinned TLS Session pooler and pass reserved password bytes directly', () => {
@@ -246,9 +342,37 @@ test('contain-only mode independently blocks, terminates and removes the owned r
   } finally { await rm(folder, { recursive: true, force: true }); }
 });
 
+test('contain-only mode verifies absent role and independent zero state without attempting NOLOGIN', async () => {
+  const folder = await mkdtemp(join(tmpdir(), 'u03-window-role-already-absent-'));
+  const ledgerPath = join(folder, 'run.jsonl');
+  const state = freshState();
+  const { adminPoolFactory } = createMocks(state);
+  try {
+    const final = await runIndependentContainment({ databasePassword: DB_PASSWORD, runId: RUN,
+      ledgerPath, adminPoolFactory, rolePoolFactory: () => { throw new Error('must not connect absent role'); } });
+    assert.equal(final.rolePresent, false);
+    assert.equal(final.roleLocked, null);
+    assert.equal(final.activeSessions, 0);
+    assert.equal(final.inventoryZero, true);
+    assert.equal(state.role, false);
+    assert.equal(state.policies, 0);
+    const ledger = await readFile(ledgerPath, 'utf8');
+    assert.match(ledger, /containment-only-final-state.*ROLLBACK.*PASS/);
+    assert.doesNotMatch(ledger, /BLOCKED|CONTAINMENT/);
+    for (const secret of secrets) assert.equal(ledger.includes(secret), false);
+  } finally { await rm(folder, { recursive: true, force: true }); }
+});
+
 test('PowerShell mode prompts once and always launches an independent contain-only child', async () => {
   const ps = await readFile(new URL('./u03-preview-b4-owner.ps1', import.meta.url), 'utf8');
   assert.match(ps, /\[switch\]\$WindowRolePreflightOnly/);
+  assert.match(ps, /\[switch\]\$WindowRoleReadOnlyDiagnosticOnly/);
+  assert.match(ps, /Invoke-U03WindowRoleChild -Mode \$childMode/);
+  assert.match(ps, /if \(\$WindowRoleReadOnlyDiagnosticOnly\) \{ 'diagnose' \}/);
+  assert.match(ps, /if \(\$WindowRolePreflightOnly -or \$WindowRoleReadOnlyDiagnosticOnly\)/);
+  assert.match(ps, /if \(-not \$WindowRolePreflightOnly -and -not \$WindowRoleReadOnlyDiagnosticOnly/);
+  assert.ok(ps.indexOf('elseif ($PlaywrightOnly)') > ps.indexOf('if ($ProviderEgressOnly)'));
+  assert.doesNotMatch(ps, /if \(\$windowRolePlainPassword\)[\s\S]{0,150}elseif \(\$PlaywrightOnly\)/);
   assert.match(ps, /Read-Host -Prompt 'Database password existente[^\n]*-AsSecureString/);
   assert.match(ps, /Invoke-U03WindowRoleChild -Mode 'run'/);
   assert.match(ps, /finally \{[\s\S]*Invoke-U03WindowRoleChild -Mode 'contain'/);
@@ -278,7 +402,7 @@ test('real Windows PowerShell 5.1 wrapper transports fictional non-ASCII JSON an
     '-WindowRoleTransportSelfTestOnly'], { encoding: 'utf8', timeout: 30000, maxBuffer: 1024 * 1024 });
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /U03_WINDOW_ROLE_CONTAINMENT PASS/);
-  assert.match(result.stdout, /U03_WINDOW_ROLE_TRANSPORT_SELFTEST PASS utf8NonAscii=true simulatedChildFailure=true finallyContainment=true preparationFailureSafe=true/);
+  assert.match(result.stdout, /U03_WINDOW_ROLE_TRANSPORT_SELFTEST PASS utf8NonAscii=true simulatedChildFailure=true diagnosticOutputSanitized=true finallyContainment=true preparationFailureSafe=true/);
   assert.doesNotMatch(result.stdout + result.stderr, /Ficticia|東京|🔐|databasePassword|StandardInputEncoding/);
 });
 

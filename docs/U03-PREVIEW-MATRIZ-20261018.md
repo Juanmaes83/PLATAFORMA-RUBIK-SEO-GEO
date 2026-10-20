@@ -332,3 +332,16 @@ El wrapper ahora serializa JSON en memoria con UTF-8 sin BOM y escribe bytes dir
 Prueba real en powershell.exe 5.1: modo local WindowRoleTransportSelfTestOnly ejecutó el wrapper y procesos Node hijos con texto ficticio no ASCII; el hijo validó los mismos caracteres, se simuló una salida de fallo, un error preparando el hijo y la contención desde finally. PASS; stdout no contiene el texto ficticio. Suite dirigida del rol 10/10 PASS; npm run verify 624 PASS / 1 SKIP, build y escaneo de secretos PASS. No hubo otra campaña.
 
 Lectura independiente, counts-only, del Preview rhnnplewqsekrnaousyl tras el run: 27 migraciones hasta 20261015210000; inventario y outbox total/pending a cero; writer general bloqueado; rubik_preview_u03_writer, políticas y sesiones temporales ausentes. No hay limpieza pendiente. U03/H1/H2 siguen abiertos.
+
+### Run 8e2fe576: diagnóstico de primera consulta y contención por estado
+
+El ledger `test-results/u03-hosted/8e2fe576-1cf8-46cf-a98c-3117070ada81.jsonl` solo identifica `DATABASE` sin SQLSTATE/código para la primera consulta Node; la causa concreta sigue **sin identificarse**. La lectura independiente posterior comunicada por Juanma acredita cero rol/políticas/sesiones temporales e inventario/outbox, writer general bloqueado, identidad, 27 migraciones y capacidades admin correctas. No se repitió la consulta alojada en esta revisión.
+
+| Control | Estado | Evidencia y límite |
+|---|---|---|
+| Clasificador de fallo | **PASS local** | DNS, TCP, TLS, 28P01/28000, SQLSTATE 42501 y condiciones preflight se convierten a categorías/códigos allowlisted; nunca se persiste `message`, SQL, DSN o secreto. |
+| Diagnóstico `-WindowRoleReadOnlyDiagnosticOnly` | **LISTO; hosted pendiente** | Solo ejecuta `READ_ONLY_SQL`; prueba mock valida resultado de migraciones concreto y transporte. No instala rol/políticas ni crea fixtures. No determina por sí solo la causa del run anterior hasta ejecutarse una vez con la entrada segura. |
+| Contención con rol ausente | **PASS local** | Comprueba ausencia, políticas/sesiones, inventario/outbox y estado final desde proceso/conexión independiente; omite `ALTER ROLE` cuando no existe. |
+| Contención con rol propio | **PASS local simulado** | Sigue exigiendo marcador del run, NOLOGIN, terminación de sesiones propias y verificación antes de rollback. |
+
+Prueba dirigida del módulo: 14/14 PASS; self-test real PowerShell 5.1 incluye salida diagnóstica simulada. No hubo SQL, despliegue o fixtures alojados. El siguiente comando read-only y pins exactos están en el runbook; el nuevo rol por Session pooler, I-2/I-5 alojado y H1-A siguen BLOCKED hasta gates posteriores. No se repitieron Data API, B-4, V-4 ni campañas aprobadas.

@@ -275,3 +275,12 @@ El wrapper ahora serializa JSON en memoria con UTF-8 sin BOM y escribe bytes dir
 Prueba real en powershell.exe 5.1: modo local WindowRoleTransportSelfTestOnly ejecutó el wrapper y procesos Node hijos con texto ficticio no ASCII; el hijo validó los mismos caracteres, se simuló una salida de fallo, un error preparando el hijo y la contención desde finally. PASS; stdout no contiene el texto ficticio. Suite dirigida del rol 10/10 PASS; npm run verify 624 PASS / 1 SKIP, build y escaneo de secretos PASS. No hubo otra campaña.
 
 Lectura independiente, counts-only, del Preview rhnnplewqsekrnaousyl tras el run: 27 migraciones hasta 20261015210000; inventario y outbox total/pending a cero; writer general bloqueado; rubik_preview_u03_writer, políticas y sesiones temporales ausentes. No hay limpieza pendiente. U03/H1/H2 siguen abiertos.
+
+## Actualización de continuidad · diagnóstico del rol temporal · 20/10/2026
+
+- PR #143 seguía en HEAD remoto `762c5604f5f8c159a844e7ba9f94cb72e134e698` al iniciar; base `main@a0a40b776361f292d910e285b390d5e753da8d7b`, OPEN/Draft.
+- Run previo `8e2fe576-1cf8-46cf-a98c-3117070ada81`: lectura inicial Node `DATABASE` no clasificada; no se conoce aún la causa real. Lectura independiente posterior reportada por Juanma: Preview exacto con rol/políticas/sesiones=0, inventario/outbox=0, escritor bloqueado, identidad/27 migraciones/capacidades correctas.
+- Cambio: modo read-only `-WindowRoleReadOnlyDiagnosticOnly` clasifica DNS/TCP/TLS/auth, SQLSTATE allowlist y condición concreta, sin mensaje libre/DSN/secretos. `finally` y el hijo de contención distinguen rol ausente (verificación de ausencia/estado final, sin ALTER ROLE) de rol propio del run (NOLOGIN, terminación y verificación de sus sesiones).
+- Prueba dirigida actual: 14/14 PASS; incluye fallo transitorio de primera consulta, resultados de transporte/SQLSTATE/condición simulados, rol ausente/propio, y salida del proceso hijo real PowerShell 5.1 con códigos sanitizados. No hubo acceso alojado en esta iteración.
+- Siguiente acción única: Juanma ejecuta el comando read-only del runbook desde PowerShell visible; la Database password existente se introduce solo en el prompt oculto después del pin Vercel. No se instala rol ni se crean fixtures. Si sale condición/categoría, corregir únicamente esa causa acreditada.
+- U03/I-2/I-5/H1-A/H1/H2 permanecen abiertos; no repetir Data API, B-4, V-4 ni otros PASS. GitHub Actions continúa bloqueada por facturación.
