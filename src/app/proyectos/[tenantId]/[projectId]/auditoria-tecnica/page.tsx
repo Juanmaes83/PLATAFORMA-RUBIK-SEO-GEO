@@ -20,6 +20,7 @@ import { getProjectConnection } from "@/lib/openseo/connections";
 import { OpenSeoConnectionPanel, type ConnectionPanelView } from "@/components/OpenSeoConnectionPanel";
 import { projectModeReadiness } from "@/lib/openseo/readiness";
 import { googleCatalogCheckEnabled } from "@/lib/openseo/mcp-client";
+import { ProviderEgressProbe } from "@/components/ProviderEgressProbe";
 
 // Technical audit through OpenSEO (ADR 0006). The page itself never calls OpenSEO: it only
 // reads which configuration STATES exist on the server. Every call to OpenSEO is a Server
@@ -103,6 +104,7 @@ export default async function TechnicalAuditPage({ params }: { params: Promise<{
       )}
       <OpenSeoHistory base={base} state={historyState} rows={historyRows} />
       {googleCatalogCheckEnabled() && canManage && target && !("error" in target) && view.state === "configured" && <GoogleToolsCheck tenant={project.tenantId} project={project.projectId} />}
+      {process.env.VERCEL_ENV === "preview" && canManage && <ProviderEgressProbe tenant={project.tenantId} project={project.projectId} />}
     </>
   );
 }

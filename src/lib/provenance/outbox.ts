@@ -4,6 +4,7 @@ import type { Role } from "@/lib/core";
 import { buildAuditRow, verifyAuditTrail, type AuditRow, type ProjectRef } from "./audit";
 import type { Keyring } from "./keyring";
 import { writerPool } from "./writer";
+import { previewWriterScopeAllowed } from "./preview-writer-window";
 
 export type ProviderReceiptAction = "google.capture" | "openseo.audit.store";
 
@@ -39,6 +40,9 @@ export async function processAuditOutboxWithPool(id: string, keyring: Keyring, p
     const scope = await db.query<{ organization_id: string; tenant_slug: string; project_slug: string }>(
       "select * from private.audit_writer_project($1::uuid)", [receipt.project_id]);
     if (!scope.rows[0] || scope.rows[0].organization_id !== receipt.organization_id) {
+      failure = "INVALID_SCOPE"; throw new Error(failure);
+    }
+    if (!previewWriterScopeAllowed({ tenantId: scope.rows[0].tenant_slug, projectId: scope.rows[0].project_slug })) {
       failure = "INVALID_SCOPE"; throw new Error(failure);
     }
     const project: ProjectRef = { projectId: receipt.project_id, organizationId: receipt.organization_id,

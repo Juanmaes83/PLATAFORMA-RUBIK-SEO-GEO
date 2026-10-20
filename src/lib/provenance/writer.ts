@@ -8,6 +8,7 @@ import { buildAuditRow, verifyAuditTrail, type AuditInput, type AuditRow, type P
 import { openProviderResult, sealProviderResult, type ProviderResultRow } from "./results";
 import type { Keyring } from "./keyring";
 import { previewLocked } from "@/lib/auth/mode";
+import { previewWriterScopeAllowed, previewWriterWindowActive } from "./preview-writer-window";
 import { SUPABASE_ROOT_2021_CA } from "./supabase-root-ca";
 
 type Client = SupabaseClient<Database>;
@@ -19,9 +20,10 @@ type ActorRow = { organization_id: string; actor_role: AuditInput["actor"]["role
 let sharedPool: Pool | null = null;
 let poolUrl: string | null = null;
 export function writerPool(): Pool | null {
-  // Session access and direct SQL transport are separate U02 decisions. A Preview
-  // never inherits a Production writer URL when session access is enabled later.
-  if ((process.env.VERCEL_ENV ?? "").trim() === "preview" || previewLocked(process.env)) return null;
+  // Ordinary Preview remains read-only. Only a separately pinned U03 deployment may open
+  // the temporary run-scoped writer, with a role-specific URL and an expiring window.
+  if (((process.env.VERCEL_ENV ?? "").trim() === "preview" &&
+      !previewWriterWindowActive()) || previewLocked(process.env)) return null;
   const url = process.env.RUBIK_AUDIT_DATABASE_URL;
   if (!url) return null;
   if (sharedPool && poolUrl === url) return sharedPool;
@@ -49,6 +51,7 @@ export function writerPool(): Pool | null {
 export async function preflightTrustedWriter(userClient: Client, project: ProjectRef,
   actorId: string, keyring: Keyring, operation: "google" | "openseo",
 ): Promise<{ ok: true } | Failure> {
+  if (!previewWriterScopeAllowed(project.scope)) return { ok: false, error: "WRITER_UNAVAILABLE" };
   let pool: Pool | null;
   try { pool = writerPool(); } catch { return { ok: false, error: "WRITER_UNAVAILABLE" }; }
   if (!pool) return { ok: false, error: "WRITER_NOT_CONFIGURED" };
@@ -104,6 +107,7 @@ export async function appendTrustedAudit(
   userClient: Client, project: ProjectRef, input: AppendInput, keyring: Keyring,
   opts: { clock?: () => Date; operationId?: string } = {},
 ): Promise<Result> {
+  if (!previewWriterScopeAllowed(project.scope)) return { ok: false, error: "WRITER_NOT_CONFIGURED" };
   const pool = writerPool();
   if (!pool) return { ok: false, error: "WRITER_NOT_CONFIGURED" };
   if (!/^[0-9a-f-]{36}$/i.test(project.projectId) || !/^[0-9a-f-]{36}$/i.test(input.actor.id)) return { ok: false, error: "INVALID_SCOPE" };
@@ -178,6 +182,7 @@ export async function storeTrustedProviderResult(
   userClient: Client, project: ProjectRef, result: unknown, keyring: Keyring,
   opts: { operationId?: string } = {},
 ): Promise<{ ok: true; id: string } | Failure> {
+  if (!previewWriterScopeAllowed(project.scope)) return { ok: false, error: "WRITER_NOT_CONFIGURED" };
   const pool = writerPool();
   if (!pool) return { ok: false, error: "WRITER_NOT_CONFIGURED" };
   if (!/^[0-9a-f-]{36}$/i.test(project.projectId)) return { ok: false, error: "INVALID_SCOPE" };
@@ -243,6 +248,7 @@ export async function completeTrustedProviderCommand(
   command: { kind: "google"; key: string; row: ProviderResultRow }
     | { kind: "openseo"; jobId: string; issues: ProviderResultRow; pages: ProviderResultRow },
 ): Promise<{ ok: true; data: Record<string, unknown> } | Failure> {
+  if (!previewWriterScopeAllowed(project.scope)) return { ok: false, error: "WRITER_NOT_CONFIGURED" };
   const pool = writerPool();
   if (!pool) return { ok: false, error: "WRITER_NOT_CONFIGURED" };
   const verified = await userClient.auth.getUser();

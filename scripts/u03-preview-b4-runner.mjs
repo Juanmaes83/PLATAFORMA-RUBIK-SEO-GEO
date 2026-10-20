@@ -7,7 +7,7 @@ import { join, relative } from "node:path";
 import { chromium } from "playwright";
 
 const execFileAsync = promisify(execFile);
-export const PIN = Object.freeze({
+const PIN_DEFAULTS = {
   projectId: "prj_HgnTtNtisi9Kt1A4Dq2pxoCQBook",
   teamId: "team_hLhdb3M9MviTIysXD9whFF2c",
   deploymentId: "dpl_Hmpevn3Vds4pFUzbiiFFB3vVGCKD",
@@ -15,6 +15,15 @@ export const PIN = Object.freeze({
   branch: "codex/u03-session-isolation-20261020",
   host: "plataforma-rubik-seo-3elivlu19-juanma-espinosas-projects.vercel.app",
   supabaseRef: "rhnnplewqsekrnaousyl",
+};
+// A campaign may pin a newly-created Preview deployment by its inspected immutable ID.
+// The project, team and Supabase ref stay fixed; preflight still validates READY, branch and SHA.
+export const PIN = Object.freeze({
+  ...PIN_DEFAULTS,
+  deploymentId: process.env.U03_PIN_DEPLOYMENT_ID || PIN_DEFAULTS.deploymentId,
+  host: process.env.U03_PIN_DEPLOYMENT_HOST || PIN_DEFAULTS.host,
+  sha: process.env.U03_PIN_DEPLOYMENT_SHA || PIN_DEFAULTS.sha,
+  branch: process.env.U03_PIN_DEPLOYMENT_BRANCH || PIN_DEFAULTS.branch,
 });
 
 const OIDC_HEADER = "x-vercel-trusted-oidc-idp-token";

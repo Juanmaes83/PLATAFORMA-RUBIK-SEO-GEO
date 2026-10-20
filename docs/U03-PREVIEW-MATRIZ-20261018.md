@@ -19,6 +19,14 @@ La base vigente es `main@a0a40b776361f292d910e285b390d5e753da8d7b`; #129, #141 y
 | P-1 egreso de servidor | BLOCKED | #142 acredita estado UI y egress del navegador, no llamadas servidor→proveedor. La instrumentación de esta PR está desplegada en Preview `dpl_953poZfwmBNHVz4vLVYffrxxSouQ`, host `plataforma-rubik-seo-391vd5mq5-juanma-espinosas-projects.vercel.app`, HEAD/SHA `60ff69f32eaa74a09aec27a249886840be4e16b4`; el deployment está READY | Aún no se ejecutó acción autenticada con `runId` ni se leyeron sus Functions logs; verificar cero intentos/egress en una ventana acotada |
 | H1-A / H1-B / H2 | BLOCKED | No hay pasada integral nueva | H1-A completo; después decisión R1 y piloto U04 con aceptación humana de Sarah; H2 tras H1 y gates N1-07/08 |
 
+## Corte operativo · 20/10/2026 · P-1 servidor y ventana I-2/I-5
+
+P-1 navegador del run #142 permanece PASS y no se repite. La instrumentación del servidor limita sus eventos a categorías fijas con `runId`: `gate/outbound:false` y `transport/outbound:true`. El deployment proporcionado `dpl_953poZfwmBNHVz4vLVYffrxxSouQ` se verificó READY con el host y SHA funcional indicados en este expediente. La consulta previa de Functions logs fue accesible y no encontró eventos. Como Google no renderiza su formulario cuando Preview fuerza la bandera apagada, este incremento prepara un control de diagnóstico owner-only que llama a los Server Actions reales; no activa proveedores. Para acreditar el servidor se requiere el deployment del HEAD probado, leer logs antes de las dos acciones y consultar después los eventos correlacionados. **Hasta esa ejecución P-1 servidor continúa BLOCKED.** La ausencia previa de logs no es PASS.
+
+La organización candidata `rubi` es Free y ya tiene dos proyectos activos. Se descartan un tercer proyecto sin cupo/cotización y Branching (no incluido en Free; Pro empieza en $25/mes, antes de compute). La propuesta de menor coste es un deployment Preview protegido separado en el mismo proyecto Vercel y el mismo ref Supabase Preview, con variables específicas para la rama U03 y ventana SQL de hasta 30 minutos. La app conserva Auth fijado en `mode.ts`; la ventana queda cerrada en todos los Previews ordinarios. No se creó recurso, cambió plan ni se activó rol/variable. Ver [diseño y runbook U03/H1-A](U03-I2-I5-H1A-VENTANA-20261020.md).
+
+Tests locales nuevos: helper de ventana/UI de diagnóstico 13/13 y orquestador 36/36. `npm run verify` tuvo un primer fallo concreto por `server-only` ausente, ya corregido; el resultado completo posterior se registra al cerrar los gates. No hubo SQL alojado ni fixtures de I-2/I-5/H1-A.
+
 El Preview destino autorizado de las pruebas de rechazo es `rhnnplewqsekrnaousyl`. Un S-5 alojado se considerará prueba de rechazo contra Preview solamente; el emisor será un stack ficticio separado y no se accederá a Production.
 
 ## Estado verificado · V-4 alojado PASS · 19/10/2026

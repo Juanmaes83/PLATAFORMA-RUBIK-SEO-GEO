@@ -5,6 +5,11 @@ param(
   [switch]$RolesInvitationsOnly,
   [switch]$CrossSurfaceOnly,
   [switch]$SessionProvidersOnly,
+  [switch]$ProviderEgressOnly,
+  [string]$DeploymentId,
+  [string]$DeploymentHost,
+  [string]$DeploymentSha,
+  [string]$RunId,
   [switch]$MembershipRevocationOnly,
   [switch]$ProvisionPreviewKeys,
   [switch]$CheckPreviewKeys,
@@ -101,7 +106,7 @@ foreach ($requested in @($ProvisionPreviewKeys.IsPresent, $CheckPreviewKeys.IsPr
 }
 $campaignModes = @($ReadOnlyPreflightOnly.IsPresent, $V4ConnectionDiagnosticOnly.IsPresent,
   $PlaywrightOnly.IsPresent, $MembershipRevocationOnly.IsPresent, $RolesInvitationsOnly.IsPresent,
-  $CrossSurfaceOnly.IsPresent, $SessionProvidersOnly.IsPresent) | Where-Object { $_ }
+  $CrossSurfaceOnly.IsPresent, $SessionProvidersOnly.IsPresent, $ProviderEgressOnly.IsPresent) | Where-Object { $_ }
 if ($credentialOperations -gt 1 -or ($credentialOperations -gt 0 -and $campaignModes.Count -gt 0) -or
     $campaignModes.Count -gt 1) { Stop-B4 'CREDENTIAL_OPERATION_ARGUMENTS_INVALID' }
 if ($CheckPreviewKeys) {
@@ -124,10 +129,11 @@ if (-not (Test-Path -LiteralPath $linkFile)) { Stop-B4 'VERCEL_PROJECT_NOT_LINKE
 $branch = (& git -C $repo branch --show-current 2>$null).Trim()
 $remote = (& git -C $repo remote get-url origin 2>$null).Trim()
 if ($branch -notin @('codex/u02-preview-isolation-20261017', 'codex/u03-roles-invitations-20261019',
-    'codex/u03-cross-surface-20261019', 'codex/u03-session-gates-20261020') -or
+    'codex/u03-cross-surface-20261019', 'codex/u03-session-gates-20261020', 'codex/u03-final-gates-20261020') -or
     $remote -ne 'https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO.git') { Stop-B4 'WRONG_REPOSITORY_OR_BRANCH' }
 if ($CrossSurfaceOnly -and $branch -ne 'codex/u03-cross-surface-20261019') { Stop-B4 'WRONG_MODE_BRANCH' }
 if ($SessionProvidersOnly -and $branch -ne 'codex/u03-session-gates-20261020') { Stop-B4 'WRONG_MODE_BRANCH' }
+if ($ProviderEgressOnly -and $branch -ne 'codex/u03-final-gates-20261020') { Stop-B4 'WRONG_MODE_BRANCH' }
 if ($RolesInvitationsOnly -and $branch -notin @('codex/u03-roles-invitations-20261019',
     'codex/u03-cross-surface-20261019')) { Stop-B4 'WRONG_MODE_BRANCH' }
 $link = Get-Content -LiteralPath $linkFile -Raw | ConvertFrom-Json
@@ -149,6 +155,20 @@ else {
   $fallbackNpx = Join-Path $env:ProgramFiles 'nodejs\npx.cmd'
   if (-not (Test-Path -LiteralPath $fallbackNpx)) { Stop-B4 'SUPABASE_NPX_NOT_FOUND' }
   $env:U03_SUPABASE_CLI = $fallbackNpx
+}
+
+if ($ProviderEgressOnly) {
+  $head = (& git -C $repo rev-parse HEAD 2>$null).Trim()
+  if ($DeploymentId -cnotmatch '^dpl_[A-Za-z0-9]+$' -or
+      $DeploymentHost -cnotmatch '^[a-z0-9][a-z0-9.-]+\.vercel\.app$' -or
+      $DeploymentSha -cne $head -or $DeploymentSha -cnotmatch '^[0-9a-f]{40}$' -or
+      $RunId -cnotmatch '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$') {
+    Stop-B4 'PROVIDER_EGRESS_DEPLOYMENT_OR_RUN_PIN_INVALID'
+  }
+  $env:U03_PIN_DEPLOYMENT_ID = $DeploymentId
+  $env:U03_PIN_DEPLOYMENT_HOST = $DeploymentHost
+  $env:U03_PIN_DEPLOYMENT_SHA = $DeploymentSha
+  $env:U03_PIN_DEPLOYMENT_BRANCH = 'codex/u03-final-gates-20261020'
 }
 
 $pushed = $false
@@ -178,7 +198,7 @@ try {
 
   # Strip unrelated Vercel project values and inherited credentials before Node.
   # Keep the isolated OIDC token, OS runtime and network route only.
-  $keep = @('PATH','SystemRoot','WINDIR','TEMP','TMP','USERPROFILE','LOCALAPPDATA','APPDATA','ProgramFiles','HOMEDRIVE','HOMEPATH','COMSPEC','PATHEXT','PROCESSOR_ARCHITECTURE','NUMBER_OF_PROCESSORS','OS','VERCEL_OIDC_TOKEN','U03_VERCEL_CLI','U03_SUPABASE_CLI','NODE_USE_ENV_PROXY','NODE_USE_SYSTEM_CA','NODE_EXTRA_CA_CERTS','SSL_CERT_FILE','SSL_CERT_DIR') + $proxyNames
+  $keep = @('PATH','SystemRoot','WINDIR','TEMP','TMP','USERPROFILE','LOCALAPPDATA','APPDATA','ProgramFiles','HOMEDRIVE','HOMEPATH','COMSPEC','PATHEXT','PROCESSOR_ARCHITECTURE','NUMBER_OF_PROCESSORS','OS','VERCEL_OIDC_TOKEN','U03_VERCEL_CLI','U03_SUPABASE_CLI','U03_PIN_DEPLOYMENT_ID','U03_PIN_DEPLOYMENT_HOST','U03_PIN_DEPLOYMENT_SHA','U03_PIN_DEPLOYMENT_BRANCH','NODE_USE_ENV_PROXY','NODE_USE_SYSTEM_CA','NODE_EXTRA_CA_CERTS','SSL_CERT_FILE','SSL_CERT_DIR') + $proxyNames
   Get-ChildItem Env: | Where-Object { $_.Name -notin $keep } | ForEach-Object { Remove-Item -LiteralPath "Env:$($_.Name)" -ErrorAction SilentlyContinue }
 
   Push-Location -LiteralPath $repo
@@ -244,6 +264,10 @@ try {
   elseif ($RolesInvitationsOnly) { & node $runner --roles-invitations-only }
   elseif ($CrossSurfaceOnly) { & node $runner --cross-surface-only }
   elseif ($SessionProvidersOnly) { & node $runner --session-providers-only }
+  elseif ($ProviderEgressOnly) {
+    Write-Output "P1_RUN_ID: $RunId"
+    & node $runner --provider-egress-only --run-id $RunId
+  }
   elseif ($PlaywrightOnly) { & node $runner --playwright-only }
   else { & node $runner }
   if ($LASTEXITCODE -ne 0) { Stop-B4 'U03_B4_CAMPAIGN_FAILED_OR_CLEANUP_UNVERIFIED' }

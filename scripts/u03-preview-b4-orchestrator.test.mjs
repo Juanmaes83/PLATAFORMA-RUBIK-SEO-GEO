@@ -197,6 +197,36 @@ for (const fails of [false, true]) {
   }));
 }
 
+test('server provider-egress campaign runs only the two guarded actions and cleans one owner fixture', async () => withRoot(async root => {
+  const calls = [];
+  const result = await runHostedU03Campaign({
+    root, sha, runId, env: secrets, mode: 'provider-egress', preflightFn: passingPreflight,
+    fixtureFactory: () => ({ namespace: 'u03-egress-test',
+      createSessionFixtures: async () => { calls.push('fixture'); return { account: { email: 'fixture@example.test', password: 'secret', api: {} }, path: '/proyectos/u03-egress-test-a/a1' }; },
+      runMatrix: async () => { throw new Error('DATA_API_MUST_NOT_RUN'); },
+      cleanup: async () => { calls.push('cleanup'); return { ok: true, userIds: [], organizationIds: [], projectIds: [] }; },
+    }),
+    providerEgressFn: async ({ path, env, runId: actualRunId }) => {
+      calls.push('actions');
+      assert.equal(path, '/proyectos/u03-egress-test-a/a1');
+      assert.equal(actualRunId, runId);
+      assert.equal(env.VERCEL_OIDC_TOKEN, secrets.VERCEL_OIDC_TOKEN);
+      return { passed: true, captures: ['desktop.png'] };
+    },
+    browserFn: async () => { throw new Error('B4_MUST_NOT_RUN'); }, finalCheckFn: passingFinal,
+  });
+  assert.equal(result.status, 'PASS');
+  assert.deepEqual(calls, ['fixture', 'actions', 'cleanup']);
+  const rows = (await readFile(result.ledgerPath, 'utf8')).trim().split('\n').map(JSON.parse);
+  assert.equal(rows.find(row => row.caseId === 'data-api-matrix')?.status, 'SKIP_PRIOR_EVIDENCE');
+  assert.equal(rows.find(row => row.caseId === 'browser-b4')?.status, 'SKIP_PRIOR_EVIDENCE');
+  assert.equal(rows.find(row => row.caseId === 'fixture-cleanup')?.status, 'PASS');
+  assert.equal(rows.find(row => row.caseId === 'final-inventory')?.status, 'PASS');
+  assert.equal(rows.find(row => row.caseId === 'outbox-final')?.status, 'PASS');
+  for (const secret of Object.values(secrets)) assert.equal(JSON.stringify(rows).includes(secret), false);
+  assert.equal(JSON.stringify(rows).includes('fixture@example.test'), false);
+}));
+
 test('Playwright-only campaign reuses fixtures and cleanup, records prior Data API evidence, and verifies zero inventory/outbox', async () => withRoot(async root => {
   const calls = [];
   const result = await runHostedU03Campaign({
