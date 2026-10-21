@@ -56,11 +56,14 @@ const PREFLIGHT_CONDITIONS = new Set(['PREVIEW_READ_ONLY_RESULT_SCHEMA_INCOMPLET
 const PREINSTALL_CODES = new Set(['SECDEF_QUERY_FAILED','SECDEF_UNEXPECTED_RESULT','SECDEF_LEDGER_FAILED',
   'RLS_QUERY_FAILED','RLS_UNEXPECTED_RESULT','RLS_LEDGER_FAILED']);
 const CONTAINMENT_STAGES = Object.freeze(['ownership','nologin','nologin-readback','role-oid',
-  'terminate-sessions','sessions-readback','new-login']);
+  'terminate-sessions','sessions-readback','new-login','login-connect','login-catalog']);
 const CONTAINMENT_CODES = new Set(CONTAINMENT_STAGES.flatMap(stage =>
   [`CONTAINMENT_${stage.toUpperCase().replaceAll('-','_')}_QUERY_FAILED`,
     `CONTAINMENT_${stage.toUpperCase().replaceAll('-','_')}_UNEXPECTED_RESULT`]));
 CONTAINMENT_CODES.add('CONTAINMENT_NEW_LOGIN_CATALOG_ONLY');
+CONTAINMENT_CODES.add('CONTAINMENT_LOGIN_POOLER_USER_NOT_FOUND');
+CONTAINMENT_CODES.add('CONTAINMENT_LOGIN_SQLSTATE_REJECTED');
+CONTAINMENT_CODES.add('CONTAINMENT_LOGIN_RESPONSE_UNCLASSIFIED');
 const LEDGER_PHASES = new Set(['readonly-diagnostic','admin-read-only-preflight','security-definer-allowlist','writer-rls',
   'install-role-nologin','independent-containment-probe','activate-temporary-role','session-pooler-set-role',
   'role-sequence-failure','independent-role-containment','session-pooler-direct-role',
@@ -481,7 +484,7 @@ export async function blockRole(adminPool, rolePassword, PoolClass = Pool, runId
     let value;
     try { value = await action(); }
     catch (error) {
-      const failure = new ContainmentStageError(name, 'QUERY_FAILED', error);
+      const failure = error instanceof ContainmentStageError ? error : new ContainmentStageError(name, 'QUERY_FAILED', error);
       const diagnostic = classifyDiagnosticError(failure);
       await ledger(`containment-${name}`, 'BLOCKED', diagnostic.category, diagnostic.code, diagnostic.sqlstate);
       throw failure;
@@ -512,21 +515,57 @@ export async function blockRole(adminPool, rolePassword, PoolClass = Pool, runId
   const loginProof = await stage('new-login', async () => {
     const testPool = rolePoolFactory(rolePassword, PoolClass);
     try {
-      const c = await testPool.connect();
-      c.release();
-      return false;
-    } catch (error) {
-      if (['28P01','28000'].includes(error?.code)) return 'SQLSTATE_REJECTED';
-      // Supavisor may return a node-postgres DatabaseError without SQLSTATE for
-      // a NOLOGIN role. That error alone is not authentication proof: re-read
-      // the catalog and sessions on the independent administrative connection.
-      if (error?.constructor?.name === 'DatabaseError' && error?.code == null) {
-        const state = (await adminPool.query(`select not r.rolcanlogin as locked,
+      await ledger('containment-login-connect', 'ATTEMPTED', 'CONTAINMENT');
+      let response;
+      try {
+        const c = await testPool.connect();
+        c.release();
+        response = 'CONNECTED';
+      } catch (error) {
+        const code = typeof error?.code === 'string' ? error.code.toUpperCase() : '';
+        if (['28P01','28000'].includes(code)) response = 'SQLSTATE_REJECTED';
+        else if (error?.constructor?.name === 'DatabaseError' &&
+          /\buser not found\b/i.test(String(error?.message ?? '')) &&
+          !SAFE_TRANSPORT_CODES.has(code)) response = 'POOLER_USER_NOT_FOUND';
+        else if (error?.constructor?.name === 'DatabaseError' && code === '') response = 'DATABASE_RESPONSE_NO_SQLSTATE';
+        else {
+          const failure = new ContainmentStageError('login-connect', 'QUERY_FAILED', error);
+          const diagnostic = classifyDiagnosticError(failure);
+          await ledger('containment-login-connect', 'BLOCKED', diagnostic.category, diagnostic.code, diagnostic.sqlstate);
+          throw failure;
+        }
+      }
+      if (response === 'CONNECTED') {
+        await ledger('containment-login-connect', 'BLOCKED', 'CONTAINMENT', 'CONTAINMENT_LOGIN_CONNECT_UNEXPECTED_RESULT');
+        return false;
+      }
+      await ledger('containment-login-connect', 'PASS', 'CONTAINMENT',
+        response === 'SQLSTATE_REJECTED' ? 'CONTAINMENT_LOGIN_SQLSTATE_REJECTED'
+          : response === 'POOLER_USER_NOT_FOUND' ? 'CONTAINMENT_LOGIN_POOLER_USER_NOT_FOUND'
+          : 'CONTAINMENT_LOGIN_RESPONSE_UNCLASSIFIED');
+      if (response === 'SQLSTATE_REJECTED') return response;
+      // A Supavisor response without an allowed SQLSTATE does not prove a
+      // PostgreSQL login rejection. The independent admin must confirm both
+      // NOLOGIN and zero live sessions before this counts as containment.
+      await ledger('containment-login-catalog', 'ATTEMPTED', 'CONTAINMENT');
+      let state;
+      try {
+        state = (await adminPool.query(`select not r.rolcanlogin as locked,
           (select count(*)::int from pg_stat_activity where usesysid=r.oid) as sessions
           from pg_roles r where r.rolname=$1`, [ROLE])).rows[0];
-        if (state?.locked === true && state?.sessions === 0) return 'CATALOG_ONLY';
+      } catch (error) {
+        const failure = new ContainmentStageError('login-catalog', 'QUERY_FAILED', error);
+        const diagnostic = classifyDiagnosticError(failure);
+        await ledger('containment-login-catalog', 'BLOCKED', diagnostic.category, diagnostic.code, diagnostic.sqlstate);
+        throw failure;
       }
-      throw error;
+      if (state?.locked !== true || state?.sessions !== 0) {
+        const failure = new ContainmentStageError('login-catalog', 'UNEXPECTED_RESULT');
+        await ledger('containment-login-catalog', 'BLOCKED', 'CONTAINMENT', failure.code);
+        throw failure;
+      }
+      await ledger('containment-login-catalog', 'PASS', 'CONTAINMENT');
+      return 'CATALOG_ONLY';
     } finally { await testPool.end().catch(() => {}); }
   }, value => value === 'SQLSTATE_REJECTED' || value === 'CATALOG_ONLY',
   value => value === 'CATALOG_ONLY' ? 'CONTAINMENT_NEW_LOGIN_CATALOG_ONLY' : null);

@@ -1,5 +1,11 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
+## #143 · recuperación run 26f7efe8 · 21/10/2026
+
+El run alojado `26f7efe8-e5e4-4d68-bfea-e53a7a4bfa8e` se detuvo después de instalar el rol mínimo NOLOGIN, antes de activación, sesiones del principal o fixtures. La contención original dejó `CONTAINMENT_NEW_LOGIN_QUERY_FAILED`; los ledgers originales se conservan. Prelectura administrativa independiente: Preview exacto, 27 N1, rol propio NOLOGIN, cuatro políticas exactas, cero sesiones, inventario/outbox cero y escritor general cerrado. Rollback del marcador exacto PASS; lectura final independiente confirma rol/políticas/sesiones cero, guarda original, inventario/outbox total/pending cero y escritor general NOLOGIN. Ocho variables de rama, deployment temporal y vault DPAPI retirados y verificados ausentes. Ledger nuevo de recuperación sanitizada en `test-results/u03-hosted/26f7efe8-e5e4-4d68-bfea-e53a7a4bfa8e-recovery.jsonl`.
+
+La prueba PowerShell 5.1/Node con rol ausente reprodujo una respuesta `DatabaseError` sin SQLSTATE, y los logs acotados de Supavisor del run muestran errores «user not found» en autenticación. El código ahora separa respuesta del pooler y relectura administrativa en fases saneadas; la primera por sí sola no prueba rechazo de login ni contención. La causa interna exacta del antiguo `QUERY_FAILED` no puede deducirse del ledger histórico. I-2/I-5 alojados y U03 global siguen BLOCKED; H1-A, U04, H1 y H2 también abiertos. No repetir PASS previos ni llamar CI verde a Actions sin jobs.
+
 ## Corte U03 dirigido separado de H1-A · 21/10/2026
 
 Preflight alojado del deployment CLI `dpl_34dns3f5BXEVVh4gz4pwxMZQzpW8` / `ef82443` BLOCKED antes de contraseña o SQL: metadata CLI usa `gitCommitSha/gitCommitRef`, mientras el verificador esperaba las claves de GitHub. Se añadió soporte estricto para ambos formatos y rechazo de afirmaciones contradictorias. Se requiere rotar lote ligado al SHA nuevo, nuevo deployment y repetir solo la atestación sin fixtures. No atribuir ese BLOCKED a I-2/I-5 ni a un fallo de base de datos.

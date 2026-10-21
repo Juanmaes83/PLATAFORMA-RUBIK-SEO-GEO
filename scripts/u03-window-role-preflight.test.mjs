@@ -490,6 +490,60 @@ test('Supavisor DatabaseError without SQLSTATE is contained by independent catal
   assert.equal(JSON.stringify(ledger).includes(DB_PASSWORD), false);
 });
 
+test('Supavisor user-not-found response with unlisted code is classified and requires admin corroboration', async () => {
+  const state = freshState();
+  state.role = true; state.policies = 4;
+  class DatabaseError extends Error { constructor() { super(`User not found ${DB_PASSWORD}`); this.code = 'XX000'; } }
+  const ledger = [];
+  const result = await blockRole(new AdminPool(state), 'fictional-generated-role-password', undefined, RUN,
+    () => ({ async connect() { throw new DatabaseError(); }, async end() {} }),
+    async (...row) => { ledger.push(row); });
+  assert.equal(result.contained, true);
+  assert.equal(result.reloginRejected, false);
+  assert.equal(result.catalogOnly, true);
+  assert.ok(ledger.some(row => row[0] === 'containment-login-connect' && row[1] === 'PASS' &&
+    row[3] === 'CONTAINMENT_LOGIN_POOLER_USER_NOT_FOUND'));
+  assert.ok(ledger.some(row => row[0] === 'containment-login-catalog' && row[1] === 'PASS'));
+  assert.equal(JSON.stringify(ledger).includes(DB_PASSWORD), false);
+});
+
+test('failed catalog read after pooler response is BLOCKED at its own stage, never a login rejection', async () => {
+  const state = freshState();
+  state.role = true; state.policies = 4;
+  class DatabaseError extends Error { constructor() { super(`User not found ${DB_PASSWORD}`); this.code = 'XX000'; } }
+  class BrokenCatalogPool extends AdminPool {
+    async query(sql, params) {
+      if (sql.includes('select not r.rolcanlogin as locked'))
+        throw Object.assign(new Error(DB_PASSWORD), { code: '42501' });
+      return super.query(sql, params);
+    }
+  }
+  const ledger = [];
+  await assert.rejects(blockRole(new BrokenCatalogPool(state), 'fictional-generated-role-password', undefined, RUN,
+    () => ({ async connect() { throw new DatabaseError(); }, async end() {} }),
+    async (...row) => { ledger.push(row); }),
+  error => error instanceof ContainmentStageError && error.code === 'CONTAINMENT_LOGIN_CATALOG_QUERY_FAILED');
+  assert.ok(ledger.some(row => row[0] === 'containment-login-catalog' && row[1] === 'BLOCKED' &&
+    row[3] === 'CONTAINMENT_LOGIN_CATALOG_QUERY_FAILED' && row[4] === '42501'));
+  assert.equal(ledger.some(row => row[0] === 'containment-new-login' && row[1] === 'PASS'), false);
+  assert.equal(JSON.stringify(ledger).includes(DB_PASSWORD), false);
+});
+
+test('network loss in the new-login probe stays BLOCKED before catalog-only containment', async () => {
+  const state = freshState();
+  state.role = true; state.policies = 4;
+  const ledger = [];
+  await assert.rejects(blockRole(new AdminPool(state), 'fictional-generated-role-password', undefined, RUN,
+    () => ({ async connect() { throw Object.assign(new Error(DB_PASSWORD), { code: 'ECONNRESET' }); }, async end() {} }),
+    async (...row) => { ledger.push(row); }),
+  error => error instanceof ContainmentStageError && error.code === 'CONTAINMENT_LOGIN_CONNECT_QUERY_FAILED');
+  assert.ok(ledger.some(row => row[0] === 'containment-login-connect' && row[1] === 'BLOCKED' &&
+    row[3] === 'CONTAINMENT_LOGIN_CONNECT_QUERY_FAILED'));
+  assert.equal(ledger.some(row => row[0] === 'containment-login-catalog'), false);
+  assert.equal(ledger.some(row => row[0] === 'containment-new-login' && row[1] === 'PASS'), false);
+  assert.equal(JSON.stringify(ledger).includes(DB_PASSWORD), false);
+});
+
 test('containment stage records a failed administrative step without leaking PostgreSQL text', async () => {
   const state = freshState({ failNoLogin: true });
   state.role = true;

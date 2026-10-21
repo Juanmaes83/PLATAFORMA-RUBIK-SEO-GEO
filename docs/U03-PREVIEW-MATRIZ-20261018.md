@@ -1,5 +1,11 @@
 # U03 · matriz alojada de Preview · 18/10/2026
 
+## Run 26f7efe8 · recuperación de contención · 21/10/2026
+
+El run `26f7efe8-e5e4-4d68-bfea-e53a7a4bfa8e` instaló el principal nuevo en NOLOGIN y se detuvo antes de activarlo o crear fixtures. Ownership, NOLOGIN, OID y sesiones pasaron; `containment-new-login` quedó BLOCKED con `CONTAINMENT_NEW_LOGIN_QUERY_FAILED` en el intento inicial y en dos vías independientes. Los ledgers originales permanecen intactos. La traza de Supavisor de esa ventana sitúa cuatro errores de autenticación en `auth_scram_first_wait`, categoría interna «user not found»; el ledger original no distingue si el error final provino de `connect()` o de la relectura administrativa que el código ejecutaba dentro del mismo `catch`.
+
+La recuperación de **ese** run es PASS separado: lectura administrativa previa confirmó ref Preview, 27 migraciones, marcador propio, rol NOLOGIN, cuatro políticas exactas, guarda temporal, cero sesiones, inventario/outbox cero y escritor general bloqueado. Se aplicó el rollback acotado y otra lectura independiente verificó rol/políticas/sesiones cero, guarda original, inventario/outbox total/pending cero y escritor general NOLOGIN. Luego se retiraron los ocho nombres de variables de la rama, el deployment y el vault DPAPI, y se verificó su ausencia. Ledger sanitizado nuevo: `test-results/u03-hosted/26f7efe8-e5e4-4d68-bfea-e53a7a4bfa8e-recovery.jsonl`. No hubo positivos alojados; I-2, I-5 y U03 global siguen **BLOCKED**. H1-A permanece separado.
+
 ## Corte dirigido I-2/I-5 · 21/10/2026
 
 La recuperación del run `840261c6-e410-4e25-893a-9206fd3f74ef` es **PASS de recuperación**, con su ledger original BLOCKED intacto. Acreditó rol/políticas/sesiones cero, guarda original, inventario/outbox cero y escritor general NOLOGIN; después se retiraron las ocho variables de rama, el deployment y el vault. No hubo fixtures y **no acredita I-2 ni I-5**.
