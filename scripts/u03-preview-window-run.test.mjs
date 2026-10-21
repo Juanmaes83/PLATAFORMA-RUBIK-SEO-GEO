@@ -11,7 +11,6 @@ const PIN = { deploymentId: 'dpl_Fictional123', host: 'preview-fixed.example', s
 const ROLE_URL = new URL('postgresql://placeholder@aws-1-eu-west-3.pooler.supabase.com:5432/postgres');
 ROLE_URL.username = 'rubik_preview_u03_writer.rhnnplewqsekrnaousyl';
 ROLE_URL.password = 'FictionalRolePassword_123456789012345678901234';
-ROLE_URL.searchParams.set('options', '-c role=rubik_audit_writer');
 const ENV = { U03_PIN_DEPLOYMENT_ID: PIN.deploymentId, U03_PIN_DEPLOYMENT_HOST: PIN.host,
   U03_PIN_DEPLOYMENT_SHA: PIN.sha, U03_PIN_DEPLOYMENT_BRANCH: PIN.branch, U03_FUNCTIONAL_SHA: PIN.sha,
   U03_PREVIEW_WRITER_WINDOW: 'armed-run-capability', U03_PREVIEW_WRITER_WINDOW_REF: 'rhnnplewqsekrnaousyl',
@@ -20,7 +19,7 @@ const ENV = { U03_PIN_DEPLOYMENT_ID: PIN.deploymentId, U03_PIN_DEPLOYMENT_HOST: 
 const VERIFIED = { vercel: { deploymentId: PIN.deploymentId, host: PIN.host, sha: PIN.sha, supabaseRef: 'rhnnplewqsekrnaousyl' },
   initial: { projectRef: 'rhnnplewqsekrnaousyl', migrationCount: 27, writerLocked: true, outboxTotal: 0, pendingOutbox: 0 } };
 const ROLE = { runId: RUN, pooler: { clientTlsVerified: true, sessionUser: 'rubik_preview_u03_writer',
-  currentUser: 'rubik_audit_writer', denyPoliciesVerified: true } };
+  currentUser: 'rubik_preview_u03_writer', denyPoliciesVerified: true } };
 const CLEAN = { rolePresent: false, policies: 0, activeSessions: 0, inventoryZero: true, outboxTotal: 0, pendingOutbox: 0 };
 
 test('sequence child preflight rejects the former missing-key state and malformed values without exposing them', () => {
@@ -56,7 +55,6 @@ test('local configuration preflight validates TLS-pooler URL shape and signing k
   const writerUrl = new URL('postgresql://placeholder@aws-1-eu-west-3.pooler.supabase.com:5432/postgres');
   writerUrl.username = 'rubik_preview_u03_writer.rhnnplewqsekrnaousyl';
   writerUrl.password = 'FictionalRolePassword_123456789012345678901234';
-  writerUrl.searchParams.set('options', '-c role=rubik_audit_writer');
   const env = { ...ENV, VERCEL_OIDC_TOKEN: 'fictional-oidc-token-long-enough', RUBIK_AUDIT_DATABASE_URL: writerUrl.toString(),
     PROVENANCE_SIGNING_KEYS: 'u03-preview-window:' + Buffer.alloc(32, 4).toString('base64'),
     PROVENANCE_ACTIVE_KEY_ID: 'u03-preview-window' };
@@ -67,7 +65,7 @@ test('local configuration preflight validates TLS-pooler URL shape and signing k
 });
 
 test('attestation compares every secret field with the fixed protected deployment before password prompt', async () => {
-  const writerUrl = new URL('postgresql://rubik_preview_u03_writer.rhnnplewqsekrnaousyl:FictionalRolePassword_123456789012345678901234@aws-1-eu-west-3.pooler.supabase.com:5432/postgres?options=-c%20role%3Drubik_audit_writer');
+  const writerUrl = new URL('postgresql://rubik_preview_u03_writer.rhnnplewqsekrnaousyl:FictionalRolePassword_123456789012345678901234@aws-1-eu-west-3.pooler.supabase.com:5432/postgres');
   const env = { ...ENV, VERCEL_OIDC_TOKEN:'fictional-oidc-token-long-enough', RUBIK_AUDIT_DATABASE_URL:writerUrl.toString(),
     PROVENANCE_SIGNING_KEYS:'u03-preview-window:' + Buffer.alloc(32,7).toString('base64'), PROVENANCE_ACTIVE_KEY_ID:'u03-preview-window' };
   const nonce = Buffer.alloc(32,9).toString('base64url');

@@ -67,7 +67,7 @@ function New-U03WindowBatch([string]$Sha, [string]$RunId = [guid]::NewGuid().ToS
   $rolePassword = New-U03WindowRandom 36
   $windowSecret = New-U03WindowRandom 48
   $signingKey = New-U03WindowRandom 48 'base64'
-  $url = 'postgresql://{0}.{1}:{2}@{3}:5432/postgres?options=-c%20role%3Drubik_audit_writer' -f $script:WindowRole,$script:WindowRef,[Uri]::EscapeDataString($rolePassword),$script:WindowPooler
+  $url = 'postgresql://{0}.{1}:{2}@{3}:5432/postgres' -f $script:WindowRole,$script:WindowRef,[Uri]::EscapeDataString($rolePassword),$script:WindowPooler
   $values = [ordered]@{
     U03_PREVIEW_WRITER_WINDOW = 'armed-run-capability'
     U03_PREVIEW_WRITER_WINDOW_REF = $script:WindowRef
@@ -121,7 +121,7 @@ function Test-U03WindowBatch([Parameter(Mandatory)]$Batch) {
   }
   if ($v.U03_PREVIEW_WRITER_WINDOW -cne 'armed-run-capability' -or $v.U03_PREVIEW_WRITER_WINDOW_REF -cne $script:WindowRef -or $v.U03_PREVIEW_WRITER_WINDOW_SHA -cne $Batch.Sha -or $v.U03_PREVIEW_WRITER_WINDOW_RUN_ID -cne $Batch.RunId -or $v.PROVENANCE_ACTIVE_KEY_ID -cne 'u03-preview-window' -or $v.PROVENANCE_SIGNING_KEYS -cnotmatch '^u03-preview-window:[A-Za-z0-9+/]+={0,2}$') { Stop-U03WindowVault 'BATCH_FORMAT_INVALID' }
   try { $url = [Uri]$v.RUBIK_AUDIT_DATABASE_URL } catch { Stop-U03WindowVault 'BATCH_FORMAT_INVALID' }
-  if ($url.Scheme -cne 'postgresql' -or $url.Host -cne $script:WindowPooler -or $url.Port -ne 5432 -or $url.AbsolutePath -cne '/postgres' -or $url.UserInfo -notmatch '^rubik_preview_u03_writer\.rhnnplewqsekrnaousyl:.+$' -or $v.U03_PREVIEW_WRITER_WINDOW_SECRET -notmatch '^[A-Za-z0-9_-]{64}$') { Stop-U03WindowVault 'BATCH_FORMAT_INVALID' }
+  if ($url.Scheme -cne 'postgresql' -or $url.Host -cne $script:WindowPooler -or $url.Port -ne 5432 -or $url.AbsolutePath -cne '/postgres' -or $url.Query -ne '' -or $url.UserInfo -notmatch '^rubik_preview_u03_writer\.rhnnplewqsekrnaousyl:.+$' -or $v.U03_PREVIEW_WRITER_WINDOW_SECRET -notmatch '^[A-Za-z0-9_-]{64}$') { Stop-U03WindowVault 'BATCH_FORMAT_INVALID' }
   return $true
 }
 function Get-U03WindowBatch([string]$ProfileRoot = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)) {

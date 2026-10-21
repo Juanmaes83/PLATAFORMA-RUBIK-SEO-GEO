@@ -2,7 +2,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { createServer } from 'node:net';
 import { execFileSync } from 'node:child_process';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { appendFileSync, mkdirSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { once } from 'node:events';
 import { createRequire } from 'node:module';
 import { afterAll, beforeAll, expect, it } from 'vitest';
@@ -17,16 +17,15 @@ import { verifyProjectExport } from '@/lib/recovery/verify-export';
 import { planRestore } from '@/lib/restore/plan';
 import { createConfirmedUser, deleteOrganizations, deleteUsers, env, signedIn } from './support';
 import { localDatabaseContainer } from '../../scripts/supabase-test-env.mjs';
+import { ROLE, buildMinimalInstallSql, buildMinimalRollbackSql } from '../../scripts/u03-window-minimal-principal.mjs';
 
 const RUN = randomUUID();
 const ROOT = process.cwd();
 const SOURCE_DB = localDatabaseContainer();
 const DEST_DB = 'supabase_db_rubik-u03-restore-20261020';
-const ROLE = `u03_http_${randomBytes(4).toString('hex')}`;
 const ROLE_PASSWORD = randomBytes(32).toString('base64url');
 const KEY = randomBytes(32).toString('base64');
 const TENANT = `u03-${RUN.replaceAll('-', '').slice(0, 12)}-a`;
-const POLICY_PREFIX = `u03_http_${RUN.replaceAll('-', '').slice(0,8)}`;
 const ledger = `${ROOT}/test-results/u03-window-http-restore.jsonl`;
 const users: string[] = [];
 let user: SupabaseClient<Database>;
@@ -84,6 +83,8 @@ function inventory(db: string, projectId: string, organizationId: string) {
 
 beforeAll(async () => {
   expect(sql(SOURCE_DB,'select count(*)::text||\'|\'||max(version)::text from supabase_migrations.schema_migrations')).toBe('27|20261015210000');
+  if (sql(SOURCE_DB,"select count(*) from information_schema.tables where table_schema='private' and table_name='environment_identity'")==='0')
+    sql(SOURCE_DB,readFileSync(`${ROOT}/scripts/u02-preview-sentinel.sql`,'utf8'));
   expect(sql(DEST_DB,'select count(*)::text||\'|\'||max(version)::text from supabase_migrations.schema_migrations')).toBe('27|20261015210000');
   expect(sql(DEST_DB,'select count(*) from auth.users')+'|'+sql(DEST_DB,'select count(*) from public.organizations')).toBe('0|0');
   users.push(await createConfirmedUser('u03-http-owner'));
@@ -98,13 +99,11 @@ beforeAll(async () => {
   project = {projectId,organizationId:orgId,scope:{tenantId:TENANT,projectId:'a1'}};
 
   const expiry = new Date(Date.now()+600_000).toISOString();
-  sql(SOURCE_DB,`create role "${ROLE}" login noinherit nobypassrls nosuperuser nocreatedb nocreaterole password '${ROLE_PASSWORD}' valid until '${expiry}'; grant rubik_audit_writer to "${ROLE}" with inherit false,set true;`);
+  sql(SOURCE_DB,buildMinimalInstallSql(RUN,ROLE_PASSWORD,expiry));
   roleInstalled=true;
-  for (const [i,relation] of ['public.audit_events','private.audit_idempotency','private.audit_outbox'].entries()) {
-    sql(SOURCE_DB,`create policy "${POLICY_PREFIX}_${i}" on ${relation} as restrictive for all to rubik_audit_writer using (project_id='${projectId}'::uuid and clock_timestamp()<'${expiry}'::timestamptz) with check (project_id='${projectId}'::uuid and clock_timestamp()<'${expiry}'::timestamptz);`);
-  }
+  expect(sql(SOURCE_DB,`select has_function_privilege('${ROLE}','private.google_capture_command(uuid,text,jsonb)','execute')::text||'|'||has_function_privilege('${ROLE}','private.openseo_job(uuid,text,uuid,jsonb)','execute')::text||'|'||pg_has_role('${ROLE}','rubik_audit_writer','MEMBER')::text`)).toBe('false|false|false');
+  sql(SOURCE_DB,`alter role ${ROLE} login valid until '${expiry}'`);
   const dsn=new URL(`postgresql://${ROLE}:${ROLE_PASSWORD}@127.0.0.1:63422/postgres`);
-  dsn.searchParams.set('options','-c role=rubik_audit_writer');
   process.env.RUBIK_AUDIT_DATABASE_URL=dsn.toString();
   process.env.RUBIK_TEST_U03_WINDOW_STACK='1';
   process.env.VERCEL_ENV='development';
@@ -136,7 +135,7 @@ afterAll(async()=>{
     await Promise.race([once(server,'exit'),new Promise(resolve=>setTimeout(resolve,5000))]);
   }
   await pool?.end().catch(()=>undefined);
-  if(roleInstalled) sql(SOURCE_DB,`alter role "${ROLE}" nologin`);
+  if(roleInstalled) sql(SOURCE_DB,`alter role ${ROLE} nologin; select pg_terminate_backend(pid) from pg_stat_activity where usesysid=(select oid from pg_roles where rolname='${ROLE}') and pid<>pg_backend_pid()`);
   if(targetRowsCreated && project?.projectId) {
     sql(DEST_DB,`delete from public.organizations where id='${project.organizationId}'::uuid;${destinationActorIds.length?`delete from auth.users where id in (${destinationActorIds.map(id=>`'${id}'::uuid`).join(',')});`:''}`);
     targetRowsCreated=false;
@@ -145,11 +144,11 @@ afterAll(async()=>{
   if(users.length) await deleteUsers(users);
   const sourceGlobal=sql(SOURCE_DB,`select (select count(*) from auth.users)::text||'|'||(select count(*) from public.organizations)::text||'|'||(select count(*) from public.projects)::text||'|'||(select count(*) from public.audit_events)::text||'|'||(select count(*) from public.provider_results)::text||'|'||(select count(*) from public.imports)::text||'|'||(select count(*) from private.audit_outbox)::text||'|'||(select count(*) from private.audit_outbox where state='pending')::text`);
   if(roleInstalled) {
-    for(const [index,relation] of ['public.audit_events','private.audit_idempotency','private.audit_outbox'].entries()) sql(SOURCE_DB,`drop policy if exists "${POLICY_PREFIX}_${index}" on ${relation}`);
-    sql(SOURCE_DB,`revoke rubik_audit_writer from "${ROLE}"; drop role "${ROLE}"`);
+    if(sourceGlobal!=='0|0|0|0|0|0|0|0') throw new Error('LOCAL_RESIDUAL_DATA_PRESERVE_ROLE_NOLOGIN');
+    sql(SOURCE_DB,buildMinimalRollbackSql(RUN));
     roleInstalled=false;
   }
-  const sourceTemporary=sql(SOURCE_DB,`select (select count(*) from pg_roles where rolname like 'u03_http_%')::text||'|'||(select count(*) from pg_policy where polname like '${POLICY_PREFIX}_%')::text||'|'||(select (not rolcanlogin)::text from pg_roles where rolname='rubik_audit_writer')`);
+  const sourceTemporary=sql(SOURCE_DB,`select (select count(*) from pg_roles where rolname='${ROLE}')::text||'|'||(select count(*) from pg_policy where polname like 'u03_preview_writer_%')::text||'|'||(select (not rolcanlogin)::text from pg_roles where rolname='rubik_audit_writer')`);
   expect(sourceTemporary).toBe('0|0|true');
   const destGlobal=sql(DEST_DB,`select (select count(*) from auth.users)::text||'|'||(select count(*) from public.organizations)::text||'|'||(select count(*) from public.projects)::text||'|'||(select count(*) from public.audit_events)::text||'|'||(select count(*) from public.provider_results)::text||'|'||(select count(*) from public.imports)::text||'|'||(select count(*) from private.audit_outbox)::text||'|'||(select count(*) from private.audit_outbox where state='pending')::text`);
   expect(sourceGlobal).toBe('0|0|0|0|0|0|0|0');

@@ -412,3 +412,14 @@ El ledger original del SHA `657d69b8ad693afba469375b89c5800c9841d32c` conserva `
 El operador ahora registra ATTEMPTED y PASS/BLOCKED por separado para la allowlist del rol efectivo y RLS. Los bloqueos distinguen SECDEF/RLS_QUERY_FAILED, SECDEF/RLS_UNEXPECTED_RESULT y SECDEF/RLS_LEDGER_FAILED; SQLSTATE solo si está allowlisted. Ante cualquiera, el primer SQL de instalación no comienza. La regresión reproduce cuatro funciones efectivas y comprueba SECDEF_UNEXPECTED_RESULT, ausencia de instalación y ledger sin nombres de funciones ni secretos; también cubre error SQL, RLS y fallo de ledger.
 
 Lectura final independiente: rol temporal 0, políticas 0, sesiones 0; usuarios, organizaciones, membresías, proyectos, auditoría, resultados, imports, idempotencia y outbox total/pending 0; escritor general NOLOGIN. Las ocho variables y el deployment temporal de este run fueron retirados. I-2/I-5 alojado y H1-A siguen ABIERTOS. Una nueva ventana solo se propondrá tras diseñar y verificar un principal con privilegios de firma estrictamente necesarios, probar la contención completa y acreditar de nuevo deployment/SHA/variables.
+# Actualización 21/10/2026 · principal mínimo de firma
+
+| Gate | Estado | Evidencia y límite |
+| --- | --- | --- |
+| Lógica firmada, I-2/I-5 poblado y TTL/NOLOGIN | **PASS local (PostgreSQL directo)** | Run `197f19da-dd47-4863-b419-5f32d1b805d8`; firmante real, A positivo/B negativo, otro run denegado, RPC de proveedores no ejecutables, recibos completados/reintentados, sesión abierta denegada tras caducidad y NOLOGIN. SQL independiente final cero. [Matriz de contrato](U03-PRINCIPAL-MINIMO-20261021.md). |
+| HTTP/export/restore | **PASS local acotado** | Route Handler por socket loopback; manifiesto verificado y alteración rechazada; restauración doble en segundo stack local. No acredita origen alojado. |
+| Session pooler local | **BLOCKED por entorno** | `CLIENT_ERROR` previo de Supavisor; el test directo no equivale al pooler. |
+| Session pooler Preview del nuevo rol | **BLOCKED / sin ejecutar** | Requiere nuevo deployment protegido y lote del SHA final; no se instaló rol en Preview. |
+| I-2/I-5 alojados y H1-A alojado | **BLOCKED / sin ejecutar** | No se crearon fixtures ni se alteró Preview. U03/H1/H2 siguen abiertos. |
+
+El nuevo principal `rubik_preview_u03_writer` no hereda ni hace `SET ROLE rubik_audit_writer`; conserva dos funciones `SECURITY DEFINER` efectivas y deniega ambas RPC de proveedor por privilegio efectivo. Los grants de producto no se revocan. El operador instala políticas acotadas y una rama de guarda de inserción atada a identidad SQL/comentario administrativo/run/TTL/proyecto, y la revierte tras inventario/outbox cero. Los PASS alojados anteriores mantienen sus ledgers, sin repetición. GitHub Actions sigue sin jobs por facturación.

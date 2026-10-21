@@ -6,7 +6,6 @@ const APPROVED_REF = "rhnnplewqsekrnaousyl";
 const APPROVED_BRANCH = "codex/u03-final-gates-20261020";
 const APPROVED_POOLER = "aws-1-eu-west-3.pooler.supabase.com";
 const APPROVED_WRITER_USER = `rubik_preview_u03_writer.${APPROVED_REF}`;
-const WRITER_ROLE_OPTION = "-c role=rubik_audit_writer";
 const SHA = /^[0-9a-f]{40}$/;
 
 export type PreviewWriterWindowScope = { tenantId: string; projectId: string };
@@ -18,7 +17,7 @@ function validWriterUrl(value: string | undefined): boolean {
     const keys = [...url.searchParams.keys()];
     return url.protocol === "postgresql:" && url.hostname === APPROVED_POOLER && url.port === "5432" &&
       url.username === APPROVED_WRITER_USER && !!url.password && url.pathname === "/postgres" &&
-      keys.length === 1 && keys[0] === "options" && url.searchParams.get("options") === WRITER_ROLE_OPTION &&
+      keys.length === 0 &&
       ![...url.searchParams.keys()].some(key => key.toLowerCase().startsWith("ssl"));
   } catch { return false; }
 }

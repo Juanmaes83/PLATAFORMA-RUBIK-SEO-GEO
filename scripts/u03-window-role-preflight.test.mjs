@@ -7,16 +7,18 @@ import { deriveTemporaryPassword, EXPECTED_DEFINERS, EXPECTED_N1_MIGRATIONS,
   createPreviewAdminPool, createPreviewRolePool, POOLER_HOST, PINNED_POOLER_CA, PREVIEW_REF, ROLE, WRITER,
   assertNodeClientTls, assertReadOnlyState, classifyDiagnosticError, diagnoseReadOnlyPreflight, PreflightConditionError,
   runIndependentContainment, runWindowRolePreflight, installAndProbeRunScopedRole,
-  buildRunScopedPolicySql, buildRunScopedInstallSql,
+  buildRunScopedInstallSql,
   previewWindowRolePassword } from './u03-window-role-preflight.mjs';
 
 const RUN = '5b02bb37-2ef8-4af1-8954-56fd496cd121';
 const DB_PASSWORD = 'fictional:/?#% +&=[]quote!()*';
 const secrets = [DB_PASSWORD, 'fictional-user-uuid-111111111111', 'fictional-project-uuid-222222222222'];
+const PRODUCT_BASELINE_DEFINERS = [...EXPECTED_DEFINERS, 'private.google_capture_command(uuid, text, jsonb)',
+  'private.openseo_job(uuid, text, uuid, jsonb)'];
 
 function freshState({ failNoLogin = false, failInstallAfterApply = false, failActivationAfterApply = false,
   failPoolerConnect = false, extraPreRoleDefiner = false, readOnlyError = null, readOnlyOverrides = {},
-  writerDefiners = EXPECTED_DEFINERS, definerError = null, rlsError = null, rlsCount = 4 } = {}) {
+  writerDefiners = PRODUCT_BASELINE_DEFINERS, definerError = null, rlsError = null, rlsCount = 4 } = {}) {
   return { role: false, login: false, expired: false, policies: 0, sessions: 0, failNoLogin,
     failInstallAfterApply, failActivationAfterApply, failPoolerConnect, extraPreRoleDefiner, readOnlyError, readOnlyOverrides,
     writerDefiners, definerError, rlsError, rlsCount,
@@ -76,14 +78,18 @@ class AdminPool {
       if (this.state.failInstallAfterApply) throw Object.assign(new Error(DB_PASSWORD), { code: 'ECONNRESET' });
       return { rows: [] };
     }
-    if (sql.includes('select r.rolcanlogin')) return { rows: [{ rolcanlogin: this.state.login, rolsuper: false,
+    if (sql.startsWith('do $u03$ begin')) { this.state.policies=0; this.state.role=false; this.state.login=false; return { rows: [] }; }
+    if (sql.startsWith('select r.rolcanlogin')) return { rows: [{ rolcanlogin: this.state.login, rolsuper: false,
       rolbypassrls: false, rolinherit: false, rolcreaterole: false, rolcreatedb: false,
-      marker: this.state.marker, set_only_membership: true, membership_count: 1 }] };
+      marker: this.state.marker, set_only_membership: false, membership_count: 0 }] };
     if (sql.includes('from pg_policies where policyname = any')) {
       const tables = [['public','audit_events'],['public','provider_results'],['private','audit_idempotency'],['private','audit_outbox']];
       return { rows: Array.from({ length: this.state.policies }, (_, i) => ({
         policyname: `u03_preview_writer_${RUN.replaceAll('-','').slice(0,12)}_${tables[i][1]}`,
-        schemaname: tables[i][0], tablename: tables[i][1], cmd: 'ALL', permissive: 'RESTRICTIVE', qual: 'false', with_check: 'false', roles: [WRITER] })) };
+        schemaname: tables[i][0], tablename: tables[i][1], cmd: 'ALL', permissive: 'PERMISSIVE',
+        qual: `u03-${RUN.replaceAll('-','').slice(0,12)}-a u03-${RUN.replaceAll('-','').slice(0,12)}-b statement_timestamp() ${new Date(Date.now()+60_000).toISOString().slice(0,10)}`,
+        with_check: `u03-${RUN.replaceAll('-','').slice(0,12)}-a u03-${RUN.replaceAll('-','').slice(0,12)}-b statement_timestamp() ${new Date(Date.now()+60_000).toISOString().slice(0,10)}`,
+        roles: [ROLE] })) };
     }
     if (sql.includes('alter role rubik_preview_u03_writer with login')) {
       this.state.login = true;
@@ -109,6 +115,7 @@ class AdminPool {
     if (sql.includes('select count(*)::int as n from pg_stat_activity')) return { rows: [{ n: this.state.sessions }] };
     if (sql.includes('select count(*)::int as n from pg_policies where policyname=any')) return { rows: [{ n: this.state.policies }] };
     if (sql.includes('select (select count(*) from auth.users)')) return { rows: [{ ...emptyCounts, ...this.state.readOnlyOverrides, writer_locked: true }] };
+    if (sql.includes("position($1 in pg_get_functiondef")) return { rows: [{ n: 0 }] };
     if (sql.startsWith('drop policy')) { this.state.policies--; return { rows: [] }; }
     if (sql.startsWith('revoke rubik_audit_writer')) return { rows: [] };
     if (sql.startsWith('drop role rubik_preview_u03_writer')) { this.state.role = false; this.state.login = false; return { rows: [] }; }
@@ -129,7 +136,7 @@ class RolePool {
     let setRole = false;
     const state = this.state;
     return { connection: { stream: { encrypted: true, authorized: true, authorizationError: null } }, release() {}, async query(sql) {
-      if (sql.startsWith('set role')) { setRole = true; return { rows: [] }; }
+      if (sql.startsWith('set role')) throw Object.assign(new Error('denied'), { code: '42501' });
       if (sql.includes('not has_table_privilege')) return { rows: [{ session_user: ROLE, current_user: ROLE,
         no_writer_privileges: true, no_results_privileges: true, no_outbox_privileges: true, no_auth_schema: true }] };
       if (sql.includes('has_table_privilege(current_user')) return { rows: [{ session_user: ROLE, current_user: setRole ? WRITER : ROLE,
@@ -140,6 +147,7 @@ class RolePool {
         audit_delete: false, outbox_delete: false, backend_tls_active: false }] };
       if (sql.includes('from pg_proc p join pg_namespace')) return { rows: [{ executable: [...EXPECTED_DEFINERS],
         definers: !setRole && state.extraPreRoleDefiner ? [...EXPECTED_DEFINERS, 'public.unsafe_definer()'] : [...EXPECTED_DEFINERS] }] };
+      if (sql.includes('has_function_privilege(current_user')) return { rows: [{ google:false, openseo:false, member:false }] };
       if (sql.includes('relrowsecurity')) return { rows: [{ rls_count: 4 }] };
       if (sql.includes('audit_hidden')) return { rows: [{ audit_hidden: true, results_hidden: true, receipts_hidden: true, outbox_hidden: true }] };
       throw new Error('UNEXPECTED_FAKE_ROLE_QUERY');
@@ -173,8 +181,7 @@ test('pins Preview Session pooler, expected role contract and derived secret wit
 });
 
 test('run role preinstall gates identify the exact failure and never start installation', async () => {
-  const providerFunctions = [...EXPECTED_DEFINERS, 'private.google_capture_command(uuid, text, jsonb)',
-    'private.openseo_job(uuid, text, uuid, jsonb)'];
+  const providerFunctions = [...PRODUCT_BASELINE_DEFINERS, 'public.unsafe_definer()'];
   const cases = [
     [{ writerDefiners: providerFunctions }, 'security-definer-allowlist', 'SECDEF_UNEXPECTED_RESULT', null],
     [{ definerError: Object.assign(new Error(DB_PASSWORD), { code: '42501' }) },
@@ -203,7 +210,7 @@ test('run role preinstall gates identify the exact failure and never start insta
 
 test('preinstall ledger append failure is diagnosed without installing a role', async () => {
   for (const failedResult of ['ATTEMPTED','PASS','BLOCKED']) {
-    const state = freshState({ writerDefiners: failedResult === 'BLOCKED' ? [] : EXPECTED_DEFINERS });
+    const state = freshState({ writerDefiners: failedResult === 'BLOCKED' ? [] : PRODUCT_BASELINE_DEFINERS });
     const entries = [];
     let injected = false;
     await assert.rejects(installAndProbeRunScopedRole({ databasePassword: DB_PASSWORD, runId: RUN,
@@ -248,8 +255,10 @@ test('temporary role credential is accepted only from the exact Preview writer S
   const password = 'FictionalRolePassword_123456789012345678901234';
   const url = new URL('postgresql://rubik_preview_u03_writer.rhnnplewqsekrnaousyl@aws-1-eu-west-3.pooler.supabase.com:5432/postgres');
   url.password = password;
-  url.searchParams.set('options', '-c role=rubik_audit_writer');
   assert.equal(previewWindowRolePassword({ RUBIK_AUDIT_DATABASE_URL: url.toString() }), password);
+  url.searchParams.set('options', '-c role=rubik_audit_writer');
+  assert.throws(() => previewWindowRolePassword({ RUBIK_AUDIT_DATABASE_URL: url.toString() }), /TEMP_ROLE_CREDENTIAL_INVALID/);
+  url.searchParams.delete('options');
   url.hostname = 'another.pooler.supabase.com';
   assert.throws(() => previewWindowRolePassword({ RUBIK_AUDIT_DATABASE_URL: url.toString() }), /TEMP_ROLE_CREDENTIAL_INVALID/);
   assert.throws(() => previewWindowRolePassword({}), /TEMP_ROLE_CREDENTIAL_MISSING/);
@@ -317,7 +326,7 @@ test('first-query transient is classified and finally independently verifies abs
     assert.equal(state.role, false);
     assert.equal(state.policies, 0);
     const ledger = await readFile(ledgerPath, 'utf8');
-    assert.match(ledger, /operator-phase-failure.*DNS.*EAI_AGAIN/);
+    assert.match(ledger, /role-sequence-failure.*DNS.*EAI_AGAIN/);
     assert.match(ledger, /finally-independent-containment.*CONTAINMENT.*PASS/);
     assert.doesNotMatch(ledger, /finally-independent-containment.*BLOCKED/);
     for (const secret of secrets) assert.equal(ledger.includes(secret), false);
@@ -389,32 +398,24 @@ test('client TLS is proven from node-postgres TLSSocket and pinned config, indep
       return pool;
 };
 
-test('run-scoped restrictive policies allow only this run A1/A2 and B1 project identities', () => {
-  const sql = buildRunScopedPolicySql(RUN, '2030-01-01T00:00:00.000Z');
-  assert.equal((sql.match(/create policy/g) ?? []).length, 4);
-  assert.match(sql, /as restrictive for all to rubik_audit_writer/);
-  assert.match(sql, /u03-5b02bb372ef8-a/);
-  assert.match(sql, /u03-5b02bb372ef8-b/);
-  assert.match(sql, /s\.project_slug in \('a1','a2'\)/);
-  assert.match(sql, /s\.project_slug = 'b1'/);
-  assert.doesNotMatch(sql, /using \(true\)|with check \(true\)/i);
-  assert.match(sql, /statement_timestamp\(\) < '2030-01-01T00:00:00.000Z'::timestamptz/);
-  assert.throws(() => buildRunScopedPolicySql('not-a-run-id', '2030-01-01T00:00:00.000Z'), /RUN_SCOPE_EXPIRY_REJECTED/);
-});
-
-test('campaign role installation is NOLOGIN first, NOINHERIT and run/TLL-scoped without general grants', () => {
+test('campaign role installation is NOLOGIN first, NOINHERIT and does not inherit the product writer', () => {
   const expiry = new Date(Date.now() + 15 * 60_000).toISOString();
   const sql = buildRunScopedInstallSql(RUN, 'fictional-generated-password-that-is-not-a-secret', expiry);
   const createRole = sql.match(/create role[^\n]+/i)?.[0] ?? '';
   assert.match(createRole, /rubik_preview_u03_writer nologin noinherit nobypassrls nosuperuser/i);
   assert.doesNotMatch(createRole, /(?<!no)bypassrls/i);
   assert.match(sql, /valid until/);
-  assert.match(sql, /grant rubik_audit_writer to rubik_preview_u03_writer with inherit false, set true/);
-  assert.match(sql, /as restrictive for all to rubik_audit_writer/);
+  assert.doesNotMatch(sql, /grant rubik_audit_writer to rubik_preview_u03_writer/);
+  assert.match(sql, /as permissive for all to rubik_preview_u03_writer/);
+  assert.match(sql, /u03-5b02bb372ef8-a/);
+  assert.match(sql, /u03-5b02bb372ef8-b/);
+  assert.match(sql, /r\.rolcanlogin/);
+  assert.match(sql, /r\.rolvaliduntil > statement_timestamp\(\)/);
+  assert.match(sql, /shobj_description\(r\.oid,'pg_authid'\)/);
   assert.doesNotMatch(sql, /grant all|security definer/i);
-  assert.throws(() => buildRunScopedInstallSql(RUN, 'short', expiry), /RUN_SCOPE_INSTALL_INPUT_REJECTED/);
+  assert.throws(() => buildRunScopedInstallSql(RUN, 'short', expiry), /WINDOW_CREDENTIAL_OR_TTL_REJECTED/);
   assert.throws(() => buildRunScopedInstallSql(RUN, 'fictional-generated-password-that-is-not-a-secret',
-    new Date(Date.now() + 31 * 60_000).toISOString()), /RUN_SCOPE_INSTALL_INPUT_REJECTED/);
+    new Date(Date.now() + 31 * 60_000).toISOString()), /WINDOW_CREDENTIAL_OR_TTL_REJECTED/);
 });
     const noTls = await diagnoseReadOnlyPreflight({ databasePassword: DB_PASSWORD, runId: RUN,
       ledgerPath: join(folder, 'no-tls.jsonl'), adminPoolFactory: noTlsPoolFactory });
@@ -431,14 +432,12 @@ test('successful simulated run verifies fail-closed pooler identity then removes
   assert.equal(state.policies, 0);
   assert.equal(result.final.inventoryZero, true);
   assert.equal(result.final.pendingOutbox, 0);
-  assert.match(ledger, /preview-session-pooler-set-role.*POOLER.*PASS/);
-  assert.match(ledger, /expired-login-rejected.*POOLER.*PASS.*28P01/);
+  assert.match(ledger, /session-pooler-direct-role.*POOLER.*PASS/);
   const phases = ledger.split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line).phase);
-  assert.ok(phases.indexOf('install-nologin-role-and-deny-policies') < phases.indexOf('independent-nologin-terminate-probe'));
-  assert.ok(phases.indexOf('independent-nologin-terminate-probe') < phases.indexOf('activate-three-minute-role'));
-  assert.ok(phases.indexOf('activate-three-minute-role') < phases.indexOf('preview-session-pooler-set-role'));
-  assert.ok(phases.indexOf('preview-session-pooler-set-role') < phases.indexOf('expired-login-rejected'));
-  assert.ok(phases.indexOf('expired-login-rejected') < phases.indexOf('finally-independent-containment'));
+  assert.ok(phases.indexOf('install-role-nologin') < phases.indexOf('independent-containment-probe'));
+  assert.ok(phases.indexOf('independent-containment-probe') < phases.indexOf('activate-temporary-role'));
+  assert.ok(phases.indexOf('activate-temporary-role') < phases.indexOf('session-pooler-direct-role'));
+  assert.ok(phases.indexOf('session-pooler-direct-role') < phases.indexOf('finally-independent-containment'));
   for (const secret of secrets) assert.equal(ledger.includes(secret), false);
 });
 
@@ -454,7 +453,7 @@ test('installation, activation and pooler failures still enter independent NOLOG
     assert.equal(state.role, false);
     assert.equal(state.policies, 0);
     assert.match(ledger, /finally-independent-containment.*CONTAINMENT.*PASS/);
-    assert.match(ledger, /operator-phase-failure.*BLOCKED/);
+    assert.match(ledger, /role-sequence-failure.*BLOCKED/);
     for (const secret of secrets) assert.equal(ledger.includes(secret), false);
     await rm(folder, { recursive: true, force: true });
   }
@@ -465,7 +464,7 @@ test('failed independent NOLOGIN containment remains BLOCKED and never claims cl
   const ledgerPath = join(folder, 'run.jsonl');
   const state = freshState({ failNoLogin: true });
   await assert.rejects(runWindowRolePreflight({ databasePassword: DB_PASSWORD, runId: RUN,
-    ledgerPath, faultAt: 'pooler', ...createMocks(state) }), /WINDOW_ROLE_PREFLIGHT_BLOCKED/);
+    ledgerPath, faultAt: 'pooler', ...createMocks(state) }), /INDEPENDENT_CONTAINMENT_BLOCKED/);
   const ledger = await (await import('node:fs/promises')).readFile(ledgerPath, 'utf8');
   assert.equal(state.role, true);
   assert.match(ledger, /finally-independent-containment.*BLOCKED/);

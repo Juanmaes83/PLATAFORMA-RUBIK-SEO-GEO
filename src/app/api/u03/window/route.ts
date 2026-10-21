@@ -7,7 +7,6 @@ import type { ConnectionOptions, TLSSocket } from "node:tls";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const ROLE = "rubik_preview_u03_writer";
-const WRITER = "rubik_audit_writer";
 const ALLOWLIST = ["private.audit_writer_actor(uuid, uuid)", "private.audit_writer_project(uuid)"];
 
 /** Read-only check of the actual deployment's Session-pooler client before any fixtures. */
@@ -49,7 +48,7 @@ export async function GET(request: Request) {
         has_table_privilege(current_user,'private.audit_outbox','delete') as outbox_delete,
         has_schema_privilege(current_user,'public','create') as public_create,
         has_schema_privilege(current_user,'private','create') as private_create`)).rows[0];
-      if (!identity.database_ok || identity.session_user !== ROLE || identity.current_user !== WRITER ||
+      if (!identity.database_ok || identity.session_user !== ROLE || identity.current_user !== ROLE ||
         !identity.audit_insert || !identity.audit_select || !identity.results_insert || !identity.results_select ||
         !identity.idempotency_insert || !identity.outbox_select || !identity.outbox_state_update || identity.auth_schema ||
         identity.import_insert || identity.import_select || identity.membership_select || identity.organizations_select ||
@@ -58,6 +57,11 @@ export async function GET(request: Request) {
         filter (where p.prosecdef),array[]::text[]) as definers from pg_proc p join pg_namespace n on n.oid=p.pronamespace
         where p.prokind in ('f','p') and has_schema_privilege(current_user,n.oid,'USAGE') and has_function_privilege(current_user,p.oid,'EXECUTE')`)).rows[0]?.definers;
       if (JSON.stringify(functions) !== JSON.stringify(ALLOWLIST)) return null;
+      const rpc = (await client.query(`select
+        has_function_privilege(current_user,'private.google_capture_command(uuid,text,jsonb)','EXECUTE') as google,
+        has_function_privilege(current_user,'private.openseo_job(uuid,text,uuid,jsonb)','EXECUTE') as openseo,
+        pg_has_role(current_user,'rubik_audit_writer','MEMBER') as writer_member`)).rows[0];
+      if (rpc.google || rpc.openseo || rpc.writer_member) return null;
       const rls = (await client.query(`select count(*)::int as n from pg_class c join pg_namespace n on n.oid=c.relnamespace
         where (n.nspname,c.relname) in (('public','audit_events'),('public','provider_results'),('private','audit_idempotency'),('private','audit_outbox')) and c.relrowsecurity`)).rows[0]?.n;
       if (rls !== 4) return null;
@@ -65,7 +69,7 @@ export async function GET(request: Request) {
         (select count(*)=0 from public.provider_results) and (select count(*)=0 from private.audit_idempotency) and
         (select count(*)=0 from private.audit_outbox) as empty`)).rows[0]?.empty;
       if (empty !== true) return null;
-      return NextResponse.json({ ok: true, checks: ["CLIENT_TLS", "SESSION_USER", "SET_ROLE", "PRIVILEGES", "SECURITY_DEFINER_ALLOWLIST", "RLS", "EMPTY_INITIAL_STATE"] },
+      return NextResponse.json({ ok: true, checks: ["CLIENT_TLS", "DIRECT_PRINCIPAL", "PRIVILEGES", "PROVIDER_RPC_DENIED", "SECURITY_DEFINER_ALLOWLIST", "RLS", "EMPTY_INITIAL_STATE"] },
         { headers: { "Cache-Control": "no-store" } });
     } catch {
       return null;

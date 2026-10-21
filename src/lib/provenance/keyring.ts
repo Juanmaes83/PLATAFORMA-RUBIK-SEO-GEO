@@ -125,7 +125,7 @@ export function createPreviewWindowAttestation(env: Record<string, string | unde
   const username = decodeURIComponent(parsed.username);
   if (parsed.protocol !== "postgresql:" || parsed.hostname !== WINDOW_POOLER || parsed.port !== "5432" ||
       parsed.pathname !== "/postgres" || username !== `rubik_preview_u03_writer.${WINDOW_REF}` || !parsed.password ||
-      parsed.searchParams.get("options") !== "-c role=rubik_audit_writer") return null;
+      [...parsed.searchParams.keys()].length !== 0) return null;
   const context = previewWindowAttestationContext(input, deploymentId, host, sha);
   return {
     ok: true, runId: input.runId, nonce: input.nonce, deploymentId, host, sha, ref: WINDOW_REF, branch: WINDOW_BRANCH,

@@ -18,7 +18,7 @@ const env = {
   U03_PREVIEW_WRITER_WINDOW_SECRET: "unit-test-only-window-secret",
   U03_PREVIEW_WRITER_WINDOW_RUN_ID: runId,
   U03_PREVIEW_WRITER_WINDOW_EXPIRES_AT: new Date(now + 20 * 60_000).toISOString(),
-  RUBIK_AUDIT_DATABASE_URL: "postgresql://rubik_preview_u03_writer.rhnnplewqsekrnaousyl:p%40ss@aws-1-eu-west-3.pooler.supabase.com:5432/postgres?options=-c%20role%3Drubik_audit_writer",
+  RUBIK_AUDIT_DATABASE_URL: "postgresql://rubik_preview_u03_writer.rhnnplewqsekrnaousyl:p%40ss@aws-1-eu-west-3.pooler.supabase.com:5432/postgres",
 };
 
 describe("temporary Preview writer window", () => {
@@ -46,7 +46,7 @@ describe("temporary Preview writer window", () => {
     ["wrong deployment id", { VERCEL_DEPLOYMENT_ID: "dpl_OtherDeployment" }],
     ["wrong pooler user", { RUBIK_AUDIT_DATABASE_URL: env.RUBIK_AUDIT_DATABASE_URL.replace("rubik_preview_u03_writer.", "postgres.") }],
     ["wrong pooler host", { RUBIK_AUDIT_DATABASE_URL: env.RUBIK_AUDIT_DATABASE_URL.replace("aws-1-eu-west-3.pooler.supabase.com", "elsewhere.example") }],
-    ["wrong assumed role", { RUBIK_AUDIT_DATABASE_URL: env.RUBIK_AUDIT_DATABASE_URL.replace("role%3Drubik_audit_writer", "role%3Dpostgres") }],
+    ["injected assumed role", { RUBIK_AUDIT_DATABASE_URL: `${env.RUBIK_AUDIT_DATABASE_URL}?options=-c%20role%3Drubik_audit_writer` }],
   ])("fails closed for %s", (_label, patch) => {
     expect(previewWriterWindowActive({ ...env, ...patch }, now)).toBe(false);
   });

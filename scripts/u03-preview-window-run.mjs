@@ -140,7 +140,7 @@ export async function runPreviewWindowSequence({ databasePassword, runId = rando
       ledger: async (phase, result, category, code, sqlstate) => ledger(phase.replaceAll('_','-'), result,
         { category, ...(code ? { code } : {}), ...(sqlstate ? { sqlstate } : {}) }) });
     if (roleProof?.runId !== runId || roleProof?.pooler?.clientTlsVerified !== true ||
-        roleProof?.pooler?.sessionUser !== 'rubik_preview_u03_writer' || roleProof?.pooler?.currentUser !== 'rubik_audit_writer' ||
+        roleProof?.pooler?.sessionUser !== 'rubik_preview_u03_writer' || roleProof?.pooler?.currentUser !== 'rubik_preview_u03_writer' ||
         roleProof?.pooler?.denyPoliciesVerified !== true) throw new Error('WINDOW_ROLE_POOLER_PROOF_REJECTED');
     roleProof.rolePassword = '';
     await ledger('install-and-probe-new-role', 'PASS');
