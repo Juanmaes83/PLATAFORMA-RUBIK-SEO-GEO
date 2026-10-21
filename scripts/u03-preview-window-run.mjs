@@ -150,13 +150,13 @@ export async function runPreviewWindowSequence({ databasePassword, runId = rando
     if (runtime?.passed !== true || runtime.status !== 200) throw new Error('WINDOW_RUNTIME_PREFLIGHT_REJECTED');
     await ledger('deployment-runtime-pooler-proof', 'PASS', { httpStatus: runtime.status });
 
-    await ledger('directed-i2-i5-h1a-campaign', 'ATTEMPTED');
+    await ledger('directed-i2-i5-campaign', 'ATTEMPTED');
     campaign = await campaignFn({ env, sha: pin.sha, runId, ledger, mode: 'window-i2-i5',
       preflightFn: async () => verified });
     if (campaign?.status !== 'PASS' || campaign?.cleanupResult?.ok !== true ||
         campaign?.finalCheck?.inventoriesClear !== true || campaign?.finalCheck?.outboxClear !== true)
       throw new Error('DIRECTED_CAMPAIGN_OR_CLEANUP_BLOCKED');
-    await ledger('directed-i2-i5-h1a-campaign', 'PASS', { cases: 3, restoreCount: 2 });
+    await ledger('directed-i2-i5-campaign', 'PASS', { cases: 2 });
   } catch (error) {
     failure = SAFE.test(error?.message ?? '') ? error.message : 'WINDOW_SEQUENCE_FAILED';
     try { await ledger('sequence-failure', 'BLOCKED', { code: failure }); } catch { /* containment takes priority */ }
@@ -182,6 +182,15 @@ export async function runPreviewWindowSequence({ databasePassword, runId = rando
     databasePassword = '';
     rolePassword = '';
   }
+  try {
+    await ledger('i2-final-result', failure ? 'BLOCKED' : 'PASS',
+      failure ? { code: failure } : { cases: 1 });
+    await ledger('i5-final-result', failure ? 'BLOCKED' : 'PASS',
+      failure ? { code: failure } : { cases: 1 });
+    await ledger('u03-sql-final-result', failure ? 'BLOCKED' : 'PASS',
+      failure ? { code: failure } : { cases: 2 });
+    await ledger('h1a-global-result', 'NOT_RUN');
+  } catch { failure ??= 'WINDOW_RESULT_LEDGER_UNVERIFIED'; }
   return { status: failure ? 'BLOCKED' : 'PASS', runId, failure, campaign, containment, ledgerPath };
 }
 

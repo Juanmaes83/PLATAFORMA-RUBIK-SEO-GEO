@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { chromiumEnvironment, networkEnvironment, PIN } from './u03-preview-b4-runner.mjs';
-import { PREFLIGHT_RESULT_FIELDS, PREFLIGHT_SQL, PRIOR_DATA_API_RUN_ID, parseCliJson, readPreviewAuthSettings, runHostedU03Campaign, runPreviewReadOnlySql, runReadOnlyPreflight, safeLedgerDetail, verifyFinalPreviewState, verifyInitialPreviewState, verifyReadOnlyPreviewState } from './u03-preview-b4-orchestrator.mjs';
+import { PREFLIGHT_RESULT_FIELDS, PREFLIGHT_SQL, PRIOR_DATA_API_RUN_ID, parseCliJson, readPreviewAuthSettings, runHostedU03Campaign, runProtectedWindowSurfaces, runPreviewReadOnlySql, runReadOnlyPreflight, safeLedgerDetail, verifyFinalPreviewState, verifyInitialPreviewState, verifyReadOnlyPreviewState } from './u03-preview-b4-orchestrator.mjs';
 import { V4_SECURITY_DEFINER_ALLOWLIST } from './u03-preview-v4-receipt.mjs';
 
 const runId = 'u03-orchestrator-test-run';
@@ -687,7 +687,7 @@ test('directed window campaign proves runtime before fixtures and never repeats 
   const result = await runHostedU03Campaign({ env, sha: PIN.sha, runId, mode: 'window-i2-i5',
     preflightFn: async () => verified, fixtureFactory: () => { events.push('fixture-factory'); return fixtures; },
     runtimePreflightFn: async () => { events.push('runtime'); return { passed: true, status: 200 }; },
-    windowSurfacesFn: async () => { events.push('surfaces'); return { passed: true }; },
+    windowSurfacesFn: async () => { events.push('surfaces'); return { i2: true, i5: true }; },
     windowCleanupFn: async () => { events.push('window-cleanup'); return true; },
     finalCheckFn: async ({ allowTemporaryWindowCapability }) => { events.push(`final:${allowTemporaryWindowCapability}`);
       return { inventoriesClear: true, outboxClear: true, capabilitiesSafe: true, state: { writer_locked: true,
@@ -699,6 +699,32 @@ test('directed window campaign proves runtime before fixtures and never repeats 
   assert.deepEqual(events.slice(-3), ['surfaces','window-cleanup','final:true']);
   assert.equal(events.includes('matrix'), false);
   assert.equal(events.includes('browser'), false);
+});
+
+test('I-2/I-5 surface proof never invokes export or restore', async () => {
+  const seen = [];
+  const fixtureId = '94e1bcf1-f329-46e2-a312-79741809c8ae';
+  const fixtures = { namespace: 'u03-c14f4c11570f', actorBearer: async () => ({ accessToken: 'fictional' }),
+    verifyPopulatedCrossSurface: async ({ resultId, importId, auditSeq }) => {
+      assert.equal(resultId, fixtureId); assert.equal(importId, fixtureId); assert.equal(auditSeq, 7);
+      return { passed: true, checks: ['audit_events', 'provider_results', 'imports'] };
+    } };
+  const proof = await runProtectedWindowSurfaces({ fixtures, a1: fixtureId,
+    runId: 'c14f4c11-570f-4e03-a3a1-33a702b85baa',
+    env: { VERCEL_OIDC_TOKEN: 'fictional-oidc', U03_PREVIEW_WRITER_WINDOW_SECRET: 'fictional-window-secret' },
+    fetchImpl: async (url, options) => {
+      assert.match(url, /\/api\/u03\/window-fixtures\//);
+      const kind = JSON.parse(options.body).kind;
+      seen.push(kind);
+      return { status: 200, json: async () => ({ ok: true, kind, id: fixtureId, seq: 7 }) };
+    },
+    i2RoutesFn: async ({ resultId }) => { assert.equal(resultId, fixtureId); seen.push('i2-routes');
+      return { passed: true, positiveCount: 2, negativeCount: 5 }; },
+    ledger: async () => {},
+  });
+  assert.deepEqual(seen, ['audit', 'result', 'import', 'i2-routes']);
+  assert.equal(proof.i2, true);
+  assert.equal(proof.i5, true);
 });
 
 test('directed window never deletes projects when product receipt reconciliation fails', async () => {
@@ -713,7 +739,7 @@ test('directed window never deletes projects when product receipt reconciliation
     initial: { projectRef: PIN.supabaseRef, authSettingsHttpStatus: 200 } };
   const result = await runHostedU03Campaign({ env, sha: PIN.sha, runId, mode: 'window-i2-i5',
     preflightFn: async () => verified, fixtureFactory: () => fixtures,
-    runtimePreflightFn: async () => ({ passed: true, status: 200 }), windowSurfacesFn: async () => ({ passed: true }),
+    runtimePreflightFn: async () => ({ passed: true, status: 200 }), windowSurfacesFn: async () => ({ i2: true, i5: true }),
     windowCleanupFn: async () => { events.push('receipt-cleanup'); throw new Error('WINDOW_RECEIPT_RECONCILIATION_FAILED'); },
     finalCheckFn: async () => ({ inventoriesClear: false, outboxClear: false, capabilitiesSafe: true, state: {} }),
     ledger: async () => {}, root: process.cwd() });

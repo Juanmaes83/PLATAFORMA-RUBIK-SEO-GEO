@@ -45,6 +45,18 @@ Import-Module -Name $windowConfigurationModule -Force -ErrorAction Stop
 
 function Stop-B4([string]$Code) { throw "U03 B-4 BLOCKED: $Code. No fixtures will be created unless every preflight passes." }
 
+function Write-U03WindowGlobalResult([string]$RunId, [string]$Status) {
+  if ($RunId -cnotmatch '^[0-9a-fA-F-]{36}$' -or $Status -notin @('PASS','BLOCKED')) { return $false }
+  $path = Join-Path $repo "test-results\u03-hosted-window\$RunId.jsonl"
+  if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $false }
+  try {
+    $row = @{ utc=[DateTime]::UtcNow.ToString('o'); runId=$RunId; caseId='u03-global-result'; status=$Status;
+      ref='rhnnplewqsekrnaousyl' } | ConvertTo-Json -Compress
+    [System.IO.File]::AppendAllText($path, $row + [Environment]::NewLine, [System.Text.UTF8Encoding]::new($false))
+    return $true
+  } catch { return $false }
+}
+
 function Remove-U03WindowDeploymentConfiguration([string]$DeploymentId) {
   if ($DeploymentId -cnotmatch '^dpl_[A-Za-z0-9]+$') { return $false }
   $names = @('U03_PREVIEW_WRITER_WINDOW','U03_PREVIEW_WRITER_WINDOW_REF','U03_PREVIEW_WRITER_WINDOW_SHA',
@@ -423,6 +435,7 @@ $windowRoleTransportSelfTestPassed = $false
 $windowRoleChildOverride = $null
 $windowBatch = $null
 $windowBatchAttested = $false
+$windowSequencePassed = $false
 $sequencePreviewCredentials = $null
 $sequencePreviewKeys = $null
 try {
@@ -668,6 +681,7 @@ try {
         if ($WindowRoleReadOnlyDiagnosticOnly) { Stop-B4 'WINDOW_ROLE_READONLY_DIAGNOSTIC_BLOCKED_NO_WRITES' }
         Stop-B4 'WINDOW_ROLE_PREFLIGHT_BLOCKED_NO_FIXTURES'
       }
+      if ($WindowI2I5H1A) { $windowSequencePassed = $true }
     } finally {
       if ($passwordBstr -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($passwordBstr) }
       if ($secureDatabasePassword) { $secureDatabasePassword.Dispose(); $secureDatabasePassword = $null }
@@ -755,13 +769,19 @@ try {
       $windowRoleContainFailed = $true
     }
     if ($windowRoleContainFailed) {
+      if ($WindowI2I5H1A) { [void](Write-U03WindowGlobalResult -RunId $windowRoleRunId -Status 'BLOCKED') }
       Write-Warning 'U03_WINDOW_ROLE_CONTAINMENT BLOCKED; keep the sanitized ledger and do not create fixtures.'
     } elseif ($WindowI2I5H1A -and $windowBatchAttested) {
       if ($containResult.SafeLine -notmatch '^U03_WINDOW_ROLE_CONTAINMENT PASS .*rolePresent=(?:false|False) roleLocked=(?:null|true|True) policies=0 activeSessions=0 inventoryZero=(?:true|True) outboxTotal=0 pending=0$') {
+        [void](Write-U03WindowGlobalResult -RunId $windowRoleRunId -Status 'BLOCKED')
         Write-Warning 'U03_WINDOW_TEARDOWN BLOCKED; temporary deployment variables retained because final Preview state was not clean.'
       } elseif ((Remove-U03WindowDeploymentConfiguration -DeploymentId $DeploymentId) -and (Remove-U03WindowBatch)) {
+        if ($windowSequencePassed) {
+          if (-not (Write-U03WindowGlobalResult -RunId $windowRoleRunId -Status 'PASS')) { $windowRoleContainFailed = $true }
+        } else { [void](Write-U03WindowGlobalResult -RunId $windowRoleRunId -Status 'BLOCKED') }
         Write-Output 'U03_WINDOW_TEARDOWN PASS branchVariablesRemoved=true deploymentRemoved=true'
       } else {
+        [void](Write-U03WindowGlobalResult -RunId $windowRoleRunId -Status 'BLOCKED')
         Write-Warning 'U03_WINDOW_TEARDOWN BLOCKED; inspect the exact run ledger and Vercel variable inventory.'
       }
     } elseif ($WindowRoleTransportSelfTestOnly -and $windowRoleTransportSelfTestPassed) {

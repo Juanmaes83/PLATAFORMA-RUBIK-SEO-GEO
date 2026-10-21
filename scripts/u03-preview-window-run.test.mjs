@@ -36,7 +36,7 @@ async function execute(dir, failure = null) {
     preflightFn: async () => { calls.push('preflight'); if (failure === 'preflight') throw new Error('private detail'); return VERIFIED; },
     installFn: async () => { calls.push('install'); if (failure === 'install') throw Object.assign(new Error('private detail'), { code: 'INJECTED_INSTALL_FAILURE' }); return ROLE; },
     runtimeFn: async () => { calls.push('runtime'); if (failure === 'runtime') throw new Error('private detail'); return { passed: true, status: 200 }; },
-    campaignFn: async () => { calls.push('campaign'); if (failure === 'campaign') return { status: 'BLOCKED', cleanupResult: { ok: false } };
+    campaignFn: async ({ mode }) => { assert.equal(mode, 'window-i2-i5'); calls.push('campaign'); if (failure === 'campaign') return { status: 'BLOCKED', cleanupResult: { ok: false } };
       return { status: 'PASS', cleanupResult: { ok: true }, finalCheck: { inventoriesClear: true, outboxClear: true } }; },
     containFn: async () => { calls.push('contain'); if (failure === 'contain') throw new Error('private admin detail'); return CLEAN; },
   });
@@ -95,8 +95,20 @@ test('successful operator orders all gates, campaign, then independent containme
     assert.equal(result.status, 'PASS');
     assert.deepEqual(calls, ['preflight','install','runtime','campaign','contain']);
     assert.match(ledger, /independent-containment-and-final-read.*PASS/);
+    assert.match(ledger, /u03-sql-final-result.*PASS/);
+    assert.match(ledger, /h1a-global-result.*NOT_RUN/);
+    assert.doesNotMatch(ledger, /preview-http-export|restore-local-twice/);
     assert.doesNotMatch(ledger, /fictional password|fictional-only-window-secret|private detail/);
   } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('Windows 5.1 wrapper records U03 global PASS only after independent containment and teardown', async () => {
+  const script = await readFile(new URL('./u03-preview-b4-owner.ps1', import.meta.url), 'utf8');
+  const containment = script.indexOf("Invoke-U03WindowRoleChild -Mode 'contain'");
+  const teardown = script.indexOf('Remove-U03WindowDeploymentConfiguration -DeploymentId $DeploymentId', containment);
+  const globalPass = script.indexOf("Write-U03WindowGlobalResult -RunId $windowRoleRunId -Status 'PASS'", teardown);
+  assert.ok(containment >= 0 && teardown > containment && globalPass > teardown);
+  assert.match(script, /if \(\$windowSequencePassed\) \{[\s\S]*Write-U03WindowGlobalResult -RunId \$windowRoleRunId -Status 'PASS'/);
 });
 
 test('every prefixture boundary blocks campaign and contains an attempted role', async () => {

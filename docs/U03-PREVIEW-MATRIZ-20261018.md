@@ -1,5 +1,13 @@
 # U03 · matriz alojada de Preview · 18/10/2026
 
+## Corte dirigido I-2/I-5 · 21/10/2026
+
+La recuperación del run `840261c6-e410-4e25-893a-9206fd3f74ef` es **PASS de recuperación**, con su ledger original BLOCKED intacto. Acreditó rol/políticas/sesiones cero, guarda original, inventario/outbox cero y escritor general NOLOGIN; después se retiraron las ocho variables de rama, el deployment y el vault. No hubo fixtures y **no acredita I-2 ni I-5**.
+
+El operador separa ahora `window-i2-i5` de H1-A. I-5 exige filas pobladas de `audit_events`, `provider_results` e `imports`, creadas por los firmantes y flujos reales, lectura propia A y ausencia para B e IDs inexistentes. I-2 exige control positivo de A en las rutas reales de auditoría y resultado, y 404 para B en auditoría, resultado y exportación de A1, comparado con IDs inexistentes. La negativa de exportación de B lleva una capacidad de ventana válida para que el 404 pruebe autorización del producto. U03 no solicita el documento de exportación de A ni restaura datos: esas acciones pertenecen a H1-A.
+
+El modo dirigido solo puede registrar `u03-global-result PASS` desde el wrapper Windows después de I-2/I-5, conciliación de recibos, limpieza por IDs, comprobación independiente de rol/políticas/sesiones e inventario/outbox cero y retirada verificada de variables/deployment/vault. El proceso Node registra antes `u03-sql-final-result`; ese resultado por sí solo no cierra U03. **I-2, I-5 y U03 alojados siguen BLOCKED hasta la nueva ejecución**. H1-A y H1/H2 son gates separados y permanecen abiertos. No se repitió ninguna campaña alojada previa.
+
 ## Reconciliación prioritaria del run 840261c6 · 21/10/2026
 
 **I-2/I-5 alojado y H1-A alojado: BLOCKED.** El ledger original `test-results/u03-hosted-window/840261c6-e410-4e25-893a-9206fd3f74ef.jsonl` acredita `install-role-nologin PASS`, sin activación ni conexión del principal por Session pooler. El ledger independiente conserva `DATABASE_ERROR_UNCLASSIFIED` en contención. La lectura independiente comunicada por Juanma confirma inventarios/outbox cero, rol propio NOLOGIN con marcador del run, cuatro políticas y cero sesiones. Las ocho variables de rama y el deployment temporal siguen presentes; no hubo fixtures.

@@ -424,15 +424,29 @@ export async function verifyProtectedWindowRuntime({ runId, env = process.env, f
   return { passed: true, status: response.status };
 }
 
-export async function runProtectedWindowSurfaces({ fixtures, a1, runId, env = process.env, fetchImpl = fetch, ledger }) {
+export async function runProtectedWindowSurfaces({ fixtures, a1, runId, env = process.env, fetchImpl = fetch, ledger,
+  i2RoutesFn = null }) {
   if (!fixtures || !a1 || typeof ledger !== 'function') throw new Error('WINDOW_SURFACE_INPUT_INVALID');
   const tenantId = fixtures.namespace + '-a';
   const audit = await invokeWindowFixture({ kind: 'audit', tenantId, projectId: 'a1', fixtures, runId, env, fetchImpl, ledger });
   const result = await invokeWindowFixture({ kind: 'result', tenantId, projectId: 'a1', fixtures, runId, env, fetchImpl, ledger });
   const imported = await invokeWindowFixture({ kind: 'import', tenantId, projectId: 'a1', fixtures, runId, env, fetchImpl, ledger });
   const cross = await fixtures.verifyPopulatedCrossSurface({ a1, auditSeq: audit.seq, resultId: result.id, importId: imported.id });
-  await ledger('populated-i2-i5-positive-and-cross-tenant', 'PASS', { cases: cross.checks.length });
+  if (cross?.passed !== true || cross.checks?.length !== 3) throw new Error('I5_POPULATED_CROSS_SURFACE_REJECTED');
+  await ledger('i5-populated-signed-rows', 'PASS', { cases: cross.checks.length });
+  const routeCheck = i2RoutesFn ?? (await import('./u03-preview-i2-routes.mjs')).runProtectedI2Routes;
+  const routes = await routeCheck({ fixtures, resultId: result.id, runId, env, ledger,
+    capabilityFor: expiresAt => u03WindowCapability(runId, expiresAt, env) });
+  if (routes?.passed !== true || routes.positiveCount < 2 || routes.negativeCount < 5)
+    throw new Error('I2_PROTECTED_ROUTES_REJECTED');
+  await ledger('i2-protected-routes', 'PASS', { cases: routes.positiveCount + routes.negativeCount });
+  return { i2: true, i5: true, resultId: result.id };
+}
 
+/** H1-A export/verification/restore is deliberately separate from the U03 matrix. */
+export async function runProtectedWindowH1Export({ fixtures, runId, env = process.env, fetchImpl = fetch, ledger }) {
+  if (!fixtures || typeof ledger !== 'function') throw new Error('H1_EXPORT_INPUT_INVALID');
+  const tenantId = fixtures.namespace + '-a';
   const bearer = await fixtures.actorBearer('ownerA');
   const expiresAt = Date.now() + 10 * 60_000;
   const origin = `https://${PIN.host}`;
@@ -619,9 +633,10 @@ export async function runHostedU03Campaign({
         throw new Error('WINDOW_CAPABILITY_ENVIRONMENT_MISMATCH');
       await ledger('data-api-matrix', 'SKIP_PRIOR_EVIDENCE', { cases: 12, evidenceRunId: PRIOR_DATA_API_RUN_ID });
       await ledger('browser-b4', 'SKIP_PRIOR_EVIDENCE', { evidenceRunId: PRIOR_B4_RUN_ID });
-      await windowSurfacesFn({ fixtures, a1: projects.a1, runId, env, ledger });
+      const surfaces = await windowSurfacesFn({ fixtures, a1: projects.a1, runId, env, ledger });
+      if (surfaces?.i2 !== true || surfaces?.i5 !== true) throw new Error('WINDOW_I2_I5_EVIDENCE_INCOMPLETE');
       windowSurfacesPassed = true;
-      await ledger('window-i2-i5-http-surfaces', 'PASS', { cases: 3, deploymentId: PIN.deploymentId, host: PIN.host, sha: PIN.sha });
+      await ledger('window-i2-i5-populated-surfaces', 'PASS', { cases: 2, deploymentId: PIN.deploymentId, host: PIN.host, sha: PIN.sha });
     } else {
       if (mode === 'playwright-only') {
         await ledger('data-api-matrix', 'SKIP_PRIOR_EVIDENCE', { cases: 12, reason: 'PRIOR_RUN_PASS', evidenceRunId: PRIOR_DATA_API_RUN_ID });
@@ -720,6 +735,13 @@ export async function runHostedU03Campaign({
       mode === 'window-i2-i5' ? (windowSurfacesPassed && clean ? 'PASS' : 'BLOCKED') :
       (b4Pass && clean ? 'AWAITING_VISUAL_REVIEW' : 'BLOCKED'));
   try {
+    if (mode === 'window-i2-i5') {
+      await ledger('i2-evidence-before-role-rollback', status === 'PASS' ? 'PASS' : 'BLOCKED',
+        { code: status === 'PASS' ? null : failure ?? 'I2_OR_CLEANUP_UNVERIFIED' });
+      await ledger('i5-evidence-before-role-rollback', status === 'PASS' ? 'PASS' : 'BLOCKED',
+        { code: status === 'PASS' ? null : failure ?? 'I5_OR_CLEANUP_UNVERIFIED' });
+      await ledger('h1a-result', 'NOT_RUN');
+    }
     await ledger('campaign-global', status, {
       runId, sha, deploymentId: PIN.deploymentId, visualReview: b4Pass ? 'PENDING_MANUAL_REVIEW' : 'NOT_RUN',
       result: status,
