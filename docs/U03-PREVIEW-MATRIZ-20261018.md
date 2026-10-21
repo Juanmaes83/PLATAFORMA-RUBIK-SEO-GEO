@@ -416,7 +416,7 @@ Lectura final independiente: rol temporal 0, políticas 0, sesiones 0; usuarios,
 
 | Gate | Estado | Evidencia y límite |
 | --- | --- | --- |
-| Lógica firmada, I-2/I-5 poblado y TTL/NOLOGIN | **PASS local (PostgreSQL directo)** | Run `197f19da-dd47-4863-b419-5f32d1b805d8`; firmante real, A positivo/B negativo, otro run denegado, RPC de proveedores no ejecutables, recibos completados/reintentados, sesión abierta denegada tras caducidad y NOLOGIN. SQL independiente final cero. [Matriz de contrato](U03-PRINCIPAL-MINIMO-20261021.md). |
+| Lógica firmada, I-2/I-5 poblado y TTL/NOLOGIN | **PASS local (PostgreSQL directo)** | Run `f2b1eff8-95f7-4482-84d5-cacba318e4ab`; firmante real, A positivo/B negativo, otro run denegado, RPC de proveedores no ejecutables, recibos completados/reintentados, sesión abierta denegada tras caducidad y NOLOGIN. SQL independiente final cero. [Matriz de contrato](U03-PRINCIPAL-MINIMO-20261021.md). |
 | HTTP/export/restore | **PASS local acotado** | Route Handler por socket loopback; manifiesto verificado y alteración rechazada; restauración doble en segundo stack local. No acredita origen alojado. |
 | Session pooler local | **BLOCKED por entorno** | `CLIENT_ERROR` previo de Supavisor; el test directo no equivale al pooler. |
 | Session pooler Preview del nuevo rol | **BLOCKED / sin ejecutar** | Requiere nuevo deployment protegido y lote del SHA final; no se instaló rol en Preview. |
