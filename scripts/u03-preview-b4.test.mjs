@@ -36,6 +36,10 @@ const goodFetch = async (url, init = {}) => {
 
 test("deployment pin requires exact deployment, host, SHA, project, branch and READY state", () => {
   assert.equal(deploymentMatches(validDeployment()), true);
+  const cliDeployment = { ...validDeployment(), meta: { gitCommitSha: PIN.sha, gitCommitRef: PIN.branch } };
+  assert.equal(deploymentMatches(cliDeployment), true);
+  assert.equal(deploymentMatches({ ...cliDeployment, meta: { ...cliDeployment.meta, githubCommitSha: '0'.repeat(40) } }), false);
+  assert.equal(deploymentMatches({ ...cliDeployment, meta: { ...cliDeployment.meta, githubCommitRef: 'other-branch' } }), false);
   assert.equal(deploymentMatches({ ...validDeployment(), meta: { githubCommitSha: "0".repeat(40), githubCommitRef: PIN.branch } }), false);
   assert.equal(deploymentMatches({ ...validDeployment(), url: `evil-${PIN.host}` }), false);
   assert.equal(deploymentMatches({ ...validDeployment(), url: "plataforma-rubik-seo-geo.vercel.app" }), false);

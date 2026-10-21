@@ -54,8 +54,12 @@ function normalizedHost(value) {
 export function deploymentMatches(actual, pin = PIN) {
   if (!actual || actual.id !== pin.deploymentId) return false;
   if (normalizedHost(actual.url) !== pin.host) return false;
-  if ((actual.meta?.githubCommitSha ?? actual.gitSource?.sha) !== pin.sha) return false;
-  if ((actual.meta?.githubCommitRef ?? actual.gitSource?.ref) !== pin.branch) return false;
+  // GitHub-triggered and CLI deployments use different metadata names. Reject
+  // conflicting claims instead of accepting the first populated field.
+  const shas = [actual.meta?.githubCommitSha, actual.meta?.gitCommitSha, actual.gitSource?.sha].filter(value => value != null);
+  const refs = [actual.meta?.githubCommitRef, actual.meta?.gitCommitRef, actual.gitSource?.ref].filter(value => value != null);
+  if (!shas.length || shas.some(value => value !== pin.sha)) return false;
+  if (!refs.length || refs.some(value => value !== pin.branch)) return false;
   if ((actual.projectId ?? actual.project?.id) !== pin.projectId) return false;
   if ((actual.readyState ?? actual.state) !== "READY") return false;
   if (actual.target === "production") return false;

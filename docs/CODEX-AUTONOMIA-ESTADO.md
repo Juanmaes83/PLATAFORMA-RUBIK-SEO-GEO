@@ -2,6 +2,8 @@
 
 ## Corte U03 dirigido separado de H1-A · 21/10/2026
 
+Preflight alojado del deployment CLI `dpl_34dns3f5BXEVVh4gz4pwxMZQzpW8` / `ef82443` BLOCKED antes de contraseña o SQL: metadata CLI usa `gitCommitSha/gitCommitRef`, mientras el verificador esperaba las claves de GitHub. Se añadió soporte estricto para ambos formatos y rechazo de afirmaciones contradictorias. Se requiere rotar lote ligado al SHA nuevo, nuevo deployment y repetir solo la atestación sin fixtures. No atribuir ese BLOCKED a I-2/I-5 ni a un fallo de base de datos.
+
 La rama de PR #143 partió de `56fb423a6a5f8318b43e80cd655fcd7de777039b` con árbol limpio; recuperación del run `840261c6-e410-4e25-893a-9206fd3f74ef` PASS y ledger original BLOCKED preservado. El modo `window-i2-i5` ya no ejecuta exportación/restauración H1-A: verifica filas firmadas pobladas y rutas positivas/negativas I-2, procesa recibos y limpia por IDs. El resultado U03 global queda condicionado al segundo proceso administrativo de contención y a la retirada verificada de configuración temporal. Las pruebas dirigidas y `npm run verify` pasan localmente; no hay deployment ni campaña alojada nuevos. I-2/I-5 y U03 permanecen BLOCKED hasta evidencia alojada; H1-A, U04, H1 y H2 son gates aparte. Siguiente fase: publicar SHA, aprovisionar un lote nuevo ligado a él, fijar deployment protegido y ejecutar una única campaña dirigida desde PowerShell visible tras todos los preflights.
 
 ## Reconciliación urgente del run 840261c6 · 21/10/2026
