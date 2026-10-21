@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from 'node:crypto';
-import { appendFile, mkdir } from 'node:fs/promises';
+import { appendFile, mkdir, readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { preflight } from './u03-preview-b4-runner.mjs';
@@ -13,6 +13,49 @@ const SAFE_SQLSTATES = new Set(['42501','28P01','28000','57P01','0A000','42704',
 const RUN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const LEDGER_ID_KEYS = new Set(['id','userIds','organizationIds','projectIds','resultIds','importIds','auditEventIds','receiptIds']);
+
+const REQUIRED_CAMPAIGN_LEDGER = new Map([
+  ['deployment-preflight', 'PASS'],
+  ['security-definer-allowlist', 'PASS'],
+  ['writer-rls', 'PASS'],
+  ['install-and-probe-new-role', 'PASS'],
+  ['deployment-runtime-pooler-proof', 'PASS'],
+  ['fixture-user-ownera', 'CREATED'], ['auth-login-ownera', 'PASS'],
+  ['fixture-user-ownerb', 'CREATED'], ['auth-login-ownerb', 'PASS'],
+  ['fixture-organizations', 'CREATED'], ['fixture-projects', 'CREATED'],
+  ['window-fixture-audit', 'PASS'], ['window-fixture-result', 'PASS'], ['window-fixture-import', 'PASS'],
+  ['i5-populated-audit-events', 'PASS'], ['i5-populated-provider-results', 'PASS'], ['i5-populated-imports', 'PASS'],
+  ['i5-populated-signed-rows', 'PASS'], ['i2-protected-routes', 'PASS'], ['window-i2-i5-populated-surfaces', 'PASS'],
+  ['window-cleanup-a1', 'PASS'], ['window-cleanup-a2', 'PASS'], ['window-cleanup-b1', 'PASS'],
+  ['fixture-cleanup', 'PASS'], ['final-inventory', 'PASS'], ['outbox-final', 'PASS'], ['capabilities-final', 'PASS'],
+  ['directed-i2-i5-campaign', 'PASS'], ['independent-containment-and-final-read', 'PASS'],
+  ['i2-final-result', 'PASS'], ['i5-final-result', 'PASS'], ['u03-sql-final-result', 'PASS'],
+  ['h1a-global-result', 'NOT_RUN'], ['sequence-complete', 'PASS'],
+]);
+
+export function normalizeWindowCaseId(caseId) {
+  if (typeof caseId !== 'string') throw new Error('WINDOW_LEDGER_FIELD_REJECTED');
+  const normalized = caseId.toLowerCase().replaceAll('_', '-');
+  if (!/^[a-z0-9-]{1,80}$/.test(normalized)) throw new Error('WINDOW_LEDGER_FIELD_REJECTED');
+  return normalized;
+}
+
+const FINAL_LEDGER_CASES = new Set(['i2-final-result','i5-final-result','u03-sql-final-result','h1a-global-result','sequence-complete']);
+
+export async function verifyWindowLedgerComplete(path, { runId, pin = PIN, includeFinal = true } = {}) {
+  try {
+    const text = await readFile(path, 'utf8');
+    const lines = text.trim().split(/\r?\n/);
+    if (!lines.length || !lines[0]) return false;
+    const rows = lines.map(line => JSON.parse(line));
+    if (rows.some(row => row.runId !== runId || row.functionalSha !== pin.sha ||
+      row.deploymentId !== pin.deploymentId || row.host !== pin.host || row.ref !== PREVIEW_REF ||
+      typeof row.caseId !== 'string' || row.caseId !== normalizeWindowCaseId(row.caseId))) return false;
+    const latest = new Map(rows.map(row => [row.caseId, row.status]));
+    return [...REQUIRED_CAMPAIGN_LEDGER].every(([caseId, status]) =>
+      (!includeFinal && FINAL_LEDGER_CASES.has(caseId)) || latest.get(caseId) === status);
+  } catch { return false; }
+}
 
 export function preflightSequencePreviewKeys({ env = process.env } = {}) {
   const adminKey = env.U03_PREVIEW_ADMIN_KEY;
@@ -28,7 +71,8 @@ export async function createWindowLedger(path, metadata, append = appendFile) {
   await mkdir(dirname(path), { recursive: true });
   await append(path, '', { flag: 'wx', mode: 0o600 });
   return async (caseId, status, detail = {}) => {
-    if (!/^[a-z0-9-]{1,80}$/.test(caseId) || !/^[A-Z_]{2,32}$/.test(status)) throw new Error('WINDOW_LEDGER_FIELD_REJECTED');
+    const normalizedCaseId = normalizeWindowCaseId(caseId);
+    if (typeof status !== 'string' || !/^[A-Z_]{2,32}$/.test(status)) throw new Error('WINDOW_LEDGER_FIELD_REJECTED');
     const safe = {};
     for (const [key, value] of Object.entries(detail)) {
       if (key === 'sqlstate' && SAFE_SQLSTATES.has(value)) { safe.sqlstate = value; continue; }
@@ -42,7 +86,7 @@ export async function createWindowLedger(path, metadata, append = appendFile) {
       else if (Array.isArray(value) && value.length <= 100 && value.every(item => typeof item === 'string' && UUID.test(item)))
         safe[key] = value.map(item => item.toLowerCase());
     }
-    await append(path, `${JSON.stringify({ utc: new Date().toISOString(), ...metadata, caseId, status, ...safe })}\n`, { mode: 0o600 });
+    await append(path, `${JSON.stringify({ utc: new Date().toISOString(), ...metadata, caseId: normalizedCaseId, status, ...safe })}\n`, { mode: 0o600 });
   };
 }
 
@@ -110,10 +154,11 @@ export async function runPreviewWindowSequence({ databasePassword, runId = rando
   preflightFn = verifyInitialPreviewState, configFn = validateWindowRuntimeConfiguration,
   installFn = installAndProbeRunScopedRole, pin = PIN,
   runtimeFn = verifyProtectedWindowRuntime, campaignFn = runHostedU03Campaign,
-  containFn = runIndependentContainment, ledgerPath = join(process.cwd(), 'test-results', 'u03-hosted-window', `${runId}.jsonl`) } = {}) {
+  containFn = runIndependentContainment, ledgerPath = join(process.cwd(), 'test-results', 'u03-hosted-window', `${runId}.jsonl`),
+  ledgerFactory = createWindowLedger } = {}) {
   if (typeof databasePassword !== 'string' || !databasePassword || !RUN.test(runId)) throw new Error('WINDOW_SEQUENCE_INPUT_REJECTED');
   const metadata = { runId, functionalSha: pin.sha, deploymentId: pin.deploymentId, host: pin.host, ref: PREVIEW_REF };
-  const ledger = await createWindowLedger(ledgerPath, metadata);
+  const ledger = await ledgerFactory(ledgerPath, metadata);
   let verified = null;
   let installAttempted = false;
   let campaign = null;
@@ -183,6 +228,8 @@ export async function runPreviewWindowSequence({ databasePassword, runId = rando
     rolePassword = '';
   }
   try {
+    if (!failure && !await verifyWindowLedgerComplete(ledgerPath, { runId, pin, includeFinal: false }))
+      failure = 'WINDOW_LEDGER_INCOMPLETE';
     await ledger('i2-final-result', failure ? 'BLOCKED' : 'PASS',
       failure ? { code: failure } : { cases: 1 });
     await ledger('i5-final-result', failure ? 'BLOCKED' : 'PASS',
@@ -190,6 +237,10 @@ export async function runPreviewWindowSequence({ databasePassword, runId = rando
     await ledger('u03-sql-final-result', failure ? 'BLOCKED' : 'PASS',
       failure ? { code: failure } : { cases: 2 });
     await ledger('h1a-global-result', 'NOT_RUN');
+    if (!failure) {
+      await ledger('sequence-complete', 'PASS');
+      if (!await verifyWindowLedgerComplete(ledgerPath, { runId, pin })) failure = 'WINDOW_LEDGER_INCOMPLETE';
+    }
   } catch { failure ??= 'WINDOW_RESULT_LEDGER_UNVERIFIED'; }
   return { status: failure ? 'BLOCKED' : 'PASS', runId, failure, campaign, containment, ledgerPath };
 }

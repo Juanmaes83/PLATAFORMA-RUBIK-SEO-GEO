@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { createWindowLedger, pinIsExact, preflightSequencePreviewKeys, runPreviewWindowSequence, validateWindowRuntimeConfiguration, verifyProtectedWindowBatch } from './u03-preview-window-run.mjs';
+import { createWindowLedger, pinIsExact, preflightSequencePreviewKeys, runPreviewWindowSequence, validateWindowRuntimeConfiguration, verifyProtectedWindowBatch, verifyWindowLedgerComplete } from './u03-preview-window-run.mjs';
 import { createPreviewWindowAttestation } from '../src/lib/provenance/keyring.ts';
 
 const RUN = 'c14f4c11-570f-4e03-a3a1-33a702b85baa';
@@ -34,9 +34,24 @@ async function execute(dir, failure = null) {
   const result = await runPreviewWindowSequence({ databasePassword: 'fictional password', runId: RUN, env: ENV, pin: PIN, ledgerPath,
     configFn: async () => ({ runId: RUN }),
     preflightFn: async () => { calls.push('preflight'); if (failure === 'preflight') throw new Error('private detail'); return VERIFIED; },
-    installFn: async () => { calls.push('install'); if (failure === 'install') throw Object.assign(new Error('private detail'), { code: 'INJECTED_INSTALL_FAILURE' }); return ROLE; },
+    installFn: async ({ ledger: roleLedger }) => {
+      calls.push('install');
+      if (failure === 'install') throw Object.assign(new Error('private detail'), { code: 'INJECTED_INSTALL_FAILURE' });
+      await roleLedger('security_definer_allowlist', 'PASS', 'PREFLIGHT');
+      await roleLedger('writer_rls', 'PASS', 'PREFLIGHT');
+      return ROLE;
+    },
     runtimeFn: async () => { calls.push('runtime'); if (failure === 'runtime') throw new Error('private detail'); return { passed: true, status: 200 }; },
-    campaignFn: async ({ mode }) => { assert.equal(mode, 'window-i2-i5'); calls.push('campaign'); if (failure === 'campaign') return { status: 'BLOCKED', cleanupResult: { ok: false } };
+    campaignFn: async ({ mode, ledger: campaignLedger }) => { assert.equal(mode, 'window-i2-i5'); calls.push('campaign'); if (failure === 'campaign') return { status: 'BLOCKED', cleanupResult: { ok: false } };
+      for (const [caseId, status] of [
+        ['fixture-user-ownerA','CREATED'], ['auth-login-ownerA','PASS'], ['fixture-user-ownerB','CREATED'], ['auth-login-ownerB','PASS'],
+        ['fixture-organizations','CREATED'], ['fixture-projects','CREATED'],
+        ['window-fixture-audit','PASS'], ['window-fixture-result','PASS'], ['window-fixture-import','PASS'],
+        ['i5-populated-audit_events','PASS'], ['i5-populated-provider_results','PASS'], ['i5-populated-imports','PASS'],
+        ['i5-populated-signed-rows','PASS'], ['i2-protected-routes','PASS'], ['window-i2-i5-populated-surfaces','PASS'],
+        ['window-cleanup-a1','PASS'], ['window-cleanup-a2','PASS'], ['window-cleanup-b1','PASS'],
+        ['fixture-cleanup','PASS'], ['final-inventory','PASS'], ['outbox-final','PASS'], ['capabilities-final','PASS'],
+      ]) await campaignLedger(caseId, status);
       return { status: 'PASS', cleanupResult: { ok: true }, finalCheck: { inventoriesClear: true, outboxClear: true } }; },
     containFn: async () => { calls.push('contain'); if (failure === 'contain') throw new Error('private admin detail'); return CLEAN; },
   });
@@ -92,10 +107,11 @@ test('successful operator orders all gates, campaign, then independent containme
   const dir = await mkdtemp(join(tmpdir(), 'u03-window-sequence-pass-'));
   try {
     const { result, calls, ledger } = await execute(dir);
-    assert.equal(result.status, 'PASS');
+    assert.equal(result.status, 'PASS', result.failure);
     assert.deepEqual(calls, ['preflight','install','runtime','campaign','contain']);
     assert.match(ledger, /independent-containment-and-final-read.*PASS/);
     assert.match(ledger, /u03-sql-final-result.*PASS/);
+    assert.match(ledger, /sequence-complete.*PASS/);
     assert.match(ledger, /h1a-global-result.*NOT_RUN/);
     assert.doesNotMatch(ledger, /preview-http-export|restore-local-twice/);
     assert.doesNotMatch(ledger, /fictional password|fictional-only-window-secret|private detail/);
@@ -109,6 +125,41 @@ test('Windows 5.1 wrapper records U03 global PASS only after independent contain
   const globalPass = script.indexOf("Write-U03WindowGlobalResult -RunId $windowRoleRunId -Status 'PASS'", teardown);
   assert.ok(containment >= 0 && teardown > containment && globalPass > teardown);
   assert.match(script, /if \(\$windowSequencePassed\) \{[\s\S]*Write-U03WindowGlobalResult -RunId \$windowRoleRunId -Status 'PASS'/);
+  const sequence = await readFile(new URL('./u03-preview-window-run.mjs', import.meta.url), 'utf8');
+  assert.match(sequence, /verifyWindowLedgerComplete\(ledgerPath, \{ runId, pin, includeFinal: false \}\)/);
+  assert.match(sequence, /sequence-complete', 'PASS'[\s\S]*verifyWindowLedgerComplete\(ledgerPath, \{ runId, pin \}\)/);
+});
+
+test('fixture ledger failures remain BLOCKED and cannot become wrapper PASS', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'u03-window-incomplete-ledger-'));
+  try {
+    const ledgerPath = join(dir, 'run.jsonl');
+    const ledgerFactory = async (path, metadata) => {
+      const base = await createWindowLedger(path, metadata);
+      return async (caseId, status, detail) => {
+        if (caseId === 'fixture-user-ownerA') return; // emulate a writer that silently omitted a row
+        return base(caseId, status, detail);
+      };
+    };
+    const result = await runPreviewWindowSequence({ databasePassword:'fictional password', runId:RUN, env:ENV, pin:PIN,
+      ledgerPath, ledgerFactory, configFn:async()=>({}), preflightFn:async()=>VERIFIED,
+      installFn:async ({ledger: roleLedger})=>{ await roleLedger('security_definer_allowlist','PASS','PREFLIGHT'); await roleLedger('writer_rls','PASS','PREFLIGHT'); return ROLE; },
+      runtimeFn:async()=>({passed:true,status:200}),
+      campaignFn:async ({ledger: campaignLedger})=>{
+        for (const [caseId,status] of [['fixture-user-ownerB','CREATED'],['auth-login-ownerA','PASS'],['auth-login-ownerB','PASS'],
+          ['fixture-organizations','CREATED'],['fixture-projects','CREATED'],['window-fixture-audit','PASS'],['window-fixture-result','PASS'],['window-fixture-import','PASS'],
+          ['i5-populated-audit_events','PASS'],['i5-populated-provider_results','PASS'],['i5-populated-imports','PASS'],['i5-populated-signed-rows','PASS'],
+          ['i2-protected-routes','PASS'],['window-i2-i5-populated-surfaces','PASS'],['window-cleanup-a1','PASS'],['window-cleanup-a2','PASS'],['window-cleanup-b1','PASS'],
+          ['fixture-cleanup','PASS'],['final-inventory','PASS'],['outbox-final','PASS'],['capabilities-final','PASS']]) await campaignLedger(caseId,status);
+        return {status:'PASS',cleanupResult:{ok:true},finalCheck:{inventoriesClear:true,outboxClear:true}};
+      }, containFn:async()=>CLEAN });
+    const ledger = await readFile(ledgerPath,'utf8');
+    assert.equal(result.status,'BLOCKED');
+    assert.equal(result.failure,'WINDOW_LEDGER_INCOMPLETE',JSON.stringify({ ledger:ledger.slice(-900) }));
+    assert.match(ledger,/"caseId":"i2-final-result","status":"BLOCKED"/);
+    assert.doesNotMatch(ledger,/"caseId":"sequence-complete","status":"PASS"/);
+    assert.equal(await verifyWindowLedgerComplete(ledgerPath,{runId:RUN,pin:PIN}),false);
+  } finally { await rm(dir,{recursive:true,force:true}); }
 });
 
 test('every prefixture boundary blocks campaign and contains an attempted role', async () => {
@@ -154,4 +205,23 @@ test('window ledger preserves owned UUIDs for reconciliation and only numeric cl
     assert.match(text, /"code":"SECDEF_QUERY_FAILED","sqlstate":"42501"/);
     assert.doesNotMatch(text, /XX999|owner@fixture.invalid|fictional-password|private free text|private fixture error/);
   } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('real campaign fixture phase names are normalized, bounded, and owner names stay distinct', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'u03-window-case-normalization-'));
+  try {
+    const path = join(dir,'cases.jsonl');
+    const ledger = await createWindowLedger(path,{runId:RUN,functionalSha:PIN.sha,deploymentId:PIN.deploymentId,host:PIN.host,ref:'rhnnplewqsekrnaousyl'});
+    for (const [caseId,status] of [['fixture-user-ownerA','PLANNED'],['auth-login-ownerA','PASS'],['fixture-user-ownerB','PLANNED'],
+      ['auth-login-ownerB','PASS'],['fixture-user-reconcile','RECOVERED'],['cleanup-user','PASS'],['cleanup-ids-verified','PASS']])
+      await ledger(caseId,status);
+    const rows = (await readFile(path,'utf8')).trim().split(/\r?\n/).map(line=>JSON.parse(line));
+    assert.deepEqual(rows.map(row=>row.caseId),['fixture-user-ownera','auth-login-ownera','fixture-user-ownerb',
+      'auth-login-ownerb','fixture-user-reconcile','cleanup-user','cleanup-ids-verified']);
+    assert.notEqual(rows.find(row=>row.caseId==='fixture-user-ownera').caseId,rows.find(row=>row.caseId==='fixture-user-ownerb').caseId);
+    await assert.rejects(ledger('fixture-user-ownerA/extra','PASS'),{message:'WINDOW_LEDGER_FIELD_REJECTED'});
+    await assert.rejects(ledger('x'.repeat(81),'PASS'),{message:'WINDOW_LEDGER_FIELD_REJECTED'});
+    await assert.rejects(ledger(null,'PASS'),{message:'WINDOW_LEDGER_FIELD_REJECTED'});
+    await assert.rejects(ledger('valid-case','bad-status'),{message:'WINDOW_LEDGER_FIELD_REJECTED'});
+  } finally { await rm(dir,{recursive:true,force:true}); }
 });
