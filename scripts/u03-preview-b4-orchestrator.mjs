@@ -391,7 +391,17 @@ async function invokeWindowFixture({ kind, tenantId, projectId, fixtures, runId,
   let response;
   try { response = await fetchImpl(url, { method: 'POST', headers, body: JSON.stringify({ kind, runId }), redirect: 'manual', signal: AbortSignal.timeout(20000) }); }
   catch { throw new Error(`WINDOW_FIXTURE_TRANSPORT_FAILED_${kind.toUpperCase()}`); }
-  if (response.status !== 200) throw new Error(`WINDOW_FIXTURE_HTTP_${kind.toUpperCase()}_${response.status}`);
+  if (response.status !== 200) {
+    // The fixture endpoint keeps its public body closed and small. Read only the enumerated
+    // 503 code; never forward arbitrary response text, details or SQL to the campaign ledger.
+    if (response.status === 503) {
+      const body = await response.json().catch(() => null);
+      const safe503 = new Set(['SIGNING_UNAVAILABLE', 'RECEIPT_PENDING']);
+      const code = body?.ok === false && safe503.has(body.code) ? body.code : 'UNCLASSIFIED';
+      throw new Error(`WINDOW_FIXTURE_HTTP_${kind.toUpperCase()}_503_${code}`);
+    }
+    throw new Error(`WINDOW_FIXTURE_HTTP_${kind.toUpperCase()}_${response.status}`);
+  }
   const body = await response.json().catch(() => null);
   if (body?.ok !== true || body.kind !== kind) throw new Error(`WINDOW_FIXTURE_RESPONSE_INVALID_${kind.toUpperCase()}`);
   await ledger(`window-fixture-${kind}`, 'PASS', { namespace: fixtures.namespace, id: body.id ?? null, count: body.seq ?? null });

@@ -744,6 +744,54 @@ test('I-2/I-5 surface proof never invokes export or restore', async () => {
   assert.equal(proof.i5, true);
 });
 
+test('window fixture 503 records only its enumerated server code', async () => {
+  const fixtureId = '94e1bcf1-f329-46e2-a312-79741809c8ae';
+  const seen = [];
+  const fixtures = { namespace: 'u03-c14f4c11570f', actorBearer: async () => ({ accessToken: 'fictional' }) };
+  const env = { VERCEL_OIDC_TOKEN: 'fictional-oidc', U03_PREVIEW_WRITER_WINDOW_SECRET: 'fictional-window-secret' };
+  await assert.rejects(runProtectedWindowSurfaces({ fixtures, a1: fixtureId,
+    runId: 'c14f4c11-570f-4e03-a3a1-33a702b85baa', env,
+    fetchImpl: async (_url, options) => {
+      const kind = JSON.parse(options.body).kind;
+      seen.push(kind);
+      if (kind === 'result') return { status: 503, json: async () => ({ ok: false, code: 'RECEIPT_PENDING',
+        detail: 'postgres://should-never-be-recorded password=private' }) };
+      return { status: 200, json: async () => ({ ok: true, kind, seq: 7 }) };
+    }, ledger: async () => {},
+  }), error => {
+    assert.equal(error.message, 'WINDOW_FIXTURE_HTTP_RESULT_503_RECEIPT_PENDING');
+    assert.doesNotMatch(error.message, /postgres|password|private/i);
+    return true;
+  });
+  assert.deepEqual(seen, ['audit', 'result']);
+});
+
+test('window fixture 503 with an unknown body code remains safely unclassified', async () => {
+  const fixtureId = '94e1bcf1-f329-46e2-a312-79741809c8ae';
+  const fixtures = { namespace: 'u03-c14f4c11570f', actorBearer: async () => ({ accessToken: 'fictional' }) };
+  await assert.rejects(runProtectedWindowSurfaces({ fixtures, a1: fixtureId,
+    runId: 'c14f4c11-570f-4e03-a3a1-33a702b85baa',
+    env: { VERCEL_OIDC_TOKEN: 'fictional-oidc', U03_PREVIEW_WRITER_WINDOW_SECRET: 'fictional-window-secret' },
+    fetchImpl: async (_url, options) => JSON.parse(options.body).kind === 'audit'
+      ? { status: 200, json: async () => ({ ok: true, kind: 'audit', seq: 7 }) }
+      : { status: 503, json: async () => ({ ok: false, code: 'DATABASE_DSN_AND_SECRET' }) },
+    ledger: async () => {},
+  }), error => error.message === 'WINDOW_FIXTURE_HTTP_RESULT_503_UNCLASSIFIED');
+});
+
+test('window fixture 503 distinguishes signing setup from unresolved receipt without exposing body details', async () => {
+  const fixtureId = '94e1bcf1-f329-46e2-a312-79741809c8ae';
+  const fixtures = { namespace: 'u03-c14f4c11570f', actorBearer: async () => ({ accessToken: 'fictional' }) };
+  await assert.rejects(runProtectedWindowSurfaces({ fixtures, a1: fixtureId,
+    runId: 'c14f4c11-570f-4e03-a3a1-33a702b85baa',
+    env: { VERCEL_OIDC_TOKEN: 'fictional-oidc', U03_PREVIEW_WRITER_WINDOW_SECRET: 'fictional-window-secret' },
+    fetchImpl: async (_url, options) => JSON.parse(options.body).kind === 'audit'
+      ? { status: 200, json: async () => ({ ok: true, kind: 'audit', seq: 7 }) }
+      : { status: 503, json: async () => ({ ok: false, code: 'SIGNING_UNAVAILABLE', detail: 'must not be copied' }) },
+    ledger: async () => {},
+  }), error => error.message === 'WINDOW_FIXTURE_HTTP_RESULT_503_SIGNING_UNAVAILABLE');
+});
+
 test('directed window never deletes projects when product receipt reconciliation fails', async () => {
   const events = [];
   const runId = 'c14f4c11-570f-4e03-a3a1-33a702b85baa';

@@ -27,7 +27,8 @@
     "db:reset": "npx --yes supabase@2.118.0 db reset",
     "test:db": "npx --yes supabase@2.118.0 test db",
     "test:integration": "vitest run --config vitest.integration.config.mts",
-    "test:u03-http-restore": "node scripts/u03-window-local-http-restore.mjs"
+    "test:u03-http-restore": "node scripts/u03-window-local-http-restore.mjs",
+    "test:u03-window-fixture-result": "node scripts/u03-window-fixture-result-local.mjs"
   },
   "dependencies": {
     "@rubik/seo-geo-core": "git+https://github.com/Juanmaes83/RUBIK-SEO-GEO-CORE.git#2aaf12700542e4499cfdd27a491d072abb635ca2",

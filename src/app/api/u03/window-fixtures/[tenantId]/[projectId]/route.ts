@@ -1,11 +1,10 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { projectAccess } from "@/lib/access";
 import { providers, type Role } from "@/lib/core";
 import { currentUser } from "@/lib/auth/session";
 import { serverKeyring } from "@/lib/provenance/keyring";
-import { appendAudit, storeProviderResult } from "@/lib/provenance/repository";
-import { signProviderReceipt } from "@/lib/provenance/outbox";
+import { appendAudit, loadProviderResult, storeProviderResult } from "@/lib/provenance/repository";
 import { createBearerClient, createClient } from "@/lib/supabase/server";
 import { myProjectMembership } from "@/lib/tenancy";
 import { importFile, loadProjectRef } from "@/lib/imports/repository";
@@ -16,6 +15,14 @@ export const dynamic = "force-dynamic";
 
 function fail(status: number, code: string) {
   return NextResponse.json({ ok: false, code }, { status, headers: { "Cache-Control": "no-store" } });
+}
+
+function fixtureResultId(runId: string, projectId: string, actorId: string) {
+  const bytes = createHash("sha256").update(`u03-window-provider-result-v1\n${runId}\n${projectId}\n${actorId}`).digest().subarray(0, 16);
+  bytes[6] = (bytes[6] & 0x0f) | 0x50;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = bytes.toString("hex");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 /** Only test-window mutation endpoint: HMAC capability bound to the exact deployment and run. */
@@ -46,13 +53,19 @@ export async function POST(request: Request, context: { params: Promise<{ tenant
       const synthetic = await providers.runProviderRequest({ provider: "search-console", operation: "searchAnalytics",
         input: { siteUrl: "sc-domain:fixture.invalid", startDate: "2026-10-01", endDate: "2026-10-01", rowLimit: 1 },
         transport: { kind: "live", request: async () => ({ rows: [{ query: "u03 synthetic", clicks: 1, impressions: 1, ctr: 1, averagePosition: 1 }], truncated: false }) },
-        clock: () => new Date(), budget: { maxUnits: 1, maxRequests: 1 } });
+        // Fixed fixture time plus run-scoped ID makes a retry byte-for-byte idempotent.
+        clock: () => new Date("2026-10-01T00:00:00.000Z"), budget: { maxUnits: 1, maxRequests: 1 } });
       if (!providers.isTrustedResult(synthetic)) return fail(422, "SYNTHETIC_RESULT_REJECTED");
-      const id = randomUUID();
+      const id = fixtureResultId(input.runId, project.projectId, user.id);
       const stored = await storeProviderResult(supabase, project, synthetic, keyring, { operationId: id });
       if (!stored.ok) return fail(409, "FIXTURE_WRITE_FAILED");
-      const receipt = await signProviderReceipt(project, "google.capture", id, keyring);
-      return receipt.ok ? NextResponse.json({ ok: true, kind: "result", id }, { headers: { "Cache-Control": "no-store" } }) : fail(503, "RECEIPT_PENDING");
+      // This synthetic evidence is a signed provider_results row, not a Google capture.
+      // google.capture receipts are enqueued only by the google_captures STORED trigger.
+      // Verify the persisted row through the owner's RLS client; cleanup later resolves its
+      // real provider-results.erase receipt through the normal outbox processor.
+      const verified = await loadProviderResult(supabase, project, stored.id, keyring);
+      if (!verified.ok || !verified.verification.verified) return fail(409, "FIXTURE_RESULT_VERIFICATION_FAILED");
+      return NextResponse.json({ ok: true, kind: "result", id: stored.id }, { headers: { "Cache-Control": "no-store" } });
     }
     if (input.kind === "import") {
       const bytes = new TextEncoder().encode(JSON.stringify({ format: "rubik-import-v1", scope: project.scope,

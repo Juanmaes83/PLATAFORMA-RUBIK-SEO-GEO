@@ -351,3 +351,13 @@ El run `ab423d60-d048-45f0-9a89-cfd467e7111e` acreditó el nuevo rol por Session
 ## Run dd0a179e: ledger de fixtures y estado actual · 21/10/2026
 
 El run `dd0a179e-20b0-4d2a-b631-46852d0debfe` permanece BLOCKED en sus ledgers originales. El nuevo rol por Session pooler y `deployment-runtime-pooler-proof` pasaron; el rechazo de caseId ocurrió al comenzar fixtures y no hubo positivos I-2/I-5. Lectura independiente posterior: Preview `rhnnplewqsekrnaousyl`, inventario y outbox total/pending cero, rol/políticas/sesiones temporales ausentes, escritor general bloqueado. Esta lectura no modifica el ledger. Se corrigió el canonizador del caseId y se añadió validación de integridad de fases antes de PASS; detalles en el runbook de ventana. Fix local publicado pendiente de rotación DPAPI nueva, deployment/atestación exactos y otra lectura de preflight. No repetir las campañas anteriores; no ejecutar fixtures hasta los gates sin contraseña. U03/I-2/I-5 siguen abiertos; H1-A separado.
+
+## #143 - diagnostico del resultado sintetico - 21/10/2026
+
+El run alojado 6f59f06d-03db-4816-aad8-3b2e670ad32d queda BLOCKED y su ledger original permanece intacto. Session pooler, runtime y auditoria pasaron; el fixture de resultado respondio HTTP 503; limpieza y contencion quedaron a cero segun la lectura independiente reportada. El deployment retirado ya no aparece en Vercel Logs, asi que no se afirma cual de los dos codigos 503 respondio en aquel run.
+
+La reproduccion del handler en N1 local (27 migraciones) comprobo que storeProviderResult guarda una fila firmada pero no crea google.capture. Ese recibo requiere la transicion de google_captures a STORED; el intento antiguo de firmar por ID de resultado devolvio RECEIPT_NOT_FOUND y terminaba como RECEIPT_PENDING. Fix: firma verificada por lectura RLS, ID y timestamp de fixture deterministas para retries, y limpieza por provider-results.erase usando el procesador real. El operador registra solo codigos 503 enumerados.
+
+La prueba local cubrio positivo, verificacion criptografica, retry, negativos, recibo de borrado/retry idempotente y limpieza; el rol y las politicas se retiraron y el stack propio se retiro. No es evidencia del Session pooler de Preview. No hubo campana alojada ni se repitieron PASS previos. I-2/I-5 y U03 siguen abiertos hasta los positivos alojados; H1-A no se ejecuto.
+
+Checks: test:u03-window-fixture-result PASS N1 27/27; test:u03-b4 140/140; verify 638 PASS / 1 SKIP; secret scan 774; lint/typecheck/build PASS. Actions sigue bloqueada por facturacion.
