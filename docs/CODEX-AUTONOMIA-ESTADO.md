@@ -1,5 +1,9 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
+## Reconciliación urgente del run 840261c6 · 21/10/2026
+
+PR #143 sigue Draft. `install-role-nologin PASS`, pero no hubo activación, conexión del nuevo rol por Session pooler ni fixtures. La lectura independiente comunicada por Juanma indica rol propio NOLOGIN, cuatro políticas, cero sesiones, inventario y outbox cero. El diagnóstico dirigido del login NOLOGIN devolvió `DatabaseError` sin SQLSTATE; el ledger original no desglosa la etapa exacta de `blockRole`. Se añadió clasificación por etapa y recuperación limitada al run con prelectura estricta, rollback e inventario final independiente. La operación alojada requiere la entrada oculta local del propietario; hasta su PASS, variables/deployment/vault permanecen y no se abre otra campaña. I-2/I-5 y H1-A alojados, U03/H1/H2 siguen abiertos.
+
 ## Corte 21/10/2026 · U03 principal mínimo
 
 PR #143 permanece Draft. [Contrato y evidencia](U03-PRINCIPAL-MINIMO-20261021.md): el login temporal ya no asume `rubik_audit_writer`, que tiene cuatro funciones `SECURITY DEFINER` efectivas por N1. El principal separado conserva solo dos y las RPC de proveedores quedan denegadas; no se retiraron grants compartidos. En stack N1 27/27, el run local `f2b1eff8-95f7-4482-84d5-cacba318e4ab` pasó firma de auditoría/resultado, import, RLS poblada A/B y otro run, outbox/reintento y denegación de sesión abierta tras caducidad/NOLOGIN. HTTP por loopback y restauración doble a segundo stack local pasaron. Lecturas independientes: inventario/outbox/rol/políticas/sesiones cero; ambos stacks retirados. No hubo SQL ni fixtures en Preview. Session pooler del nuevo rol, I-2/I-5 alojado y H1-A alojado siguen BLOCKED hasta deployment y comprobación alojada. U03/H1/H2 abiertos; Actions no verde.

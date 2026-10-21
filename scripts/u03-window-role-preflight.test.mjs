@@ -6,8 +6,8 @@ import test from 'node:test';
 import { deriveTemporaryPassword, EXPECTED_DEFINERS, EXPECTED_N1_MIGRATIONS,
   createPreviewAdminPool, createPreviewRolePool, POOLER_HOST, PINNED_POOLER_CA, PREVIEW_REF, ROLE, WRITER,
   assertNodeClientTls, assertReadOnlyState, classifyDiagnosticError, diagnoseReadOnlyPreflight, PreflightConditionError,
-  runIndependentContainment, runWindowRolePreflight, installAndProbeRunScopedRole,
-  buildRunScopedInstallSql,
+  runIndependentContainment, runWindowRolePreflight, installAndProbeRunScopedRole, recoverInstalledRun,
+  buildRunScopedInstallSql, blockRole, ContainmentStageError,
   previewWindowRolePassword } from './u03-window-role-preflight.mjs';
 
 const RUN = '5b02bb37-2ef8-4af1-8954-56fd496cd121';
@@ -110,6 +110,7 @@ class AdminPool {
     if (sql.trim().startsWith('select oid from pg_roles')) return { rows: [{ oid: 7001 }] };
     if (sql.includes('pg_terminate_backend')) { this.state.sessions = 0; return { rows: [{ pg_terminate_backend: true }] }; }
     if (sql.includes('select count(*)::int as count from pg_stat_activity')) return { rows: [{ count: this.state.sessions }] };
+    if (sql.includes('select not r.rolcanlogin as locked')) return { rows: [{ locked: !this.state.login, sessions: this.state.sessions }] };
     if (sql.includes("where usename='rubik_preview_u03_writer'")) return { rows: [{ count: this.state.sessions }] };
     if (sql.includes("select shobj_description(oid,'pg_authid') as marker,rolcanlogin")) return { rows: this.state.role ? [{ marker: this.state.marker, rolcanlogin: this.state.login }] : [] };
     if (sql.includes('select count(*)::int as n from pg_stat_activity')) return { rows: [{ n: this.state.sessions }] };
@@ -471,6 +472,83 @@ test('failed independent NOLOGIN containment remains BLOCKED and never claims cl
   assert.doesNotMatch(ledger, /finally-independent-containment.*PASS/);
   for (const secret of secrets) assert.equal(ledger.includes(secret), false);
   await rm(folder, { recursive: true, force: true });
+});
+
+test('Supavisor DatabaseError without SQLSTATE is contained by independent catalog and session readback', async () => {
+  const state = freshState();
+  state.role = true; state.policies = 4;
+  class DatabaseError extends Error {}
+  const ledger = [];
+  const result = await blockRole(new AdminPool(state), 'fictional-generated-role-password', undefined, RUN,
+    () => ({ async connect() { throw new DatabaseError(DB_PASSWORD); }, async end() {} }),
+    async (...row) => { ledger.push(row); });
+  assert.equal(result.contained, true);
+  assert.equal(result.reloginRejected, false);
+  assert.equal(result.catalogOnly, true);
+  assert.ok(ledger.some(row => row[0] === 'containment-new-login' && row[1] === 'PASS' &&
+    row[3] === 'CONTAINMENT_NEW_LOGIN_CATALOG_ONLY'));
+  assert.equal(JSON.stringify(ledger).includes(DB_PASSWORD), false);
+});
+
+test('containment stage records a failed administrative step without leaking PostgreSQL text', async () => {
+  const state = freshState({ failNoLogin: true });
+  state.role = true;
+  const ledger = [];
+  await assert.rejects(blockRole(new AdminPool(state), 'fictional-generated-role-password', undefined, RUN,
+    () => new RolePool(state), async (...row) => { ledger.push(row); }),
+  error => error instanceof ContainmentStageError && error.code === 'CONTAINMENT_NOLOGIN_QUERY_FAILED');
+  assert.ok(ledger.some(row => row[0] === 'containment-nologin' && row[1] === 'BLOCKED' && row[4] === '42501'));
+  assert.equal(JSON.stringify(ledger).includes(DB_PASSWORD), false);
+});
+
+test('one-run recovery verifies residue before rollback and independently checks original guard and zero inventory', async () => {
+  const recoveryRun = '840261c6-e410-4e25-893a-9206fd3f74ef';
+  const folder = await mkdtemp(join(tmpdir(), 'u03-owned-recovery-'));
+  const state = freshState();
+  state.role = true; state.policies = 4; state.marker = `u03-window:${recoveryRun}`;
+  state.guardOriginal = false;
+  const namespace = 'u03-840261c6e410';
+  class RecoveryPool extends AdminPool {
+    async query(sql, params = []) {
+      if (sql.includes("select shobj_description(oid,'pg_authid') as marker,rolcanlogin"))
+        return { rows: state.role ? [{marker:state.marker,rolcanlogin:state.login}] : [] };
+      if (sql.includes('from pg_policies where policyname like $1')) return { rows: Array.from({length: state.policies}, (_, index) => {
+        const relation = [['public','audit_events'],['public','provider_results'],['private','audit_idempotency'],['private','audit_outbox']][index];
+        const suffix = relation[1];
+        const qual = `${namespace}-a ${namespace}-b u03-window:${recoveryRun} statement_timestamp() rolcanlogin rolvaliduntil`;
+        return { policyname: `u03_preview_writer_840261c6e410_${suffix}`, schemaname: relation[0],
+          tablename: relation[1], cmd: 'ALL', permissive: 'PERMISSIVE', roles: [ROLE], qual, with_check: qual };
+      }) };
+      if (sql.includes('from pg_stat_activity where usename=$1')) return { rows: [{n: state.sessions}] };
+      if (sql.includes('pg_get_functiondef')) return { rows: [{security_definer:false,body: state.guardOriginal
+        ? `session_user <> 'rubik_audit_writer' current_setting('role', true) <> 'rubik_audit_writer' session_user = 'postgres' raise exception 'trusted provider writer required'`
+        : `${ROLE} u03-window:${recoveryRun} session_user <> 'rubik_audit_writer' current_setting('role', true) <> 'rubik_audit_writer'`}] };
+      if (sql.startsWith('do $u03$ begin')) { state.writeQueries++; state.role=false; state.policies=0; state.guardOriginal=true; return {rows:[]}; }
+      return super.query(sql, params);
+    }
+  }
+  try {
+    state.marker = 'u03-window:another-run';
+    await assert.rejects(recoverInstalledRun({databasePassword:DB_PASSWORD,runId:recoveryRun,
+      adminPoolFactory:()=>new RecoveryPool(state),ledgerPath:join(folder,'recovery.jsonl')}), /OWNED_WINDOW_RECOVERY_BLOCKED/);
+    assert.equal(state.writeQueries,0,'foreign marker must stop before rollback');
+    state.marker = `u03-window:${recoveryRun}`;
+    let final;
+    try {
+      final = await recoverInstalledRun({databasePassword:DB_PASSWORD, runId:recoveryRun,
+        adminPoolFactory:()=>new RecoveryPool(state), ledgerPath:join(folder,'recovery.jsonl')});
+    } catch {
+      assert.fail((await readFile(join(folder,'recovery.jsonl'),'utf8')).replaceAll(DB_PASSWORD,'[REDACTED]'));
+    }
+    assert.equal(final.status,'PASS');
+    assert.equal(final.guardOriginal,true);
+    assert.equal(state.writeQueries,1);
+    assert.equal(state.role,false);
+    assert.equal(state.policies,0);
+    const ledger = await readFile(join(folder,'recovery.jsonl'),'utf8');
+    assert.match(ledger,/recovery-final-read.*PASS/);
+    assert.equal(ledger.includes(DB_PASSWORD),false);
+  } finally { await rm(folder,{recursive:true,force:true}); }
 });
 
 test('extra SECURITY DEFINER reachable before SET ROLE blocks and rolls back the temporary role', async () => {

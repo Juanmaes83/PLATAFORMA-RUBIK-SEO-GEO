@@ -3,6 +3,7 @@ param(
   [switch]$V4ConnectionDiagnosticOnly,
   [switch]$WindowRolePreflightOnly,
   [switch]$WindowRoleReadOnlyDiagnosticOnly,
+  [switch]$WindowRecoveryOnly,
   [switch]$WindowI2I5H1A,
   [switch]$WindowBatchAttestationOnly,
   [switch]$ProvisionWindowSecrets,
@@ -61,7 +62,7 @@ function Invoke-U03WindowRoleChild([string]$Mode, [string]$RunId, [string]$Passw
   $payload = $null
   $payloadBytes = $null
   try {
-    if ($Mode -notin @('run','contain','diagnose','sequence','attest','local','keys') -or $RunId -cnotmatch '^[0-9a-fA-F-]{36}$' -or
+    if ($Mode -notin @('run','contain','diagnose','recover','sequence','attest','local','keys') -or $RunId -cnotmatch '^[0-9a-fA-F-]{36}$' -or
         (($Mode -notin @('attest','local','keys')) -and [string]::IsNullOrWhiteSpace($PasswordText)) -or
         ($Mode -eq 'sequence' -and ($null -eq $PreviewKeys -or [string]::IsNullOrWhiteSpace([string]$PreviewKeys.AdminKey) -or [string]::IsNullOrWhiteSpace([string]$PreviewKeys.PublicKey))) -or
         -not (Test-Path -LiteralPath $ChildPath -PathType Leaf)) {
@@ -129,6 +130,8 @@ function Invoke-U03WindowRoleChild([string]$Mode, [string]$RunId, [string]$Passw
       '^U03_PREVIEW_WINDOW_SEQUENCE (PASS|BLOCKED) runId=[0-9a-fA-F-]{36} ledger=[^\r\n]+$'
     } elseif ($Mode -eq 'run') {
       '^U03_WINDOW_ROLE_RESULT (PASS|BLOCKED) runId=[0-9a-fA-F-]{36} roleRemoved=(?:true|false|True|False) policies=\d+ inventoryZero=(?:true|false|True|False) outboxTotal=\d+ pending=\d+$'
+    } elseif ($Mode -eq 'recover') {
+      '^U03_WINDOW_RECOVERY PASS runId=840261c6-e410-4e25-893a-9206fd3f74ef rolePresent=false policies=0 sessions=0 inventoryZero=true outboxTotal=0 pending=0 guardOriginal=true writerLocked=true$'
     } elseif ($Mode -eq 'contain') {
       '^U03_WINDOW_ROLE_CONTAINMENT PASS runId=[0-9a-fA-F-]{36} rolePresent=(?:true|false|True|False) roleLocked=(?:true|false|True|False|null) policies=\d+ activeSessions=\d+ inventoryZero=(?:true|false|True|False) outboxTotal=\d+ pending=\d+$'
     } else {
@@ -181,8 +184,9 @@ function Invoke-U03WindowVercelCli([string[]]$Arguments, [string]$InputText = ''
     }
     $process.StandardInput.Close()
     if (-not $process.WaitForExit(120000)) { try { $process.Kill() } catch { }; Stop-B4 'WINDOW_VERCEL_CHILD_TIMEOUT' }
-    $stdout = $stdoutTask.GetAwaiter().GetResult(); $null = $stderrTask.GetAwaiter().GetResult()
-    return [pscustomobject]@{ ExitCode=$process.ExitCode; Output=$stdout }
+    $stdout = $stdoutTask.GetAwaiter().GetResult(); $stderrText = $stderrTask.GetAwaiter().GetResult()
+    $notFound = ($process.ExitCode -ne 0 -and ($stderrText -match 'Deployment not found \(404\)' -or $stdout -match 'Deployment not found \(404\)'))
+    return [pscustomobject]@{ ExitCode=$process.ExitCode; Output=$stdout; DeploymentNotFound=[bool]$notFound }
   } catch {
     if ($_.Exception.Message -like 'U03 B-4 BLOCKED:*') { throw }
     return [pscustomobject]@{ ExitCode=1; Output='' }
@@ -326,7 +330,7 @@ foreach ($requested in @($ProvisionPreviewKeys.IsPresent, $CheckPreviewKeys.IsPr
   if ($requested) { $credentialOperations++ }
 }
 $campaignModes = @($ReadOnlyPreflightOnly.IsPresent, $V4ConnectionDiagnosticOnly.IsPresent, $WindowRolePreflightOnly.IsPresent,
-  $WindowRoleReadOnlyDiagnosticOnly.IsPresent, $WindowI2I5H1A.IsPresent, $WindowBatchAttestationOnly.IsPresent,
+  $WindowRoleReadOnlyDiagnosticOnly.IsPresent, $WindowRecoveryOnly.IsPresent, $WindowI2I5H1A.IsPresent, $WindowBatchAttestationOnly.IsPresent,
   $ProvisionWindowSecrets.IsPresent,
   $WindowTransportSelfTestOnly.IsPresent,
   $WindowRoleTransportSelfTestOnly.IsPresent,
@@ -361,6 +365,7 @@ if ($SessionProvidersOnly -and $branch -ne 'codex/u03-session-gates-20261020') {
 if ($ProviderEgressOnly -and $branch -ne 'codex/u03-final-gates-20261020') { Stop-B4 'WRONG_MODE_BRANCH' }
 if ($WindowRolePreflightOnly -and $branch -ne 'codex/u03-final-gates-20261020') { Stop-B4 'WRONG_MODE_BRANCH' }
 if ($WindowRoleReadOnlyDiagnosticOnly -and $branch -ne 'codex/u03-final-gates-20261020') { Stop-B4 'WRONG_MODE_BRANCH' }
+if ($WindowRecoveryOnly -and $branch -ne 'codex/u03-final-gates-20261020') { Stop-B4 'WRONG_MODE_BRANCH' }
 if ($WindowI2I5H1A -and $branch -ne 'codex/u03-final-gates-20261020') { Stop-B4 'WRONG_MODE_BRANCH' }
 if ($WindowBatchAttestationOnly -and $branch -ne 'codex/u03-final-gates-20261020') { Stop-B4 'WRONG_MODE_BRANCH' }
 if ($ProvisionWindowSecrets -and $branch -ne 'codex/u03-final-gates-20261020') { Stop-B4 'WRONG_MODE_BRANCH' }
@@ -442,6 +447,8 @@ try {
     if ($failedChild.Passed -or $failedChild.SafeLine -notmatch '^U03_WINDOW_ROLE_RESULT BLOCKED ') { Stop-B4 'WINDOW_ROLE_CHILD_FAILURE_TEST_FAILED' }
     $diagnosticChild = Invoke-U03WindowRoleChild -Mode 'diagnose' -RunId $windowRoleRunId -PasswordText $fakePassword -ChildPath $testChild
     if ($diagnosticChild.Passed -or $diagnosticChild.SafeLine -notmatch '^U03_WINDOW_ROLE_READONLY_DIAGNOSTIC BLOCKED .*category=DNS code=EAI_AGAIN sqlstate=NONE condition=NONE$') { Stop-B4 'WINDOW_ROLE_DIAGNOSTIC_OUTPUT_TEST_FAILED' }
+    $recoveryChild = Invoke-U03WindowRoleChild -Mode 'recover' -RunId '840261c6-e410-4e25-893a-9206fd3f74ef' -PasswordText $fakePassword -ChildPath $testChild
+    if (-not $recoveryChild.Passed -or $recoveryChild.SafeLine -notmatch '^U03_WINDOW_RECOVERY PASS .*guardOriginal=true writerLocked=true$') { Stop-B4 'WINDOW_RECOVERY_UTF8_TRANSPORT_TEST_FAILED' }
     $prepareFailure = Invoke-U03WindowRoleChild -Mode 'run' -RunId $windowRoleRunId -PasswordText $fakePassword -ChildPath (Join-Path $env:TEMP 'u03-missing-child-test.mjs')
     if ($prepareFailure.Passed) { Stop-B4 'WINDOW_ROLE_CHILD_PREPARATION_FAILURE_TEST_FAILED' }
     $sequenceOperator = Join-Path $PSScriptRoot 'u03-preview-window-run.mjs'
@@ -456,6 +463,9 @@ try {
       $previousCli = $env:U03_VERCEL_CLI; $env:U03_VERCEL_CLI = $fakeCli
       $stderrResult = Invoke-U03WindowVercelCli -Arguments @('env','rm','FAKE_NAME','preview','--yes') -InputText ''
       if ($stderrResult.ExitCode -ne 23 -or $stderrResult.Output -ne '') { Stop-B4 'WINDOW_CLI_STDERR_TRANSPORT_REGRESSION_FAILED' }
+      [IO.File]::WriteAllText($fakeCli,"@echo off`r`necho Error: Deployment not found (404) 1>&2`r`nexit /b 1`r`n",[Text.Encoding]::ASCII)
+      $absentResult = Invoke-U03WindowVercelCli -Arguments @('api','/v13/deployments/dpl_Fake123') -InputText ''
+      if (-not $absentResult.DeploymentNotFound) { Stop-B4 'WINDOW_DEPLOYMENT_ABSENCE_CLASSIFIER_FAILED' }
     } finally {
       if ($null -eq $previousCli) { Remove-Item Env:U03_VERCEL_CLI -ErrorAction SilentlyContinue } else { $env:U03_VERCEL_CLI = $previousCli }
       Remove-Item -LiteralPath $fakeCli -Force -ErrorAction SilentlyContinue
@@ -530,6 +540,39 @@ try {
 
   Push-Location -LiteralPath $repo
   $pushed = $true
+  if ($WindowRecoveryOnly) {
+    $recoveryRun = '840261c6-e410-4e25-893a-9206fd3f74ef'
+    $recoveryDeployment = 'dpl_BG4ZUh8Az77KcHNi7tv9ezexqzz5'
+    if ($RunId -and $RunId -cne $recoveryRun) { Stop-B4 'WINDOW_RECOVERY_RUN_MISMATCH' }
+    try { $recoveryBatch = Get-U03WindowBatch } catch { Stop-B4 'WINDOW_RECOVERY_VAULT_UNAVAILABLE' }
+    if ($recoveryBatch.RunId -cne $recoveryRun -or $recoveryBatch.Sha -cne 'd8883c6944a33982e31135784ed20a6e2ff056c8' -or
+        $recoveryBatch.ProjectId -cne 'prj_HgnTtNtisi9Kt1A4Dq2pxoCQBook' -or
+        $recoveryBatch.SupabaseRef -cne 'rhnnplewqsekrnaousyl' -or
+        $recoveryBatch.Branch -cne 'codex/u03-final-gates-20261020') { Stop-B4 'WINDOW_RECOVERY_VAULT_IDENTITY_MISMATCH' }
+    $recoveryBatch = $null
+    $secureDatabasePassword = Read-Host -Prompt 'Recuperación del run 840261c6: Database password existente de Supabase Preview (entrada oculta)' -AsSecureString
+    $passwordBstr = [IntPtr]::Zero
+    try {
+      $passwordBstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureDatabasePassword)
+      $windowRolePlainPassword = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($passwordBstr)
+      if ([string]::IsNullOrEmpty($windowRolePlainPassword)) { Stop-B4 'WINDOW_RECOVERY_PASSWORD_EMPTY' }
+      $result = Invoke-U03WindowRoleChild -Mode 'recover' -RunId $recoveryRun -PasswordText $windowRolePlainPassword
+      if ($result.SafeLine) { Write-Output $result.SafeLine }
+      if (-not $result.Passed) { Stop-B4 'WINDOW_RECOVERY_SQL_OR_FINAL_READ_BLOCKED' }
+    } finally {
+      if ($passwordBstr -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($passwordBstr) }
+      if ($secureDatabasePassword) { $secureDatabasePassword.Dispose(); $secureDatabasePassword = $null }
+      $windowRolePlainPassword = $null
+    }
+    if (-not (Remove-U03WindowDeploymentConfiguration -DeploymentId $recoveryDeployment)) {
+      Stop-B4 'WINDOW_RECOVERY_BRANCH_VARIABLE_OR_DEPLOYMENT_TEARDOWN_BLOCKED'
+    }
+    $inspection = Invoke-U03WindowVercelCli -Arguments @('api',"/v13/deployments/$recoveryDeployment") -InputText ''
+    if (-not $inspection.DeploymentNotFound) { Stop-B4 'WINDOW_RECOVERY_DEPLOYMENT_ABSENCE_UNVERIFIED' }
+    if (-not (Remove-U03WindowBatch)) { Stop-B4 'WINDOW_RECOVERY_VAULT_REMOVE_FAILED' }
+    Write-Output 'U03_WINDOW_RECOVERY_TEARDOWN PASS branchVariablesAbsent=true deploymentAbsent=true vaultRemoved=true'
+    return
+  }
   if ($WindowRolePreflightOnly -or $WindowRoleReadOnlyDiagnosticOnly -or $WindowI2I5H1A -or $WindowBatchAttestationOnly) {
     if (-not (Test-Path -LiteralPath $windowRoleOperator)) { Stop-B4 'WINDOW_ROLE_OPERATOR_MISSING' }
     if ($WindowI2I5H1A -or $WindowBatchAttestationOnly) {
