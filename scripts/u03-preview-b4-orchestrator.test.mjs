@@ -4,11 +4,28 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { chromiumEnvironment, networkEnvironment, PIN } from './u03-preview-b4-runner.mjs';
-import { PREFLIGHT_RESULT_FIELDS, PREFLIGHT_SQL, PRIOR_DATA_API_RUN_ID, parseCliJson, readPreviewAuthSettings, runHostedU03Campaign, runProtectedWindowSurfaces, runPreviewReadOnlySql, runReadOnlyPreflight, safeLedgerDetail, verifyFinalPreviewState, verifyInitialPreviewState, verifyReadOnlyPreviewState } from './u03-preview-b4-orchestrator.mjs';
+import { PREFLIGHT_RESULT_FIELDS, PREFLIGHT_SQL, PRIOR_DATA_API_RUN_ID, parseCliJson, readPreviewAuthSettings, runHostedU03Campaign, runProtectedWindowSurfaces, runPreviewReadOnlySql, runReadOnlyPreflight, safeLedgerDetail, verifyFinalPreviewState, verifyInitialPreviewState, verifyProtectedWindowRuntime, verifyReadOnlyPreviewState } from './u03-preview-b4-orchestrator.mjs';
 import { V4_SECURITY_DEFINER_ALLOWLIST } from './u03-preview-v4-receipt.mjs';
 
 const runId = 'u03-orchestrator-test-run';
 const sha = 'a'.repeat(40);
+
+test('signed runtime probe records only allowlisted stage codes from the fixed host', async () => {
+  const run = 'c14f4c11-570f-4e03-a3a1-33a702b85baa';
+  const env = { U03_PREVIEW_WRITER_WINDOW: 'armed-run-capability', U03_PREVIEW_WRITER_WINDOW_RUN_ID: run,
+    U03_PREVIEW_WRITER_WINDOW_REF: PIN.supabaseRef, U03_PREVIEW_WRITER_WINDOW_SHA: PIN.sha,
+    U03_PIN_DEPLOYMENT_ID: PIN.deploymentId, U03_PIN_DEPLOYMENT_HOST: PIN.host, U03_PIN_DEPLOYMENT_SHA: PIN.sha,
+    U03_PREVIEW_WRITER_WINDOW_SECRET: 'fictional-secret', VERCEL_OIDC_TOKEN: 'fictional-token' };
+  const response = (code, url = `https://${PIN.host}/api/u03/window`) => ({ status: 404, url,
+    headers: { get: () => code } });
+  await assert.rejects(verifyProtectedWindowRuntime({ runId: run, env,
+    fetchImpl: async () => response('RUNTIME_CLIENT_TLS_REJECTED') }), { message: 'RUNTIME_CLIENT_TLS_REJECTED' });
+  await assert.rejects(verifyProtectedWindowRuntime({ runId: run, env,
+    fetchImpl: async () => response('free-form-secret') }), { message: 'WINDOW_RUNTIME_PREFLIGHT_HTTP_404' });
+  await assert.rejects(verifyProtectedWindowRuntime({ runId: run, env,
+    fetchImpl: async () => response('RUNTIME_CLIENT_TLS_REJECTED', 'https://other.example/api/u03/window') }),
+  { message: 'WINDOW_RUNTIME_EXTERNAL_RESPONSE_REJECTED' });
+});
 
 test('ledger retains only categorized browser diagnostics and discards unsafe strings', () => {
   const safe = safeLedgerDetail({

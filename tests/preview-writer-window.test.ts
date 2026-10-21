@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { previewWriterScopeAllowed, previewWriterWindowActive } from "@/lib/provenance/preview-writer-window";
-import { previewWindowMac, withPreviewWriterCapability } from "@/lib/provenance/preview-writer-capability";
+import { previewWindowMac, previewWriterCapabilityRejection, withPreviewWriterCapability } from "@/lib/provenance/preview-writer-capability";
 
 const now = Date.parse("2026-10-20T10:00:00.000Z");
 const runId = "11111111-1111-4111-8111-111111111111";
@@ -22,6 +22,24 @@ const env = {
 };
 
 describe("temporary Preview writer window", () => {
+  it("classifies host, run, TTL, MAC and scope rejection without granting access", async () => {
+    const expiresAt = now + 20 * 60_000;
+    const mac = previewWindowMac(env.U03_PREVIEW_WRITER_WINDOW_SECRET, { runId, expiresAt,
+      deploymentId: env.VERCEL_DEPLOYMENT_ID, host: env.VERCEL_URL, sha });
+    const request = (host: string, run = runId, expiry = expiresAt, signature = mac) =>
+      new Request(`https://${host}/api/u03/window`, { headers: {
+        "x-rubik-u03-run-id": run, "x-rubik-u03-expires": String(expiry), "x-rubik-u03-capability": signature,
+      } });
+    const tenant = "u03-111111111111-a";
+    expect(previewWriterCapabilityRejection(request(env.VERCEL_URL), tenant, "a1", env, now)).toBeNull();
+    expect(previewWriterCapabilityRejection(request("other.vercel.app"), tenant, "a1", env, now)).toBe("WINDOW_HOST_REJECTED");
+    expect(previewWriterCapabilityRejection(request(env.VERCEL_URL, "22222222-2222-4222-8222-222222222222"), tenant, "a1", env, now)).toBe("WINDOW_RUN_REJECTED");
+    expect(previewWriterCapabilityRejection(request(env.VERCEL_URL, runId, now - 1), tenant, "a1", env, now)).toBe("WINDOW_TTL_REJECTED");
+    expect(previewWriterCapabilityRejection(request(env.VERCEL_URL, runId, expiresAt, "0".repeat(64)), tenant, "a1", env, now)).toBe("WINDOW_MAC_REJECTED");
+    expect(previewWriterCapabilityRejection(request(env.VERCEL_URL), tenant, "b1", env, now)).toBe("WINDOW_SCOPE_REJECTED");
+    expect(previewWriterCapabilityRejection(request(env.VERCEL_URL), tenant, "a1", { ...env, VERCEL_GIT_COMMIT_SHA: "f".repeat(40) }, now)).toBe("WINDOW_IDENTITY_REJECTED");
+    expect(await withPreviewWriterCapability(request(env.VERCEL_URL, runId, expiresAt, "0".repeat(64)), tenant, "a1", async () => "entered", env, now)).toBeNull();
+  });
   it("requires a request capability bound to deployment, host, commit, run and project", async () => {
     expect(previewWriterWindowActive(env, now)).toBe(false);
     const expiresAt = now + 20 * 60_000;

@@ -415,7 +415,17 @@ export async function verifyProtectedWindowRuntime({ runId, env = process.env, f
   let response;
   try { response = await fetchImpl(url, { method: 'GET', headers, redirect: 'manual', signal: AbortSignal.timeout(20000) }); }
   catch { throw new Error('WINDOW_RUNTIME_PREFLIGHT_TRANSPORT_FAILED'); }
-  if (response.status !== 200 || response.url && new URL(response.url).origin !== origin)
+  if (response.url && new URL(response.url).origin !== origin) throw new Error('WINDOW_RUNTIME_EXTERNAL_RESPONSE_REJECTED');
+  if (response.status === 404) {
+    const code = response.headers?.get?.('x-rubik-u03-diagnostic');
+    if (new Set(['RUNTIME_WRITER_POOL_UNAVAILABLE','RUNTIME_CLIENT_TLS_REJECTED','RUNTIME_PRINCIPAL_REJECTED',
+      'RUNTIME_PRIVILEGES_REJECTED','RUNTIME_DEFINERS_REJECTED','RUNTIME_PROVIDER_RPC_REJECTED',
+      'RUNTIME_RLS_REJECTED','RUNTIME_INVENTORY_REJECTED','RUNTIME_POOL_CONNECT_QUERY_FAILED',
+      'RUNTIME_TLS_QUERY_FAILED','RUNTIME_IDENTITY_QUERY_FAILED','RUNTIME_DEFINERS_QUERY_FAILED',
+      'RUNTIME_PROVIDER_RPC_QUERY_FAILED','RUNTIME_RLS_QUERY_FAILED','RUNTIME_INVENTORY_QUERY_FAILED']).has(code))
+      throw new Error(code);
+  }
+  if (response.status !== 200)
     throw new Error(`WINDOW_RUNTIME_PREFLIGHT_HTTP_${response.status}`);
   const body = await response.json().catch(() => null);
   const expected = ['CLIENT_TLS','DIRECT_PRINCIPAL','PRIVILEGES','PROVIDER_RPC_DENIED','SECURITY_DEFINER_ALLOWLIST','RLS','EMPTY_INITIAL_STATE'];
