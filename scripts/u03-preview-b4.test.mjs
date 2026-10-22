@@ -147,12 +147,15 @@ test("visual diagnostics are scoped per phase, categorized, sanitized, and captu
     browser = await chromium.launch({ headless: true });
     const context = await browser.newContext();
     const page = await context.newPage();
-    const diagnostics = createPageDiagnostics(page);
+    const diagnostics = createPageDiagnostics(page, { allowedOrigin: origin });
     await page.goto(origin);
     await page.evaluate(() => console.error("SECRET_TEXT https://example.test/path?token=hidden"));
     await page.waitForTimeout(25);
+    const beforeTake = diagnostics.snapshot();
+    assert.equal(beforeTake.console["error:preview"], 1);
+    assert.equal(diagnostics.snapshot().console["error:preview"], 1, "snapshot must not consume the counter");
     const loginPhase = diagnostics.take();
-    assert.equal(loginPhase.console["error:external"], 1);
+    assert.equal(loginPhase.console["error:preview"], 1);
     assert.ok(Object.values(loginPhase.console).reduce((sum, count) => sum + count, 0) >= 1);
     assert.equal(JSON.stringify(loginPhase).includes("SECRET_TEXT"), false);
     assert.equal(JSON.stringify(loginPhase).includes("token=hidden"), false);
@@ -166,7 +169,7 @@ test("visual diagnostics are scoped per phase, categorized, sanitized, and captu
     }), error => error.code === "VISUAL_AUDIT_FAILED");
     const visual = events.find(event => event.caseId === "visual-a-panel");
     assert.equal(visual.status, "FAIL");
-    assert.equal(visual.diagnostics.http[`500:external`], 1);
+    assert.equal(visual.diagnostics.http[`500:preview`], 1);
     assert.equal(JSON.stringify(visual).includes("missing.js"), false);
     assert.equal(JSON.stringify(visual).includes("credential=hidden"), false);
     assert.equal(JSON.stringify(visual).includes("never retain body"), false);

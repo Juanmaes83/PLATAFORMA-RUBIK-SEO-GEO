@@ -255,35 +255,35 @@ export function safeLedgerRow(runId, control, status, viewport = null) {
   return { utc: new Date().toISOString(), runId, deploymentId: PIN.deploymentId, sha: PIN.sha, control, status, viewport };
 }
 
-function diagnosticOrigin(value) {
+function diagnosticOrigin(value, allowedOrigin = ORIGIN) {
   try {
     const url = new URL(value);
-    if (url.origin === ORIGIN) return "preview";
+    if (url.origin === allowedOrigin) return "preview";
     if (url.hostname === `${PIN.supabaseRef}.supabase.co`) return "preview-supabase";
     return url.protocol === "data:" || url.protocol === "blob:" ? "inline" : "external";
   } catch { return "unknown"; }
 }
 
-export function createPageDiagnostics(page) {
+export function createPageDiagnostics(page, { allowedOrigin = ORIGIN } = {}) {
   let bucket = emptyDiagnosticBucket();
   const consoleListener = message => {
     const rawType = message.type();
     const type = new Set(["error", "warning", "log", "info", "debug", "dir", "assert", "trace"]).has(rawType) ? rawType : "other";
     let origin = "unknown";
-    try { origin = diagnosticOrigin(message.location()?.url ?? ""); } catch { /* classify only */ }
+    try { origin = diagnosticOrigin(message.location()?.url ?? "", allowedOrigin); } catch { /* classify only */ }
     const key = `${type}:${origin}`;
     bucket.console[key] = (bucket.console[key] ?? 0) + 1;
   };
   const responseListener = response => {
     const status = response.status();
     let origin = "unknown";
-    try { origin = diagnosticOrigin(response.url()); } catch { /* classify only */ }
+    try { origin = diagnosticOrigin(response.url(), allowedOrigin); } catch { /* classify only */ }
     const key = `${status}:${origin}`;
     bucket.http[key] = (bucket.http[key] ?? 0) + 1;
   };
   const failedListener = request => {
     let origin = "unknown";
-    try { origin = diagnosticOrigin(request.url()); } catch { /* classify only */ }
+    try { origin = diagnosticOrigin(request.url(), allowedOrigin); } catch { /* classify only */ }
     bucket.requestFailures[origin] = (bucket.requestFailures[origin] ?? 0) + 1;
   };
   page.on("console", consoleListener);
@@ -293,6 +293,9 @@ export function createPageDiagnostics(page) {
   const allowedRouteEvents = new Set(["auth-action-post", "pinned-navigation", "pinned-request", "external-navigation-blocked", "external-redirect-blocked", "pinned-origin-request-failed"]);
   return {
     addRouteEvent(event) { if (allowedRouteEvents.has(event) || /^auth-action-http-[1-5]\d\d$/.test(event)) routeEvents[event] = (routeEvents[event] ?? 0) + 1; },
+    // Read-only observation for attribution. It never resets counters; only take() consumes
+    // a phase, and auditAndCapture calls take() exactly at the strict visual gate.
+    snapshot() { return structuredClone({ ...bucket, routeEvents }); },
     take() {
       const result = { ...bucket, routeEvents };
       bucket = emptyDiagnosticBucket();
@@ -333,6 +336,12 @@ async function appendSafeLedger(runId, control, status, viewport = null) {
   await appendFile(`${dir}/${runId}.jsonl`, `${JSON.stringify(safeLedgerRow(runId, control, status, viewport))}\n`, { mode: 0o600 });
 }
 
+/**
+ * @param {unknown} page
+ * @param {{runId:string,viewport:string,screen:string,captureRoot:string,
+ *   ledger:(caseId:string,status:string,detail:Record<string,unknown>)=>Promise<void>,
+ *   diagnostics:{take:()=>Record<string,any>},pageErrors?:number|{count:number}}} options
+ */
 export async function auditAndCapture(page, { runId, viewport, screen, captureRoot, ledger, diagnostics, pageErrors = 0 }) {
   await page.waitForTimeout(300);
   const dom = await page.evaluate(() => {

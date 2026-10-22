@@ -252,6 +252,36 @@ test('window ledger preserves owned UUIDs for reconciliation and only numeric cl
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
+test('window ledger preserves only sanitized visual diagnostic counters', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'u03-window-visual-diagnostics-'));
+  try {
+    const path = join(dir, 'visual.jsonl');
+    const ledger = await createWindowLedger(path, { runId: RUN, functionalSha: PIN.sha,
+      deploymentId: PIN.deploymentId, host: PIN.host, ref: 'rhnnplewqsekrnaousyl' });
+    await ledger('visual-h1a-measurement', 'FAIL', {
+      viewport: 'desktop', consoleErrorCount: 132, pageErrorCount: 0,
+      diagnostics: {
+        console: { 'error:preview': 100, 'error:external': 32, 'error:https://secret.invalid/path?token=hidden': 9 },
+        http: { '200:preview': 12, '500:external': 1, '200:https://secret.invalid': 99 },
+        requestFailures: { preview: 2, external: 1, 'https://secret.invalid': 8 },
+        routeEvents: { 'pinned-navigation': 1, 'external-navigation-blocked': 1, 'secret-free-text': 3 },
+        message: 'secret-free-text',
+      },
+    });
+    const text = await readFile(path, 'utf8');
+    const row = JSON.parse(text.trim());
+    assert.deepEqual(row.diagnostics, {
+      console: { 'error:preview': 100, 'error:external': 32 },
+      http: { '200:preview': 12, '500:external': 1 },
+      requestFailures: { preview: 2, external: 1 },
+      routeEvents: { 'pinned-navigation': 1, 'external-navigation-blocked': 1 },
+    });
+    assert.equal(Object.values(row.diagnostics.console).reduce((sum, value) => sum + value, 0), 132);
+    assert.equal(row.consoleErrorCount, 132);
+    assert.doesNotMatch(text, /secret[.]invalid|token=hidden|secret-free-text|message/);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
 test('real campaign fixture phase names are normalized, bounded, and owner names stay distinct', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'u03-window-case-normalization-'));
   try {

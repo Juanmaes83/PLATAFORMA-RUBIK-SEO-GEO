@@ -107,6 +107,28 @@ export function preflightSequencePreviewKeys({ env = process.env } = {}) {
   return true;
 }
 
+function safeWindowDiagnosticMap(input, pattern) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return {};
+  const result = {};
+  for (const [key, value] of Object.entries(input)) {
+    if (Object.keys(result).length >= 100) break;
+    if (pattern.test(key) && Number.isSafeInteger(value) && value >= 0 && value <= 1_000_000) result[key] = value;
+  }
+  return result;
+}
+
+function safeWindowDiagnostics(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const origin = '(?:preview|preview-supabase|external|inline|unknown)';
+  return {
+    console: safeWindowDiagnosticMap(value.console, new RegExp(`^(?:error|warning|log|info|debug|dir|assert|trace|other):${origin}$`)),
+    http: safeWindowDiagnosticMap(value.http, new RegExp(`^[1-5]\\d\\d:${origin}$`)),
+    requestFailures: safeWindowDiagnosticMap(value.requestFailures, new RegExp(`^${origin}$`)),
+    routeEvents: safeWindowDiagnosticMap(value.routeEvents,
+      /^(?:auth-action-post|auth-action-http-[1-5]\\d\\d|pinned-navigation|pinned-request|external-navigation-blocked|external-redirect-blocked|pinned-origin-request-failed|blocked-external-subresource|blocked-external-subresource-redirect)$/),
+  };
+}
+
 export async function createWindowLedger(path, metadata, append = appendFile) {
   await mkdir(dirname(path), { recursive: true });
   await append(path, '', { flag: 'wx', mode: 0o600 });
@@ -115,6 +137,11 @@ export async function createWindowLedger(path, metadata, append = appendFile) {
     if (typeof status !== 'string' || !/^[A-Z_]{2,32}$/.test(status)) throw new Error('WINDOW_LEDGER_FIELD_REJECTED');
     const safe = {};
     for (const [key, value] of Object.entries(detail)) {
+      if (key === 'diagnostics') {
+        const diagnostics = safeWindowDiagnostics(value);
+        if (diagnostics) safe.diagnostics = diagnostics;
+        continue;
+      }
       if (key === 'sqlstate' && SAFE_SQLSTATES.has(value)) { safe.sqlstate = value; continue; }
       if (!['code','category','httpStatus','cases','count','restoreCount','resultRowsErased','importsErased','receiptsProcessed',
         'inventoryZero','outboxTotal','pendingOutbox','rolePresent','roleLocked','activeSessions','stage','actor',
