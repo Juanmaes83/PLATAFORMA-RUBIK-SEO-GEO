@@ -1,6 +1,6 @@
 # Recuperación acotada H1-A — f7ee4d0a
 
-Estado: **BLOCKED hasta ejecutar y verificar la recuperación alojada**. Este documento no atribuye un PASS a H1-A.
+Estado de recuperación: **PASS**. H1-A alojado sigue **BLOCKED**; el run original no acredita exportación ni restauración.
 
 ## Fallo anterior al prompt y corrección
 
@@ -30,3 +30,11 @@ El ledger nuevo se escribe en `test-results/u03-hosted-recovery/`. Si falla una 
 ## Diagnóstico retrospectivo
 
 El ledger original acredita vistas protegidas y logout antes de `H1A_EXTERNAL_NAVIGATION_BLOCKED`. No registra el destino o tipo de petición que causó esa clasificación. La causa histórica exacta no es reconstruible desde él. Una reproducción local muestra que un recurso secundario redirigido fuera del host podía incrementar el contador global de navegación y producir ese código; esa reproducción demuestra un defecto del arnés, no que fuera la causa histórica del run.
+
+## Resultado de recuperación y reproducción posterior
+
+El ledger separado `test-results/u03-hosted-recovery/f7ee4d0a-edb4-4276-88fc-03bbab570a19-recovery.jsonl` acredita borrado atribuible, retirada de Auth, rollback y lectura independiente final. Una segunda lectura de Preview confirmó cero usuarios, organizaciones, proyectos, membresías, auditoría, resultados, imports, invitaciones, idempotencia y outbox total/pending; rol, políticas y sesiones temporales cero; guarda original restaurada y escritor general `NOLOGIN`. Las ocho variables de rama, el deployment temporal y el vault quedaron retirados. Los dos ledgers originales y sus hashes anteriores se conservaron.
+
+En Chromium local, una respuesta 302 de un recurso secundario hacia otro origen queda bloqueada sin producir un falso fallo de navegación principal. Una redirección 302 del documento principal sigue bloqueada y produce la categoría fatal. El diagnóstico nuevo guarda solo fase y clases cerradas de petición, destino, redirección y estado HTTP. Un error de interceptación del host fijado tiene ahora su propio código y no se atribuye a navegación externa.
+
+El run local `b4ad78fa-6791-42fa-961d-51cd3fccf088` pasó con dos stacks N1 desechables: Auth real, vistas de medición e informe en escritorio y móvil, exportación por socket HTTP, firma y manifiesto completos, rechazo de una copia manipulada, restauración doble con contenido/hash conservados, logout y denegación posterior, recibos resueltos y limpieza independiente de ambos destinos. El test conserva la separación entre este resultado **local** y el próximo ensayo **alojado**. El intento local anterior `69173e61-43c9-4d87-8969-9eea646a3b6f` recibió HTTP 500 porque el test cerró sesión antes de exportar; se corrigió el orden y se conserva su salida de fallo. El operador alojado ahora exporta antes del logout.

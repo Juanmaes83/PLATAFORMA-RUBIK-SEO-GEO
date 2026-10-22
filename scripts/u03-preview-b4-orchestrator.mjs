@@ -109,6 +109,7 @@ const LEDGER_KEYS = new Set([
   'adminKeyFormat', 'publicKeyFormat',
   'pathname', 'errorCode', 'actionHttpStatus', 'sessionCookiePresent', 'routeEvents', 'capturePath',
   'phase', 'diagnostics', 'stage', 'expectedCount', 'observedCount', 'valueMatch', 'receiptState', 'httpStatus', 'sqlstate',
+  'expectedDestinationClass', 'observedDestinationClass', 'authResult', 'requestClass', 'destinationClass', 'responseClass', 'disposition',
   'mode', 'evidenceRunId',
 ]);
 
@@ -133,7 +134,7 @@ export function safeLedgerDetail(input = {}) {
         console: safeCounterMap(value.console, new RegExp(`^(?:error|warning|log|info|debug|dir|assert|trace|other):${ORIGIN_CLASSES}$`)),
         http: safeCounterMap(value.http, new RegExp(`^[1-5]\\d\\d:${ORIGIN_CLASSES}$`)),
         requestFailures: safeCounterMap(value.requestFailures, new RegExp(`^${ORIGIN_CLASSES}$`)),
-        routeEvents: safeCounterMap(value.routeEvents, /^(?:auth-action-post|auth-action-http-[1-5]\d\d|pinned-navigation|pinned-request|external-navigation-blocked|external-redirect-blocked|pinned-origin-request-failed)$/),
+        routeEvents: safeCounterMap(value.routeEvents, /^(?:auth-action-post|auth-action-http-[1-5]\d\d|pinned-navigation|pinned-request|external-navigation-blocked|external-redirect-blocked|pinned-origin-request-failed|blocked-external-subresource|blocked-external-subresource-redirect)$/),
       };
       continue;
     }
@@ -146,6 +147,7 @@ export function safeLedgerDetail(input = {}) {
       'WINDOW_FIXTURE_RESPONSE_INVALID', 'WINDOW_LEDGER_WRITE_FAILED', 'DATA_API_EXCEPTION', 'DATA_API_QUERY_FAILED',
       'SQL_PRIVILEGE_DENIED', 'DATA_API_RESULT_INCOMPLETE', 'ROW_COUNT_MISMATCH', 'ROW_KEY_MISMATCH',
       'I5_ASSERTION_FAILED', 'I5_LEDGER_WRITE_FAILED', 'SIGNATURE_INVALID', 'RECEIPT_PENDING', 'RECEIPT_RESOLVED',
+      'H1A_EXTERNAL_NAVIGATION_BLOCKED', 'H1A_PINNED_REQUEST_INTERCEPTION_FAILED',
       'HTTP_STATUS_INVALID', 'DNS_RESOLUTION_FAILED', 'SESSION_POOLER_IPV4_UNAVAILABLE', 'TCP_CONNECTION_TIMEOUT',
       'TCP_CONNECTION_REFUSED', 'TCP_CONNECTION_FAILED', 'TLS_CERTIFICATE_OR_HANDSHAKE_REJECTED',
       'DATABASE_AUTHENTICATION_REJECTED', 'SQL_PERMISSION_DENIED', 'READ_ONLY_SQL_PERMISSION_DENIED',
@@ -153,13 +155,22 @@ export function safeLedgerDetail(input = {}) {
       'PASSWORD_COMPARISON_INPUT_MISSING', 'URL_PASSWORD_BYTES_MISMATCH', 'URL_PASSWORD_BYTES_MATCH']).has(value) || /^HTTP_[45]\d\d$/.test(String(value)))) continue;
     if (key === 'sqlstate' && !new Set(['42501', '28P01', '28000', '57P01', '0A000', '42704', '42710']).has(value)) continue;
     if (key === 'actor' && !['ownerA', 'ownerB', 'outsider'].includes(value)) continue;
-    if (key === 'stage' && !['FIXTURE_INPUT', 'OWN_READ', 'CROSS_READ', 'OUTSIDER_READ', 'MISSING_READ'].includes(value)) continue;
+    if (key === 'stage' && !['FIXTURE_INPUT', 'OWN_READ', 'CROSS_READ', 'OUTSIDER_READ', 'MISSING_READ',
+      'H1A_AUTH_LOGIN', 'H1A_VIEW_DESKTOP_MEASUREMENT', 'H1A_VIEW_DESKTOP_REPORT', 'H1A_VIEW_MOBILE_MEASUREMENT', 'H1A_VIEW_MOBILE_REPORT', 'H1A_LOGOUT', 'H1A_POST_LOGOUT_DENIAL'].includes(value)) continue;
     if (key === 'receiptState' && !['NOT_REQUIRED', 'DEFERRED_TO_CLEANUP', 'RESOLVED'].includes(value)) continue;
     if (['expectedCount', 'observedCount', 'httpStatus'].includes(key) && value !== null &&
       (!Number.isSafeInteger(value) || value < 0)) continue;
     if (key === 'valueMatch' && typeof value !== 'boolean') continue;
-    if (key === 'phase' && !['login', 'login-B', 'login-revoked', '/panel-A', '/panel-B', '/A1', '/A2', '/B1', 'deny-B1', 'deny-A1-A2', 'logout-A', 'logout-B', 'revoked-access'].includes(value)) continue;
-    if (key === 'mode' && !['full', 'playwright-only', 'membership-revocation', 'roles-invitations', 'cross-surface', 'session-providers', 'provider-egress', 'window-i2-i5'].includes(value)) continue;
+    if (key === 'phase' && !['login', 'login-B', 'login-revoked', '/panel-A', '/panel-B', '/A1', '/A2', '/B1', 'deny-B1', 'deny-A1-A2', 'logout-A', 'logout-B', 'revoked-access',
+      'H1A_AUTH_LOGIN', 'H1A_VIEW_DESKTOP_MEASUREMENT', 'H1A_VIEW_DESKTOP_REPORT', 'H1A_VIEW_MOBILE_MEASUREMENT', 'H1A_VIEW_MOBILE_REPORT', 'H1A_LOGOUT', 'H1A_POST_LOGOUT_DENIAL'].includes(value)) continue;
+    if (key === 'expectedDestinationClass' && !['PINNED_ORIGIN_AUTH', 'PINNED_ORIGIN_VIEW', 'PINNED_ORIGIN_LOGOUT', 'PINNED_ORIGIN_PROTECTED_ROUTE'].includes(value)) continue;
+    if (key === 'observedDestinationClass' && !['PINNED_ORIGIN', 'ACCESS_ROUTE', 'EXTERNAL', 'UNKNOWN'].includes(value)) continue;
+    if (key === 'authResult' && !['SIGNED_OUT', 'AUTHENTICATED', 'AUTH_REQUIRED', 'UNKNOWN'].includes(value)) continue;
+    if (key === 'destinationClass' && !['EXTERNAL', 'UNKNOWN'].includes(value)) continue;
+    if (key === 'responseClass' && !['DIRECT', 'REDIRECT', 'UNKNOWN'].includes(value)) continue;
+    if (key === 'requestClass' && !['MAIN_DOCUMENT', 'FRAME_DOCUMENT', 'SUBRESOURCE', 'UNKNOWN'].includes(value)) continue;
+    if (key === 'disposition' && !['BLOCKED_EXTERNAL_SUBRESOURCE', 'BLOCKED_EXTERNAL_SUBRESOURCE_REDIRECT', 'BLOCKED_EXTERNAL_MAIN_FRAME_REDIRECT', 'BLOCKED_EXTERNAL_MAIN_FRAME_NAVIGATION', 'PINNED_REQUEST_BLOCKED'].includes(value)) continue;
+    if (key === 'mode' && !['full', 'playwright-only', 'membership-revocation', 'roles-invitations', 'cross-surface', 'session-providers', 'provider-egress', 'window-i2-i5', 'window-h1a'].includes(value)) continue;
     if (key === 'evidenceRunId' && ![PRIOR_DATA_API_RUN_ID, PRIOR_B4_RUN_ID].includes(value)) continue;
     if (typeof value === 'string') result[key] = value.slice(0, 240);
     else if (typeof value === 'number' || typeof value === 'boolean' || value === null) result[key] = value;
@@ -589,11 +600,50 @@ async function verifyH1APopulatedIsolation({ fixtures, a1, auditSeq, resultId, i
   }
 }
 
-async function runH1AProtectedViews({ fixtures, runId, env, ledger, captureRoot, launch = () => chromium.launch({ headless: true, env: chromiumEnvironment() }) }) {
+async function runH1AProtectedViews({ fixtures, runId, env, ledger, captureRoot, beforeLogout,
+  launch = () => chromium.launch({ headless: true, env: chromiumEnvironment() }) }) {
   const input = fixtures.browserInputs();
   const origin = `https://${PIN.host}`;
   const captures = [];
   let browser;
+  let navigationStage = 'H1A_AUTH_LOGIN';
+  const securityEvents = [];
+  const navigationDiagnostics = [];
+  let diagnosticsWritten = 0;
+  let securityEventsReported = 0;
+  const classifyDestination = value => {
+    try {
+      const url = new URL(value);
+      if (url.origin !== origin) return 'EXTERNAL';
+      return url.pathname === '/acceso' ? 'ACCESS_ROUTE' : 'PINNED_ORIGIN';
+    } catch { return 'UNKNOWN'; }
+  };
+  const writeNavigationDiagnostics = async () => {
+    for (; diagnosticsWritten < navigationDiagnostics.length; diagnosticsWritten++) {
+      const event = navigationDiagnostics[diagnosticsWritten];
+      await ledger('h1a-navigation-intercept', 'PASS', {
+        phase: event.phase, disposition: event.disposition, requestClass: event.requestClass,
+        destinationClass: event.destinationClass, responseClass: event.responseClass, httpStatus: event.httpStatus,
+      });
+    }
+  };
+  const writeNavigationStep = (status, phase, expectedDestinationClass, observedDestinationClass, authResult, httpStatus = null) =>
+    ledger('h1a-navigation-step', status, { phase, expectedDestinationClass, observedDestinationClass, authResult, httpStatus });
+  const assertNoExternalMainFrameNavigation = async () => {
+    if (securityEventsReported >= securityEvents.length) return;
+    const event = securityEvents[securityEventsReported++];
+    const expectedDestinationClass = event.phase === 'H1A_AUTH_LOGIN' ? 'PINNED_ORIGIN_AUTH'
+      : event.phase === 'H1A_LOGOUT' ? 'PINNED_ORIGIN_LOGOUT'
+        : event.phase === 'H1A_POST_LOGOUT_DENIAL' ? 'PINNED_ORIGIN_PROTECTED_ROUTE' : 'PINNED_ORIGIN_VIEW';
+    const diagnostic = { phase: event.phase, expectedDestinationClass,
+      observedDestinationClass: event.destinationClass === 'EXTERNAL' ? 'EXTERNAL' : 'UNKNOWN', authResult: 'UNKNOWN',
+      requestClass: event.requestClass, responseClass: event.responseClass, httpStatus: event.httpStatus };
+    await ledger('h1a-navigation-step', 'BLOCKED', diagnostic);
+    const error = new Error(event.disposition === 'PINNED_REQUEST_BLOCKED'
+      ? 'H1A_PINNED_REQUEST_INTERCEPTION_FAILED' : 'H1A_EXTERNAL_NAVIGATION_BLOCKED');
+    error.h1aDiagnostic = diagnostic;
+    throw error;
+  };
   await mkdir(captureRoot, { recursive: true });
   try {
     browser = await launch();
@@ -602,15 +652,20 @@ async function runH1AProtectedViews({ fixtures, runId, env, ledger, captureRoot,
     context.setDefaultNavigationTimeout(20000);
     const page = await context.newPage();
     const routeEvents = [];
-    const securityEvents = [];
     const diagnostics = createPageDiagnostics(page);
     const pageErrors = { count: 0 };
     page.on('pageerror', () => { pageErrors.count++; });
     try {
       await installScopedRoutes(context, page, env.VERCEL_OIDC_TOKEN, origin,
-        event => securityEvents.push(event), event => diagnostics.addRouteEvent(event), runId);
+        (event, diagnostic) => securityEvents.push({ event, phase: navigationStage, ...(diagnostic ?? {}) }), event => diagnostics.addRouteEvent(event), runId,
+        event => navigationDiagnostics.push({ ...event, phase: navigationStage }));
+      await writeNavigationStep('ATTEMPTED', 'H1A_AUTH_LOGIN', 'PINNED_ORIGIN_AUTH', 'UNKNOWN', 'SIGNED_OUT');
       await login(page, context, input.U03_B4_A_EMAIL, input.U03_B4_A_PASSWORD,
         { origin, runId, viewport: 'desktop', captureRoot, ledger, routeEvents });
+      await writeNavigationDiagnostics();
+      await assertNoExternalMainFrameNavigation();
+      const loginStatus = [...routeEvents].reverse().map(value => /^auth-action-http-(\d{3})$/.exec(value)?.[1]).find(Boolean);
+      await writeNavigationStep('PASS', 'H1A_AUTH_LOGIN', 'PINNED_ORIGIN_AUTH', classifyDestination(page.url()), 'AUTHENTICATED', loginStatus ? Number(loginStatus) : null);
       await ledger('h1a-auth-login', 'PASS', { actor: 'ownerA' });
       const screens = [
         { viewport: 'desktop', size: { width: 1280, height: 800 } },
@@ -622,25 +677,52 @@ async function runH1AProtectedViews({ fixtures, runId, env, ledger, captureRoot,
           { id: 'measurement', path: `${input.U03_B4_A1_PATH}/medicion`, text: 'Firma verificada' },
           { id: 'report', path: `${input.U03_B4_A1_PATH}/informe`, text: 'Informe del proyecto' },
         ]) {
+          navigationStage = `H1A_VIEW_${screen.viewport.toUpperCase()}_${view.id.toUpperCase()}`;
+          const phase = navigationStage;
+          await writeNavigationStep('ATTEMPTED', phase, 'PINNED_ORIGIN_VIEW', 'UNKNOWN', 'AUTHENTICATED');
           const response = await page.goto(`${origin}${view.path}`, { waitUntil: 'domcontentloaded' });
-          if (response?.status() !== 200 || new URL(page.url()).origin !== origin || new URL(page.url()).pathname !== view.path)
-            throw new Error('H1A_PROTECTED_VIEW_HTTP_REJECTED');
+          await writeNavigationDiagnostics();
+          await assertNoExternalMainFrameNavigation();
+          const observedDestinationClass = classifyDestination(page.url());
+          if (response?.status() !== 200 || observedDestinationClass !== 'PINNED_ORIGIN' || new URL(page.url()).pathname !== view.path) {
+            const error = new Error('H1A_PROTECTED_VIEW_HTTP_REJECTED');
+            error.h1aDiagnostic = { phase, expectedDestinationClass: 'PINNED_ORIGIN_VIEW', observedDestinationClass,
+              authResult: 'UNKNOWN', httpStatus: response?.status() ?? null };
+            throw error;
+          }
           if (!await page.getByText(view.text, { exact: false }).count()) throw new Error('H1A_PROTECTED_VIEW_CONTENT_MISSING');
+          await writeNavigationStep('PASS', phase, 'PINNED_ORIGIN_VIEW', observedDestinationClass, 'AUTHENTICATED', response.status());
           const capture = await auditAndCapture(page, { runId, viewport: screen.viewport, screen: `h1a-${view.id}`, captureRoot, ledger, diagnostics, pageErrors });
           captures.push(capture);
           await ledger(`h1a-capture-${screen.viewport}-${view.id}`, 'SAVED', { path: relative(process.cwd(), capture), viewport: screen.viewport });
         }
       }
       await ledger('h1a-protected-views', 'PASS', { captures: captures.length, count: 4 });
+      const beforeLogoutResult = typeof beforeLogout === 'function' ? await beforeLogout(captures) : null;
+      navigationStage = 'H1A_LOGOUT';
+      await writeNavigationStep('ATTEMPTED', navigationStage, 'PINNED_ORIGIN_LOGOUT', 'UNKNOWN', 'AUTHENTICATED');
       await page.getByRole('button', { name: 'Salir' }).click();
       try { await page.waitForURL(`${origin}/`, { timeout: 15000 }); } catch { throw new Error('H1A_LOGOUT_FAILED'); }
       const cookieRemains = (await context.cookies(origin)).some(cookie => cookie.name.startsWith(`sb-${PIN.supabaseRef}-auth-token`));
       if (cookieRemains) throw new Error('H1A_LOGOUT_COOKIE_RETAINED');
+      await writeNavigationDiagnostics();
+      await assertNoExternalMainFrameNavigation();
+      await writeNavigationStep('PASS', navigationStage, 'PINNED_ORIGIN_LOGOUT', classifyDestination(page.url()), 'SIGNED_OUT');
+      navigationStage = 'H1A_POST_LOGOUT_DENIAL';
+      await writeNavigationStep('ATTEMPTED', navigationStage, 'PINNED_ORIGIN_PROTECTED_ROUTE', 'UNKNOWN', 'SIGNED_OUT');
       const denied = await page.goto(`${origin}${input.U03_B4_A1_PATH}`, { waitUntil: 'domcontentloaded' });
-      if (!denied || new URL(page.url()).origin !== origin || new URL(page.url()).pathname !== '/acceso') throw new Error('H1A_LOGOUT_REUSE_NOT_DENIED');
+      await writeNavigationDiagnostics();
+      await assertNoExternalMainFrameNavigation();
+      const deniedDestination = classifyDestination(page.url());
+      if (!denied || deniedDestination !== 'ACCESS_ROUTE' || new URL(page.url()).pathname !== '/acceso') {
+        const error = new Error('H1A_LOGOUT_REUSE_NOT_DENIED');
+        error.h1aDiagnostic = { phase: navigationStage, expectedDestinationClass: 'PINNED_ORIGIN_PROTECTED_ROUTE',
+          observedDestinationClass: deniedDestination, authResult: 'UNKNOWN', httpStatus: denied?.status() ?? null };
+        throw error;
+      }
+      await writeNavigationStep('PASS', navigationStage, 'PINNED_ORIGIN_PROTECTED_ROUTE', deniedDestination, 'AUTH_REQUIRED', denied.status());
       await ledger('h1a-logout', 'PASS', { actor: 'ownerA' });
-      if (securityEvents.length) throw new Error('H1A_EXTERNAL_NAVIGATION_BLOCKED');
-      return { passed: true, captures };
+      return { passed: true, captures, beforeLogoutResult };
     } finally {
       diagnostics.dispose();
       await context.close();
@@ -843,9 +925,12 @@ export async function runHostedU03Campaign({
       await processH1AMembershipReceipt({ fixtures, tenantId, projectId: 'a1', receiptId: membership.receiptId, runId, env });
       await ledger('h1a-permission-grant-withdraw-and-receipt', 'PASS', { count: 1, receiptState: 'RESOLVED', category: 'IDEMPOTENT_RETRY' });
 
-      const browserResult = await runH1AProtectedViews({ fixtures, runId, env, ledger, captureRoot });
-      await ledger('h1a-measurement-report-ui', 'PASS', { captures: browserResult.captures.length, visualReview: 'PENDING_MANUAL_REVIEW' });
-      const exportResult = await runProtectedWindowH1Export({ fixtures, runId, env, ledger });
+      const browserResult = await runH1AProtectedViews({ fixtures, runId, env, ledger, captureRoot,
+        beforeLogout: async captures => {
+          await ledger('h1a-measurement-report-ui', 'PASS', { captures: captures.length, visualReview: 'PENDING_MANUAL_REVIEW' });
+          return runProtectedWindowH1Export({ fixtures, runId, env, ledger });
+        } });
+      const exportResult = browserResult.beforeLogoutResult;
       h1aResult = { passed: true, captures: browserResult.captures, exportResult };
     } else {
       if (mode === 'playwright-only') {
@@ -866,7 +951,12 @@ export async function runHostedU03Campaign({
         adminKeyFormat: classifySupabaseKeyFormat(env.U03_PREVIEW_ADMIN_KEY),
         publicKeyFormat: classifySupabaseKeyFormat(env.U03_PREVIEW_PUBLIC_KEY),
       };
-      await ledger('campaign-error', 'FAIL', { code: failure, http: Number.isInteger(error?.httpStatus) ? error.httpStatus : null, ...keyFormats });
+      const diagnostic = error?.h1aDiagnostic;
+      await ledger('campaign-error', 'FAIL', { code: failure, http: Number.isInteger(error?.httpStatus) ? error.httpStatus : null,
+        ...(diagnostic ? { phase: diagnostic.phase, expectedDestinationClass: diagnostic.expectedDestinationClass,
+          observedDestinationClass: diagnostic.observedDestinationClass, authResult: diagnostic.authResult,
+          requestClass: diagnostic.requestClass, responseClass: diagnostic.responseClass,
+          httpStatus: diagnostic.httpStatus } : {}), ...keyFormats });
     } catch { /* cleanup still proceeds */ }
   } finally {
     if (fixtures) {

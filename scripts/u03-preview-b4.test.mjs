@@ -428,7 +428,8 @@ test("Chromium sends scoped OIDC on the GET after a login POST 303 and blocks an
     await page.evaluate(() => fetch("/api-leave", { method: "POST" }).catch(() => null));
     assert.equal(requests.find(req => req.path === "/api-leave" && req.method === "POST")?.hasToken, true);
     assert.deepEqual(externalRequests, []);
-    assert.equal(securityEvents.includes("external-redirect-blocked"), true, JSON.stringify(securityEvents));
+    assert.equal(routeEvents.includes("blocked-external-subresource-redirect"), true, JSON.stringify(routeEvents));
+    assert.equal(securityEvents.length, 0, "a blocked fetch redirect is not a document navigation");
 
     await page.goto(`${origin}/external-form`);
     await page.getByRole("button", { name: "Leave" }).click().catch(() => {});

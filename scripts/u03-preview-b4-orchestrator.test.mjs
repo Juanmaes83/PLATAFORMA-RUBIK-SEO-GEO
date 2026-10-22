@@ -52,6 +52,16 @@ test('ledger retains only categorized browser diagnostics and discards unsafe st
   assert.equal(JSON.stringify(safe).includes('secret-value'), false);
 });
 
+test('H1-A distinguishes a pinned request interception failure from external navigation without persisting URLs', () => {
+  const safe = safeLedgerDetail({ code: 'H1A_PINNED_REQUEST_INTERCEPTION_FAILED',
+    phase: 'H1A_AUTH_LOGIN', expectedDestinationClass: 'PINNED_ORIGIN_AUTH',
+    observedDestinationClass: 'UNKNOWN', requestClass: 'UNKNOWN', responseClass: 'UNKNOWN',
+    url: 'https://example.invalid/?token=secret', message: 'secret' });
+  assert.deepEqual(safe, { code: 'H1A_PINNED_REQUEST_INTERCEPTION_FAILED',
+    phase: 'H1A_AUTH_LOGIN', expectedDestinationClass: 'PINNED_ORIGIN_AUTH',
+    observedDestinationClass: 'UNKNOWN', requestClass: 'UNKNOWN', responseClass: 'UNKNOWN' });
+});
+
 const secrets = {
   U03_PREVIEW_ADMIN_KEY: ['sb_secret_', 'fictional-admin-key-do-not-log'].join(''),
   U03_PREVIEW_PUBLIC_KEY: ['sb_publishable_', 'fictional-public-key-do-not-log'].join(''),
@@ -845,7 +855,7 @@ test('owner wrapper runs no-key preflight before DPAPI load; V-4 uses one hidden
   assert.doesNotMatch(script, /Read-B4Secret/);
   const generalEnvironmentKeep = script.match(/\$keep = @\(([^\r\n]+)\)/)?.[1] ?? '';
   assert.doesNotMatch(generalEnvironmentKeep, /U03_PREVIEW_ADMIN_KEY|U03_PREVIEW_PUBLIC_KEY/);
-  assert.match(script, /if \(\$Mode -in @\('keys','sequence'\) -and \$null -ne \$PreviewKeys\)[\s\S]*\['U03_PREVIEW_ADMIN_KEY'\] = \[string\]\$PreviewKeys\.AdminKey[\s\S]*\['U03_PREVIEW_PUBLIC_KEY'\] = \[string\]\$PreviewKeys\.PublicKey/);
+  assert.match(script, /if \(\$Mode -in @\('keys','sequence','h1a-recover'\) -and \$null -ne \$PreviewKeys\)[\s\S]*\['U03_PREVIEW_ADMIN_KEY'\] = \[string\]\$PreviewKeys\.AdminKey[\s\S]*\['U03_PREVIEW_PUBLIC_KEY'\] = \[string\]\$PreviewKeys\.PublicKey/);
   assert.match(script, /Invoke-U03WindowRoleChild -Mode 'keys'[\s\S]*Read-Host -Prompt 'Database password existente/);
   assert.match(script, /SEQUENCE_PREVIEW_KEYS_REQUIRED/);
   assert.match(script, /finally\s*\{[\s\S]*Get-ChildItem Env:[\s\S]*U03_\*/);

@@ -7,6 +7,7 @@ import { once } from 'node:events';
 import { createRequire } from 'node:module';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { Pool } from 'pg';
+import { chromium } from 'playwright';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/lib/supabase/database.types';
 import type { ProjectRef } from '@/lib/provenance/audit';
@@ -20,7 +21,7 @@ import { providers } from '@/lib/core';
 import { loadKeyring } from '@/lib/provenance/keyring';
 import { verifyProjectExport } from '@/lib/recovery/verify-export';
 import { planRestore } from '@/lib/restore/plan';
-import { createConfirmedUser, deleteOrganizations, deleteUsers, email, env, signedIn } from './support';
+import { createConfirmedUser, deleteOrganizations, deleteUsers, email, env, signedIn, TEST_PASSPHRASE } from './support';
 import { localDatabaseContainer } from '../../scripts/supabase-test-env.mjs';
 import { selectedStack } from '../../scripts/test-stacks.mjs';
 import { ROLE, buildMinimalInstallSql, buildMinimalRollbackSql } from '../../scripts/u03-window-minimal-principal.mjs';
@@ -45,6 +46,8 @@ let project!: ProjectRef;
 let memberId = '';
 let pool: Pool | undefined;
 let server: ChildProcess | undefined;
+let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
+let browserPage: Awaited<ReturnType<Awaited<ReturnType<typeof chromium.launch>>['newPage']>> | undefined;
 let ownerCookie = '';
 let orgCreated = false;
 let roleInstalled = false;
@@ -55,7 +58,7 @@ const keyring = loadKeyring({ PROVENANCE_SIGNING_KEYS: `u03-http:${KEY}`, PROVEN
 if (!keyring.ok) throw new Error('LOCAL_KEYRING_INVALID');
 
 function record(phase: string, result: 'PASS'|'FAIL'|'BLOCKED') {
-  const allowed = new Set(['preflight','http-export','offline-verification','tamper-rejection','restore-destination','source-cleanup','destination-cleanup']);
+  const allowed = new Set(['preflight','browser-views-and-logout','http-export','offline-verification','tamper-rejection','restore-destination','source-cleanup','destination-cleanup']);
   if (!allowed.has(phase)) throw new Error('LEDGER_PHASE_REJECTED');
   mkdirSync(`${ROOT}/test-results`,{recursive:true});
   appendFileSync(ledger,`${JSON.stringify({runId:RUN,phase,category:'LOCAL_HTTP_RESTORE',result})}\n`,{flag:'a'});
@@ -180,6 +183,7 @@ beforeAll(async () => {
 },120_000);
 
 afterAll(async()=>{
+  await browser?.close().catch(()=>undefined);
   if(server?.pid) {
     server.kill('SIGTERM');
     await Promise.race([once(server,'exit'),new Promise(resolve=>setTimeout(resolve,5000))]);
@@ -208,6 +212,28 @@ afterAll(async()=>{
 });
 
 it('exports over a loopback HTTP socket and restores the verified signed manifest twice into a second empty local stack',async()=>{
+  const origin=process.env.U03_LOCAL_HTTP_BASE!;
+  browser=await chromium.launch({headless:true});
+  {
+    const context=await browser.newContext({locale:'es-ES'});
+    const page=await context.newPage();
+    browserPage=page;
+    const access=await page.goto(`${origin}/acceso`,{waitUntil:'domcontentloaded'});
+    expect(access?.status()).toBe(200);
+    await page.locator('#email').fill(email('u03-http-owner'));
+    await page.locator('#password').fill(TEST_PASSPHRASE);
+    await page.getByRole('button',{name:'Entrar'}).click();
+    await page.waitForURL(`${origin}/panel`);
+    for(const viewport of [{width:1280,height:800},{width:390,height:844}]) {
+      await page.setViewportSize(viewport);
+      for(const [path,label] of [['medicion','Firma verificada'],['informe','Informe del proyecto']]) {
+        const view=await page.goto(`${origin}/proyectos/${TENANT}/a1/${path}`,{waitUntil:'domcontentloaded'});
+        expect(view?.status()).toBe(200);
+        expect(new URL(page.url()).origin).toBe(origin);
+        expect(await page.getByText(label,{exact:false}).count()).toBeGreaterThan(0);
+      }
+    }
+  }
   const response=await fetch(`${process.env.U03_LOCAL_HTTP_BASE}/proyectos/${TENANT}/a1/exportar`,{headers:{cookie:ownerCookie},redirect:'manual'});
   expect(response.status).toBe(200);
   const document=await response.json() as HttpExport;
@@ -269,6 +295,13 @@ it('exports over a loopback HTTP socket and restores the verified signed manifes
   expect(first.split('|').slice(2).map(Number)).toEqual([document.audit.rows.length,document.results.length,document.imports.length]);
   expect(sql(DEST_DB,`select count(*) from private.audit_outbox where project_id='${project.projectId}'::uuid and state='pending'`)).toBe('0');
   record('restore-destination','PASS');
+  const page=browserPage!;
+  await page.getByRole('button',{name:'Salir'}).click();
+  await page.waitForURL(`${origin}/`);
+  const denied=await page.goto(`${origin}/proyectos/${TENANT}/a1`,{waitUntil:'domcontentloaded'});
+  expect(denied).not.toBeNull();
+  expect(new URL(page.url()).pathname).toBe('/acceso');
+  record('browser-views-and-logout','PASS');
   await deleteOrganizations([TENANT]);
   orgCreated=false;
   sql(DEST_DB,`delete from public.organizations where id='${project.organizationId}'::uuid; delete from auth.users where id in (${actorIds.map(id=>`'${id}'::uuid`).join(',')})`);

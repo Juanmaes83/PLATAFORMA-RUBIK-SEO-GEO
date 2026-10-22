@@ -1,5 +1,11 @@
 # Gate de aceptación integral · H1 y H2
 
+## Corte H1-A · 22/10/2026 · recuperación y ensayo local
+
+El run alojado `f7ee4d0a-edb4-4276-88fc-03bbab570a19` conserva su resultado **BLOCKED**. Su recuperación posterior pasó y una lectura independiente confirmó Preview a cero, guarda restaurada y capacidades temporales retiradas. El fallo `H1A_EXTERNAL_NAVIGATION_BLOCKED` histórico no identifica el tipo de petición; un defecto reproducido localmente confundía redirecciones de recursos secundarios con navegación principal. El arnés ahora bloquea ambas salidas, pero solo la navegación principal falla ese gate, y registra categorías cerradas. Véase [expediente de recuperación](H1A-RECUPERACION-F7EE-20261022.md).
+
+Un recorrido local nuevo con dos stacks N1 desechables pasó Auth, vistas desktop/móvil, exportación HTTP real, verificación y rechazo de manipulación, restauración doble, logout y limpieza. Esta evidencia local no cierra H1-A: faltan deployment protegido del SHA funcional, preflights alojados, una campaña nueva única y aceptación visual humana. R1, H1-B/U04 con Sarah, H1 global y H2 siguen abiertos.
+
 ## Actualización de pasada A · 22/10/2026
 
 La evidencia local integrada del run `d6bc8e22-a761-4d68-823a-d7827b2acc6f` pasó exportación HTTP loopback, verificación, rechazo de manipulación, restauración doble en destino separado y limpieza; véase `docs/evidence/H1A-LOCAL-HTTP-RESTORE-20261022.jsonl`. No satisface la fila de pasada A, que exige Preview alojado y evidencia visual asociada al mismo run. H1-A alojado permanece NOT_RUN. U03 PASS del run `330c6e4b-14ad-439a-a8cf-43d92c73fadb` se reutiliza. R1 (consistencia frente a escrituras concurrentes) sigue pendiente para datos reales/Sarah; en esta prueba ficticia no hubo escrituras concurrentes y no se afirma snapshot transaccional. H1-B/U04, aceptación humana de Sarah, H1 y H2 siguen abiertos.

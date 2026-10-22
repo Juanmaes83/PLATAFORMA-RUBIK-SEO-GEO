@@ -84,11 +84,41 @@ export function isExternalRedirect(requestUrl, redirectedFromUrl, allowedOrigin 
   catch { return true; }
 }
 
-export async function installScopedRoutes(context, page, token, allowedOrigin = ORIGIN, onEvent = () => {}, onRouteEvent = () => {}, runId = null) {
+export function classifyBlockedExternalRequest({ resourceType, mainFrame = false, redirect = false } = {}) {
+  if (resourceType !== "Document" || !mainFrame) {
+    return redirect ? "BLOCKED_EXTERNAL_SUBRESOURCE_REDIRECT" : "BLOCKED_EXTERNAL_SUBRESOURCE";
+  }
+  return redirect ? "BLOCKED_EXTERNAL_MAIN_FRAME_REDIRECT" : "BLOCKED_EXTERNAL_MAIN_FRAME_NAVIGATION";
+}
+
+export async function installScopedRoutes(context, page, token, allowedOrigin = ORIGIN, onEvent = () => {}, onRouteEvent = () => {}, runId = null, onNavigationDiagnostic = () => {}) {
   // Playwright routes are called once for a redirect chain. CDP Fetch pauses each
   // Chromium request, including the GET produced by an action's 303 response.
   const session = await context.newCDPSession(page);
   const requestOrigins = new Map();
+  const frameTree = await session.send("Page.getFrameTree");
+  const mainFrameId = frameTree?.frameTree?.frame?.id ?? null;
+  const blocked = (event, paused, redirect, status = null) => {
+    // If CDP cannot identify the root frame, classify documents as main-frame
+    // navigation and fail closed instead of silently treating them as assets.
+    const mainFrame = !mainFrameId || paused.frameId === mainFrameId;
+    const disposition = classifyBlockedExternalRequest({ resourceType: paused.resourceType, mainFrame, redirect });
+    const diagnostic = {
+      event, disposition,
+      requestClass: paused.resourceType === "Document" ? (mainFrame ? "MAIN_DOCUMENT" : "FRAME_DOCUMENT") : "SUBRESOURCE",
+      destinationClass: "EXTERNAL",
+      responseClass: redirect ? "REDIRECT" : "DIRECT",
+      httpStatus: Number.isInteger(status) && status >= 300 && status < 400 ? status : null,
+    };
+    onNavigationDiagnostic(diagnostic);
+    if (disposition === "BLOCKED_EXTERNAL_MAIN_FRAME_REDIRECT" || disposition === "BLOCKED_EXTERNAL_MAIN_FRAME_NAVIGATION") {
+      onEvent(event, diagnostic);
+      onRouteEvent(event);
+    } else {
+      onRouteEvent(event);
+      onRouteEvent(disposition.toLowerCase().replaceAll("_", "-"));
+    }
+  };
   session.on("Fetch.requestPaused", (paused) => {
     void (async () => {
       const url = paused.request.url;
@@ -102,8 +132,7 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
           let destination;
           try { destination = new URL(location, url); } catch { destination = null; }
           if (!destination || (origin === allowedOrigin && destination.origin !== allowedOrigin)) {
-            onEvent("external-redirect-blocked");
-            onRouteEvent("external-redirect-blocked");
+            blocked("external-redirect-blocked", paused, true, paused.responseStatusCode);
             await session.send("Fetch.failRequest", { requestId: paused.requestId, errorReason: "BlockedByClient" });
             return;
           }
@@ -116,8 +145,7 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
       const navigation = paused.resourceType === "Document";
       if (origin !== allowedOrigin && (navigation || redirectedFromAllowed)) {
         const event = redirectedFromAllowed ? "external-redirect-blocked" : "external-navigation-blocked";
-        onEvent(event);
-        onRouteEvent(event);
+        blocked(event, paused, redirectedFromAllowed);
         await session.send("Fetch.failRequest", { requestId: paused.requestId, errorReason: "BlockedByClient" });
         return;
       }
@@ -132,7 +160,10 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
         headers: Object.entries(headers).map(([name, value]) => ({ name, value: String(value) })),
       });
     })().catch(async () => {
-      onEvent("pinned-origin-request-failed");
+      const diagnostic = { event: "pinned-origin-request-failed", disposition: "PINNED_REQUEST_BLOCKED",
+        requestClass: "UNKNOWN", destinationClass: "UNKNOWN", responseClass: "UNKNOWN", httpStatus: null };
+      onNavigationDiagnostic(diagnostic);
+      onEvent("pinned-origin-request-failed", diagnostic);
       onRouteEvent("pinned-origin-request-failed");
       await session.send("Fetch.failRequest", { requestId: paused.requestId, errorReason: "BlockedByClient" }).catch(() => {});
     });
