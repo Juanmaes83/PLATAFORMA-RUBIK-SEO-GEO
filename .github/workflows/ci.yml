@@ -83,7 +83,7 @@ jobs:
             test "$code" = "307" || { echo "$path answered $code"; exit 1; }
           done
           curl -s -D preview-headers.txt -o preview-acceso.html -H "$cookie" http://localhost:3222/acceso
-          grep -q "Preview de Vercel sin base de datos propia" preview-acceso.html
+          grep -q "Preview de Vercel sin identidad de base acreditada" preview-acceso.html
           if grep -qi '^set-cookie: sb-' preview-headers.txt; then echo "Preview wrote an auth cookie"; exit 1; fi
           if grep -q 'name="password"' preview-acceso.html; then echo "Preview rendered the sign-in form"; exit 1; fi
       - name: Forbidden configurations are refused (AUTH_MODE=mock, secret key in NEXT_PUBLIC_*)
