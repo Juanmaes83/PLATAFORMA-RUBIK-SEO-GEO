@@ -1,5 +1,9 @@
 # H2 · Auditoría operativa N1-07/N1-08
 
+## Nota de estado H1-A · 22/10/2026
+
+La prueba local integrada `d6bc8e22-a761-4d68-823a-d7827b2acc6f` es evidencia de desarrollo, no cierre de H1-A/H1. La pasada A alojada sigue NOT_RUN; U04/Sarah y la aceptación de usuario siguen pendientes, al igual que R1 y los controles operativos/comerciales de H2. No atribuir a un deployment READY ni a la evidencia U03 el cierre de H1.
+
 ## Corte vigente · integración U03 · 22/10/2026
 
 La [PR #143](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/143) está **MERGED** en `main@5cf2ad62605a1ed823771d28f32ca120797e57e7`; CI de PR `39737737422` SUCCESS. I-2/I-5/U03 están cerrados como gates alojados por el run `330c6e4b-14ad-439a-a8cf-43d92c73fadb`, con limpieza independiente. Se utilizó el mismo Preview existente, sin nuevo proyecto Supabase ni costes de proyecto adicional. La tabla y reconciliación inferiores preservan sus fechas y las referencias a #143 Draft, U03 BLOCKED, coste de un entorno nuevo, P-1 servidor pendiente y Actions sin jobs son históricas. H1-A NOT_RUN, U04/Sarah, H1 y H2 abiertos; R1 requiere decisión antes de Sarah. Vercel Production `dpl_6HyfzQ9iM3Buy6DEqLAKfEpTyFNL` quedó READY para el corte documental `5eec425ae3f3c31ce4c71a536c19c5d44aaa261f`, y `/api/salud` respondió 200 con el ref de Production; esto solo acredita el smoke de salud. Los restantes controles operativos N1-07/08 y la aceptación funcional tras release conservan sus gates propios.

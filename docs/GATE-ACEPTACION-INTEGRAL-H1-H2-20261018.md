@@ -1,5 +1,9 @@
 # Gate de aceptación integral · H1 y H2
 
+## Actualización de pasada A · 22/10/2026
+
+La evidencia local integrada del run `d6bc8e22-a761-4d68-823a-d7827b2acc6f` pasó exportación HTTP loopback, verificación, rechazo de manipulación, restauración doble en destino separado y limpieza; véase `docs/evidence/H1A-LOCAL-HTTP-RESTORE-20261022.jsonl`. No satisface la fila de pasada A, que exige Preview alojado y evidencia visual asociada al mismo run. H1-A alojado permanece NOT_RUN. U03 PASS del run `330c6e4b-14ad-439a-a8cf-43d92c73fadb` se reutiliza. R1 (consistencia frente a escrituras concurrentes) sigue pendiente para datos reales/Sarah; en esta prueba ficticia no hubo escrituras concurrentes y no se afirma snapshot transaccional. H1-B/U04, aceptación humana de Sarah, H1 y H2 siguen abiertos.
+
 Fecha de incorporación: 18/10/2026. Estado: **PENDIENTE DE EJECUCIÓN**. Este protocolo concreta el criterio de terminado del [Roadmap Maestro](ROADMAP-MAESTRO-2026.md) y del [estado de los tres niveles](ESTADO-TRES-NIVELES-Y-CIERRE-20261018.md). Los tests de componentes, la matriz U03, el despliegue READY y una demostración visual aislada no sustituyen este recorrido.
 
 ## Objetivo y alcance

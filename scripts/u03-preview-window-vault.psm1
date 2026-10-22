@@ -1,6 +1,6 @@
 Set-StrictMode -Version Latest
 $script:WindowRef = 'rhnnplewqsekrnaousyl'
-$script:WindowBranch = 'codex/u03-final-gates-20261020'
+$script:WindowBranch = 'codex/h1a-integral-20261022'
 $script:WindowProject = 'prj_HgnTtNtisi9Kt1A4Dq2pxoCQBook'
 $script:WindowOrg = 'team_hLhdb3M9MviTIysXD9whFF2c'
 $script:WindowRole = 'rubik_preview_u03_writer'
@@ -19,7 +19,7 @@ function Get-U03WindowVaultPath([string]$ProfileRoot = [Environment]::GetFolderP
   $base = [IO.Path]::GetFullPath($ProfileRoot)
   $temp = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\') + '\'
   if ($base.StartsWith($temp, [StringComparison]::OrdinalIgnoreCase)) { Stop-U03WindowVault 'VAULT_PATH_REJECTED' }
-  return Join-Path $base 'Rubik\U03-Window\v1\window-batch.json'
+  return Join-Path $base 'Rubik\H1A-Window\v2\window-batch.json'
 }
 function Initialize-U03WindowDpapi {
   foreach ($assembly in @('System.Security.Cryptography.ProtectedData','System.Security')) {
@@ -29,7 +29,7 @@ function Initialize-U03WindowDpapi {
   if (-not ('System.Security.Cryptography.ProtectedData' -as [type])) { Stop-U03WindowVault 'DPAPI_UNAVAILABLE' }
 }
 function Get-U03WindowEntropy([string]$Sid, [string]$Sha, [string]$RunId) {
-  return [Text.Encoding]::UTF8.GetBytes("rubik-u03-window|v1|$script:WindowProject|$script:WindowRef|$script:WindowBranch|$Sha|$RunId|$Sid")
+  return [Text.Encoding]::UTF8.GetBytes("rubik-h1a-window|v2|$script:WindowProject|$script:WindowRef|$script:WindowBranch|$Sha|$RunId|$Sid")
 }
 function Set-U03WindowAcl([string]$Path, [bool]$Directory) {
   try {

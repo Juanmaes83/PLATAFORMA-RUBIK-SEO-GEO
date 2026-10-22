@@ -7,7 +7,7 @@ const nonce = 'm2t9j_vYIu6TbYX8q9QpYqzmfE3wC5KsWJWc9A7hN1s';
 const host = 'preview-abc.vercel.app';
 const env = {
   VERCEL_ENV:'preview', VERCEL_DEPLOYMENT_ID:'dpl_Abc123', VERCEL_URL:host,
-  VERCEL_GIT_COMMIT_REF:'codex/u03-final-gates-20261020', VERCEL_GIT_COMMIT_SHA:'a'.repeat(40),
+  VERCEL_GIT_COMMIT_REF:'codex/h1a-integral-20261022', VERCEL_GIT_COMMIT_SHA:'a'.repeat(40),
   U03_PREVIEW_WRITER_WINDOW:'armed-run-capability', U03_PREVIEW_WRITER_WINDOW_REF:'rhnnplewqsekrnaousyl',
   U03_PREVIEW_WRITER_WINDOW_SHA:'a'.repeat(40), U03_PREVIEW_WRITER_WINDOW_RUN_ID:runId,
   U03_PREVIEW_WRITER_WINDOW_SECRET:'fictional-window-secret',

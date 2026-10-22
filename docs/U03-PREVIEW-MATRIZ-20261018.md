@@ -1,5 +1,9 @@
 # U03 · matriz alojada de Preview · 18/10/2026
 
+## Nota de vigencia · H1-A separado · 22/10/2026
+
+I-2, I-5 y U03 global conservan el PASS alojado del run `330c6e4b-14ad-439a-a8cf-43d92c73fadb`; no se repitieron. El ledger de ese run indica H1-A `NOT_RUN`. La prueba local posterior `d6bc8e22-a761-4d68-823a-d7827b2acc6f` solo verifica el flujo local HTTP/exportación/restauración y no altera el estado alojado de U03. H1-A, U04/H1-B, R1, H1 y H2 continúan abiertos.
+
 ## Run 26f7efe8 · recuperación de contención · 21/10/2026
 
 El run `26f7efe8-e5e4-4d68-bfea-e53a7a4bfa8e` instaló el principal nuevo en NOLOGIN y se detuvo antes de activarlo o crear fixtures. Ownership, NOLOGIN, OID y sesiones pasaron; `containment-new-login` quedó BLOCKED con `CONTAINMENT_NEW_LOGIN_QUERY_FAILED` en el intento inicial y en dos vías independientes. Los ledgers originales permanecen intactos. La traza de Supavisor de esa ventana sitúa cuatro errores de autenticación en `auth_scram_first_wait`, categoría interna «user not found»; el ledger original no distingue si el error final provino de `connect()` o de la relectura administrativa que el código ejecutaba dentro del mismo `catch`.

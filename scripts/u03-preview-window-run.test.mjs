@@ -7,7 +7,7 @@ import { createWindowLedger, pinIsExact, preflightSequencePreviewKeys, runPrevie
 import { createPreviewWindowAttestation } from '../src/lib/provenance/keyring.ts';
 
 const RUN = 'c14f4c11-570f-4e03-a3a1-33a702b85baa';
-const PIN = { deploymentId: 'dpl_Fictional123', host: 'preview-fixed.example', sha: 'a'.repeat(40), branch: 'codex/u03-final-gates-20261020' };
+const PIN = { deploymentId: 'dpl_Fictional123', host: 'preview-fixed.example', sha: 'a'.repeat(40), branch: 'codex/h1a-integral-20261022' };
 const ROLE_URL = new URL('postgresql://placeholder@aws-1-eu-west-3.pooler.supabase.com:5432/postgres');
 ROLE_URL.username = 'rubik_preview_u03_writer.rhnnplewqsekrnaousyl';
 ROLE_URL.password = 'FictionalRolePassword_123456789012345678901234';
@@ -118,6 +118,51 @@ test('successful operator orders all gates, campaign, then independent containme
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
+test('H1-A mode requires export, tamper rejection, double local restore, captures, and never marks U03', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'h1a-window-sequence-pass-'));
+  try {
+    const path = join(dir, 'h1a.jsonl');
+    const result = await runPreviewWindowSequence({ databasePassword:'fictional password', runId:RUN, env:ENV, pin:PIN,
+      ledgerPath:path, campaignMode:'window-h1a', configFn:async()=>({}), preflightFn:async()=>VERIFIED,
+      installFn:async ({ledger})=>{
+        await ledger('security_definer_allowlist','PASS','PREFLIGHT');
+        await ledger('writer_rls','PASS','PREFLIGHT');
+        return ROLE;
+      }, runtimeFn:async()=>({passed:true,status:200}),
+      campaignFn:async ({mode,ledger})=>{
+        assert.equal(mode,'window-h1a');
+        const basic = [
+          ['h1a-runtime-pooler-preflight','PASS'],['h1a-receipt-processor-preflight','PASS'],
+          ['fixture-user-ownerA','CREATED'],['auth-login-ownerA','PASS'],['fixture-user-ownerB','CREATED'],['auth-login-ownerB','PASS'],
+          ['fixture-organizations','CREATED'],['fixture-projects','CREATED'],['window-fixture-audit','PASS'],
+          ['window-fixture-result','PASS'],['window-fixture-import','PASS'],['h1a-source-and-date-evidence','PASS'],
+          ['h1a-permission-grant-withdraw-and-receipt','PASS'],['h1a-measurement-report-ui','PASS'],
+          ['h1a-protected-views','PASS'],['h1a-auth-login','PASS'],['h1a-logout','PASS'],
+          ['window-cleanup-a1','PASS'],['window-cleanup-a2','PASS'],['window-cleanup-b1','PASS'],
+          ['fixture-cleanup','PASS'],['final-inventory','PASS'],['outbox-final','PASS'],['capabilities-final','PASS'],
+        ];
+        for (const [caseId,status] of basic) await ledger(caseId,status);
+        for (const surface of ['audit-events','provider-results','imports']) {
+          await ledger(`h1a-isolation-${surface}`,'PASS',{actor:'ownerA',stage:'OWN_READ',expectedCount:1,observedCount:1});
+          await ledger(`h1a-isolation-${surface}`,'PASS',{actor:'ownerB',stage:'CROSS_READ',expectedCount:0,observedCount:0});
+        }
+        for (const viewport of ['desktop','mobile']) for (const page of ['measurement','report'])
+          await ledger(`h1a-capture-${viewport}-${page}`,'SAVED',{path:`test-results/u03-hosted/${RUN}/${'33333333-3333-4333-8333-333333333333'}-${viewport}-h1a-${page}.png`,viewport});
+        await ledger('h1a-export-consistency-limit','PASS',{fixtureWritesConcurrent:0,category:'READS_NOT_TRANSACTIONAL'});
+        for (const caseId of ['h1a-http-export-request','h1a-offline-export-verification','h1a-tamper-rejection','h1a-local-double-restore'])
+          await ledger(caseId,'PASS',{httpStatus:200,restoreCount:2,contentVerified:true,signaturesPreserved:true,offlineVerified:true,tamperRejected:true});
+        await ledger('h1a-http-export-verify-tamper-restore','PASS',{httpStatus:200,restoreCount:2,contentVerified:true,signaturesPreserved:true});
+        await ledger('h1a-integral-campaign','PASS',{cases:1});
+        return {status:'PASS',cleanupResult:{ok:true},finalCheck:{inventoriesClear:true,outboxClear:true}};
+      }, containFn:async()=>CLEAN });
+    const text = await readFile(path,'utf8');
+    assert.equal(result.status,'PASS',result.failure);
+    assert.match(text, /"caseId":"h1a-global-result","status":"PASS"/);
+    assert.doesNotMatch(text, /"caseId":"i2-final-result"|"caseId":"i5-final-result"|"caseId":"u03-sql-final-result"/);
+    assert.equal(await verifyWindowLedgerComplete(path,{runId:RUN,pin:PIN,mode:'window-h1a'}),true);
+  } finally { await rm(dir,{recursive:true,force:true}); }
+});
+
 test('Windows 5.1 wrapper records U03 global PASS only after independent containment and teardown', async () => {
   const script = await readFile(new URL('./u03-preview-b4-owner.ps1', import.meta.url), 'utf8');
   const containment = script.indexOf("Invoke-U03WindowRoleChild -Mode 'contain'");
@@ -126,8 +171,8 @@ test('Windows 5.1 wrapper records U03 global PASS only after independent contain
   assert.ok(containment >= 0 && teardown > containment && globalPass > teardown);
   assert.match(script, /if \(\$windowSequencePassed\) \{[\s\S]*Write-U03WindowGlobalResult -RunId \$windowRoleRunId -Status 'PASS'/);
   const sequence = await readFile(new URL('./u03-preview-window-run.mjs', import.meta.url), 'utf8');
-  assert.match(sequence, /verifyWindowLedgerComplete\(ledgerPath, \{ runId, pin, includeFinal: false \}\)/);
-  assert.match(sequence, /sequence-complete', 'PASS'[\s\S]*verifyWindowLedgerComplete\(ledgerPath, \{ runId, pin \}\)/);
+  assert.match(sequence, /verifyWindowLedgerComplete\(ledgerPath, \{ runId, pin, includeFinal: false, mode: campaignMode \}\)/);
+  assert.match(sequence, /sequence-complete', 'PASS'[\s\S]*verifyWindowLedgerComplete\(ledgerPath, \{ runId, pin, mode: campaignMode \}\)/);
 });
 
 test('fixture ledger failures remain BLOCKED and cannot become wrapper PASS', async () => {

@@ -854,18 +854,19 @@ test('owner wrapper runs no-key preflight before DPAPI load; V-4 uses one hidden
 
 test('H1-A owner mode checks branch vars, deployment and local signing config before one password prompt and finally containment', async () => {
   const script = await readFile(new URL('./u03-preview-b4-owner.ps1', import.meta.url), 'utf8');
-  const modeStart = script.indexOf('if ($WindowRolePreflightOnly -or $WindowRoleReadOnlyDiagnosticOnly -or $WindowI2I5H1A -or $WindowBatchAttestationOnly)');
+  const modeStart = script.indexOf('if ($WindowRolePreflightOnly -or $WindowRoleReadOnlyDiagnosticOnly -or $WindowI2I5H1A -or $WindowH1A -or $WindowBatchAttestationOnly)');
   const localConfig = script.indexOf("Invoke-U03WindowRoleChild -Mode 'local'", modeStart);
   const attestation = script.indexOf("Invoke-U03WindowRoleChild -Mode 'attest'", localConfig);
   const passwordPrompt = script.indexOf('Read-Host -Prompt', localConfig);
-  const sequenceLaunch = script.indexOf("$childMode = if ($WindowI2I5H1A) { 'sequence' }", passwordPrompt);
+  const sequenceLaunch = script.indexOf("$childMode = if ($WindowI2I5H1A -or $WindowH1A) { 'sequence' }", passwordPrompt);
   const finallyBlock = script.slice(script.indexOf('} finally {', sequenceLaunch));
   assert.ok(modeStart >= 0 && localConfig > modeStart && attestation > localConfig && passwordPrompt > attestation && sequenceLaunch > passwordPrompt);
-  assert.match(script, /if \(\$WindowI2I5H1A -and \$branch -ne 'codex\/u03-final-gates-20261020'\)/);
+  assert.match(script, /if \(\$WindowH1A -and \$branch -ne 'codex\/h1a-integral-20261022'\)/);
+  assert.match(script, /\$campaignMode = if \(\$WindowH1A\) \{ 'window-h1a' \} else \{ 'window-i2-i5' \}/);
   assert.match(script, /WINDOW_BATCH_IDENTITY_MISMATCH/);
   assert.match(script, /\$psi\.Arguments = '--conditions=react-server/);
   assert.match(script, /\$Mode -eq 'local'[\s\S]*--local-preflight-only/);
-  assert.match(finallyBlock, /\$WindowI2I5H1A[\s\S]*Invoke-U03WindowRoleChild -Mode 'contain'/);
+  assert.match(finallyBlock, /\$WindowI2I5H1A -or \$WindowH1A[\s\S]*Invoke-U03WindowRoleChild -Mode 'contain'/);
   assert.match(script, /'RUBIK_AUDIT_DATABASE_URL','PROVENANCE_SIGNING_KEYS','PROVENANCE_ACTIVE_KEY_ID'/);
   assert.match(script, /if \(-not \$WindowRolePreflightOnly -and -not \$WindowRoleReadOnlyDiagnosticOnly -and -not \$WindowI2I5H1A/);
 });

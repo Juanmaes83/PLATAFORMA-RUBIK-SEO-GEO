@@ -5,9 +5,11 @@ import { execFileSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
 
 const ROOT = resolve(import.meta.dirname, '..');
-const WORKDIR = join(ROOT, 'test-results', 'u03-window-restore-destination');
+const RUN = process.env.U03_RESTORE_DESTINATION_RUN_ID ?? '';
+if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(RUN)) throw new Error('LOCAL_DESTINATION_RUN_ID_INVALID');
+const PROJECT = `rubik-h1a-${RUN.replaceAll('-', '').slice(0, 12).toLowerCase()}`;
+const WORKDIR = join(ROOT, 'test-results', `${PROJECT}-restore-destination`);
 const SUPABASE = join(WORKDIR, 'supabase');
-const PROJECT = 'rubik-u03-restore-20261020';
 const MARKER = join(WORKDIR, '.u03-owned-destination.json');
 const CUT = 20261015210000;
 const PORTS = new Map([[54320,63520],[54321,63521],[54322,63522],[54323,63523],[54324,63524],[54327,63527],[54329,63529],[8083,8113]]);

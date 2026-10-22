@@ -32,6 +32,28 @@ const REQUIRED_CAMPAIGN_LEDGER = new Map([
   ['i2-final-result', 'PASS'], ['i5-final-result', 'PASS'], ['u03-sql-final-result', 'PASS'],
   ['h1a-global-result', 'NOT_RUN'], ['sequence-complete', 'PASS'],
 ]);
+const REQUIRED_H1A_LEDGER = new Map([
+  ['deployment-preflight', 'PASS'], ['security-definer-allowlist', 'PASS'], ['writer-rls', 'PASS'],
+  ['install-and-probe-new-role', 'PASS'], ['deployment-runtime-pooler-proof', 'PASS'],
+  ['h1a-runtime-pooler-preflight', 'PASS'], ['h1a-receipt-processor-preflight', 'PASS'],
+  ['h1a-auth-login', 'PASS'], ['h1a-protected-views', 'PASS'],
+  ['fixture-user-ownera', 'CREATED'], ['auth-login-ownera', 'PASS'], ['fixture-user-ownerb', 'CREATED'],
+  ['auth-login-ownerb', 'PASS'], ['fixture-organizations', 'CREATED'], ['fixture-projects', 'CREATED'],
+  ['window-fixture-audit', 'PASS'], ['window-fixture-result', 'PASS'], ['window-fixture-import', 'PASS'],
+  ['h1a-source-and-date-evidence', 'PASS'], ['h1a-isolation-audit-events', 'PASS'],
+  ['h1a-isolation-provider-results', 'PASS'], ['h1a-isolation-imports', 'PASS'],
+  ['h1a-permission-grant-withdraw-and-receipt', 'PASS'], ['h1a-measurement-report-ui', 'PASS'],
+  ['h1a-capture-desktop-measurement', 'SAVED'], ['h1a-capture-desktop-report', 'SAVED'],
+  ['h1a-capture-mobile-measurement', 'SAVED'], ['h1a-capture-mobile-report', 'SAVED'],
+  ['h1a-export-consistency-limit', 'PASS'],
+  ['h1a-http-export-request', 'PASS'], ['h1a-offline-export-verification', 'PASS'],
+  ['h1a-tamper-rejection', 'PASS'], ['h1a-local-double-restore', 'PASS'],
+  ['h1a-http-export-verify-tamper-restore', 'PASS'], ['h1a-logout', 'PASS'],
+  ['window-cleanup-a1', 'PASS'], ['window-cleanup-a2', 'PASS'], ['window-cleanup-b1', 'PASS'],
+  ['fixture-cleanup', 'PASS'], ['final-inventory', 'PASS'], ['outbox-final', 'PASS'],
+  ['capabilities-final', 'PASS'], ['independent-containment-and-final-read', 'PASS'],
+  ['h1a-integral-campaign', 'PASS'], ['h1a-global-result', 'PASS'], ['sequence-complete', 'PASS'],
+]);
 
 export function normalizeWindowCaseId(caseId) {
   if (typeof caseId !== 'string') throw new Error('WINDOW_LEDGER_FIELD_REJECTED');
@@ -42,7 +64,7 @@ export function normalizeWindowCaseId(caseId) {
 
 const FINAL_LEDGER_CASES = new Set(['i2-final-result','i5-final-result','u03-sql-final-result','h1a-global-result','sequence-complete']);
 
-export async function verifyWindowLedgerComplete(path, { runId, pin = PIN, includeFinal = true } = {}) {
+export async function verifyWindowLedgerComplete(path, { runId, pin = PIN, includeFinal = true, mode = 'window-i2-i5' } = {}) {
   try {
     const text = await readFile(path, 'utf8');
     const lines = text.trim().split(/\r?\n/);
@@ -52,7 +74,25 @@ export async function verifyWindowLedgerComplete(path, { runId, pin = PIN, inclu
       row.deploymentId !== pin.deploymentId || row.host !== pin.host || row.ref !== PREVIEW_REF ||
       typeof row.caseId !== 'string' || row.caseId !== normalizeWindowCaseId(row.caseId))) return false;
     const latest = new Map(rows.map(row => [row.caseId, row.status]));
-    return [...REQUIRED_CAMPAIGN_LEDGER].every(([caseId, status]) =>
+    const required = mode === 'window-h1a' ? REQUIRED_H1A_LEDGER : REQUIRED_CAMPAIGN_LEDGER;
+    if (mode === 'window-h1a') {
+      for (const surface of ['audit-events', 'provider-results', 'imports']) {
+        const stages = rows.filter(row => row.caseId === `h1a-isolation-${surface}` && row.status === 'PASS');
+        if (!stages.some(row => row.actor === 'ownerA' && row.stage === 'OWN_READ' && row.expectedCount === 1 && row.observedCount === 1) ||
+            !stages.some(row => row.actor === 'ownerB' && row.stage === 'CROSS_READ' && row.expectedCount === 0 && row.observedCount === 0)) return false;
+      }
+      const exportRow = rows.findLast(row => row.caseId === 'h1a-http-export-verify-tamper-restore');
+      if (!exportRow || exportRow.httpStatus !== 200 || exportRow.restoreCount !== 2) return false;
+      if (exportRow.contentVerified !== true || exportRow.signaturesPreserved !== true) return false;
+      for (const viewport of ['desktop', 'mobile']) for (const page of ['measurement', 'report']) {
+        const capture = rows.findLast(row => row.caseId === `h1a-capture-${viewport}-${page}`);
+        if (!capture || capture.status !== 'SAVED' || capture.viewport !== viewport ||
+            typeof capture.path !== 'string' || !capture.path.endsWith(`-${viewport}-h1a-${page}.png`)) return false;
+      }
+      const consistency = rows.findLast(row => row.caseId === 'h1a-export-consistency-limit');
+      if (!consistency || consistency.fixtureWritesConcurrent !== 0 || consistency.category !== 'READS_NOT_TRANSACTIONAL') return false;
+    }
+    return [...required].every(([caseId, status]) =>
       (!includeFinal && FINAL_LEDGER_CASES.has(caseId)) || latest.get(caseId) === status);
   } catch { return false; }
 }
@@ -78,11 +118,19 @@ export async function createWindowLedger(path, metadata, append = appendFile) {
       if (key === 'sqlstate' && SAFE_SQLSTATES.has(value)) { safe.sqlstate = value; continue; }
       if (!['code','category','httpStatus','cases','count','restoreCount','resultRowsErased','importsErased','receiptsProcessed',
         'inventoryZero','outboxTotal','pendingOutbox','rolePresent','roleLocked','activeSessions','stage','actor',
-        'expectedCount','observedCount','valueMatch','receiptState'].includes(key)) continue;
+        'expectedCount','observedCount','valueMatch','receiptState','path','viewport','viewportWidth','documentWidth','bodyWidth',
+        'visibleErrorCount','consoleErrorCount','pageErrorCount','durationMs','fixtureWritesConcurrent','contentVerified',
+        'signaturesPreserved','offlineVerified','tamperRejected'].includes(key)) continue;
       const safeAlias = key === 'actor' && ['ownerA','ownerB','outsider'].includes(value);
       const safeStage = key === 'stage' && ['OWN_READ','CROSS_READ','OUTSIDER_READ','MISSING_READ','FIXTURE_INPUT'].includes(value);
       const safeReceipt = key === 'receiptState' && ['NOT_REQUIRED','DEFERRED_TO_CLEANUP'].includes(value);
-      if (safeAlias || safeStage || safeReceipt || typeof value === 'string' && SAFE.test(value) ||
+      const safeCapturePath = key === 'path' && typeof value === 'string' && /^test-results[\\/]u03-hosted[\\/][0-9a-f-]{36}[\\/][0-9a-f-]{36}-(?:desktop|mobile)-h1a-(?:measurement|report)\.png$/i.test(value);
+      const safeViewport = key === 'viewport' && ['desktop','mobile'].includes(value);
+      const safeMetric = ['viewportWidth','documentWidth','bodyWidth','visibleErrorCount','consoleErrorCount','pageErrorCount'].includes(key) && Number.isSafeInteger(value) && value >= 0;
+      const safeDuration = key === 'durationMs' && Number.isSafeInteger(value) && value >= 0 && value <= 3_600_000;
+      const safeConcurrentWrites = key === 'fixtureWritesConcurrent' && value === 0;
+      if (safeAlias || safeStage || safeReceipt || safeCapturePath || safeViewport || safeMetric || typeof value === 'string' && SAFE.test(value) ||
+          safeDuration || safeConcurrentWrites || ['contentVerified','signaturesPreserved','offlineVerified','tamperRejected'].includes(key) && typeof value === 'boolean' ||
           typeof value === 'number' && Number.isSafeInteger(value) || typeof value === 'boolean' || value === null) safe[key] = value;
     }
     for (const [key, value] of Object.entries(detail)) {
@@ -99,7 +147,7 @@ export function pinIsExact(env, runId, pin = PIN) {
   return RUN.test(runId) && pin.deploymentId.startsWith('dpl_') &&
     env.U03_PIN_DEPLOYMENT_ID === pin.deploymentId && env.U03_PIN_DEPLOYMENT_HOST === pin.host &&
     env.U03_PIN_DEPLOYMENT_SHA === pin.sha && env.U03_PIN_DEPLOYMENT_BRANCH === pin.branch &&
-    pin.branch === 'codex/u03-final-gates-20261020' && /^[0-9a-f]{40}$/i.test(pin.sha) &&
+    pin.branch === 'codex/h1a-integral-20261022' && /^[0-9a-f]{40}$/i.test(pin.sha) &&
     env.U03_FUNCTIONAL_SHA === pin.sha && env.U03_PREVIEW_WRITER_WINDOW === 'armed-run-capability' &&
     env.U03_PREVIEW_WRITER_WINDOW_REF === PREVIEW_REF && env.U03_PREVIEW_WRITER_WINDOW_SHA === pin.sha &&
     env.U03_PREVIEW_WRITER_WINDOW_RUN_ID === runId && !!env.U03_PREVIEW_WRITER_WINDOW_SECRET;
@@ -160,8 +208,9 @@ export async function runPreviewWindowSequence({ databasePassword, runId = rando
   installFn = installAndProbeRunScopedRole, pin = PIN,
   runtimeFn = verifyProtectedWindowRuntime, campaignFn = runHostedU03Campaign,
   containFn = runIndependentContainment, ledgerPath = join(process.cwd(), 'test-results', 'u03-hosted-window', `${runId}.jsonl`),
-  ledgerFactory = createWindowLedger } = {}) {
+  ledgerFactory = createWindowLedger, campaignMode = 'window-i2-i5' } = {}) {
   if (typeof databasePassword !== 'string' || !databasePassword || !RUN.test(runId)) throw new Error('WINDOW_SEQUENCE_INPUT_REJECTED');
+  if (!['window-i2-i5', 'window-h1a'].includes(campaignMode)) throw new Error('WINDOW_SEQUENCE_MODE_REJECTED');
   const metadata = { runId, functionalSha: pin.sha, deploymentId: pin.deploymentId, host: pin.host, ref: PREVIEW_REF };
   const ledger = await ledgerFactory(ledgerPath, metadata);
   let verified = null;
@@ -200,13 +249,14 @@ export async function runPreviewWindowSequence({ databasePassword, runId = rando
     if (runtime?.passed !== true || runtime.status !== 200) throw new Error('WINDOW_RUNTIME_PREFLIGHT_REJECTED');
     await ledger('deployment-runtime-pooler-proof', 'PASS', { httpStatus: runtime.status });
 
-    await ledger('directed-i2-i5-campaign', 'ATTEMPTED');
-    campaign = await campaignFn({ env, sha: pin.sha, runId, ledger, mode: 'window-i2-i5',
+    const campaignCase = campaignMode === 'window-h1a' ? 'h1a-integral-campaign' : 'directed-i2-i5-campaign';
+    await ledger(campaignCase, 'ATTEMPTED');
+    campaign = await campaignFn({ env, sha: pin.sha, runId, ledger, mode: campaignMode,
       preflightFn: async () => verified });
     if (campaign?.status !== 'PASS' || campaign?.cleanupResult?.ok !== true ||
         campaign?.finalCheck?.inventoriesClear !== true || campaign?.finalCheck?.outboxClear !== true)
       throw new Error('DIRECTED_CAMPAIGN_OR_CLEANUP_BLOCKED');
-    await ledger('directed-i2-i5-campaign', 'PASS', { cases: 2 });
+    await ledger(campaignCase, 'PASS', { cases: campaignMode === 'window-h1a' ? 1 : 2 });
   } catch (error) {
     failure = SAFE.test(error?.message ?? '') ? error.message : 'WINDOW_SEQUENCE_FAILED';
     try { await ledger('sequence-failure', 'BLOCKED', { code: failure }); } catch { /* containment takes priority */ }
@@ -233,18 +283,19 @@ export async function runPreviewWindowSequence({ databasePassword, runId = rando
     rolePassword = '';
   }
   try {
-    if (!failure && !await verifyWindowLedgerComplete(ledgerPath, { runId, pin, includeFinal: false }))
+    if (!failure && !await verifyWindowLedgerComplete(ledgerPath, { runId, pin, includeFinal: false, mode: campaignMode }))
       failure = 'WINDOW_LEDGER_INCOMPLETE';
-    await ledger('i2-final-result', failure ? 'BLOCKED' : 'PASS',
-      failure ? { code: failure } : { cases: 1 });
-    await ledger('i5-final-result', failure ? 'BLOCKED' : 'PASS',
-      failure ? { code: failure } : { cases: 1 });
-    await ledger('u03-sql-final-result', failure ? 'BLOCKED' : 'PASS',
-      failure ? { code: failure } : { cases: 2 });
-    await ledger('h1a-global-result', 'NOT_RUN');
+    if (campaignMode === 'window-h1a') {
+      await ledger('h1a-global-result', failure ? 'BLOCKED' : 'PASS', failure ? { code: failure } : { cases: 1 });
+    } else {
+      await ledger('i2-final-result', failure ? 'BLOCKED' : 'PASS', failure ? { code: failure } : { cases: 1 });
+      await ledger('i5-final-result', failure ? 'BLOCKED' : 'PASS', failure ? { code: failure } : { cases: 1 });
+      await ledger('u03-sql-final-result', failure ? 'BLOCKED' : 'PASS', failure ? { code: failure } : { cases: 2 });
+      await ledger('h1a-global-result', 'NOT_RUN');
+    }
     if (!failure) {
       await ledger('sequence-complete', 'PASS');
-      if (!await verifyWindowLedgerComplete(ledgerPath, { runId, pin })) failure = 'WINDOW_LEDGER_INCOMPLETE';
+      if (!await verifyWindowLedgerComplete(ledgerPath, { runId, pin, mode: campaignMode })) failure = 'WINDOW_LEDGER_INCOMPLETE';
     }
   } catch { failure ??= 'WINDOW_RESULT_LEDGER_UNVERIFIED'; }
   return { status: failure ? 'BLOCKED' : 'PASS', runId, failure, campaign, containment, ledgerPath };
@@ -286,7 +337,8 @@ async function main() {
   let input;
   try { input = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { process.stderr.write('WINDOW_SEQUENCE_INPUT_REJECTED\n'); process.exitCode = 2; return; }
   try {
-    const result = await runPreviewWindowSequence({ databasePassword: input?.databasePassword, runId: input?.runId });
+    const result = await runPreviewWindowSequence({ databasePassword: input?.databasePassword, runId: input?.runId,
+      campaignMode: input?.campaignMode === 'window-h1a' ? 'window-h1a' : 'window-i2-i5' });
     process.stdout.write(`U03_PREVIEW_WINDOW_SEQUENCE ${result.status} runId=${result.runId} ledger=${result.ledgerPath.replaceAll('\\','/')}\n`);
     if (result.status !== 'PASS') process.exitCode = 1;
   } catch { process.stderr.write('WINDOW_SEQUENCE_BLOCKED; inspect sanitized ledger and preserve owned IDs\n'); process.exitCode = 1; }

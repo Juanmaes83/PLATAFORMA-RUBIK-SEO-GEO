@@ -89,7 +89,7 @@ const WINDOW_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}
 const WINDOW_SHA = /^[0-9a-f]{40}$/;
 const WINDOW_DEPLOYMENT = /^dpl_[A-Za-z0-9]+$/;
 const WINDOW_NONCE = /^[A-Za-z0-9_-]{40,64}$/;
-const WINDOW_BRANCH = "codex/u03-final-gates-20261020";
+const WINDOW_BRANCH = "codex/h1a-integral-20261022";
 const WINDOW_REF = "rhnnplewqsekrnaousyl";
 const WINDOW_POOLER = "aws-1-eu-west-3.pooler.supabase.com";
 
@@ -136,7 +136,7 @@ export function createPreviewWindowAttestation(env: Record<string, string | unde
 }
 
 export function previewWindowAttestationContext(input: PreviewWindowAttestationInput, deploymentId: string, host: string, sha: string) {
-  return ["rubik-u03-window-attestation-v1", input.nonce, input.runId, deploymentId.toLowerCase(), host.toLowerCase(), sha.toLowerCase(), WINDOW_REF, WINDOW_BRANCH].join("\n");
+  return ["rubik-h1a-window-attestation-v1", input.nonce, input.runId, deploymentId.toLowerCase(), host.toLowerCase(), sha.toLowerCase(), WINDOW_REF, WINDOW_BRANCH].join("\n");
 }
 
 export function verifyPreviewWindowAttestationProof(key: string, context: string, proof: string): boolean {

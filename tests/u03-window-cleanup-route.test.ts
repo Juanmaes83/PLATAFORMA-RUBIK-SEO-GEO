@@ -41,7 +41,7 @@ beforeEach(() => {
   mocked.processReceipt.mockResolvedValue({ ok: true, seq: 4 });
 });
 
-async function call(body = { runId: RUN }) {
+async function call(body: { runId: string; action?: string; receiptId?: string } = { runId: RUN }) {
   const { POST } = await import("@/app/api/u03/window-cleanup/[tenantId]/[projectId]/route");
   const request = new Request("https://preview.example/api/u03/window-cleanup/u03-c14f4c11570f-a/a1", {
     method: "POST", headers: { "content-type": "application/json", "x-rubik-u03-run-id": RUN }, body: JSON.stringify(body),
@@ -63,10 +63,37 @@ describe("run-scoped product cleanup route", () => {
 
   it("fails closed on a receipt outside the run's action/scope allowlist", async () => {
     pool.query.mockReset()
-      .mockResolvedValueOnce({ rows: [{ id: RECEIPT, action: "member.withdraw", tenant_slug: PROJECT.scope.tenantId, project_slug: "a1" }] });
+      .mockResolvedValueOnce({ rows: [{ id: RECEIPT, action: "unapproved.action", state: "pending", tenant_slug: PROJECT.scope.tenantId, project_slug: "a1" }] });
     const response = await call();
     expect(response.status).toBe(409);
     expect(await response.json()).toMatchObject({ ok: false, code: "RECEIPT_SCOPE_BLOCKED" });
+    expect(mocked.processReceipt).not.toHaveBeenCalled();
+  });
+
+  it("processes an authentic member.withdraw receipt and proves retry idempotence", async () => {
+    pool.query.mockReset()
+      .mockResolvedValueOnce({ rows: [{ id: RECEIPT, action: "member.withdraw", state: "pending", tenant_slug: PROJECT.scope.tenantId, project_slug: "a1" }] })
+      .mockResolvedValueOnce({ rows: [{ state: "completed", event_seq: 5, linked: true }] });
+    const first = await call({ runId: RUN, action: "receipt", receiptId: RECEIPT });
+    expect(first.status).toBe(200);
+    expect(await first.json()).toEqual({ ok: true, receiptState: "RESOLVED", retried: false });
+    expect(mocked.processReceipt).toHaveBeenCalledOnce();
+
+    pool.query.mockReset()
+      .mockResolvedValueOnce({ rows: [{ id: RECEIPT, action: "member.withdraw", state: "completed", tenant_slug: PROJECT.scope.tenantId, project_slug: "a1" }] })
+      .mockResolvedValueOnce({ rows: [{ state: "completed", event_seq: 5, linked: true }] });
+    const retry = await call({ runId: RUN, action: "receipt", receiptId: RECEIPT });
+    expect(retry.status).toBe(200);
+    expect(await retry.json()).toEqual({ ok: true, receiptState: "RESOLVED", retried: true });
+    expect(mocked.processReceipt).toHaveBeenCalledTimes(2);
+    expect(mocked.processReceipt).toHaveBeenLastCalledWith(RECEIPT, { activeKeyId: "fixture" }, pool);
+  });
+
+  it("does not process a member withdrawal receipt from another project scope", async () => {
+    pool.query.mockReset().mockResolvedValueOnce({ rows: [{ id: RECEIPT, action: "member.withdraw", state: "pending",
+      tenant_slug: "u03-other-run-a", project_slug: "a1" }] });
+    const response = await call({ runId: RUN, action: "receipt", receiptId: RECEIPT });
+    expect(response.status).toBe(404);
     expect(mocked.processReceipt).not.toHaveBeenCalled();
   });
 

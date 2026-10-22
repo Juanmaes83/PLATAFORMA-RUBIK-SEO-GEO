@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createServer } from 'node:net';
 import { execFileSync } from 'node:child_process';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { once } from 'node:events';
 import { createRequire } from 'node:module';
@@ -12,25 +12,37 @@ import type { Database } from '@/lib/supabase/database.types';
 import type { ProjectRef } from '@/lib/provenance/audit';
 import type { ProjectExport } from '@/lib/provenance/repository';
 import { appendTrustedAudit } from '@/lib/provenance/writer';
+import { readAuditTrail, storeProviderResult } from '@/lib/provenance/repository';
+import { importFile } from '@/lib/imports/repository';
+import { removePerson } from '@/lib/project-people';
+import { processAuditOutbox } from '@/lib/provenance/outbox';
+import { providers } from '@/lib/core';
 import { loadKeyring } from '@/lib/provenance/keyring';
 import { verifyProjectExport } from '@/lib/recovery/verify-export';
 import { planRestore } from '@/lib/restore/plan';
-import { createConfirmedUser, deleteOrganizations, deleteUsers, env, signedIn } from './support';
+import { createConfirmedUser, deleteOrganizations, deleteUsers, email, env, signedIn } from './support';
 import { localDatabaseContainer } from '../../scripts/supabase-test-env.mjs';
+import { selectedStack } from '../../scripts/test-stacks.mjs';
 import { ROLE, buildMinimalInstallSql, buildMinimalRollbackSql } from '../../scripts/u03-window-minimal-principal.mjs';
 
 const RUN = randomUUID();
 const ROOT = process.cwd();
 const SOURCE_DB = localDatabaseContainer();
-const DEST_DB = 'supabase_db_rubik-u03-restore-20261020';
+const SOURCE_DB_PORT=selectedStack().dbPort;
+const RESTORE_PROJECT = `rubik-h1a-${(process.env.U03_RESTORE_DESTINATION_RUN_ID ?? '').replaceAll('-','').slice(0,12).toLowerCase()}`;
+const DEST_DB = `supabase_db_${RESTORE_PROJECT}`;
 const ROLE_PASSWORD = randomBytes(32).toString('base64url');
 const KEY = randomBytes(32).toString('base64');
 const TENANT = `u03-${RUN.replaceAll('-', '').slice(0, 12)}-a`;
-const ledger = `${ROOT}/test-results/u03-window-http-restore.jsonl`;
+if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(process.env.U03_RESTORE_DESTINATION_RUN_ID ?? ''))
+  throw new Error('LOCAL_RESTORE_RUN_ID_REQUIRED');
+const ledger = `${ROOT}/test-results/u03-window-http-restore-${RUN}.jsonl`;
 const users: string[] = [];
 let user: SupabaseClient<Database>;
+let member: SupabaseClient<Database>;
 let orgId = '';
 let project!: ProjectRef;
+let memberId = '';
 let pool: Pool | undefined;
 let server: ChildProcess | undefined;
 let ownerCookie = '';
@@ -80,6 +92,13 @@ function inventory(db: string, projectId: string, organizationId: string) {
    (select count(*) from private.audit_outbox)::text||'|'||
    (select count(*) from private.audit_outbox where state='pending')::text`);
 }
+const DATE_KEYS=new Set(['at','captured_at','period_start','period_end','created_at','updated_at','email_confirmed_at']);
+function canonical(value:unknown,key=''):unknown {
+  if(value===null||typeof value!=='object') return typeof value==='string'&&DATE_KEYS.has(key)&&Number.isFinite(Date.parse(value))?new Date(value).toISOString():value;
+  if(Array.isArray(value)) return value.map(item=>canonical(item));
+  return Object.fromEntries(Object.keys(value).sort().map(name=>[name,canonical((value as Record<string,unknown>)[name],name)]));
+}
+function digest(value:unknown) { return createHash('sha256').update(JSON.stringify(canonical(value))).digest('hex'); }
 
 beforeAll(async () => {
   expect(sql(SOURCE_DB,'select count(*)::text||\'|\'||max(version)::text from supabase_migrations.schema_migrations')).toBe('27|20261015210000');
@@ -88,7 +107,10 @@ beforeAll(async () => {
   expect(sql(DEST_DB,'select count(*)::text||\'|\'||max(version)::text from supabase_migrations.schema_migrations')).toBe('27|20261015210000');
   expect(sql(DEST_DB,'select count(*) from auth.users')+'|'+sql(DEST_DB,'select count(*) from public.organizations')).toBe('0|0');
   users.push(await createConfirmedUser('u03-http-owner'));
+  users.push(await createConfirmedUser('u03-http-member'));
   user = await signedIn('u03-http-owner');
+  member = await signedIn('u03-http-member');
+  memberId = users[1];
   const createdOrg = await user.from('organizations').insert({slug:TENANT,name:'U03 loopback export'});
   if (createdOrg.error) throw new Error('LOCAL_ORGANIZATION_CREATE_FAILED');
   orgCreated = true;
@@ -98,20 +120,48 @@ beforeAll(async () => {
   const projectId = (await user.from('projects').select('id').eq('organization_id',orgId).eq('slug','a1').single()).data!.id;
   project = {projectId,organizationId:orgId,scope:{tenantId:TENANT,projectId:'a1'}};
 
+  const inviteResult = await user.rpc('project_invitations', { p_project_id: projectId, p_command: 'create',
+    p_payload: { email: email('u03-http-member'), role: 'analyst' } });
+  if (inviteResult.error || !inviteResult.data || typeof inviteResult.data !== 'object' || !('token' in inviteResult.data))
+    throw new Error('LOCAL_MEMBERSHIP_INVITE_FAILED');
+  const accepted = await member.rpc('accept_project_invitation', { p_token: String(inviteResult.data.token) });
+  if (accepted.error) throw new Error('LOCAL_MEMBERSHIP_ACCEPT_FAILED');
+
   const expiry = new Date(Date.now()+600_000).toISOString();
   sql(SOURCE_DB,buildMinimalInstallSql(RUN,ROLE_PASSWORD,expiry));
   roleInstalled=true;
   expect(sql(SOURCE_DB,`select has_function_privilege('${ROLE}','private.google_capture_command(uuid,text,jsonb)','execute')::text||'|'||has_function_privilege('${ROLE}','private.openseo_job(uuid,text,uuid,jsonb)','execute')::text||'|'||pg_has_role('${ROLE}','rubik_audit_writer','MEMBER')::text`)).toBe('false|false|false');
   sql(SOURCE_DB,`alter role ${ROLE} login valid until '${expiry}'`);
-  const dsn=new URL(`postgresql://${ROLE}:${ROLE_PASSWORD}@127.0.0.1:63422/postgres`);
+  const dsn=new URL(`postgresql://${ROLE}:${ROLE_PASSWORD}@127.0.0.1:${SOURCE_DB_PORT}/postgres`);
   process.env.RUBIK_AUDIT_DATABASE_URL=dsn.toString();
-  process.env.RUBIK_TEST_U03_WINDOW_STACK='1';
   process.env.VERCEL_ENV='development';
   process.env.RUBIK_RECOVERY_SCHEMA_ATTESTATION='pre-n2-through-20261015210000';
   pool=new Pool({connectionString:dsn.toString(),ssl:false,max:1});
   expect((await user.auth.getUser()).data.user?.id).toBe(users[0]);
   const signed=await appendTrustedAudit(user,project,{actor:{id:users[0],role:'owner'},action:'u03.http.fixture'},keyring.keyring);
   expect(signed.ok).toBe(true);
+  const synthetic=await providers.runProviderRequest({provider:'search-console',operation:'searchAnalytics',
+    input:{siteUrl:'sc-domain:fixture.invalid',startDate:'2026-10-01',endDate:'2026-10-01',rowLimit:1},
+    transport:{kind:'live',request:async()=>({rows:[{query:'h1a synthetic',clicks:1,impressions:1,ctr:1,averagePosition:1}],truncated:false})},
+    clock:()=>new Date('2026-10-01T00:00:00.000Z'),budget:{maxUnits:1,maxRequests:1}});
+  expect(providers.isTrustedResult(synthetic)).toBe(true);
+  const stored=await storeProviderResult(user,project,synthetic,keyring.keyring,{operationId:randomUUID()});
+  expect(stored.ok).toBe(true);
+  const importBytes=new TextEncoder().encode(JSON.stringify({format:'rubik-import-v1',scope:project.scope,
+    source:{kind:'manual-review',label:'H1-A ficticio',url:null,tool:null},capturedAt:'2026-10-01T00:00:00.000Z',
+    findings:[{url:'https://fixture.invalid/h1a',ruleId:'h1a.synthetic',severity:'info',title:'Dato ficticio',observation:'Medición sintética declarada',proposal:null,evidenceRef:RUN,status:'open'}]}));
+  const imported=await importFile(user,project,importBytes,{id:users[0],role:'owner'},keyring.keyring);
+  expect(imported.ok).toBe(true);
+  const withdrawn = await removePerson(user, projectId, memberId);
+  if (!withdrawn.ok || !withdrawn.auditReceiptId) throw new Error('LOCAL_MEMBER_WITHDRAWAL_FAILED');
+  const receiptResult = await processAuditOutbox(withdrawn.auditReceiptId, keyring.keyring);
+  expect(receiptResult.ok).toBe(true);
+  expect(await processAuditOutbox(withdrawn.auditReceiptId, keyring.keyring)).toEqual(receiptResult);
+  expect((await member.from('projects').select('id').eq('id', projectId)).data).toEqual([]);
+  const signedTrail = await readAuditTrail(user, project, keyring.keyring);
+  expect(signedTrail.ok && signedTrail.verification.valid).toBe(true);
+  expect(signedTrail.ok && signedTrail.rows.some(row => row.action === 'member.withdraw' && row.target === memberId)).toBe(true);
+  expect(sql(SOURCE_DB,`select count(*) from private.audit_outbox where state='pending'`)).toBe('0');
 
   const sessionResult=await user.auth.getSession();
   const session=sessionResult.data.session;
@@ -163,6 +213,9 @@ it('exports over a loopback HTTP socket and restores the verified signed manifes
   const document=await response.json() as HttpExport;
   record('http-export','PASS');
   expect(verifyProjectExport(document,keyring.keyring)).toMatchObject({ok:true,completeness:{status:'COMPLETE'}});
+  expect(document.results).toHaveLength(1);
+  expect(document.results[0].verification.verified).toBe(true);
+  expect(document.imports).toHaveLength(1);
   record('offline-verification','PASS');
   const altered=structuredClone(document);
   altered.audit.rows[0].action='project.delete';
@@ -174,7 +227,11 @@ it('exports over a loopback HTTP socket and restores the verified signed manifes
 
   const plan=planRestore(document,keyring.keyring,{operatorId:users[0]});
   if(!plan.ok) throw new Error('LOCAL_RESTORE_PLAN_REJECTED');
-  const actorIds=[...new Set((document.audit.rows as Array<{actor_id?:string}>).map(row=>row.actor_id).filter((id):id is string=>!!id))];
+  const actorIds=[...new Set([
+    ...(document.audit.rows as Array<{actor_id?:string}>).map(row=>row.actor_id),
+    ...(document.results as Array<{row?:{created_by?:string}} >).map(result=>result.row?.created_by),
+    ...(document.imports as Array<{created_by?:string}>).map(row=>row.created_by),
+  ].filter((id):id is string=>!!id))];
   expect(actorIds).toContain(users[0]);
   destinationActorIds=actorIds;
   targetRowsCreated=true;
@@ -186,14 +243,30 @@ it('exports over a loopback HTTP socket and restores the verified signed manifes
   expect(before).toBe('0|0|0');
   sql(DEST_DB,plan.plan.sql);
   const first=sql(DEST_DB,`select (select count(*) from public.organizations where id='${project.organizationId}'::uuid)::text||'|'||(select count(*) from public.projects where id='${project.projectId}'::uuid)::text||'|'||(select count(*) from public.audit_events where project_id='${project.projectId}'::uuid)::text||'|'||(select count(*) from public.provider_results where project_id='${project.projectId}'::uuid)::text||'|'||(select count(*) from public.imports where project_id='${project.projectId}'::uuid)::text`);
-  const auditSnapshot=()=>sql(DEST_DB,`select coalesce(json_agg(json_build_object('seq',seq,'actor_id',actor_id,'action',action,'outcome',outcome,'hash',hash,'prev_hash',prev_hash,'signature',signature) order by seq),'[]'::json)::text from public.audit_events where project_id='${project.projectId}'::uuid`);
-  const sourceAudit=document.audit.rows.map(row=>({seq:row.seq,actor_id:row.actor_id,action:row.action,outcome:row.outcome,hash:row.hash,prev_hash:row.prev_hash,signature:row.signature}));
-  expect(JSON.parse(auditSnapshot())).toEqual(sourceAudit);
+  const destinationSnapshot=()=>JSON.parse(sql(DEST_DB,`select json_build_object(
+    'audit',(select coalesce(json_agg(to_jsonb(a) order by a.seq),'[]'::json) from public.audit_events a where a.project_id='${project.projectId}'::uuid),
+    'results',(select coalesce(json_agg(to_jsonb(r) order by r.id),'[]'::json) from public.provider_results r where r.project_id='${project.projectId}'::uuid),
+    'imports',(select coalesce(json_agg(to_jsonb(i) order by i.id),'[]'::json) from public.imports i where i.project_id='${project.projectId}'::uuid)
+  )::text`));
+  const columns={
+    audit:['project_id','organization_id','seq','at','actor_role','actor_id','action','target','outcome','details','prev_hash','hash','key_id','signature'],
+    results:['id','project_id','organization_id','provider','operation','status','captured_at','signed_payload','data','data_hash_alg','data_hash','key_id','signature','created_by'],
+    imports:['id','project_id','organization_id','format','source_kind','source_label','source_url','source_tool','captured_at','period_start','period_end','status','finding_count','error_count','findings','errors','file_sha256','file_bytes','created_by'],
+  } as const;
+  const select=(rows:Array<Record<string,unknown>>,keys:readonly string[])=>rows.map(row=>Object.fromEntries(keys.map(key=>[key,row[key]])));
+  const expectedSnapshot={audit:select(document.audit.rows as unknown as Array<Record<string,unknown>>,columns.audit).sort((a,b)=>Number(a.seq)-Number(b.seq)),
+    results:select(document.results.map(result=>result.row as unknown as Record<string,unknown>),columns.results).sort((a,b)=>String(a.id).localeCompare(String(b.id))),
+    imports:select(document.imports as Array<Record<string,unknown>>,columns.imports).sort((a,b)=>String(a.id).localeCompare(String(b.id)))};
+  const projected=(snapshot:Record<string,Array<Record<string,unknown>>>)=>({
+    audit:select(snapshot.audit,columns.audit),results:select(snapshot.results,columns.results),imports:select(snapshot.imports,columns.imports)});
+  const firstDigest=digest(projected(destinationSnapshot()));
+  expect(firstDigest).toBe(digest(expectedSnapshot));
   sql(DEST_DB,plan.plan.sql);
   const second=sql(DEST_DB,`select (select count(*) from public.organizations where id='${project.organizationId}'::uuid)::text||'|'||(select count(*) from public.projects where id='${project.projectId}'::uuid)::text||'|'||(select count(*) from public.audit_events where project_id='${project.projectId}'::uuid)::text||'|'||(select count(*) from public.provider_results where project_id='${project.projectId}'::uuid)::text||'|'||(select count(*) from public.imports where project_id='${project.projectId}'::uuid)::text`);
   expect(first).toBe(second);
-  expect(JSON.parse(auditSnapshot())).toEqual(sourceAudit);
-  expect(first.split('|').slice(0,3)).toEqual(['1','1','2']);
+  expect(digest(projected(destinationSnapshot()))).toBe(firstDigest);
+  expect(first.split('|').slice(0,2)).toEqual(['1','1']);
+  expect(first.split('|').slice(2).map(Number)).toEqual([document.audit.rows.length,document.results.length,document.imports.length]);
   expect(sql(DEST_DB,`select count(*) from private.audit_outbox where project_id='${project.projectId}'::uuid and state='pending'`)).toBe('0');
   record('restore-destination','PASS');
   await deleteOrganizations([TENANT]);

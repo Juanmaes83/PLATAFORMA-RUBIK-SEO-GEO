@@ -12,7 +12,7 @@ const PIN_DEFAULTS = {
   teamId: "team_hLhdb3M9MviTIysXD9whFF2c",
   deploymentId: "dpl_Hmpevn3Vds4pFUzbiiFFB3vVGCKD",
   sha: "28fd3927f9acce8ba9b27b43d3afb86b12aa0a86",
-  branch: "codex/u03-session-isolation-20261020",
+  branch: "codex/h1a-integral-20261022",
   host: "plataforma-rubik-seo-3elivlu19-juanma-espinosas-projects.vercel.app",
   supabaseRef: "rhnnplewqsekrnaousyl",
 };
