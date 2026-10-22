@@ -192,9 +192,12 @@ beforeAll(async () => {
   ownerCookie=`sb-127-auth-token=${cookieValue}`;
   const port=await freePort();
   const nextBin=createRequire(import.meta.url).resolve('next/dist/bin/next');
-  server=spawn(process.execPath,[nextBin,'dev','--hostname','127.0.0.1','--port',String(port)],{
-    cwd:ROOT,stdio:'ignore',env:{...process.env,NEXT_PUBLIC_SUPABASE_URL:env.apiUrl,NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:env.publishableKey,
-      PROVENANCE_SIGNING_KEYS:`u03-http:${KEY}`,PROVENANCE_ACTIVE_KEY_ID:'u03-http',NEXT_TELEMETRY_DISABLED:'1'},
+  const appEnv={...process.env,NEXT_PUBLIC_SUPABASE_URL:env.apiUrl,NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:env.publishableKey,
+    PROVENANCE_SIGNING_KEYS:`u03-http:${KEY}`,PROVENANCE_ACTIVE_KEY_ID:'u03-http',NEXT_TELEMETRY_DISABLED:'1'};
+  try { execFileSync(process.execPath,[nextBin,'build'],{cwd:ROOT,env:appEnv,stdio:'pipe',timeout:120_000}); }
+  catch { throw new Error('H1A_LOCAL_PRODUCTION_BUILD_FAILED'); }
+  server=spawn(process.execPath,[nextBin,'start','--hostname','127.0.0.1','--port',String(port)],{
+    cwd:ROOT,stdio:'ignore',env:appEnv,
   });
   await waitForServer(server,`http://127.0.0.1:${port}`);
   process.env.U03_LOCAL_HTTP_BASE=`http://127.0.0.1:${port}`;
@@ -376,4 +379,4 @@ it('exports over a loopback HTTP socket and restores the verified signed manifes
   targetRowsCreated=false;
   expect(inventory(SOURCE_DB,project.projectId,project.organizationId)).toBe('0|0|0|0|0|0|0');
   expect(inventory(DEST_DB,project.projectId,project.organizationId)).toBe('0|0|0|0|0|0|0');
-},120_000);
+},180_000);
