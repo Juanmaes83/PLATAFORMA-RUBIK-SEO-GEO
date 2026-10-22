@@ -163,7 +163,14 @@ jobs:
       - name: Install Chromium for Playwright
         run: npx playwright install --with-deps chromium
       - name: Browser flows and visual checks at 360, 390 and 1280 px (next dev + local stack)
-        run: npm run test:e2e
+        env:
+          RUBIK_N2_CONTENT_GEO_SCHEMA_AVAILABLE: "true"
+        run: |
+          # This job applies the complete local migration set. Verify the N2 tables before
+          # advertising Content/GEO availability to both Playwright and its web server.
+          tables="$(docker exec -i supabase_db_plataforma-rubik-seo-geo psql -U postgres -v ON_ERROR_STOP=1 -qAtc "select count(*) from unnest(array['public.content_clusters','public.content_opportunities','public.content_evidence','public.content_briefs','public.geo_observations','public.geo_proposals']) as t(name) where to_regclass(name) is not null")"
+          test "$tables" = "6" || { echo "N2 Content/GEO schema incomplete"; exit 1; }
+          npm run test:e2e
       - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v4
