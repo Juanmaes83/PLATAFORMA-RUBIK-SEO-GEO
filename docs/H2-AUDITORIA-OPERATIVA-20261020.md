@@ -1,5 +1,10 @@
 # H2 · Auditoría operativa N1-07/N1-08
 
+## Corte vigente · integración U03 · 22/10/2026
+
+La [PR #143](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/143) está **MERGED** en `main@5cf2ad62605a1ed823771d28f32ca120797e57e7`; CI de PR `39737737422` SUCCESS. I-2/I-5/U03 están cerrados como gates alojados por el run `330c6e4b-14ad-439a-a8cf-43d92c73fadb`, con limpieza independiente. Se utilizó el mismo Preview existente, sin nuevo proyecto Supabase ni costes de proyecto adicional. La tabla y reconciliación inferiores preservan sus fechas y las referencias a #143 Draft, U03 BLOCKED, coste de un entorno nuevo, P-1 servidor pendiente y Actions sin jobs son históricas. H1-A NOT_RUN, U04/Sarah, H1 y H2 abiertos; R1 requiere decisión antes de Sarah. Los restantes controles operativos N1-07/08 y el smoke tras despliegue conservan sus gates propios.
+
+
 Estado al 20/10/2026: **abierto; inventario documental, no certificación operativa**. La reconciliación del 22/10 al final de este documento prevalece para U03/P-1; las filas de esta tabla conservan el corte histórico. H2 depende de H1 completo y de la aceptación U04. Los checks locales, un deployment READY o una PR fusionada no prueban capacidad operativa real.
 
 | Área | Estado conocido | Evidencia que falta / responsable |
