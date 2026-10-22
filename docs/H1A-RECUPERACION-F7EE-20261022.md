@@ -2,6 +2,12 @@
 
 Estado: **BLOCKED hasta ejecutar y verificar la recuperación alojada**. Este documento no atribuye un PASS a H1-A.
 
+## Fallo anterior al prompt y corrección
+
+El primer `-H1ARecoveryOnly` terminó con `H1A_RECOVERY_BRANCH_BATCH_MISMATCH` antes del prompt y de cualquier SQL. El diagnóstico real con Windows PowerShell 5.1 y `vercel env run -e preview --git-branch codex/h1a-integral-20261022` confirmó: metadatos `sensitive/preview/rama` correctos para los ocho nombres; vault DPAPI del mismo usuario legible y ligado al run; los ocho valores entregados por `env run` al proceso eran `EMPTY`. Por eso la comparación estricta del wrapper anterior no podía pasar. Una lista de nombres no acreditaba la entrega de bytes.
+
+El wrapper conserva la validación de metadatos y ref/rama/SHA/run. Clasifica cada nombre como `ABSENT`, `EMPTY`, `PRESENT_MATCH` o `PRESENT_MISMATCH`, sin mostrar bytes, hashes ni longitudes. `PRESENT_MISMATCH` detiene la operación. Ante `EMPTY` o `ABSENT`, carga el lote DPAPI local, lo entrega explícitamente al hijo y exige la atestación HMAC contra el deployment protegido y fijado antes del prompt. El modo `-H1ARecoveryTransportOnly` ejecutó esta secuencia real sin contraseña ni SQL: ocho metadatos correctos, ocho `EMPTY` de CLI, ocho coincidencias tras DPAPI, ocho controles en el hijo y `U03_WINDOW_BATCH_ATTESTATION PASS`. No se rotaron variables ni se redeplegó.
+
 ## Fuente inmutable
 
 - `test-results/u03-hosted-window/f7ee4d0a-edb4-4276-88fc-03bbab570a19.jsonl`: SHA-256 `1f36744b31b875413956359fa667a8327b7afee20a150581e064111c987dd192`.

@@ -5,6 +5,7 @@ param(
   [switch]$WindowRoleReadOnlyDiagnosticOnly,
   [switch]$WindowRecoveryOnly,
   [switch]$H1ARecoveryOnly,
+  [switch]$H1ARecoveryTransportOnly,
   [switch]$WindowI2I5H1A,
   [switch]$WindowH1A,
   [switch]$WindowBatchAttestationOnly,
@@ -45,6 +46,8 @@ Import-Module -Name $windowVaultModule -Force -ErrorAction Stop
 Import-Module -Name $windowRotationModule -Force -ErrorAction Stop
 $windowConfigurationModule = Join-Path $PSScriptRoot 'u03-preview-window-configuration.psm1'
 Import-Module -Name $windowConfigurationModule -Force -ErrorAction Stop
+$h1aBatchCompareModule = Join-Path $PSScriptRoot 'u03-preview-h1a-batch-compare.psm1'
+Import-Module -Name $h1aBatchCompareModule -Force -ErrorAction Stop
 
 function Stop-B4([string]$Code) { throw "U03 B-4 BLOCKED: $Code. No fixtures will be created unless every preflight passes." }
 
@@ -88,7 +91,8 @@ function Remove-U03WindowDeploymentConfiguration([string]$DeploymentId) {
 }
 
 function Invoke-U03WindowRoleChild([string]$Mode, [string]$RunId, [string]$PasswordText, [string]$ChildPath = $windowRoleOperator,
-  [System.Collections.IDictionary]$PreviewKeys = $null, [string]$CampaignMode = 'window-i2-i5') {
+  [System.Collections.IDictionary]$PreviewKeys = $null, [string]$CampaignMode = 'window-i2-i5',
+  [string]$FunctionalShaOverride = '') {
   $process = $null
   $payload = $null
   $payloadBytes = $null
@@ -96,7 +100,9 @@ function Invoke-U03WindowRoleChild([string]$Mode, [string]$RunId, [string]$Passw
     if ($Mode -notin @('run','contain','diagnose','recover','h1a-recover','sequence','attest','local','keys') -or $RunId -cnotmatch '^[0-9a-fA-F-]{36}$' -or
         (($Mode -notin @('attest','local','keys')) -and [string]::IsNullOrWhiteSpace($PasswordText)) -or
         ($Mode -in @('sequence','h1a-recover') -and ($null -eq $PreviewKeys -or [string]::IsNullOrWhiteSpace([string]$PreviewKeys.AdminKey) -or [string]::IsNullOrWhiteSpace([string]$PreviewKeys.PublicKey))) -or
-        -not (Test-Path -LiteralPath $ChildPath -PathType Leaf)) {
+        -not (Test-Path -LiteralPath $ChildPath -PathType Leaf) -or
+        ($FunctionalShaOverride -and ($Mode -ne 'attest' -or $RunId -cne 'f7ee4d0a-edb4-4276-88fc-03bbab570a19' -or
+          $FunctionalShaOverride -cne '0c06a300f3870af9cca5e5468a9401ccf7488b41'))) {
       return [pscustomobject]@{ Passed = $false; SafeLine = $null; Code = 'SAFE_CHILD_PREPARATION_FAILED' }
     }
     $nodePath = (Get-Command node.exe -ErrorAction Stop).Source
@@ -132,7 +138,8 @@ function Invoke-U03WindowRoleChild([string]$Mode, [string]$RunId, [string]$Passw
       $psi.EnvironmentVariables['U03_PREVIEW_ADMIN_KEY'] = [string]$PreviewKeys.AdminKey
       $psi.EnvironmentVariables['U03_PREVIEW_PUBLIC_KEY'] = [string]$PreviewKeys.PublicKey
     }
-    $psi.EnvironmentVariables['U03_FUNCTIONAL_SHA'] = (& git -C $repo rev-parse HEAD).Trim()
+    $psi.EnvironmentVariables['U03_FUNCTIONAL_SHA'] = if ($FunctionalShaOverride) { $FunctionalShaOverride }
+      else { (& git -C $repo rev-parse HEAD).Trim() }
     $process = [Diagnostics.Process]::new()
     $process.StartInfo = $psi
     if (-not $process.Start()) { return [pscustomobject]@{ Passed = $false; SafeLine = $null; Code = 'SAFE_CHILD_START_FAILED' } }
@@ -364,7 +371,7 @@ foreach ($requested in @($ProvisionPreviewKeys.IsPresent, $CheckPreviewKeys.IsPr
   if ($requested) { $credentialOperations++ }
 }
 $campaignModes = @($ReadOnlyPreflightOnly.IsPresent, $V4ConnectionDiagnosticOnly.IsPresent, $WindowRolePreflightOnly.IsPresent,
-  $WindowRoleReadOnlyDiagnosticOnly.IsPresent, $WindowRecoveryOnly.IsPresent, $H1ARecoveryOnly.IsPresent, $WindowI2I5H1A.IsPresent, $WindowH1A.IsPresent, $WindowBatchAttestationOnly.IsPresent,
+  $WindowRoleReadOnlyDiagnosticOnly.IsPresent, $WindowRecoveryOnly.IsPresent, $H1ARecoveryOnly.IsPresent, $H1ARecoveryTransportOnly.IsPresent, $WindowI2I5H1A.IsPresent, $WindowH1A.IsPresent, $WindowBatchAttestationOnly.IsPresent,
   $ProvisionWindowSecrets.IsPresent,
   $WindowTransportSelfTestOnly.IsPresent,
   $WindowRoleTransportSelfTestOnly.IsPresent,
@@ -400,7 +407,7 @@ if ($ProviderEgressOnly -and $branch -ne 'codex/u03-final-gates-20261020') { Sto
 if ($WindowRolePreflightOnly -and $branch -ne 'codex/u03-final-gates-20261020') { Stop-B4 'WRONG_MODE_BRANCH' }
 if ($WindowRoleReadOnlyDiagnosticOnly -and $branch -ne 'codex/u03-final-gates-20261020') { Stop-B4 'WRONG_MODE_BRANCH' }
 if ($WindowRecoveryOnly -and $branch -ne 'codex/u03-final-gates-20261020') { Stop-B4 'WRONG_MODE_BRANCH' }
-if ($H1ARecoveryOnly -and $branch -ne 'codex/h1a-integral-20261022') { Stop-B4 'WRONG_MODE_BRANCH' }
+if (($H1ARecoveryOnly -or $H1ARecoveryTransportOnly) -and $branch -ne 'codex/h1a-integral-20261022') { Stop-B4 'WRONG_MODE_BRANCH' }
 if ($WindowI2I5H1A -and $branch -ne 'codex/u03-final-gates-20261020') { Stop-B4 'WRONG_MODE_BRANCH' }
 if ($WindowH1A -and $branch -ne 'codex/h1a-integral-20261022') { Stop-B4 'WRONG_MODE_BRANCH' }
 if (($WindowBatchAttestationOnly -or $ProvisionWindowSecrets) -and $branch -ne 'codex/h1a-integral-20261022') { Stop-B4 'WRONG_MODE_BRANCH' }
@@ -444,7 +451,7 @@ if ($ProviderEgressOnly) {
 
 $pushed = $false
 $isH1AWindow = $WindowH1A.IsPresent
-$windowExpectedBranch = if ($isH1AWindow -or $H1ARecoveryOnly -or $WindowBatchAttestationOnly -or $ProvisionWindowSecrets) { 'codex/h1a-integral-20261022' } else { 'codex/u03-final-gates-20261020' }
+$windowExpectedBranch = if ($isH1AWindow -or $H1ARecoveryOnly -or $H1ARecoveryTransportOnly -or $WindowBatchAttestationOnly -or $ProvisionWindowSecrets) { 'codex/h1a-integral-20261022' } else { 'codex/u03-final-gates-20261020' }
 $previewCredentials = $null
 $adminKey = $null
 $publicKey = $null
@@ -611,7 +618,7 @@ try {
     Write-Output 'U03_WINDOW_RECOVERY_TEARDOWN PASS branchVariablesAbsent=true deploymentAbsent=true vaultRemoved=true'
     return
   }
-  if ($H1ARecoveryOnly) {
+  if ($H1ARecoveryOnly -or $H1ARecoveryTransportOnly) {
     $recoveryRun = 'f7ee4d0a-edb4-4276-88fc-03bbab570a19'
     $recoveryDeployment = 'dpl_HR7dit3yEnunZWCHi4cXUNS7Vrn9'
     $recoveryHost = 'plataforma-rubik-seo-a0b46g2ws-juanma-espinosas-projects.vercel.app'
@@ -619,23 +626,59 @@ try {
     if ($RunId -cne $recoveryRun -or $DeploymentId -cne $recoveryDeployment -or
         $DeploymentHost -cne $recoveryHost -or $DeploymentSha -cne $recoverySha -or
         -not (Test-Path -LiteralPath $h1aRecoveryOperator -PathType Leaf)) { Stop-B4 'H1A_RECOVERY_PIN_REJECTED' }
+    $metadataResult = Invoke-U03WindowVercelCli -Arguments @('env','ls','preview','codex/h1a-integral-20261022','--format=json') -InputText ''
+    if ($metadataResult.ExitCode -ne 0) { Stop-B4 'H1A_RECOVERY_METADATA_UNAVAILABLE' }
+    try {
+      $metadataStart = $metadataResult.Output.IndexOf('{')
+      if ($metadataStart -lt 0) { throw 'MISSING_JSON' }
+      $metadata = $metadataResult.Output.Substring($metadataStart) | ConvertFrom-Json -ErrorAction Stop
+      if ($null -eq $metadata.PSObject.Properties['envs']) { throw 'MISSING_ENVS' }
+      $metadataRows = @(Compare-H1ABatchMetadata @($metadata.envs))
+    } catch { Stop-B4 'H1A_RECOVERY_METADATA_UNAVAILABLE' }
+    foreach ($row in $metadataRows) {
+      Write-Output "H1A_RECOVERY_TRANSPORT stage=$($row.Stage) name=$($row.Name) category=$($row.Category)"
+    }
+    if (@($metadataRows | Where-Object Category -ne 'PRESENT_MATCH').Count -ne 0) {
+      Stop-B4 'H1A_RECOVERY_METADATA_SCOPE_MISMATCH'
+    }
     try { $recoveryBatch = Get-U03WindowBatch } catch { Stop-B4 'H1A_RECOVERY_VAULT_UNAVAILABLE' }
     if ($recoveryBatch.RunId -cne $recoveryRun -or $recoveryBatch.Sha -cne $recoverySha -or
         $recoveryBatch.ProjectId -cne 'prj_HgnTtNtisi9Kt1A4Dq2pxoCQBook' -or
         $recoveryBatch.SupabaseRef -cne 'rhnnplewqsekrnaousyl' -or
         $recoveryBatch.Branch -cne 'codex/h1a-integral-20261022') { Stop-B4 'H1A_RECOVERY_VAULT_IDENTITY_MISMATCH' }
+    Write-Output 'H1A_RECOVERY_TRANSPORT stage=DPAPI category=PRESENT_MATCH'
+    $deliveryRows = @(Compare-H1ABatchValues -Expected $recoveryBatch.Values -ReadValue {
+        param($name) [Environment]::GetEnvironmentVariable($name)
+      })
+    foreach ($row in $deliveryRows) {
+      Write-Output "H1A_RECOVERY_TRANSPORT stage=$($row.Stage) name=$($row.Name) category=$($row.Category)"
+    }
+    if (-not (Test-H1ABatchDelivery $deliveryRows)) { Stop-B4 'H1A_RECOVERY_BRANCH_BATCH_MISMATCH' }
     foreach ($name in (Get-U03WindowVariableNames)) {
-      $inherited = [Environment]::GetEnvironmentVariable($name)
-      if ([string]::IsNullOrEmpty($inherited) -or $inherited -cne ([string]$recoveryBatch.Values.$name)) {
-        Stop-B4 'H1A_RECOVERY_BRANCH_BATCH_MISMATCH'
-      }
       Set-Item -LiteralPath "Env:$name" -Value ([string]$recoveryBatch.Values.$name)
+    }
+    $hydrated = @(Compare-H1ABatchValues -Expected $recoveryBatch.Values -ReadValue {
+        param($name) [Environment]::GetEnvironmentVariable($name)
+      } -Stage 'HYDRATED_ENV')
+    if (@($hydrated | Where-Object Category -ne 'PRESENT_MATCH').Count -ne 0) { Stop-B4 'H1A_RECOVERY_HYDRATION_FAILED' }
+    foreach ($row in $hydrated) {
+      Write-Output "H1A_RECOVERY_TRANSPORT stage=$($row.Stage) name=$($row.Name) category=$($row.Category)"
     }
     $env:U03_PIN_DEPLOYMENT_ID = $recoveryDeployment
     $env:U03_PIN_DEPLOYMENT_HOST = $recoveryHost
     $env:U03_PIN_DEPLOYMENT_SHA = $recoverySha
     $env:U03_PIN_DEPLOYMENT_BRANCH = 'codex/h1a-integral-20261022'
     $recoveryBatch = $null
+    $attestation = Invoke-U03WindowRoleChild -Mode 'attest' -RunId $recoveryRun -PasswordText '' -ChildPath $windowSequenceOperator -FunctionalShaOverride $recoverySha
+    if ($attestation.SafeLine) { Write-Output $attestation.SafeLine }
+    if (-not $attestation.Passed) { Stop-B4 'H1A_RECOVERY_DEPLOYMENT_ATTESTATION_FAILED' }
+    foreach ($name in (Get-U03WindowVariableNames)) {
+      Write-Output "H1A_RECOVERY_TRANSPORT stage=CHILD_ENV name=$name category=PRESENT_MATCH"
+    }
+    if ($H1ARecoveryTransportOnly) {
+      Write-Output 'H1A_RECOVERY_TRANSPORT PASS metadata=8 dpapi=8 child=8 attestation=true passwordPrompt=false'
+      return
+    }
     try {
       $recoveryCredentials = Get-B4PreviewCredentials
       if ($recoveryCredentials.ProjectRef -cne 'rhnnplewqsekrnaousyl') { Stop-B4 'H1A_RECOVERY_PREVIEW_KEYS_REF_MISMATCH' }
