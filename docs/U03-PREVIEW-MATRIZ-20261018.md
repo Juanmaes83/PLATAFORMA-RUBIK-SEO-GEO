@@ -1,5 +1,9 @@
 # U03 · matriz alojada de Preview · 18/10/2026
 
+## H1-A · correccion de login en revision · 23/10/2026
+
+U03 conserva el PASS alojado `330c6e4b-14ad-439a-a8cf-43d92c73fadb`. H1-A sigue **BLOCKED**: el run `d3bb7af4-fa3c-49f0-98af-742158444963` se detuvo tras login y se limpio. Una sonda protegida posterior reprodujo 404 de assets inmutables despues del clic de Server Action; el envio nativo del mismo formulario devolvio 303 sin esos errores. El Route Handler de login conserva Auth y origen exacto. El recorrido local completo `d1a93948-00dc-4e8b-ad3b-83b8b16504ae` paso con 303, cuatro vistas sin errores, export/verificacion/restauracion y limpieza de dos stacks. Falta acreditar el SHA corregido en Vercel, la campana integral alojada y la aceptacion visual humana. [Diagnostico detallado](H1A-DIAGNOSTICO-D3BB-20261022.md).
+
 ## Estado H1-A tras d3bb7af4 · 22/10/2026
 
 U03 sigue PASS por `330c6e4b-14ad-439a-a8cf-43d92c73fadb`, sin repeticion. H1-A sigue BLOCKED: el run alojado `d3bb7af4-fa3c-49f0-98af-742158444963` llego a fixtures firmados, aislamiento y recibo, pero se detuvo en `after-login` antes de la primera vista. La limpieza independiente de Preview dio inventario/outbox y capacidades temporales cero. El ensayo local posterior paso con interceptacion CDP, export HTTP y doble restauracion, sin equivaler al deployment protegido. Diagnostico y limites: [expediente d3bb7af4](H1A-DIAGNOSTICO-D3BB-20261022.md). H1-B/Sarah, R1, H1 global y H2 permanecen abiertos.

@@ -169,8 +169,9 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
         return;
       }
       const inputHeaders = paused.request.headers ?? {};
+      const loginPost = parsed.pathname === "/acceso" || parsed.pathname === "/api/auth/login";
       const authAction = origin === allowedOrigin && paused.request.method === "POST" &&
-        (parsed.pathname === "/acceso" || Object.keys(inputHeaders).some(name => name.toLowerCase() === "next-action"));
+        (loginPost || Object.keys(inputHeaders).some(name => name.toLowerCase() === "next-action"));
       if (authAction) onRouteEvent("auth-action-post");
       else if (origin === allowedOrigin) onRouteEvent(navigation ? "pinned-navigation" : "pinned-request");
       const headers = scopedHeaders(url, inputHeaders, token, allowedOrigin, runId);
@@ -193,7 +194,8 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
     const request = response.request();
     try {
       const url = new URL(request.url());
-      if (url.origin === allowedOrigin && request.method() === "POST" && url.pathname === "/acceso") onRouteEvent(`auth-action-http-${response.status()}`);
+      if (url.origin === allowedOrigin && request.method() === "POST" &&
+        (url.pathname === "/acceso" || url.pathname === "/api/auth/login")) onRouteEvent(`auth-action-http-${response.status()}`);
     } catch { /* retain only the classified event */ }
   });
   await session.send("Fetch.enable", { patterns: [{ urlPattern: "*", requestStage: "Request" }, { urlPattern: "*", requestStage: "Response" }] });
@@ -614,13 +616,15 @@ export async function login(page, context, email, password, {
   const observeActionRequest = (actionRequest) => {
     try {
       const actionUrl = new URL(actionRequest.url());
-      if (actionRequest.method() === "POST" && actionUrl.origin === origin && actionUrl.pathname === "/acceso") routeEvents.push("auth-action-post");
+      if (actionRequest.method() === "POST" && actionUrl.origin === origin &&
+        (actionUrl.pathname === "/acceso" || actionUrl.pathname === "/api/auth/login")) routeEvents.push("auth-action-post");
     } catch { /* do not retain malformed or off-origin request data */ }
   };
   const observeActionResponse = (actionResponse) => {
     const request = actionResponse.request();
     try {
-      if (request.method() === "POST" && new URL(request.url()).origin === origin && new URL(request.url()).pathname === "/acceso") {
+      if (request.method() === "POST" && new URL(request.url()).origin === origin &&
+        ["/acceso", "/api/auth/login"].includes(new URL(request.url()).pathname)) {
         actionStatuses.push(actionResponse.status());
         routeEvents.push(`auth-action-http-${actionResponse.status()}`);
       }

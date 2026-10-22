@@ -67,6 +67,8 @@ function record(phase: string, result: 'PASS'|'FAIL'|'BLOCKED'|'ATTEMPTED', deta
   if (detail.viewport === 'desktop' || detail.viewport === 'mobile') safeDetail.viewport = detail.viewport;
   if (typeof detail.consoleErrorCount === 'number' && Number.isSafeInteger(detail.consoleErrorCount) && detail.consoleErrorCount >= 0) safeDetail.consoleErrorCount = detail.consoleErrorCount;
   if (typeof detail.pageErrorCount === 'number' && Number.isSafeInteger(detail.pageErrorCount) && detail.pageErrorCount >= 0) safeDetail.pageErrorCount = detail.pageErrorCount;
+  if (typeof detail.loginHttpStatus === 'number' && Number.isInteger(detail.loginHttpStatus) && detail.loginHttpStatus >= 100 && detail.loginHttpStatus <= 599) safeDetail.loginHttpStatus = detail.loginHttpStatus;
+  if (detail.loginOriginCategory === 'ABSENT' || detail.loginOriginCategory === 'MATCH' || detail.loginOriginCategory === 'MISMATCH') safeDetail.loginOriginCategory=detail.loginOriginCategory;
   if (typeof detail.diagnosticInterval === 'string' && ['before-login','after-login','before-navigation','after-navigation','before-measurement','after-measurement'].includes(detail.diagnosticInterval)) safeDetail.diagnosticInterval = detail.diagnosticInterval;
   for (const diagnosticsKey of ['diagnostics','diagnosticsBefore','diagnosticsAfter','diagnosticsDelta'] as const) if (detail[diagnosticsKey] && typeof detail[diagnosticsKey] === 'object') {
     const input = detail[diagnosticsKey] as Record<string,unknown>;
@@ -260,7 +262,17 @@ it('exports over a loopback HTTP socket and restores the verified signed manifes
     expect(access?.status()).toBe(200);
     await page.locator('#email').fill(email('u03-http-owner'));
     await page.locator('#password').fill(TEST_PASSPHRASE);
+    const loginResponse = page.waitForResponse(response => {
+      try { return response.request().method()==='POST' && new URL(response.url()).pathname==='/api/auth/login'; }
+      catch { return false; }
+    });
     await page.getByRole('button',{name:'Entrar'}).click();
+    const loginResult=await loginResponse;
+    const loginStatus=loginResult.status();
+    const loginOrigin=await loginResult.request().headerValue('origin');
+    const loginOriginCategory=!loginOrigin?'ABSENT':loginOrigin===origin?'MATCH':'MISMATCH';
+    record('browser-auth-diagnostics',loginStatus===303?'PASS':'BLOCKED',{loginHttpStatus:loginStatus,loginOriginCategory});
+    expect(loginStatus).toBe(303);
     await page.waitForURL(`${origin}/panel`);
     boundary('after-login');
     record('browser-auth-diagnostics','PASS',{diagnostics:diagnostics.snapshot(),pageErrorCount:pageErrors.count});

@@ -46,7 +46,9 @@ try {
   phase = 'rejectedAction';
   await page.locator('#email').fill(`h1a-negative-${randomUUID()}@example.test`);
   await page.locator('#password').fill(randomBytes(32).toString('hex'));
-  await page.getByRole('button', { name:'Entrar' }).click();
+  if (process.env.H1A_PROBE_NATIVE_SUBMIT === '1')
+    await page.locator('form').evaluate(form => HTMLFormElement.prototype.submit.call(form));
+  else await page.getByRole('button', { name:'Entrar' }).click();
   await page.waitForURL(url => url.origin === origin && url.pathname === '/acceso' &&
     ['datos','credenciales'].includes(url.searchParams.get('error')), { timeout:20000 });
   const afterRejectedAction = diagnostics.snapshot();
@@ -63,10 +65,12 @@ try {
   const consoleErrors = Object.entries(afterRejectedAction.console).filter(([key]) => key.startsWith('error:'))
     .reduce((sum, [, count]) => sum + count, 0);
   const complete = !afterRejectedAction.routeEvents['diagnostic-cardinality-exceeded'];
+  const nativeRedirect = (delta.routeEvents['auth-action-http-303'] ?? 0) === 1;
   let independentStaticStatus = null;
   let independentStaticResponseClass = null;
   let queryPinnedStaticStatus = null;
   let headerPinnedStaticStatus = null;
+  let conventionalStaticStatus = null;
   if (firstMissingStatic && new URL(firstMissingStatic).origin === origin) {
     try {
       const check = await fetch(firstMissingStatic, { headers:scopedHeaders(firstMissingStatic, {}, token, origin),
@@ -97,18 +101,28 @@ try {
       headerPinnedStaticStatus = check.status;
       await check.body?.cancel();
     } catch { headerPinnedStaticStatus = 'TRANSPORT_FAILED'; }
+    try {
+      const conventional = new URL(firstMissingStatic);
+      conventional.pathname = conventional.pathname.replace('/_next/static/immutable/', '/_next/static/');
+      conventional.searchParams.set('dpl', PIN.deploymentId);
+      const check = await fetch(conventional, { headers:scopedHeaders(conventional.href, {}, token, origin),
+        redirect:'manual', cache:'no-store', signal:AbortSignal.timeout(15000) });
+      conventionalStaticStatus = check.status;
+      await check.body?.cancel();
+    } catch { conventionalStaticStatus = 'TRANSPORT_FAILED'; }
   }
   const initialOk = staticByPhase.initial.ok;
   const laterMissing = staticByPhase.rejectedAction.missing;
   process.stdout.write(`${JSON.stringify({ mode:'H1A_READONLY_LOGIN_RESOURCES',
     deploymentId:PIN.deploymentId, sha:PIN.sha, ref:PIN.supabaseRef,
-    result:arrived && rejectedWithoutSession && complete && consoleErrors === 0 && pageErrors === 0 ? 'PASS' : 'BLOCKED',
-    arrived, rejectedWithoutSession, pageErrors, intervals:{ initial, rejectedAction:delta },
+    modeVariant:process.env.H1A_PROBE_NATIVE_SUBMIT === '1' ? 'NATIVE_FORM' : 'USER_CLICK',
+    result:arrived && rejectedWithoutSession && complete && nativeRedirect && consoleErrors === 0 && pageErrors === 0 ? 'PASS' : 'BLOCKED',
+    arrived, rejectedWithoutSession, nativeRedirect, pageErrors, intervals:{ initial, rejectedAction:delta },
     staticComparison:{ initialOk:initialOk.size, laterMissing:laterMissing.size,
       laterMissingPreviouslyOk:[...laterMissing].filter(path => initialOk.has(path)).length,
       independentStaticStatus, independentStaticResponseClass,
-      queryPinnedStaticStatus, headerPinnedStaticStatus, pinCategories, staticFamilies } })}\n`);
-  if (!arrived || !rejectedWithoutSession || !complete || consoleErrors || pageErrors) process.exitCode = 1;
+      queryPinnedStaticStatus, headerPinnedStaticStatus, conventionalStaticStatus, pinCategories, staticFamilies } })}\n`);
+  if (!arrived || !rejectedWithoutSession || !complete || !nativeRedirect || consoleErrors || pageErrors) process.exitCode = 1;
   diagnostics.dispose();
   await context.close();
 } catch {

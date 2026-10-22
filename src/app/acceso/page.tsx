@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Notice } from "@/components/Notice";
 import { EmptyState, PageHead } from "@/components/ui";
-import { signIn, signOut } from "@/lib/auth/actions";
+import { signOut } from "@/lib/auth/actions";
 import { ACCESS_ERRORS, ACCESS_NOTICES, pick } from "@/lib/auth/messages";
 import { currentUser, requestAuthMode } from "@/lib/auth/session";
 
@@ -33,7 +33,7 @@ export default async function AccessPage({ searchParams }: { searchParams: Promi
         </form>
       ) : (
         <>
-          <form action={signIn} className="card form">
+          <form action="/api/auth/login" method="post" className="card form">
             {next && <input type="hidden" name="next" value={next} />}
             <div className="field">
               <label htmlFor="email">Correo</label>
