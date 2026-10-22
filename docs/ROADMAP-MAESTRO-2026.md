@@ -2,7 +2,7 @@
 
 ## Integración U03 · 22/10/2026
 
-La [PR #143](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/143) se fusionó en `main@5cf2ad62605a1ed823771d28f32ca120797e57e7` desde el HEAD revisado `73fb8814a596e8a97bbfe2d747b331494c502334`. Su CI de PR `39737737422` terminó SUCCESS en Node 22/24, pgTAP, integración y Playwright (184 PASS). I-2/I-5/U03 conservan el cierre alojado del run `330c6e4b-14ad-439a-a8cf-43d92c73fadb`, con limpieza independiente; el merge acredita integración del código, no un nuevo ensayo alojado ni despliegue validado de Production. H1-A sigue NOT_RUN, U04/Sarah, H1 y H2 abiertos; R1 se decide antes de Sarah. Los cortes inferiores sobre #143 Draft, U03 BLOCKED o Actions sin jobs son históricos.
+La [PR #143](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/143) se fusionó en `main@5cf2ad62605a1ed823771d28f32ca120797e57e7` desde el HEAD revisado `73fb8814a596e8a97bbfe2d747b331494c502334`. Su CI de PR `39737737422` terminó SUCCESS en Node 22/24, pgTAP, integración y Playwright (184 PASS). I-2/I-5/U03 conservan el cierre alojado del run `330c6e4b-14ad-439a-a8cf-43d92c73fadb`, con limpieza independiente; el merge acredita integración del código, no un nuevo ensayo alojado. El deployment de Production `dpl_6HyfzQ9iM3Buy6DEqLAKfEpTyFNL` para el corte documental `5eec425ae3f3c31ce4c71a536c19c5d44aaa261f` quedó READY; `/api/salud` respondió 200 con `supabaseProjectRef=yvdgmklgwlshizzgefpv`. Esto es un smoke de salud, no aceptación funcional H1/H2. H1-A sigue NOT_RUN, U04/Sarah, H1 y H2 abiertos; R1 se decide antes de Sarah. Los cortes inferiores sobre #143 Draft, U03 BLOCKED o Actions sin jobs son históricos.
 
 
 ## Reconciliación U03 · 22/10/2026
