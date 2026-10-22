@@ -1,5 +1,11 @@
 # ROADMAP MAESTRO · Rubik SEO/GEO
 
+## Reconciliación U03 · 22/10/2026
+
+**Estado operativo en Preview:** I-2, I-5 y U03 **PASS/CERRADO** en la campaña alojada `330c6e4b-14ad-439a-a8cf-43d92c73fadb`, deployment `dpl_56PEz8SoynyU8UD1ufRenAesQyx5`, SHA funcional `ed0bbee9006feabae546fa376e4eaf7beffafc42`. La [matriz U03](U03-PREVIEW-MATRIZ-20261018.md) y el [runbook](U03-I2-I5-H1A-VENTANA-20261020.md) registran positivos firmados, filas pobladas, recibos y limpieza independiente. El ledger original permanece local en el checkout del propietario; `run-artifacts NONE` no equivale a artefacto publicado. Los estados U03 BLOCKED de cortes fechados anteriores son historia y no describen este gate actual.
+
+**Integración:** este PASS se obtuvo en la rama de la [PR #143](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/143), que sigue OPEN/Draft en este corte; todavía no acredita código fusionado ni despliegue de `main`. H1-A fue `NOT_RUN`; U04/Sarah, H1 y H2 permanecen abiertos conforme al [protocolo de dos pasadas](GATE-ACEPTACION-INTEGRAL-H1-H2-20261018.md) y la [auditoría H2](H2-AUDITORIA-OPERATIVA-20261020.md). R1 requiere decisión antes de Sarah. GitHub Actions continúa bloqueada por facturación y no se declara CI verde. N2/H3 conserva sus gates propios.
+
 ## Reconciliación vigente · 20/10/2026
 
 La base de trabajo es `main@a0a40b776361f292d910e285b390d5e753da8d7b`; #129, #141 y #142 están fusionadas. Para los gates U03/H1/H2 prevalece la [matriz U03 reconciliada](U03-PREVIEW-MATRIZ-20261018.md) y el [protocolo H1/H2](GATE-ACEPTACION-INTEGRAL-H1-H2-20261018.md), no los cortes históricos de este archivo. U02, Data API 12/12, B-4, V-4, V-1/V-2/V-3, I-8, P-2 y S-2/S-3a/S-4/P-1 de navegador tienen evidencia reutilizable; S-3b es NO APLICABLE por decisión de Juanma. S-5 tiene PASS alojado «emisor ajeno aislado» (run `87fff99a-3176-45b7-9308-07985dd1d5e8`), que no es un JWT de Production. U03 sigue pendiente de positivos firmados I-2/I-5 y evidencia de salida de proveedor en servidor. H1-A, U04/Sarah y H2 siguen abiertos. R1 (consistencia de exportación durante escrituras concurrentes) requiere decisión antes de Sarah. GitHub Actions sigue bloqueada por facturación.
