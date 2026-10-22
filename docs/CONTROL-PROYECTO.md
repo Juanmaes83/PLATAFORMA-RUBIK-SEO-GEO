@@ -1,5 +1,13 @@
 # Control canónico del proyecto Rubik SEO/GEO
 
+## Estado operativo actual · 22/10/2026 · cierre U03 en Preview
+
+I-2, I-5 y U03 tienen **PASS alojado / CERRADO como gate** en el run `330c6e4b-14ad-439a-a8cf-43d92c73fadb` contra Preview `rhnnplewqsekrnaousyl`, deployment `dpl_56PEz8SoynyU8UD1ufRenAesQyx5` y SHA funcional `ed0bbee9006feabae546fa376e4eaf7beffafc42`. La [matriz U03](U03-PREVIEW-MATRIZ-20261018.md) y el [runbook](U03-I2-I5-H1A-VENTANA-20261020.md) documentan filas firmadas pobladas, I-2, I-5, recibos resueltos, limpieza, contención independiente y retirada de la ventana. Data API, B-4 y demás PASS previos se reutilizaron; no se repitieron. El ledger original permanece local en el checkout de Juanma y no se presenta como evidencia publicada en GitHub.
+
+La [PR #143](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/143) permanece OPEN/Draft y sin fusionar en este corte: el resultado del ensayo no acredita integración o despliegue de `main`. El código y sus rutas de prueba requieren revisión de integración por HEAD exacto antes de fusionarse. H1-A quedó `NOT_RUN`; U04/Sarah, H1 y H2 siguen abiertos. Antes de Sarah falta resolver R1 (consistencia de exportación) y las condiciones de aceptación de su [paquete](U04-PAQUETE-ACEPTACION-20261020.md). H2 añade los gates de [operación N1-07/08](H2-AUDITORIA-OPERATIVA-20261020.md). GitHub Actions permanece bloqueada por facturación; la verificación local no es CI verde.
+
+Los apartados inferiores son cortes históricos: sus referencias a U03 BLOCKED, #129 Draft, PR y deployments anteriores no sustituyen este estado. Cuando #143 se fusione, registrar el SHA de merge, el despliegue y la validación posterior en un nuevo corte, sin reescribir los ledgers.
+
 ## Estado operativo actual · 19/10/2026 · V-4 Preview acreditado
 
 La PR #129 continúa Draft. V-4 alojado pasó en el run `b170134c-5538-4f81-b459-1bb762b95bad`: retirada con JWT vigente, recibo firmado y limpieza/contención; lectura independiente confirmó inventario y outbox cero, rol/políticas temporales ausentes y escritor del producto bloqueado. Data API 12/12 y B-4 Chromium escritorio/móvil con aceptación visual son evidencia anterior. U03 global sigue abierto por los roles, invitación/consentimiento y sesión/JWT pendientes en la matriz; H1 por la pasada integral ficticia y U04/Sarah; H2 por aceptación operativa y comercial. El estado operativo inferior corresponde a cortes anteriores y sus instrucciones de repetir V-4 ya no aplican.
