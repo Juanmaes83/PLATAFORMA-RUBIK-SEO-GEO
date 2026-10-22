@@ -488,3 +488,21 @@ La reproducción local encontró que la lectura de ID inexistente de `audit_even
 | H1-A | Separado / pendiente | No condiciona U03. |
 
 No hubo ventana ni fixtures alojados en este diagnóstico.
+
+## Cierre alojado I-2/I-5 y U03 · 22/10/2026
+
+La campaña dirigida del run `330c6e4b-14ad-439a-a8cf-43d92c73fadb` terminó con `sequence-complete PASS` y `u03-global-result PASS`. El ledger local conservado es `test-results/u03-hosted-window/330c6e4b-14ad-439a-a8cf-43d92c73fadb.jsonl`; el resumen del ledger se compartió y auditó el 22/10. Esta sección es el estado vigente y supersede los estados BLOCKED de los cortes históricos inferiores; esos registros se conservan sin reescritura.
+
+| Gate | Estado | Evidencia y alcance |
+|---|---|---|
+| I-2 | **PASS alojado** | `i2-owner-positive PASS` (2); `i2-foreign-and-missing-routes PASS` (5); `i2-protected-routes PASS` (7). |
+| I-5 audit_events | **PASS alojado con filas pobladas** | `i5-populated-audit-events CHECKS_COMPLETE PASS`; 8 comprobaciones de visibilidad esperada; lecturas positivas y negativas según el operador. |
+| I-5 provider_results | **PASS alojado con filas pobladas** | `i5-populated-provider-results CHECKS_COMPLETE PASS`; 8 comprobaciones de visibilidad esperada. |
+| I-5 imports | **PASS alojado con filas pobladas** | `i5-populated-imports CHECKS_COMPLETE PASS`; 8 comprobaciones de visibilidad esperada. |
+| Firmas y superficies pobladas | **PASS alojado** | `i5-populated-signed-rows PASS` (3) y `window-i2-i5-populated-surfaces PASS` (2). Los flujos legítimos del producto generaron las filas; la evidencia local no se usa como sustituto. |
+| Recibos, limpieza y estado final | **PASS alojado** | `i2-evidence-before-role-rollback`, `i5-evidence-before-role-rollback`, `fixture-cleanup`, `final-inventory`, `outbox-final`, `capabilities-final` e `independent-containment-and-final-read` PASS. El resumen de PowerShell confirma rol/políticas/sesiones temporales en cero, inventario cero, outbox total/pending cero y escritor general NOLOGIN. |
+| Retirada de ventana | **PASS** | `U03_WINDOW_TEARDOWN PASS`: variables de rama retiradas y deployment temporal eliminado. |
+| U03 | **PASS / CERRADO** | `u03-sql-final-result PASS`, `i2-final-result PASS`, `i5-final-result PASS`, `sequence-complete PASS` y `u03-global-result PASS`. El PASS de U03 incluye los PASS anteriores reutilizados; B-4 y Data API aparecen como `SKIP_PRIOR_EVIDENCE`, sin repetición. |
+| H1-A | **NO EJECUTADO; independiente** | `h1a-result NOT_RUN`. No condiciona el cierre de U03. H1/H2 y U04/Sarah permanecen abiertos según sus propios gates. |
+
+Deployment usado: `dpl_56PEz8SoynyU8UD1ufRenAesQyx5`, host `plataforma-rubik-seo-9u4p45110-juanma-espinosas-projects.vercel.app`, SHA funcional `ed0bbee9006feabae546fa376e4eaf7beffafc42`, Preview `rhnnplewqsekrnaousyl`. El run de campaña finalizó PASS; no repetirlo. El ledger registra `run-artifacts NONE`; la salida saneada y el ledger original quedan conservados localmente por Juanma, sin incorporarlos al repositorio.
