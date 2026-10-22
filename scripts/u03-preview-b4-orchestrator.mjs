@@ -550,7 +550,15 @@ export async function runProtectedWindowH1Export({ fixtures, runId, env = proces
   const requestStarted = performance.now();
   try { response = await fetchImpl(exportUrl, { headers, redirect: 'manual', signal: AbortSignal.timeout(30000) }); }
   catch { throw new Error('PREVIEW_HTTP_EXPORT_TRANSPORT_FAILED'); }
-  if (response.status !== 200 || response.url && new URL(response.url).origin !== origin) throw new Error(`PREVIEW_HTTP_EXPORT_FAILED_${response.status}`);
+  if (response.url && new URL(response.url).origin !== origin) throw new Error('PREVIEW_HTTP_EXPORT_ORIGIN_REJECTED');
+  if (response.status === 503) {
+    const gate = response.headers?.get?.('x-rubik-h1a-export-gate');
+    const allowed = new Set(['SIGNING_UNAVAILABLE','RECEIPT_PRECHECK','SCHEMA_UNKNOWN','PROVENANCE_INVALID',
+      'OPERATIONS_INCOMPLETE','SEO_INCOMPLETE','SEO_CHANGED','CONTENT_GEO_INCOMPLETE',
+      'CONTENT_GEO_CHANGED','SCHEMA_CHANGED','RECEIPT_CHANGED']);
+    throw new Error(allowed.has(gate) ? `PREVIEW_HTTP_EXPORT_${gate}` : 'PREVIEW_HTTP_EXPORT_FAILED_503');
+  }
+  if (response.status !== 200) throw new Error(`PREVIEW_HTTP_EXPORT_FAILED_${response.status}`);
   const document = await response.json().catch(() => null);
   if (!document || typeof document !== 'object') throw new Error('PREVIEW_HTTP_EXPORT_INVALID');
   await ledger('h1a-http-export-request', 'PASS', { httpStatus: response.status, durationMs: Math.round(performance.now() - requestStarted) });

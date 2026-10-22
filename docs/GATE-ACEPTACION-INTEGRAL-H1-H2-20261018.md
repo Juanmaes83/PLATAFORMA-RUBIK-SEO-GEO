@@ -1,5 +1,9 @@
 # Gate de aceptación integral · H1 y H2
 
+## Estado vigente de H1-A tras c594d41d
+
+H1-A continúa **BLOCKED**: el run alojado `c594d41d-dc26-4870-a4b4-3ec9fc2256ae` pasó login, permisos, datos firmados, aislamiento y cuatro vistas/capturas, pero export HTTP respondió 503; verificación y restauración no se ejecutaron. La limpieza y la lectura independiente dieron inventario/outbox/capacidades temporales cero. Una condición necesaria faltó en la ventana: la atestación del corte N1 para exportar v2. El código ahora la exige en el lote y en la atestación protegida y clasifica un 503 posterior con categoría cerrada. El ensayo local `aa8602bd-6957-4f81-9d88-56bfe151d255` pasó export HTTP, verificación, rechazo de manipulación, restauración doble y limpieza; no cierra H1-A alojado. U03 permanece PASS; R1, H1-B/U04, H1 global y H2 siguen abiertos. [Expediente](H1A-EXPORT-503-C594-20261023.md).
+
 ## Estado vigente de H1-A tras d3bb7af4
 
 El run alojado `d3bb7af4-fa3c-49f0-98af-742158444963` se bloqueo en el intervalo `after-login`, antes de completar vistas, exportacion y restauracion. La limpieza independiente de Preview termino a cero. Los 132 errores de consola y 132 respuestas 404 originales carecen de clasificacion de recurso; la causa exacta sigue sin atribuir. El ensayo local completo con CDP y dos stacks paso, pero H1-A sigue BLOCKED hasta una campana alojada completa y aceptacion visual humana. [Diagnostico y evidencia](H1A-DIAGNOSTICO-D3BB-20261022.md). U03 conserva su PASS; R1, U04/H1-B, H1 global y H2 permanecen abiertos.

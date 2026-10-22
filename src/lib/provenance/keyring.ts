@@ -96,7 +96,7 @@ const WINDOW_POOLER = "aws-1-eu-west-3.pooler.supabase.com";
 export type PreviewWindowAttestationInput = { runId: string; nonce: string };
 export type PreviewWindowAttestation = {
   ok: true; runId: string; nonce: string; deploymentId: string; host: string; sha: string; ref: string; branch: string;
-  proofs: { window: string; databaseUrl: string; signingKeys: string; activeKeyId: string };
+  proofs: { window: string; databaseUrl: string; signingKeys: string; activeKeyId: string; schemaAttestation: string };
   databaseIdentity: { host: string; port: number; role: string; ref: string };
 };
 
@@ -115,11 +115,13 @@ export function createPreviewWindowAttestation(env: Record<string, string | unde
   const databaseUrl = env.RUBIK_AUDIT_DATABASE_URL ?? "";
   const signingKeys = env.PROVENANCE_SIGNING_KEYS ?? "";
   const activeKeyId = env.PROVENANCE_ACTIVE_KEY_ID ?? "";
+  const schemaAttestation = env.RUBIK_RECOVERY_SCHEMA_ATTESTATION ?? "";
   if (env.VERCEL_ENV !== "preview" || env.U03_PREVIEW_WRITER_WINDOW !== "armed-run-capability" ||
       env.U03_PREVIEW_WRITER_WINDOW_REF !== WINDOW_REF || env.U03_PREVIEW_WRITER_WINDOW_SHA !== sha ||
       env.VERCEL_GIT_COMMIT_REF !== WINDOW_BRANCH || !WINDOW_UUID.test(runId) || input.runId !== runId ||
       !WINDOW_NONCE.test(input.nonce) || !WINDOW_SHA.test(sha) || !WINDOW_DEPLOYMENT.test(deploymentId) ||
-      !host || host.toLowerCase() !== requestHost.toLowerCase() || !windowSecret || !databaseUrl || !signingKeys || !activeKeyId) return null;
+      !host || host.toLowerCase() !== requestHost.toLowerCase() || !windowSecret || !databaseUrl || !signingKeys || !activeKeyId ||
+      schemaAttestation !== "pre-n2-through-20261015210000") return null;
   let parsed: URL;
   try { parsed = new URL(databaseUrl); } catch { return null; }
   const username = decodeURIComponent(parsed.username);
@@ -130,7 +132,8 @@ export function createPreviewWindowAttestation(env: Record<string, string | unde
   return {
     ok: true, runId: input.runId, nonce: input.nonce, deploymentId, host, sha, ref: WINDOW_REF, branch: WINDOW_BRANCH,
     proofs: { window: windowMac(windowSecret, context), databaseUrl: windowMac(databaseUrl, context),
-      signingKeys: windowMac(signingKeys, context), activeKeyId: windowMac(activeKeyId, context) },
+      signingKeys: windowMac(signingKeys, context), activeKeyId: windowMac(activeKeyId, context),
+      schemaAttestation: windowMac(schemaAttestation, context) },
     databaseIdentity: { host: parsed.hostname, port: Number(parsed.port), role: "rubik_preview_u03_writer", ref: WINDOW_REF },
   };
 }

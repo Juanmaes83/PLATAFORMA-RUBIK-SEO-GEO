@@ -7,7 +7,7 @@ $script:WindowRole = 'rubik_preview_u03_writer'
 $script:WindowPooler = 'aws-1-eu-west-3.pooler.supabase.com'
 $script:WindowNames = @('U03_PREVIEW_WRITER_WINDOW','U03_PREVIEW_WRITER_WINDOW_REF','U03_PREVIEW_WRITER_WINDOW_SHA',
   'U03_PREVIEW_WRITER_WINDOW_RUN_ID','U03_PREVIEW_WRITER_WINDOW_SECRET','RUBIK_AUDIT_DATABASE_URL',
-  'PROVENANCE_SIGNING_KEYS','PROVENANCE_ACTIVE_KEY_ID')
+  'PROVENANCE_SIGNING_KEYS','PROVENANCE_ACTIVE_KEY_ID','RUBIK_RECOVERY_SCHEMA_ATTESTATION')
 
 function Stop-U03WindowVault([string]$Code) { throw "U03_WINDOW_VAULT:$Code" }
 function Get-U03WindowSid {
@@ -77,6 +77,7 @@ function New-U03WindowBatch([string]$Sha, [string]$RunId = [guid]::NewGuid().ToS
     RUBIK_AUDIT_DATABASE_URL = $url
     PROVENANCE_SIGNING_KEYS = "u03-preview-window:$signingKey"
     PROVENANCE_ACTIVE_KEY_ID = 'u03-preview-window'
+    RUBIK_RECOVERY_SCHEMA_ATTESTATION = 'pre-n2-through-20261015210000'
   }
   return [pscustomobject]@{ Version = 1; ProjectId = $script:WindowProject; SupabaseRef = $script:WindowRef; Branch = $script:WindowBranch; Sha = $Sha; RunId = $RunId; UserSid = Get-U03WindowSid; Values = $values }
 }
@@ -119,7 +120,7 @@ function Test-U03WindowBatch([Parameter(Mandatory)]$Batch) {
     else { $property = $v.PSObject.Properties[$name]; if ($null -ne $property) { $value = $property.Value } }
     if ([string]::IsNullOrWhiteSpace([string]$value)) { Stop-U03WindowVault 'BATCH_INCOMPLETE' }
   }
-  if ($v.U03_PREVIEW_WRITER_WINDOW -cne 'armed-run-capability' -or $v.U03_PREVIEW_WRITER_WINDOW_REF -cne $script:WindowRef -or $v.U03_PREVIEW_WRITER_WINDOW_SHA -cne $Batch.Sha -or $v.U03_PREVIEW_WRITER_WINDOW_RUN_ID -cne $Batch.RunId -or $v.PROVENANCE_ACTIVE_KEY_ID -cne 'u03-preview-window' -or $v.PROVENANCE_SIGNING_KEYS -cnotmatch '^u03-preview-window:[A-Za-z0-9+/]+={0,2}$') { Stop-U03WindowVault 'BATCH_FORMAT_INVALID' }
+  if ($v.U03_PREVIEW_WRITER_WINDOW -cne 'armed-run-capability' -or $v.U03_PREVIEW_WRITER_WINDOW_REF -cne $script:WindowRef -or $v.U03_PREVIEW_WRITER_WINDOW_SHA -cne $Batch.Sha -or $v.U03_PREVIEW_WRITER_WINDOW_RUN_ID -cne $Batch.RunId -or $v.PROVENANCE_ACTIVE_KEY_ID -cne 'u03-preview-window' -or $v.PROVENANCE_SIGNING_KEYS -cnotmatch '^u03-preview-window:[A-Za-z0-9+/]+={0,2}$' -or $v.RUBIK_RECOVERY_SCHEMA_ATTESTATION -cne 'pre-n2-through-20261015210000') { Stop-U03WindowVault 'BATCH_FORMAT_INVALID' }
   try { $url = [Uri]$v.RUBIK_AUDIT_DATABASE_URL } catch { Stop-U03WindowVault 'BATCH_FORMAT_INVALID' }
   if ($url.Scheme -cne 'postgresql' -or $url.Host -cne $script:WindowPooler -or $url.Port -ne 5432 -or $url.AbsolutePath -cne '/postgres' -or $url.Query -ne '' -or $url.UserInfo -notmatch '^rubik_preview_u03_writer\.rhnnplewqsekrnaousyl:.+$' -or $v.U03_PREVIEW_WRITER_WINDOW_SECRET -notmatch '^[A-Za-z0-9_-]{64}$') { Stop-U03WindowVault 'BATCH_FORMAT_INVALID' }
   return $true

@@ -11,6 +11,7 @@ import { planRestore } from "@/lib/restore/plan";
 const mocked = vi.hoisted(() => ({
   schema: vi.fn(), user: vi.fn(), client: vi.fn(), membership: vi.fn(), access: vi.fn(), ref: vi.fn(),
   keyring: vi.fn(), beforeAfter: vi.fn(), append: vi.fn(), export: vi.fn(), operations: vi.fn(), seo: vi.fn(), contentGeo: vi.fn(),
+  windowScope: vi.fn(),
 }));
 vi.mock("@/lib/recovery/schema-contract", () => ({ recoverySchemaContract: mocked.schema }));
 vi.mock("@/lib/auth/session", () => ({ currentUser: mocked.user }));
@@ -19,6 +20,9 @@ vi.mock("@/lib/tenancy", () => ({ myProjectMembership: mocked.membership }));
 vi.mock("@/lib/access", () => ({ projectAccess: mocked.access }));
 vi.mock("@/lib/imports/repository", () => ({ loadProjectRef: mocked.ref }));
 vi.mock("@/lib/provenance/keyring", async (importOriginal) => ({ ...(await importOriginal<object>()), serverKeyring: mocked.keyring }));
+vi.mock("@/lib/provenance/preview-writer-capability", async (importOriginal) => ({
+  ...(await importOriginal<object>()), currentPreviewWriterCapability: mocked.windowScope,
+}));
 vi.mock("@/lib/provenance/outbox", async (importOriginal) => ({ ...(await importOriginal<object>()), inspectProjectAuditOutbox: mocked.beforeAfter }));
 vi.mock("@/lib/provenance/repository", async (importOriginal) => ({ ...(await importOriginal<object>()), appendAudit: mocked.append, exportProject: mocked.export }));
 vi.mock("@/lib/recovery/operations", async (importOriginal) => ({ ...(await importOriginal<object>()), readOperationalState: mocked.operations }));
@@ -44,6 +48,7 @@ const contentGeo = { ok: true, content: { clusters: [], opportunities: [], evide
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocked.windowScope.mockReturnValue(null);
   const row = buildAuditRow(null, { at: "2026-10-16T10:00:00.000Z", actor: { id: actor, role: "owner" },
     action: "project.export" }, project, keyring);
   if (!row.ok) throw new Error(row.error);
@@ -72,6 +77,18 @@ async function exported() {
 }
 
 describe("real export endpoint recovery contract", () => {
+  it("fails closed at the schema gate and exposes a closed category only inside the signed window", async () => {
+    mocked.schema.mockResolvedValue("unknown");
+    const publicResponse = await exported();
+    expect(publicResponse.status).toBe(503);
+    expect(publicResponse.headers.get("x-rubik-h1a-export-gate")).toBeNull();
+    expect(mocked.append).not.toHaveBeenCalled();
+    mocked.windowScope.mockReturnValue({ runId: "fictional-run" });
+    const scopedResponse = await exported();
+    expect(scopedResponse.status).toBe(503);
+    expect(scopedResponse.headers.get("x-rubik-h1a-export-gate")).toBe("SCHEMA_UNKNOWN");
+    expect(mocked.append).not.toHaveBeenCalled();
+  });
   it.runIf(process.env.RUBIK_TEST_N2_LEGACY_STACK === "1")("legacy database catalog drives a signed and restorable v2 response", async () => {
     const real = await vi.importActual<typeof import("@/lib/recovery/schema-contract")>("@/lib/recovery/schema-contract");
     mocked.schema.mockImplementation(() => real.recoverySchemaContract({

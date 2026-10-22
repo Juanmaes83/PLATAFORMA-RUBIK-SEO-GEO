@@ -4,11 +4,26 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { chromiumEnvironment, networkEnvironment, PIN } from './u03-preview-b4-runner.mjs';
-import { PREFLIGHT_RESULT_FIELDS, PREFLIGHT_SQL, PRIOR_DATA_API_RUN_ID, parseCliJson, readPreviewAuthSettings, runHostedU03Campaign, runProtectedWindowSurfaces, runPreviewReadOnlySql, runReadOnlyPreflight, safeLedgerDetail, verifyFinalPreviewState, verifyInitialPreviewState, verifyProtectedWindowRuntime, verifyReadOnlyPreviewState } from './u03-preview-b4-orchestrator.mjs';
+import { PREFLIGHT_RESULT_FIELDS, PREFLIGHT_SQL, PRIOR_DATA_API_RUN_ID, parseCliJson, readPreviewAuthSettings, runHostedU03Campaign, runProtectedWindowH1Export, runProtectedWindowSurfaces, runPreviewReadOnlySql, runReadOnlyPreflight, safeLedgerDetail, verifyFinalPreviewState, verifyInitialPreviewState, verifyProtectedWindowRuntime, verifyReadOnlyPreviewState } from './u03-preview-b4-orchestrator.mjs';
 import { V4_SECURITY_DEFINER_ALLOWLIST } from './u03-preview-v4-receipt.mjs';
 
 const runId = 'u03-orchestrator-test-run';
 const sha = 'a'.repeat(40);
+
+test('H1-A export classifies only closed 503 gates and rejects an external origin first', async () => {
+  const env = { U03_PREVIEW_WRITER_WINDOW_SECRET: 'fictional-only-secret', VERCEL_OIDC_TOKEN: 'fictional-oidc-token' };
+  const fixtures = { namespace: 'u03-fictional', actorBearer: async () => ({ accessToken:'fictional-token' }) };
+  const ledger = async () => {};
+  const args = { fixtures, runId:'c14f4c11-570f-4e03-a3a1-33a702b85baa', env, ledger };
+  const response = (gate, origin = `https://${PIN.host}`) => ({ status:503, url:`${origin}/proyectos/fixture/a1/exportar`,
+    headers:{ get:() => gate } });
+  await assert.rejects(runProtectedWindowH1Export({ ...args, fetchImpl:async () => response('SCHEMA_UNKNOWN') }),
+    { message:'PREVIEW_HTTP_EXPORT_SCHEMA_UNKNOWN' });
+  await assert.rejects(runProtectedWindowH1Export({ ...args, fetchImpl:async () => response('free-text-secret') }),
+    { message:'PREVIEW_HTTP_EXPORT_FAILED_503' });
+  await assert.rejects(runProtectedWindowH1Export({ ...args, fetchImpl:async () => response('SCHEMA_UNKNOWN','https://foreign.example') }),
+    { message:'PREVIEW_HTTP_EXPORT_ORIGIN_REJECTED' });
+});
 
 test('signed runtime probe records only allowlisted stage codes from the fixed host', async () => {
   const run = 'c14f4c11-570f-4e03-a3a1-33a702b85baa';

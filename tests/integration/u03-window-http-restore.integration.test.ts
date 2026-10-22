@@ -20,6 +20,7 @@ import { processAuditOutbox } from '@/lib/provenance/outbox';
 import { providers } from '@/lib/core';
 import { loadKeyring } from '@/lib/provenance/keyring';
 import { verifyProjectExport } from '@/lib/recovery/verify-export';
+import { recoverySchemaContract } from '@/lib/recovery/schema-contract';
 import { ALLOWED_ROUTE_EVENT, auditAndCapture, createDiagnosticIntervalTracker, createPageDiagnostics, installScopedRoutes, summarizeDiagnosticInterval } from '../../scripts/u03-preview-b4-runner.mjs';
 import { verifyH1ADiagnosticIntervals } from '../../scripts/u03-preview-window-run.mjs';
 import { planRestore } from '@/lib/restore/plan';
@@ -159,7 +160,10 @@ beforeAll(async () => {
   const dsn=new URL(`postgresql://${ROLE}:${ROLE_PASSWORD}@127.0.0.1:${SOURCE_DB_PORT}/postgres`);
   process.env.RUBIK_AUDIT_DATABASE_URL=dsn.toString();
   process.env.VERCEL_ENV='development';
+  delete process.env.RUBIK_RECOVERY_SCHEMA_ATTESTATION;
+  expect(await recoverySchemaContract()).toBe('unknown');
   process.env.RUBIK_RECOVERY_SCHEMA_ATTESTATION='pre-n2-through-20261015210000';
+  expect(await recoverySchemaContract()).toBe('legacy-v2');
   pool=new Pool({connectionString:dsn.toString(),ssl:false,max:1});
   expect((await user.auth.getUser()).data.user?.id).toBe(users[0]);
   const signed=await appendTrustedAudit(user,project,{actor:{id:users[0],role:'owner'},action:'u03.http.fixture'},keyring.keyring);

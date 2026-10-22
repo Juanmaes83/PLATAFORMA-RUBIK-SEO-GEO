@@ -36,7 +36,7 @@ test('Windows PowerShell 5.1 parser accepts the owner wrapper and vault module',
     {encoding:'utf8',windowsHide:true,timeout:30000}),/U03_WINDOW_PS51_PARSE_PASS/);
 });
 
-test('partial eight variable rotation removes the arming flag first, adds it last, and rolls back in failure', () => {
+test('partial nine variable rotation removes the arming flag first, adds it last, and rolls back in failure', () => {
   const root = join(env.LOCALAPPDATA,'u03-window-rotation-'+Math.random().toString(16).slice(2));
   try {
     assert.match(run('rotation',root),/WINDOW_ROTATION_SUCCESS_PARTIAL_ROLLBACK_AND_RETRY_PASS/);

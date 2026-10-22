@@ -15,7 +15,8 @@ const ENV = { U03_PIN_DEPLOYMENT_ID: PIN.deploymentId, U03_PIN_DEPLOYMENT_HOST: 
   U03_PIN_DEPLOYMENT_SHA: PIN.sha, U03_PIN_DEPLOYMENT_BRANCH: PIN.branch, U03_FUNCTIONAL_SHA: PIN.sha,
   U03_PREVIEW_WRITER_WINDOW: 'armed-run-capability', U03_PREVIEW_WRITER_WINDOW_REF: 'rhnnplewqsekrnaousyl',
   U03_PREVIEW_WRITER_WINDOW_SHA: PIN.sha, U03_PREVIEW_WRITER_WINDOW_RUN_ID: RUN,
-  U03_PREVIEW_WRITER_WINDOW_SECRET: 'fictional-only-window-secret', RUBIK_AUDIT_DATABASE_URL: ROLE_URL.toString() };
+  U03_PREVIEW_WRITER_WINDOW_SECRET: 'fictional-only-window-secret', RUBIK_AUDIT_DATABASE_URL: ROLE_URL.toString(),
+  RUBIK_RECOVERY_SCHEMA_ATTESTATION: 'pre-n2-through-20261015210000' };
 const VERIFIED = { vercel: { deploymentId: PIN.deploymentId, host: PIN.host, sha: PIN.sha, supabaseRef: 'rhnnplewqsekrnaousyl' },
   initial: { projectRef: 'rhnnplewqsekrnaousyl', migrationCount: 27, writerLocked: true, outboxTotal: 0, pendingOutbox: 0 } };
 
@@ -132,6 +133,7 @@ test('local configuration preflight validates TLS-pooler URL shape and signing k
   assert.equal(result.ref, 'rhnnplewqsekrnaousyl');
   assert.equal(result.sha, PIN.sha);
   await assert.rejects(validateWindowRuntimeConfiguration({ env: { ...env, RUBIK_AUDIT_DATABASE_URL: writerUrl.toString().replace('aws-1-eu-west-3', 'elsewhere') }, runId: RUN, pin: PIN }), /TEMP_ROLE_CREDENTIAL_INVALID/);
+  await assert.rejects(validateWindowRuntimeConfiguration({ env: { ...env, RUBIK_RECOVERY_SCHEMA_ATTESTATION: undefined }, runId: RUN, pin: PIN }), /WINDOW_RECOVERY_SCHEMA_ATTESTATION_MISSING/);
 });
 
 test('attestation compares every secret field with the fixed protected deployment before password prompt', async () => {
@@ -148,6 +150,7 @@ test('attestation compares every secret field with the fixed protected deploymen
   assert.equal(passed.runId,RUN);
   const wrongUrl = new URL(writerUrl); wrongUrl.password = 'AnotherFictionalPassword_12345678901234567890';
   await assert.rejects(verifyProtectedWindowBatch({env:{...env,RUBIK_AUDIT_DATABASE_URL:wrongUrl.toString()},pin:PIN,nonce,preflightFn,fetchImpl}),/WINDOW_BATCH_DEPLOYMENT_MISMATCH/);
+  await assert.rejects(verifyProtectedWindowBatch({env:{...env,RUBIK_RECOVERY_SCHEMA_ATTESTATION:undefined},pin:PIN,nonce,preflightFn,fetchImpl}),/WINDOW_RECOVERY_SCHEMA_ATTESTATION_MISSING/);
   for (const [response,statusCode] of [
     [{status:303,headers:{get:(name)=>name==='location'?'/login':null}},'WINDOW_CHALLENGE_PROTECTION_REDIRECT'],
     [{status:403,headers:{get:()=>null}},'WINDOW_CHALLENGE_PROTECTION_DENIED'],

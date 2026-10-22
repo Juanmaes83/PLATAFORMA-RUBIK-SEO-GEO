@@ -261,7 +261,7 @@ function Invoke-U03WindowBatchProvision {
     $cliInvoker = { param($Arguments,$InputText) Invoke-U03WindowVercelCli -Arguments $Arguments -InputText $InputText }
     $rotation = Invoke-U03WindowRotation -Batch $batch -Cli $cliInvoker -Names $windowVariableNames
     if (-not $rotation.Passed) { Stop-B4 $rotation.Code }
-    Write-Output "U03_WINDOW_BATCH_PROVISIONED runId=$($batch.RunId) branch=$($batch.Branch) sha=$($batch.Sha) ref=$($batch.SupabaseRef) count=8 vault=DPAPI_CURRENT_USER deployment=REDEPLOY_REQUIRED"
+    Write-Output "U03_WINDOW_BATCH_PROVISIONED runId=$($batch.RunId) branch=$($batch.Branch) sha=$($batch.Sha) ref=$($batch.SupabaseRef) count=$($windowVariableNames.Count) vault=DPAPI_CURRENT_USER deployment=REDEPLOY_REQUIRED"
   } catch {
     $failure = [regex]::Match($_.Exception.Message,'(?:BLOCKED:\s*|)(ROTATION_[A-Z_]+|WINDOW_[A-Z_]+)')
     $failureCode = if ($failure.Success) { $failure.Groups[1].Value } else { 'ROTATION_INCOMPLETE' }
@@ -560,7 +560,7 @@ try {
     $fakeBatchValues.PROVENANCE_ACTIVE_KEY_ID='u03-preview-window'
     $fakeBatch=[pscustomobject]@{Branch='codex/h1a-integral-20261022';SupabaseRef='rhnnplewqsekrnaousyl';Sha=('a'*40);RunId=$windowRoleRunId;Values=$fakeBatchValues}
     $rotationResult=Invoke-U03WindowRotation -Batch $fakeBatch -Cli $rotationCli -Names $rotationNames
-    if (-not $rotationResult.Passed -or @($rotationState.Rows).Count -ne 8 -or $rotationState.Operations[-2][0] -ne 'add' -or $rotationState.Operations[-2][1] -ne $rotationNames[0]) { Stop-B4 'WINDOW_PARTIAL_ROTATION_RECOVERY_TEST_FAILED' }
+    if (-not $rotationResult.Passed -or @($rotationState.Rows).Count -ne $rotationNames.Count -or $rotationState.Operations[-2][0] -ne 'add' -or $rotationState.Operations[-2][1] -ne $rotationNames[0]) { Stop-B4 'WINDOW_PARTIAL_ROTATION_RECOVERY_TEST_FAILED' }
     $windowRoleTransportSelfTestPassed = $true
   } else {
   # Preserve the machine's authorized proxy route for Node fetch and CLI reads.
@@ -676,7 +676,8 @@ try {
       Write-Output "H1A_RECOVERY_TRANSPORT stage=CHILD_ENV name=$name category=PRESENT_MATCH"
     }
     if ($H1ARecoveryTransportOnly) {
-      Write-Output 'H1A_RECOVERY_TRANSPORT PASS metadata=8 dpapi=8 child=8 attestation=true passwordPrompt=false'
+      $recoveryVariableCount = (Get-U03WindowVariableNames).Count
+      Write-Output "H1A_RECOVERY_TRANSPORT PASS metadata=$recoveryVariableCount dpapi=$recoveryVariableCount child=$recoveryVariableCount attestation=true passwordPrompt=false"
       return
     }
     try {

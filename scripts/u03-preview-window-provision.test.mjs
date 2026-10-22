@@ -5,7 +5,7 @@ import { readFile } from 'node:fs/promises';
 
 test('legacy Node provisioning is disabled; sensitive rotation is only exposed by the DPAPI-bound PowerShell operator', async () => {
   assert.equal(WINDOW_BRANCH,'codex/h1a-integral-20261022');
-  assert.equal(WINDOW_VARIABLES.length,8);
+  assert.equal(WINDOW_VARIABLES.length,9);
   await assert.rejects(provisionWindowVariables(),/WINDOW_DPAPI_REQUIRED_USE_VISIBLE_POWERSHELL/);
   const owner = await readFile(new URL('./u03-preview-b4-owner.ps1',import.meta.url),'utf8');
   const rotation = await readFile(new URL('./u03-preview-window-rotation.psm1',import.meta.url),'utf8');

@@ -284,6 +284,8 @@ export async function validateWindowRuntimeConfiguration({ env = process.env, ru
   const { loadKeyring } = await import('../src/lib/provenance/keyring.ts');
   const loaded = loadKeyring(env);
   if (!loaded.ok) throw new Error('WINDOW_SIGNING_KEYRING_INVALID');
+  if (env.RUBIK_RECOVERY_SCHEMA_ATTESTATION !== 'pre-n2-through-20261015210000')
+    throw new Error('WINDOW_RECOVERY_SCHEMA_ATTESTATION_MISSING');
   return { runId, deploymentId: pin.deploymentId, host: pin.host, sha: pin.sha, ref: PREVIEW_REF };
 }
 
@@ -321,7 +323,8 @@ export async function verifyProtectedWindowBatch({ env = process.env, pin = PIN,
   const matches = sameIdentity && verifyPreviewWindowAttestationProof(env.U03_PREVIEW_WRITER_WINDOW_SECRET, context, proof.proofs?.window) &&
     verifyPreviewWindowAttestationProof(env.RUBIK_AUDIT_DATABASE_URL, context, proof.proofs?.databaseUrl) &&
     verifyPreviewWindowAttestationProof(env.PROVENANCE_SIGNING_KEYS, context, proof.proofs?.signingKeys) &&
-    verifyPreviewWindowAttestationProof(env.PROVENANCE_ACTIVE_KEY_ID, context, proof.proofs?.activeKeyId);
+    verifyPreviewWindowAttestationProof(env.PROVENANCE_ACTIVE_KEY_ID, context, proof.proofs?.activeKeyId) &&
+    verifyPreviewWindowAttestationProof(env.RUBIK_RECOVERY_SCHEMA_ATTESTATION, context, proof.proofs?.schemaAttestation);
   if (!matches) throw new Error('WINDOW_BATCH_DEPLOYMENT_MISMATCH');
   return { deploymentId: pin.deploymentId, host: pin.host, sha: pin.sha, ref: PREVIEW_REF, runId };
 }

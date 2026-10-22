@@ -1,5 +1,9 @@
 # U03 · matriz alojada de Preview · 18/10/2026
 
+## H1-A tras c594d41d · export 503 · 23/10/2026
+
+El run alojado `c594d41d-dc26-4870-a4b4-3ec9fc2256ae` acredita principal, Session pooler, firma, recibos, aislamiento, login y cuatro vistas/capturas como **PASS acotados**. `h1a-export-consistency-limit` pasó; el GET HTTP de exportación respondió 503 y dejó verificación/restauración `NOT_RUN`. El run permanece **BLOCKED** y su ledger original no identifica la barrera del 503. Cleanup y lectura SQL independiente acreditan inventario/outbox/capacidades temporales a cero. Se identificó una atestación N1 ausente que causaría 503 al evaluar el contrato; el nuevo operador la comprueba y registra un código cerrado si persiste otro 503. El ensayo local `aa8602bd-6957-4f81-9d88-56bfe151d255` pasó export/verificación/manipulación/restauración doble y limpieza, sin equivaler a Preview. U03 conserva PASS previo; H1-A, H1-B/U04, R1, H1 global y H2 siguen abiertos. [Expediente](H1A-EXPORT-503-C594-20261023.md).
+
 ## H1-A · correccion de login en revision · 23/10/2026
 
 U03 conserva el PASS alojado `330c6e4b-14ad-439a-a8cf-43d92c73fadb`. H1-A sigue **BLOCKED**: el run `d3bb7af4-fa3c-49f0-98af-742158444963` se detuvo tras login y se limpio. Una sonda protegida posterior reprodujo 404 de assets inmutables despues del clic de Server Action; el envio nativo del mismo formulario devolvio 303 sin esos errores. El Route Handler de login conserva Auth y origen exacto. El recorrido local completo `d1a93948-00dc-4e8b-ad3b-83b8b16504ae` paso con 303, cuatro vistas sin errores, export/verificacion/restauracion y limpieza de dos stacks. La sonda protegida del SHA funcional `029db301498b8134a70eb6f0ed6aa5a3d07a3388` en `dpl_HnUY7E1B8rLGzLZtUtvfwHEZvkbM` paso con POST 303 y cero 404/errores, sin fixtures ni sesion. Faltan la campana integral alojada y la aceptacion visual humana. [Diagnostico detallado](H1A-DIAGNOSTICO-D3BB-20261022.md).
