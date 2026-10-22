@@ -1,5 +1,10 @@
 # Control canónico del proyecto Rubik SEO/GEO
 
+## Estado integrado · 22/10/2026 · PR #143
+
+La [PR #143](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/143) está **MERGED** en `main@5cf2ad62605a1ed823771d28f32ca120797e57e7` (HEAD revisado `73fb8814a596e8a97bbfe2d747b331494c502334`). CI de PR `39737737422`: SUCCESS en Node 22/24, pgTAP, integración y Playwright 184 PASS. I-2/I-5/U03 están **PASS/CERRADO como gate alojado** por el run `330c6e4b-14ad-439a-a8cf-43d92c73fadb` y su contención final independiente; no repetir esa campaña. La integración no prueba por sí sola el despliegue o smoke de Production, pendientes de comprobación separada. H1-A fue NOT_RUN; U04/Sarah, H1 y H2 siguen abiertos. R1 requiere decisión antes de Sarah. Las menciones inferiores a #143 Draft, U03 BLOCKED o CI bloqueada son cortes históricos.
+
+
 ## Estado operativo actual · 22/10/2026 · cierre U03 en Preview
 
 I-2, I-5 y U03 tienen **PASS alojado / CERRADO como gate** en el run `330c6e4b-14ad-439a-a8cf-43d92c73fadb` contra Preview `rhnnplewqsekrnaousyl`, deployment `dpl_56PEz8SoynyU8UD1ufRenAesQyx5` y SHA funcional `ed0bbee9006feabae546fa376e4eaf7beffafc42`. La [matriz U03](U03-PREVIEW-MATRIZ-20261018.md) y el [runbook](U03-I2-I5-H1A-VENTANA-20261020.md) documentan filas firmadas pobladas, I-2, I-5, recibos resueltos, limpieza, contención independiente y retirada de la ventana. Data API, B-4 y demás PASS previos se reutilizaron; no se repitieron. El ledger original permanece local en el checkout de Juanma y no se presenta como evidencia publicada en GitHub.
