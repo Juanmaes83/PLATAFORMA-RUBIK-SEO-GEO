@@ -312,8 +312,139 @@ export function createPageDiagnostics(page, { allowedOrigin = ORIGIN } = {}) {
 
 function emptyDiagnosticBucket() { return { console: {}, http: {}, requestFailures: {} }; }
 
+const DIAGNOSTIC_ORIGIN_PATTERN = /^(?:preview|preview-supabase|external|inline|unknown)$/;
+const DIAGNOSTIC_INTERVAL_BOUNDARIES = new Set([
+  "before-login", "after-login", "before-navigation", "after-navigation", "before-measurement", "after-measurement",
+]);
+const DIAGNOSTIC_MAP_PATTERNS = Object.freeze({
+  console: /^(?:error|warning|log|info|debug|dir|assert|trace|other):(?:preview|preview-supabase|external|inline|unknown)$/,
+  http: /^[1-5]\d\d:(?:preview|preview-supabase|external|inline|unknown)$/,
+  requestFailures: DIAGNOSTIC_ORIGIN_PATTERN,
+  routeEvents: /^(?:auth-action-post|auth-action-http-[1-5]\d\d|pinned-navigation|pinned-request|external-navigation-blocked|external-redirect-blocked|pinned-origin-request-failed)$/,
+});
+
+function strictDiagnosticSnapshot(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new GateError("DIAGNOSTIC_SNAPSHOT_INVALID");
+  const result = {};
+  for (const [name, pattern] of Object.entries(DIAGNOSTIC_MAP_PATTERNS)) {
+    const input = value[name];
+    if (!input || typeof input !== "object" || Array.isArray(input)) throw new GateError("DIAGNOSTIC_SNAPSHOT_INVALID");
+    const safe = {};
+    for (const [key, count] of Object.entries(input)) {
+      if (!pattern.test(key) || !Number.isSafeInteger(count) || count < 0 || count > 1_000_000 || Object.keys(safe).length >= 100)
+        throw new GateError("DIAGNOSTIC_SNAPSHOT_INVALID");
+      safe[key] = count;
+    }
+    result[name] = safe;
+  }
+  return result;
+}
+
+function diagnosticDelta(before, after) {
+  const delta = {};
+  for (const name of Object.keys(DIAGNOSTIC_MAP_PATTERNS)) {
+    delta[name] = {};
+    const keys = new Set([...Object.keys(before[name]), ...Object.keys(after[name])]);
+    for (const key of keys) {
+      const prior = before[name][key] ?? 0;
+      const current = after[name][key] ?? 0;
+      if (current < prior) throw new GateError("DIAGNOSTIC_COUNTER_RESET");
+      delta[name][key] = current - prior;
+    }
+  }
+  return delta;
+}
+
+function sumDiagnosticDeltas(rows) {
+  const sum = emptyDiagnosticBucket();
+  sum.routeEvents = {};
+  for (const row of rows) for (const name of Object.keys(DIAGNOSTIC_MAP_PATTERNS)) {
+    for (const [key, count] of Object.entries(row.diagnosticsDelta[name])) sum[name][key] = (sum[name][key] ?? 0) + count;
+  }
+  return sum;
+}
+
+function sameDiagnosticCounts(left, right) {
+  return Object.keys(DIAGNOSTIC_MAP_PATTERNS).every(name => {
+    const keys = new Set([...Object.keys(left[name]), ...Object.keys(right[name])]);
+    return [...keys].every(key => (left[name][key] ?? 0) === (right[name][key] ?? 0));
+  });
+}
+
+/**
+ * Keeps cumulative, non-consuming snapshots until the strict visual gate calls finishGate.
+ * Each checkpoint records the interval since the previous checkpoint; finishGate compares
+ * their sum with the exact counter returned by take() before it resets the baseline.
+ */
+export function createDiagnosticIntervalTracker(diagnostics) {
+  if (!diagnostics || typeof diagnostics.snapshot !== "function" || typeof diagnostics.take !== "function")
+    throw new GateError("DIAGNOSTIC_SNAPSHOT_INVALID");
+  let previous;
+  try { previous = strictDiagnosticSnapshot(diagnostics.snapshot()); }
+  catch { throw new GateError("DIAGNOSTIC_SNAPSHOT_INVALID"); }
+  let intervals = [];
+  const checkpoint = boundary => {
+    if (!DIAGNOSTIC_INTERVAL_BOUNDARIES.has(boundary)) throw new GateError("DIAGNOSTIC_STAGE_INVALID");
+    let after;
+    try { after = strictDiagnosticSnapshot(diagnostics.snapshot()); }
+    catch { throw new GateError("DIAGNOSTIC_SNAPSHOT_INVALID"); }
+    const row = { interval: boundary, diagnosticsBefore: previous, diagnosticsAfter: after,
+      diagnosticsDelta: diagnosticDelta(previous, after) };
+    intervals.push(row);
+    previous = after;
+    return row;
+  };
+  return {
+    checkpoint,
+    finishGate(requiredBoundaries = []) {
+      let consumed;
+      try {
+        checkpoint("after-measurement");
+        consumed = strictDiagnosticSnapshot(diagnostics.take());
+      } catch {
+        intervals = [];
+        throw new GateError("DIAGNOSTIC_SNAPSHOT_INVALID");
+      }
+      const expected = [...requiredBoundaries];
+      const observed = intervals.map(row => row.interval);
+      const missing = expected.filter((boundary, index) => observed[index] !== boundary);
+      const extra = observed.length !== expected.length;
+      const total = sumDiagnosticDeltas(intervals);
+      const result = { complete: missing.length === 0 && !extra && sameDiagnosticCounts(total, consumed),
+        code: missing.length || extra ? "DIAGNOSTIC_STAGE_MISSING" : sameDiagnosticCounts(total, consumed) ? null : "DIAGNOSTIC_SUM_MISMATCH",
+        intervals: intervals.slice(), diagnostics: consumed };
+      intervals = [];
+      try {
+        previous = strictDiagnosticSnapshot(diagnostics.snapshot());
+        const empty = strictDiagnosticSnapshot(emptyDiagnosticBucketWithRoutes());
+        if (!sameDiagnosticCounts(previous, empty)) {
+          result.complete = false;
+          result.code = "DIAGNOSTIC_COUNTER_RESET";
+        }
+      } catch {
+        result.complete = false;
+        result.code = "DIAGNOSTIC_SNAPSHOT_INVALID";
+        previous = emptyDiagnosticBucketWithRoutes();
+      }
+      return result;
+    },
+  };
+}
+
+function emptyDiagnosticBucketWithRoutes() { return { ...emptyDiagnosticBucket(), routeEvents: {} }; }
+
 function totalConsoleErrors(diagnostics) {
   return Object.entries(diagnostics.console).filter(([key]) => key.startsWith("error:")).reduce((sum, [, count]) => sum + count, 0);
+}
+
+export function summarizeDiagnosticInterval(row) {
+  if (!row || typeof row !== "object") throw new GateError("DIAGNOSTIC_SNAPSHOT_INVALID");
+  let delta;
+  try { delta = strictDiagnosticSnapshot(row.diagnosticsDelta); }
+  catch { throw new GateError("DIAGNOSTIC_SNAPSHOT_INVALID"); }
+  const consoleErrorCount = totalConsoleErrors(delta);
+  return { consoleErrorCount, status: consoleErrorCount > 0 ? "BLOCKED" : "PASS",
+    ...(consoleErrorCount > 0 ? { code: "H1A_PHASE_CONSOLE_ERRORS" } : {}) };
 }
 
 export async function saveSanitizedCapture(page, capturePath) {
@@ -340,9 +471,22 @@ async function appendSafeLedger(runId, control, status, viewport = null) {
  * @param {unknown} page
  * @param {{runId:string,viewport:string,screen:string,captureRoot:string,
  *   ledger:(caseId:string,status:string,detail:Record<string,unknown>)=>Promise<void>,
- *   diagnostics:{take:()=>Record<string,any>},pageErrors?:number|{count:number}}} options
+ *   diagnostics:{take:()=>Record<string,any>,snapshot:()=>Record<string,any>},
+ *   diagnosticIntervals?:{checkpoint:(boundary:string)=>Record<string,any>,finishGate:(requiredBoundaries:string[])=>Record<string,any>},
+ *   requiredDiagnosticBoundaries?:string[],pageErrors?:number|{count:number}}} options
  */
-export async function auditAndCapture(page, { runId, viewport, screen, captureRoot, ledger, diagnostics, pageErrors = 0 }) {
+export async function auditAndCapture(page, { runId, viewport, screen, captureRoot, ledger, diagnostics, pageErrors = 0,
+  diagnosticIntervals = null, requiredDiagnosticBoundaries = [] }) {
+  if (diagnosticIntervals) {
+    const boundary = diagnosticIntervals.checkpoint("before-measurement");
+    const intervalSummary = summarizeDiagnosticInterval(boundary);
+    await ledger("h1a-diagnostic-boundary", intervalSummary.status === "BLOCKED" ? "BLOCKED" : "ATTEMPTED", {
+      diagnosticInterval: boundary.interval, diagnosticsAfter: boundary.diagnosticsAfter,
+      diagnosticsBefore: boundary.diagnosticsBefore, diagnosticsDelta: boundary.diagnosticsDelta,
+      ...(intervalSummary.code ? { code: intervalSummary.code } : {}),
+    });
+    if (intervalSummary.status === "BLOCKED") throw new GateError(intervalSummary.code);
+  }
   await page.waitForTimeout(300);
   const dom = await page.evaluate(() => {
     const visible = element => {
@@ -357,21 +501,35 @@ export async function auditAndCapture(page, { runId, viewport, screen, captureRo
       visibleErrors: [...document.querySelectorAll('[role="alert"], [data-error], [aria-invalid="true"]')].filter(visible).length,
     };
   });
-  const phaseDiagnostics = diagnostics.take();
+  let intervalResult = null;
+  let phaseDiagnostics;
+  if (diagnosticIntervals) {
+    intervalResult = diagnosticIntervals.finishGate(requiredDiagnosticBoundaries);
+    phaseDiagnostics = intervalResult.diagnostics;
+    const afterMeasurement = intervalResult.intervals.at(-1);
+    await ledger("h1a-diagnostic-boundary", intervalResult.complete ? "PASS" : "BLOCKED", {
+      diagnosticInterval: afterMeasurement?.interval ?? "after-measurement", diagnosticsAfter: afterMeasurement?.diagnosticsAfter ?? phaseDiagnostics,
+      diagnosticsBefore: afterMeasurement?.diagnosticsBefore ?? emptyDiagnosticBucketWithRoutes(),
+      diagnosticsDelta: afterMeasurement?.diagnosticsDelta ?? emptyDiagnosticBucketWithRoutes(),
+      ...(intervalResult.code ? { code: intervalResult.code } : {}),
+    });
+  } else {
+    phaseDiagnostics = diagnostics.take();
+  }
   const consoleErrorCount = totalConsoleErrors(phaseDiagnostics);
   const phasePageErrors = typeof pageErrors === "object" ? pageErrors.count : pageErrors;
   if (typeof pageErrors === "object") pageErrors.count = 0;
   const horizontalOverflow = Math.max(dom.documentWidth, dom.bodyWidth) > dom.viewportWidth + 1;
-  const visualPass = !horizontalOverflow && dom.visibleErrors === 0 && consoleErrorCount === 0 && phasePageErrors === 0;
+  const visualPass = (!intervalResult || intervalResult.complete) && !horizontalOverflow && dom.visibleErrors === 0 && consoleErrorCount === 0 && phasePageErrors === 0;
   const capturePath = join(captureRoot, `${runId}-${viewport}-${screen}.png`);
   const captureSaved = await saveSanitizedCapture(page, capturePath);
   await ledger(`visual-${screen}`, visualPass && captureSaved ? "PASS" : "FAIL", {
     viewport, ...(captureSaved ? { path: relative(process.cwd(), capturePath) } : {}),
     viewportWidth: dom.viewportWidth, documentWidth: dom.documentWidth, bodyWidth: dom.bodyWidth,
     visibleErrorCount: dom.visibleErrors, consoleErrorCount, pageErrorCount: phasePageErrors,
-    diagnostics: phaseDiagnostics,
+    diagnostics: phaseDiagnostics, ...(intervalResult?.code ? { code: intervalResult.code } : {}),
   });
-  if (!visualPass) throw new GateError("VISUAL_AUDIT_FAILED");
+  if (!visualPass) throw new GateError(intervalResult?.code ?? "VISUAL_AUDIT_FAILED");
   if (!captureSaved) throw new GateError("CAPTURE_SANITIZATION_FAILED");
   await ledger(`capture-${screen}`, "SAVED", { viewport, path: relative(process.cwd(), capturePath) });
   return capturePath;

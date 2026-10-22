@@ -20,7 +20,8 @@ import { processAuditOutbox } from '@/lib/provenance/outbox';
 import { providers } from '@/lib/core';
 import { loadKeyring } from '@/lib/provenance/keyring';
 import { verifyProjectExport } from '@/lib/recovery/verify-export';
-import { auditAndCapture, createPageDiagnostics } from '../../scripts/u03-preview-b4-runner.mjs';
+import { auditAndCapture, createDiagnosticIntervalTracker, createPageDiagnostics, summarizeDiagnosticInterval } from '../../scripts/u03-preview-b4-runner.mjs';
+import { verifyH1ADiagnosticIntervals } from '../../scripts/u03-preview-window-run.mjs';
 import { planRestore } from '@/lib/restore/plan';
 import { createConfirmedUser, deleteOrganizations, deleteUsers, email, env, signedIn, TEST_PASSPHRASE } from './support';
 import { localDatabaseContainer } from '../../scripts/supabase-test-env.mjs';
@@ -58,19 +59,20 @@ type HttpExport = Omit<ProjectExport,'format'> & {format:string;manifest:unknown
 const keyring = loadKeyring({ PROVENANCE_SIGNING_KEYS: `u03-http:${KEY}`, PROVENANCE_ACTIVE_KEY_ID: 'u03-http' });
 if (!keyring.ok) throw new Error('LOCAL_KEYRING_INVALID');
 
-function record(phase: string, result: 'PASS'|'FAIL'|'BLOCKED', detail: Record<string,unknown> = {}) {
-  const allowed = new Set(['preflight','browser-auth-diagnostics','visual-h1a-measurement','visual-h1a-report','capture-h1a-measurement','capture-h1a-report',
+function record(phase: string, result: 'PASS'|'FAIL'|'BLOCKED'|'ATTEMPTED', detail: Record<string,unknown> = {}) {
+  const allowed = new Set(['preflight','browser-auth-diagnostics','h1a-diagnostic-boundary','visual-h1a-measurement','visual-h1a-report','capture-h1a-measurement','capture-h1a-report',
     'browser-views-and-logout','http-export','offline-verification','tamper-rejection','restore-destination','source-cleanup','destination-cleanup']);
   if (!allowed.has(phase)) throw new Error('LEDGER_PHASE_REJECTED');
   const safeDetail: Record<string,unknown> = {};
   if (detail.viewport === 'desktop' || detail.viewport === 'mobile') safeDetail.viewport = detail.viewport;
   if (typeof detail.consoleErrorCount === 'number' && Number.isSafeInteger(detail.consoleErrorCount) && detail.consoleErrorCount >= 0) safeDetail.consoleErrorCount = detail.consoleErrorCount;
   if (typeof detail.pageErrorCount === 'number' && Number.isSafeInteger(detail.pageErrorCount) && detail.pageErrorCount >= 0) safeDetail.pageErrorCount = detail.pageErrorCount;
-  if (detail.diagnostics && typeof detail.diagnostics === 'object') {
-    const input = detail.diagnostics as Record<string,unknown>;
+  if (typeof detail.diagnosticInterval === 'string' && ['before-login','after-login','before-navigation','after-navigation','before-measurement','after-measurement'].includes(detail.diagnosticInterval)) safeDetail.diagnosticInterval = detail.diagnosticInterval;
+  for (const diagnosticsKey of ['diagnostics','diagnosticsBefore','diagnosticsAfter','diagnosticsDelta'] as const) if (detail[diagnosticsKey] && typeof detail[diagnosticsKey] === 'object') {
+    const input = detail[diagnosticsKey] as Record<string,unknown>;
     const map = (value: unknown, keyPattern: RegExp) => Object.fromEntries(Object.entries(value && typeof value === 'object' ? value : {})
       .filter(([key,count]) => keyPattern.test(key) && Number.isSafeInteger(count) && Number(count) >= 0 && Number(count) <= 1_000_000));
-    safeDetail.diagnostics = {
+    safeDetail[diagnosticsKey] = {
       console: map(input.console,/^(?:error|warning|log|info|debug|dir|assert|trace|other):(?:preview|preview-supabase|external|inline|unknown)$/),
       http: map(input.http,/^[1-5]\d\d:(?:preview|preview-supabase|external|inline|unknown)$/),
       requestFailures: map(input.requestFailures,/^(?:preview|preview-supabase|external|inline|unknown)$/),
@@ -236,33 +238,66 @@ it('exports over a loopback HTTP socket and restores the verified signed manifes
     const page=await context.newPage();
     browserPage=page;
     const diagnostics=createPageDiagnostics(page,{allowedOrigin:origin});
+    const diagnosticIntervals=createDiagnosticIntervalTracker(diagnostics);
     const pageErrors={count:0};
     page.on('pageerror',()=>{ pageErrors.count+=1; });
+    const boundary=(interval:string,status:'PASS'|'ATTEMPTED'|'BLOCKED'='PASS')=>{
+      const row=diagnosticIntervals.checkpoint(interval) as unknown as {diagnosticsDelta:Record<string,Record<string,number>>;diagnosticsAfter:Record<string,unknown>;diagnosticsBefore:Record<string,unknown>};
+      const summary=summarizeDiagnosticInterval(row);
+      record('h1a-diagnostic-boundary',summary.status==='BLOCKED'?'BLOCKED':status,{diagnosticInterval:interval,diagnosticsAfter:row.diagnosticsAfter,
+        diagnosticsBefore:row.diagnosticsBefore,diagnosticsDelta:row.diagnosticsDelta,consoleErrorCount:summary.consoleErrorCount,...(summary.code?{code:summary.code}:{})});
+      if(summary.status==='BLOCKED') throw new Error(summary.code);
+      return row;
+    };
+    boundary('before-login','ATTEMPTED');
     const access=await page.goto(`${origin}/acceso`,{waitUntil:'domcontentloaded'});
     expect(access?.status()).toBe(200);
     await page.locator('#email').fill(email('u03-http-owner'));
     await page.locator('#password').fill(TEST_PASSPHRASE);
     await page.getByRole('button',{name:'Entrar'}).click();
     await page.waitForURL(`${origin}/panel`);
+    boundary('after-login');
     record('browser-auth-diagnostics','PASS',{diagnostics:diagnostics.snapshot(),pageErrorCount:pageErrors.count});
     const captureRoot=`${ROOT}/test-results/u03-local-h1a-${RUN}`;
     mkdirSync(captureRoot,{recursive:true});
     for(const viewport of [{width:1280,height:800},{width:390,height:844}]) {
       await page.setViewportSize(viewport);
       for(const [path,label] of [['medicion','Firma verificada'],['informe','Informe del proyecto']]) {
+        boundary('before-navigation','ATTEMPTED');
         const view=await page.goto(`${origin}/proyectos/${TENANT}/a1/${path}`,{waitUntil:'domcontentloaded'});
+        boundary('after-navigation');
         expect(view?.status()).toBe(200);
         expect(new URL(page.url()).origin).toBe(origin);
         expect(await page.getByText(label,{exact:false}).count()).toBeGreaterThan(0);
         const screen=path==='medicion'?'h1a-measurement':'h1a-report';
+        const requiredDiagnosticBoundaries=path==='medicion'&&viewport.width===1280
+          ? ['before-login','after-login','before-navigation','after-navigation','before-measurement','after-measurement']
+          : ['before-navigation','after-navigation','before-measurement','after-measurement'];
         const capture=await auditAndCapture(page,{runId:RUN,viewport:viewport.width===1280?'desktop':'mobile',screen,
-          captureRoot,diagnostics,pageErrors,ledger:async(caseId,status,detail)=>{
+          captureRoot,diagnostics,pageErrors,diagnosticIntervals,requiredDiagnosticBoundaries,ledger:async(caseId,status,detail)=>{
+            if(caseId==='h1a-diagnostic-boundary') {
+              record(caseId,status==='PASS'?'PASS':status==='ATTEMPTED'?'ATTEMPTED':'BLOCKED',detail);
+              return;
+            }
             const captureRecord=caseId.startsWith('capture-');
             record(`${captureRecord?'capture':'visual'}-${screen}`,status==='PASS'||status==='SAVED'?'PASS':'FAIL',detail);
           }});
         expect(capture.length).toBeGreaterThan(0);
       }
     }
+    const localRows=readFileSync(ledger,'utf8').trim().split(/\r?\n/).map(line=>JSON.parse(line) as {phase:string;result:string;viewport?:string;diagnosticInterval?:string});
+    const intervals=localRows.filter(row=>row.phase==='h1a-diagnostic-boundary');
+    expect(intervals).toHaveLength(18);
+    expect(intervals.map(row=>row.diagnosticInterval)).toEqual([
+      'before-login','after-login','before-navigation','after-navigation','before-measurement','after-measurement',
+      ...Array(3).fill(['before-navigation','after-navigation','before-measurement','after-measurement']).flat(),
+    ]);
+    const visualRows=localRows.filter(row=>row.phase==='visual-h1a-measurement'||row.phase==='visual-h1a-report');
+    expect(visualRows).toHaveLength(4);
+    expect(visualRows.every(row=>row.result==='PASS')).toBe(true);
+    expect(visualRows.filter(row=>row.viewport==='desktop')).toHaveLength(2);
+    expect(visualRows.filter(row=>row.viewport==='mobile')).toHaveLength(2);
+    expect(verifyH1ADiagnosticIntervals(localRows.map(row=>({...row,caseId:row.phase,status:row.result})) as unknown as Array<Record<string,unknown>>)).toBe(true);
   }
   const response=await fetch(`${process.env.U03_LOCAL_HTTP_BASE}/proyectos/${TENANT}/a1/exportar`,{headers:{cookie:ownerCookie},redirect:'manual'});
   expect(response.status).toBe(200);

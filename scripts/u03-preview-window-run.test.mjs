@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { createWindowLedger, pinIsExact, preflightSequencePreviewKeys, runPreviewWindowSequence, validateWindowRuntimeConfiguration, verifyProtectedWindowBatch, verifyWindowLedgerComplete } from './u03-preview-window-run.mjs';
+import { createWindowLedger, pinIsExact, preflightSequencePreviewKeys, runPreviewWindowSequence, validateWindowRuntimeConfiguration, verifyH1ADiagnosticIntervals, verifyProtectedWindowBatch, verifyWindowLedgerComplete } from './u03-preview-window-run.mjs';
 import { createPreviewWindowAttestation } from '../src/lib/provenance/keyring.ts';
 
 const RUN = 'c14f4c11-570f-4e03-a3a1-33a702b85baa';
@@ -18,6 +18,61 @@ const ENV = { U03_PIN_DEPLOYMENT_ID: PIN.deploymentId, U03_PIN_DEPLOYMENT_HOST: 
   U03_PREVIEW_WRITER_WINDOW_SECRET: 'fictional-only-window-secret', RUBIK_AUDIT_DATABASE_URL: ROLE_URL.toString() };
 const VERIFIED = { vercel: { deploymentId: PIN.deploymentId, host: PIN.host, sha: PIN.sha, supabaseRef: 'rhnnplewqsekrnaousyl' },
   initial: { projectRef: 'rhnnplewqsekrnaousyl', migrationCount: 27, writerLocked: true, outboxTotal: 0, pendingOutbox: 0 } };
+
+test('H1-A ledger verifier requires every diagnostic boundary and reconciles deltas to each gate', async () => {
+  const empty = () => ({ console: {}, http: {}, requestFailures: {}, routeEvents: {} });
+  const rows = [];
+  const visualGroups = [
+    ['before-login','after-login','before-navigation','after-navigation','before-measurement','after-measurement'],
+    ['before-navigation','after-navigation','before-measurement','after-measurement'],
+    ['before-navigation','after-navigation','before-measurement','after-measurement'],
+    ['before-navigation','after-navigation','before-measurement','after-measurement'],
+  ];
+  for (const [groupIndex, boundaries] of visualGroups.entries()) {
+    let cumulative = empty();
+    for (const interval of boundaries) {
+      const before = structuredClone(cumulative);
+      if (interval === 'after-navigation') cumulative.http['200:preview'] = 1;
+      const after = structuredClone(cumulative);
+      const delta = empty();
+      for (const name of Object.keys(delta)) for (const [key, value] of Object.entries(after[name]))
+        delta[name][key] = value - (before[name][key] ?? 0);
+      rows.push({ caseId: 'h1a-diagnostic-boundary', status: interval.startsWith('before-') ? 'ATTEMPTED' : 'PASS',
+        diagnosticInterval: interval, diagnosticsBefore: before, diagnosticsAfter: after, diagnosticsDelta: delta });
+    }
+    rows.push({ caseId: groupIndex % 2 ? 'visual-h1a-report' : 'visual-h1a-measurement', status: 'PASS',
+      viewport: groupIndex < 2 ? 'desktop' : 'mobile', consoleErrorCount: 0, diagnostics: { ...cumulative, http: { '200:preview': 1 } } });
+  }
+  assert.equal(verifyH1ADiagnosticIntervals(rows), true);
+  const missingStage = structuredClone(rows);
+  missingStage.splice(0, 1);
+  assert.equal(verifyH1ADiagnosticIntervals(missingStage), false);
+  const mismatched = structuredClone(rows);
+  mismatched[1].diagnosticsDelta.console['error:preview'] = 1;
+  assert.equal(verifyH1ADiagnosticIntervals(mismatched), false);
+  const freeText = structuredClone(rows);
+  freeText[0].diagnosticsAfter.console['error:preview https://private.invalid/?token=x'] = 132;
+  assert.equal(verifyH1ADiagnosticIntervals(freeText), false);
+});
+
+test('H1-A window ledger persists interval maps and strips free text', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'h1a-interval-ledger-'));
+  try {
+    const path = join(dir, 'run.jsonl');
+    const ledger = await createWindowLedger(path, { runId: RUN, functionalSha: PIN.sha,
+      deploymentId: PIN.deploymentId, host: PIN.host, ref: 'rhnnplewqsekrnaousyl' });
+    const maps = { console: { 'error:preview': 132 }, http: { '503:external': 2 }, requestFailures: { external: 1 }, routeEvents: { 'external-navigation-blocked': 1 } };
+    await ledger('h1a-diagnostic-boundary', 'PASS', { diagnosticInterval: 'after-navigation', diagnosticsAfter: maps,
+      diagnosticsBefore: { console: {}, http: {}, requestFailures: {}, routeEvents: {} }, diagnosticsDelta: maps,
+      message: 'must-not-persist', url: 'https://private.invalid/?token=secret' });
+    const text = await readFile(path, 'utf8');
+    const row = JSON.parse(text.trim());
+    assert.deepEqual(row.diagnosticsAfter, maps);
+    assert.deepEqual(row.diagnosticsDelta, maps);
+    assert.equal(row.diagnosticInterval, 'after-navigation');
+    assert.doesNotMatch(text, /must-not-persist|private\.invalid|token=secret/);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
 const ROLE = { runId: RUN, pooler: { clientTlsVerified: true, sessionUser: 'rubik_preview_u03_writer',
   currentUser: 'rubik_preview_u03_writer', denyPoliciesVerified: true } };
 const CLEAN = { rolePresent: false, policies: 0, activeSessions: 0, inventoryZero: true, outboxTotal: 0, pendingOutbox: 0 };
@@ -148,6 +203,27 @@ test('H1-A mode requires export, tamper rejection, double local restore, capture
         }
         for (const viewport of ['desktop','mobile']) for (const page of ['measurement','report'])
           await ledger(`h1a-capture-${viewport}-${page}`,'SAVED',{path:`test-results/u03-hosted/${RUN}/${'33333333-3333-4333-8333-333333333333'}-${viewport}-h1a-${page}.png`,viewport});
+        const groups = [
+          { viewport:'desktop', page:'measurement', boundaries:['before-login','after-login','before-navigation','after-navigation','before-measurement','after-measurement'] },
+          { viewport:'desktop', page:'report', boundaries:['before-navigation','after-navigation','before-measurement','after-measurement'] },
+          { viewport:'mobile', page:'measurement', boundaries:['before-navigation','after-navigation','before-measurement','after-measurement'] },
+          { viewport:'mobile', page:'report', boundaries:['before-navigation','after-navigation','before-measurement','after-measurement'] },
+        ];
+        for (const group of groups) {
+          let cumulative={console:{},http:{},requestFailures:{},routeEvents:{}};
+          for (const interval of group.boundaries) {
+            const before=structuredClone(cumulative);
+            if (interval==='after-navigation') cumulative.http['200:preview']=1;
+            const after=structuredClone(cumulative);
+            const delta={console:{},http:{},requestFailures:{},routeEvents:{}};
+            for (const name of Object.keys(delta)) for (const [key,count] of Object.entries(after[name])) delta[name][key]=count-(before[name][key]??0);
+            await ledger('h1a-diagnostic-boundary',interval.startsWith('before-')?'ATTEMPTED':'PASS',{
+              diagnosticInterval:interval,diagnosticsBefore:before,diagnosticsAfter:after,diagnosticsDelta:delta});
+          }
+          const screen=group.page==='measurement'?'visual-h1a-measurement':'visual-h1a-report';
+          await ledger(screen,'PASS',{viewport:group.viewport,consoleErrorCount:0,
+            diagnostics:{console:{},http:{'200:preview':1},requestFailures:{},routeEvents:{}}});
+        }
         await ledger('h1a-export-consistency-limit','PASS',{fixtureWritesConcurrent:0,category:'READS_NOT_TRANSACTIONAL'});
         for (const caseId of ['h1a-http-export-request','h1a-offline-export-verification','h1a-tamper-rejection','h1a-local-double-restore'])
           await ledger(caseId,'PASS',{httpStatus:200,restoreCount:2,contentVerified:true,signaturesPreserved:true,offlineVerified:true,tamperRejected:true});

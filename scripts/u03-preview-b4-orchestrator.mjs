@@ -11,7 +11,7 @@ import { chromium } from 'playwright';
 import { createPreviewAdminClient } from './u03-preview-api-key.mjs';
 import { createDataApiFixtureRun, U03_PREVIEW_REF } from './u03-preview-data-api.mjs';
 import { PIN, networkEnvironment, preflight, runB4, scopedHeaders, chromiumEnvironment,
-  installScopedRoutes, login, createPageDiagnostics, auditAndCapture } from './u03-preview-b4-runner.mjs';
+  installScopedRoutes, login, createPageDiagnostics, createDiagnosticIntervalTracker, summarizeDiagnosticInterval, auditAndCapture } from './u03-preview-b4-runner.mjs';
 import { isV4SecurityDefinerAllowlistOnly, openPreviewReceiptProcessor } from './u03-preview-v4-receipt.mjs';
 import { runSessionProviders } from './u03-preview-session-providers.mjs';
 import { runProviderEgressOnly } from './u03-preview-provider-egress.mjs';
@@ -108,7 +108,7 @@ const LEDGER_KEYS = new Set([
   'projectRef', 'deploymentId', 'sha', 'host', 'result', 'visualReview',
   'adminKeyFormat', 'publicKeyFormat',
   'pathname', 'errorCode', 'actionHttpStatus', 'sessionCookiePresent', 'routeEvents', 'capturePath',
-  'phase', 'diagnostics', 'stage', 'expectedCount', 'observedCount', 'valueMatch', 'receiptState', 'httpStatus', 'sqlstate',
+  'phase', 'diagnostics', 'diagnosticsBefore', 'diagnosticsAfter', 'diagnosticsDelta', 'diagnosticInterval', 'stage', 'expectedCount', 'observedCount', 'valueMatch', 'receiptState', 'httpStatus', 'sqlstate',
   'expectedDestinationClass', 'observedDestinationClass', 'authResult', 'requestClass', 'destinationClass', 'responseClass', 'disposition',
   'mode', 'evidenceRunId',
 ]);
@@ -128,9 +128,9 @@ export function safeLedgerDetail(input = {}) {
   const result = {};
   for (const [key, value] of Object.entries(input)) {
     if (!LEDGER_KEYS.has(key)) continue;
-    if (key === 'diagnostics') {
+    if (['diagnostics', 'diagnosticsBefore', 'diagnosticsAfter', 'diagnosticsDelta'].includes(key)) {
       if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
-      result.diagnostics = {
+      result[key] = {
         console: safeCounterMap(value.console, new RegExp(`^(?:error|warning|log|info|debug|dir|assert|trace|other):${ORIGIN_CLASSES}$`)),
         http: safeCounterMap(value.http, new RegExp(`^[1-5]\\d\\d:${ORIGIN_CLASSES}$`)),
         requestFailures: safeCounterMap(value.requestFailures, new RegExp(`^${ORIGIN_CLASSES}$`)),
@@ -138,6 +138,7 @@ export function safeLedgerDetail(input = {}) {
       };
       continue;
     }
+    if (key === 'diagnosticInterval' && !['before-login','after-login','before-navigation','after-navigation','before-measurement','after-measurement'].includes(value)) continue;
     if (key === 'category' && !['DNS', 'TCP', 'TLS', 'AUTHENTICATION', 'PERMISSION', 'CAPABILITY', 'IDENTITY',
       'PRECONDITION', 'CONFIGURATION', 'READ_ONLY_ADMIN', 'DATABASE', 'TRANSPORT_FAILURE', 'HTTP_FAILURE', 'READS_NOT_TRANSACTIONAL',
       'RESPONSE_INVALID', 'FIXTURE_CREATED', 'EXPECTED_VISIBILITY', 'QUERY_FAILED', 'DIAGNOSTIC_INCOMPLETE',
@@ -148,6 +149,8 @@ export function safeLedgerDetail(input = {}) {
       'SQL_PRIVILEGE_DENIED', 'DATA_API_RESULT_INCOMPLETE', 'ROW_COUNT_MISMATCH', 'ROW_KEY_MISMATCH',
       'I5_ASSERTION_FAILED', 'I5_LEDGER_WRITE_FAILED', 'SIGNATURE_INVALID', 'RECEIPT_PENDING', 'RECEIPT_RESOLVED',
       'H1A_EXTERNAL_NAVIGATION_BLOCKED', 'H1A_PINNED_REQUEST_INTERCEPTION_FAILED',
+      'H1A_PHASE_CONSOLE_ERRORS', 'H1A_LOGIN_FAILED', 'H1A_NAVIGATION_FAILED',
+      'DIAGNOSTIC_STAGE_MISSING', 'DIAGNOSTIC_SUM_MISMATCH', 'DIAGNOSTIC_SNAPSHOT_INVALID', 'DIAGNOSTIC_COUNTER_RESET',
       'HTTP_STATUS_INVALID', 'DNS_RESOLUTION_FAILED', 'SESSION_POOLER_IPV4_UNAVAILABLE', 'TCP_CONNECTION_TIMEOUT',
       'TCP_CONNECTION_REFUSED', 'TCP_CONNECTION_FAILED', 'TLS_CERTIFICATE_OR_HANDSHAKE_REJECTED',
       'DATABASE_AUTHENTICATION_REJECTED', 'SQL_PERMISSION_DENIED', 'READ_ONLY_SQL_PERMISSION_DENIED',
@@ -653,15 +656,35 @@ async function runH1AProtectedViews({ fixtures, runId, env, ledger, captureRoot,
     const page = await context.newPage();
     const routeEvents = [];
     const diagnostics = createPageDiagnostics(page);
+    const diagnosticIntervals = createDiagnosticIntervalTracker(diagnostics);
     const pageErrors = { count: 0 };
     page.on('pageerror', () => { pageErrors.count++; });
+    const recordDiagnosticBoundary = async (interval, status = 'PASS', failureCode = null) => {
+      const row = diagnosticIntervals.checkpoint(interval);
+      const summary = summarizeDiagnosticInterval(row);
+      const blocked = summary.status === 'BLOCKED';
+      await ledger('h1a-diagnostic-boundary', blocked || failureCode ? 'BLOCKED' : status, {
+        diagnosticInterval: interval, diagnosticsAfter: row.diagnosticsAfter,
+        diagnosticsBefore: row.diagnosticsBefore, diagnosticsDelta: row.diagnosticsDelta,
+        ...(blocked ? { code: summary.code } : failureCode ? { code: failureCode } : {}),
+      });
+      if (blocked) throw new Error('H1A_PHASE_CONSOLE_ERRORS');
+      if (failureCode) throw new Error(failureCode);
+      return row;
+    };
     try {
       await installScopedRoutes(context, page, env.VERCEL_OIDC_TOKEN, origin,
         (event, diagnostic) => securityEvents.push({ event, phase: navigationStage, ...(diagnostic ?? {}) }), event => diagnostics.addRouteEvent(event), runId,
         event => navigationDiagnostics.push({ ...event, phase: navigationStage }));
+      await recordDiagnosticBoundary('before-login', 'ATTEMPTED');
       await writeNavigationStep('ATTEMPTED', 'H1A_AUTH_LOGIN', 'PINNED_ORIGIN_AUTH', 'UNKNOWN', 'SIGNED_OUT');
-      await login(page, context, input.U03_B4_A_EMAIL, input.U03_B4_A_PASSWORD,
-        { origin, runId, viewport: 'desktop', captureRoot, ledger, routeEvents });
+      try {
+        await login(page, context, input.U03_B4_A_EMAIL, input.U03_B4_A_PASSWORD,
+          { origin, runId, viewport: 'desktop', captureRoot, ledger, routeEvents });
+      } catch {
+        await recordDiagnosticBoundary('after-login', 'BLOCKED', 'H1A_LOGIN_FAILED');
+      }
+      await recordDiagnosticBoundary('after-login');
       await writeNavigationDiagnostics();
       await assertNoExternalMainFrameNavigation();
       const loginStatus = [...routeEvents].reverse().map(value => /^auth-action-http-(\d{3})$/.exec(value)?.[1]).find(Boolean);
@@ -679,8 +702,12 @@ async function runH1AProtectedViews({ fixtures, runId, env, ledger, captureRoot,
         ]) {
           navigationStage = `H1A_VIEW_${screen.viewport.toUpperCase()}_${view.id.toUpperCase()}`;
           const phase = navigationStage;
+          await recordDiagnosticBoundary('before-navigation', 'ATTEMPTED');
           await writeNavigationStep('ATTEMPTED', phase, 'PINNED_ORIGIN_VIEW', 'UNKNOWN', 'AUTHENTICATED');
-          const response = await page.goto(`${origin}${view.path}`, { waitUntil: 'domcontentloaded' });
+          let response;
+          try { response = await page.goto(`${origin}${view.path}`, { waitUntil: 'domcontentloaded' }); }
+          catch { await recordDiagnosticBoundary('after-navigation', 'BLOCKED', 'H1A_NAVIGATION_FAILED'); }
+          await recordDiagnosticBoundary('after-navigation');
           await writeNavigationDiagnostics();
           await assertNoExternalMainFrameNavigation();
           const observedDestinationClass = classifyDestination(page.url());
@@ -692,7 +719,11 @@ async function runH1AProtectedViews({ fixtures, runId, env, ledger, captureRoot,
           }
           if (!await page.getByText(view.text, { exact: false }).count()) throw new Error('H1A_PROTECTED_VIEW_CONTENT_MISSING');
           await writeNavigationStep('PASS', phase, 'PINNED_ORIGIN_VIEW', observedDestinationClass, 'AUTHENTICATED', response.status());
-          const capture = await auditAndCapture(page, { runId, viewport: screen.viewport, screen: `h1a-${view.id}`, captureRoot, ledger, diagnostics, pageErrors });
+          const requiredDiagnosticBoundaries = view.id === 'measurement' && screen.viewport === 'desktop'
+            ? ['before-login','after-login','before-navigation','after-navigation','before-measurement','after-measurement']
+            : ['before-navigation','after-navigation','before-measurement','after-measurement'];
+          const capture = await auditAndCapture(page, { runId, viewport: screen.viewport, screen: `h1a-${view.id}`, captureRoot, ledger,
+            diagnostics, pageErrors, diagnosticIntervals, requiredDiagnosticBoundaries });
           captures.push(capture);
           await ledger(`h1a-capture-${screen.viewport}-${view.id}`, 'SAVED', { path: relative(process.cwd(), capture), viewport: screen.viewport });
         }

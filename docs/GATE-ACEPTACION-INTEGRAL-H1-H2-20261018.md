@@ -1,5 +1,11 @@
 # Gate de aceptación integral · H1 y H2
 
+## H1-A · snapshots acumulativos locales · 22/10/2026
+
+El run local `1c37450a-5cbb-4bad-8c91-6a92d9a24491` registra snapshots acumulativos no consumibles antes y después de login, navegación y medición. El verificador comprueba los 18 límites esperados entre cuatro gates visuales (desktop/móvil, medición/informe), valida mapas cerrados, continuidad before/after, deltas recalculados y suma exacta contra cada contador del gate. Un límite ausente, una discrepancia o cualquier dato fuera del esquema bloquea la evidencia. Los cuatro gates visuales locales reportaron cero errores de consola/página; exportación HTTP loopback, verificación offline, rechazo de manipulación, restauración doble e idempotente y limpieza de ambos stacks pasaron. La prueba de integración vuelve a leer y validar el ledger persistido.
+
+Este es un PASS local, no evidencia alojada. No se ha preparado ni abierto una ventana H1-A nueva en Preview en este corte. H1-A permanece BLOCKED hasta superar preflights alojados, una sola campaña integral, lectura independiente de limpieza y revisión visual humana. R1, H1-B/U04, H1 global y H2 siguen abiertos.
+
 ## Corte H1-A · 22/10/2026 · recuperación y ensayo local
 
 El run alojado `f7ee4d0a-edb4-4276-88fc-03bbab570a19` conserva su resultado **BLOCKED**. Su recuperación posterior pasó y una lectura independiente confirmó Preview a cero, guarda restaurada y capacidades temporales retiradas. El fallo `H1A_EXTERNAL_NAVIGATION_BLOCKED` histórico no identifica el tipo de petición; un defecto reproducido localmente confundía redirecciones de recursos secundarios con navegación principal. El arnés ahora bloquea ambas salidas, pero solo la navegación principal falla ese gate, y registra categorías cerradas. Véase [expediente de recuperación](H1A-RECUPERACION-F7EE-20261022.md).

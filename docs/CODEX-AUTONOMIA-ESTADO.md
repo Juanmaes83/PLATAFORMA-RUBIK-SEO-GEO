@@ -1,5 +1,9 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
+## #145 · snapshots H1-A locales · 22/10/2026
+
+HEAD de partida `d26543906693b567e0c98c395a0e0d4e07327441`, PR #145 OPEN/Draft. El trabajo local agrega checkpoints acumulativos saneados para login, navegación y medición; el validador exige las 18 etapas en orden, deltas exactos y suma concordante con cada uno de los cuatro gates visuales. Run local completo `1c37450a-5cbb-4bad-8c91-6a92d9a24491`: vistas desktop/móvil con cero errores de consola/página, exportación HTTP loopback, verificación y manipulación, restauración doble, logout y limpieza de stacks PASS. La integración valida el ledger escrito. No hubo actividad alojada en este corte. H1-A sigue BLOCKED a la espera de deployment y preflights protegidos, campaña alojada y confirmación visual humana; H1-B/U04, R1, H1 y H2 no cambian.
+
 ## #143 · recuperación run 26f7efe8 · 21/10/2026
 
 El run alojado `26f7efe8-e5e4-4d68-bfea-e53a7a4bfa8e` se detuvo después de instalar el rol mínimo NOLOGIN, antes de activación, sesiones del principal o fixtures. La contención original dejó `CONTAINMENT_NEW_LOGIN_QUERY_FAILED`; los ledgers originales se conservan. Prelectura administrativa independiente: Preview exacto, 27 N1, rol propio NOLOGIN, cuatro políticas exactas, cero sesiones, inventario/outbox cero y escritor general cerrado. Rollback del marcador exacto PASS; lectura final independiente confirma rol/políticas/sesiones cero, guarda original, inventario/outbox total/pending cero y escritor general NOLOGIN. Ocho variables de rama, deployment temporal y vault DPAPI retirados y verificados ausentes. La recuperación se resumió después en una reconciliación manual sanitizada, con `recordedUtc` y sin horas de ejecución inferidas: `test-results/u03-hosted/26f7efe8-e5e4-4d68-bfea-e53a7a4bfa8e-recovery.jsonl`.

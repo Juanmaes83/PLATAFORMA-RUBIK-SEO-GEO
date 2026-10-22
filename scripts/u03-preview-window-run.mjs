@@ -64,6 +64,98 @@ export function normalizeWindowCaseId(caseId) {
 
 const FINAL_LEDGER_CASES = new Set(['i2-final-result','i5-final-result','u03-sql-final-result','h1a-global-result','sequence-complete']);
 
+const H1A_DIAGNOSTIC_MAP_PATTERNS = Object.freeze({
+  console: /^(?:error|warning|log|info|debug|dir|assert|trace|other):(?:preview|preview-supabase|external|inline|unknown)$/,
+  http: /^[1-5]\d\d:(?:preview|preview-supabase|external|inline|unknown)$/,
+  requestFailures: /^(?:preview|preview-supabase|external|inline|unknown)$/,
+  routeEvents: /^(?:auth-action-post|auth-action-http-[1-5]\d\d|pinned-navigation|pinned-request|external-navigation-blocked|external-redirect-blocked|pinned-origin-request-failed|blocked-external-subresource|blocked-external-subresource-redirect)$/,
+});
+
+function strictLedgerDiagnostics(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const result = {};
+  for (const [name, pattern] of Object.entries(H1A_DIAGNOSTIC_MAP_PATTERNS)) {
+    const input = value[name];
+    if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
+    result[name] = {};
+    for (const [key, count] of Object.entries(input)) {
+      if (!pattern.test(key) || !Number.isSafeInteger(count) || count < 0 || count > 1_000_000) return null;
+      result[name][key] = count;
+    }
+  }
+  return result;
+}
+
+function subtractLedgerDiagnostics(before, after) {
+  const result = {};
+  for (const name of Object.keys(H1A_DIAGNOSTIC_MAP_PATTERNS)) {
+    result[name] = {};
+    const keys = new Set([...Object.keys(before[name]), ...Object.keys(after[name])]);
+    for (const key of keys) {
+      const prior = before[name][key] ?? 0;
+      const current = after[name][key] ?? 0;
+      if (current < prior) return null;
+      result[name][key] = current - prior;
+    }
+  }
+  return result;
+}
+
+function addLedgerDiagnostics(total, delta) {
+  for (const name of Object.keys(H1A_DIAGNOSTIC_MAP_PATTERNS))
+    for (const [key, count] of Object.entries(delta[name])) total[name][key] = (total[name][key] ?? 0) + count;
+}
+
+function equalLedgerDiagnostics(left, right) {
+  return Object.keys(H1A_DIAGNOSTIC_MAP_PATTERNS).every(name => {
+    const keys = new Set([...Object.keys(left[name]), ...Object.keys(right[name])]);
+    return [...keys].every(key => (left[name][key] ?? 0) === (right[name][key] ?? 0));
+  });
+}
+
+/** Validate persisted boundary order, cumulative deltas, and exact equality with each visual gate. */
+export function verifyH1ADiagnosticIntervals(rows) {
+  const visuals = rows.filter(row => row.caseId === 'visual-h1a-measurement' || row.caseId === 'visual-h1a-report');
+  if (visuals.length !== 4) return false;
+  const expectedGates = [
+    ['visual-h1a-measurement','desktop'], ['visual-h1a-report','desktop'],
+    ['visual-h1a-measurement','mobile'], ['visual-h1a-report','mobile'],
+  ];
+  let previousVisualIndex = -1;
+  for (const [visualIndex, visual] of visuals.entries()) {
+    if (visual.caseId !== expectedGates[visualIndex][0] || visual.viewport !== expectedGates[visualIndex][1]) return false;
+    const rowIndex = rows.indexOf(visual);
+    const boundaries = rows.slice(previousVisualIndex + 1, rowIndex).filter(row => row.caseId === 'h1a-diagnostic-boundary');
+    const expected = visualIndex === 0
+      ? ['before-login','after-login','before-navigation','after-navigation','before-measurement','after-measurement']
+      : ['before-navigation','after-navigation','before-measurement','after-measurement'];
+    if (boundaries.length !== expected.length || visual.status !== 'PASS') return false;
+    let total = { console: {}, http: {}, requestFailures: {}, routeEvents: {} };
+    let previousAfter = null;
+    for (const [index, boundary] of boundaries.entries()) {
+      if (boundary.diagnosticInterval !== expected[index]) return false;
+      const expectedStatus = boundary.diagnosticInterval.startsWith('before-') ? 'ATTEMPTED' : 'PASS';
+      if (boundary.status !== expectedStatus) return false;
+      const before = strictLedgerDiagnostics(boundary.diagnosticsBefore);
+      const after = strictLedgerDiagnostics(boundary.diagnosticsAfter);
+      const delta = strictLedgerDiagnostics(boundary.diagnosticsDelta);
+      if (!before || !after || !delta) return false;
+      if (previousAfter && !equalLedgerDiagnostics(previousAfter, before)) return false;
+      const calculated = subtractLedgerDiagnostics(before, after);
+      if (!calculated || !equalLedgerDiagnostics(calculated, delta)) return false;
+      addLedgerDiagnostics(total, delta);
+      previousAfter = after;
+    }
+    const gate = strictLedgerDiagnostics(visual.diagnostics);
+    if (!gate || !equalLedgerDiagnostics(total, gate)) return false;
+    const errors = Object.entries(gate.console).filter(([key]) => key.startsWith('error:'))
+      .reduce((sum, [, count]) => sum + count, 0);
+    if (errors !== visual.consoleErrorCount) return false;
+    previousVisualIndex = rowIndex;
+  }
+  return true;
+}
+
 export async function verifyWindowLedgerComplete(path, { runId, pin = PIN, includeFinal = true, mode = 'window-i2-i5' } = {}) {
   try {
     const text = await readFile(path, 'utf8');
@@ -76,6 +168,7 @@ export async function verifyWindowLedgerComplete(path, { runId, pin = PIN, inclu
     const latest = new Map(rows.map(row => [row.caseId, row.status]));
     const required = mode === 'window-h1a' ? REQUIRED_H1A_LEDGER : REQUIRED_CAMPAIGN_LEDGER;
     if (mode === 'window-h1a') {
+      if (!verifyH1ADiagnosticIntervals(rows)) return false;
       for (const surface of ['audit-events', 'provider-results', 'imports']) {
         const stages = rows.filter(row => row.caseId === `h1a-isolation-${surface}` && row.status === 'PASS');
         if (!stages.some(row => row.actor === 'ownerA' && row.stage === 'OWN_READ' && row.expectedCount === 1 && row.observedCount === 1) ||
@@ -129,6 +222,10 @@ function safeWindowDiagnostics(value) {
   };
 }
 
+const H1A_DIAGNOSTIC_BOUNDARIES = new Set([
+  'before-login','after-login','before-navigation','after-navigation','before-measurement','after-measurement',
+]);
+
 export async function createWindowLedger(path, metadata, append = appendFile) {
   await mkdir(dirname(path), { recursive: true });
   await append(path, '', { flag: 'wx', mode: 0o600 });
@@ -137,11 +234,12 @@ export async function createWindowLedger(path, metadata, append = appendFile) {
     if (typeof status !== 'string' || !/^[A-Z_]{2,32}$/.test(status)) throw new Error('WINDOW_LEDGER_FIELD_REJECTED');
     const safe = {};
     for (const [key, value] of Object.entries(detail)) {
-      if (key === 'diagnostics') {
+      if (['diagnostics','diagnosticsBefore','diagnosticsAfter','diagnosticsDelta'].includes(key)) {
         const diagnostics = safeWindowDiagnostics(value);
-        if (diagnostics) safe.diagnostics = diagnostics;
+        if (diagnostics) safe[key] = diagnostics;
         continue;
       }
+      if (key === 'diagnosticInterval' && H1A_DIAGNOSTIC_BOUNDARIES.has(value)) { safe.diagnosticInterval = value; continue; }
       if (key === 'sqlstate' && SAFE_SQLSTATES.has(value)) { safe.sqlstate = value; continue; }
       if (!['code','category','httpStatus','cases','count','restoreCount','resultRowsErased','importsErased','receiptsProcessed',
         'inventoryZero','outboxTotal','pendingOutbox','rolePresent','roleLocked','activeSessions','stage','actor',
