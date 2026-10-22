@@ -4,6 +4,7 @@ param(
   [switch]$WindowRolePreflightOnly,
   [switch]$WindowRoleReadOnlyDiagnosticOnly,
   [switch]$WindowRecoveryOnly,
+  [switch]$H1ARecoveryOnly,
   [switch]$WindowI2I5H1A,
   [switch]$WindowH1A,
   [switch]$WindowBatchAttestationOnly,
@@ -32,6 +33,7 @@ $runner = Join-Path $repo 'scripts\u03-preview-b4-orchestrator.mjs'
 $v4Operator = Join-Path $repo 'scripts\u03-preview-v4-operator.mjs'
 $windowRoleOperator = Join-Path $repo 'scripts\u03-window-role-preflight.mjs'
 $windowSequenceOperator = Join-Path $repo 'scripts\u03-preview-window-run.mjs'
+$h1aRecoveryOperator = Join-Path $repo 'scripts\u03-preview-h1a-recovery.mjs'
 $v4PoolerModule = Join-Path $PSScriptRoot 'u03-preview-v4-pooler.psm1'
 $linkFile = Join-Path $repo '.vercel\project.json'
 $clipboardModule = Join-Path $PSScriptRoot 'u03-preview-b4-clipboard.psm1'
@@ -59,6 +61,21 @@ function Write-U03WindowGlobalResult([string]$RunId, [string]$Status, [string]$C
   } catch { return $false }
 }
 
+function Write-H1ARecoveryEvent([string]$CaseId, [string]$Status, [string]$Code = '') {
+  if ($CaseId -notin @('recovery-configuration-teardown','recovery-vault-teardown') -or
+      $Status -notin @('ATTEMPTED','PASS','BLOCKED') -or
+      ($Code -and $Code -notin @('RECOVERY_TEARDOWN_UNVERIFIED','RECOVERY_VAULT_UNVERIFIED'))) { return $false }
+  $run = 'f7ee4d0a-edb4-4276-88fc-03bbab570a19'
+  $path = Join-Path $repo "test-results\u03-hosted-recovery\$run-recovery.jsonl"
+  if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $false }
+  try {
+    $row = @{ utc=[DateTime]::UtcNow.ToString('o'); runId=$run; ref='rhnnplewqsekrnaousyl';
+      caseId=$CaseId; status=$Status; code=$Code } | ConvertTo-Json -Compress
+    [System.IO.File]::AppendAllText($path,$row + [Environment]::NewLine,[Text.UTF8Encoding]::new($false))
+    return $true
+  } catch { return $false }
+}
+
 function Remove-U03WindowDeploymentConfiguration([string]$DeploymentId) {
   if ($DeploymentId -cnotmatch '^dpl_[A-Za-z0-9]+$') { return $false }
   $names = @('U03_PREVIEW_WRITER_WINDOW','U03_PREVIEW_WRITER_WINDOW_REF','U03_PREVIEW_WRITER_WINDOW_SHA',
@@ -76,9 +93,9 @@ function Invoke-U03WindowRoleChild([string]$Mode, [string]$RunId, [string]$Passw
   $payload = $null
   $payloadBytes = $null
   try {
-    if ($Mode -notin @('run','contain','diagnose','recover','sequence','attest','local','keys') -or $RunId -cnotmatch '^[0-9a-fA-F-]{36}$' -or
+    if ($Mode -notin @('run','contain','diagnose','recover','h1a-recover','sequence','attest','local','keys') -or $RunId -cnotmatch '^[0-9a-fA-F-]{36}$' -or
         (($Mode -notin @('attest','local','keys')) -and [string]::IsNullOrWhiteSpace($PasswordText)) -or
-        ($Mode -eq 'sequence' -and ($null -eq $PreviewKeys -or [string]::IsNullOrWhiteSpace([string]$PreviewKeys.AdminKey) -or [string]::IsNullOrWhiteSpace([string]$PreviewKeys.PublicKey))) -or
+        ($Mode -in @('sequence','h1a-recover') -and ($null -eq $PreviewKeys -or [string]::IsNullOrWhiteSpace([string]$PreviewKeys.AdminKey) -or [string]::IsNullOrWhiteSpace([string]$PreviewKeys.PublicKey))) -or
         -not (Test-Path -LiteralPath $ChildPath -PathType Leaf)) {
       return [pscustomobject]@{ Passed = $false; SafeLine = $null; Code = 'SAFE_CHILD_PREPARATION_FAILED' }
     }
@@ -97,7 +114,7 @@ function Invoke-U03WindowRoleChild([string]$Mode, [string]$RunId, [string]$Passw
       $value = [Environment]::GetEnvironmentVariable($name)
       if (-not [string]::IsNullOrEmpty($value)) { $psi.EnvironmentVariables[$name] = $value }
     }
-    if ($Mode -in @('sequence','attest','local')) {
+    if ($Mode -in @('sequence','h1a-recover','attest','local')) {
       foreach ($name in @('VERCEL_OIDC_TOKEN','U03_VERCEL_CLI','U03_SUPABASE_CLI','U03_PIN_DEPLOYMENT_ID',
           'U03_PIN_DEPLOYMENT_HOST','U03_PIN_DEPLOYMENT_SHA','U03_PIN_DEPLOYMENT_BRANCH','U03_FUNCTIONAL_SHA',
           'U03_PREVIEW_WRITER_WINDOW','U03_PREVIEW_WRITER_WINDOW_REF',
@@ -111,7 +128,7 @@ function Invoke-U03WindowRoleChild([string]$Mode, [string]$RunId, [string]$Passw
     } elseif (($Mode -eq 'contain') -and -not [string]::IsNullOrEmpty($env:RUBIK_AUDIT_DATABASE_URL)) {
       $psi.EnvironmentVariables['RUBIK_AUDIT_DATABASE_URL'] = $env:RUBIK_AUDIT_DATABASE_URL
     }
-    if ($Mode -in @('keys','sequence') -and $null -ne $PreviewKeys) {
+    if ($Mode -in @('keys','sequence','h1a-recover') -and $null -ne $PreviewKeys) {
       $psi.EnvironmentVariables['U03_PREVIEW_ADMIN_KEY'] = [string]$PreviewKeys.AdminKey
       $psi.EnvironmentVariables['U03_PREVIEW_PUBLIC_KEY'] = [string]$PreviewKeys.PublicKey
     }
@@ -128,7 +145,7 @@ function Invoke-U03WindowRoleChild([string]$Mode, [string]$RunId, [string]$Passw
     $stdin.Write($payloadBytes, 0, $payloadBytes.Length)
     $stdin.Flush()
     $stdin.Close()
-    $timeout = if ($Mode -eq 'sequence') { 1200000 } else { 240000 }
+    $timeout = if ($Mode -in @('sequence','h1a-recover')) { 1200000 } else { 240000 }
     if (-not $process.WaitForExit($timeout)) {
       try { $process.Kill(); $null = $process.WaitForExit(5000) } catch { }
       return [pscustomobject]@{ Passed = $false; SafeLine = $null; Code = 'SAFE_CHILD_TIMEOUT' }
@@ -141,6 +158,8 @@ function Invoke-U03WindowRoleChild([string]$Mode, [string]$RunId, [string]$Passw
       '^U03_PREVIEW_WINDOW_LOCAL_PREFLIGHT (?:PASS runId=[0-9a-fA-F-]{36} deploymentId=dpl_[A-Za-z0-9]+ sha=[0-9a-f]{40}|BLOCKED; no database operation was attempted)$'
     } elseif ($Mode -eq 'attest') {
       '^U03_WINDOW_BATCH_ATTESTATION (?:PASS runId=[0-9a-fA-F-]{36} deploymentId=dpl_[A-Za-z0-9]+ sha=[0-9a-f]{40}|BLOCKED code=[A-Z][A-Z0-9_]{1,79}; no database password was requested)$'
+    } elseif ($Mode -eq 'h1a-recover') {
+      '^H1A_RECOVERY (?:PASS runId=f7ee4d0a-edb4-4276-88fc-03bbab570a19 ledger=[^\r\n]+|BLOCKED code=RECOVERY_[A-Z_]+)$'
     } elseif ($Mode -eq 'sequence') {
       '^U03_PREVIEW_WINDOW_SEQUENCE (PASS|BLOCKED) runId=[0-9a-fA-F-]{36} ledger=[^\r\n]+$'
     } elseif ($Mode -eq 'run') {
@@ -345,7 +364,7 @@ foreach ($requested in @($ProvisionPreviewKeys.IsPresent, $CheckPreviewKeys.IsPr
   if ($requested) { $credentialOperations++ }
 }
 $campaignModes = @($ReadOnlyPreflightOnly.IsPresent, $V4ConnectionDiagnosticOnly.IsPresent, $WindowRolePreflightOnly.IsPresent,
-  $WindowRoleReadOnlyDiagnosticOnly.IsPresent, $WindowRecoveryOnly.IsPresent, $WindowI2I5H1A.IsPresent, $WindowH1A.IsPresent, $WindowBatchAttestationOnly.IsPresent,
+  $WindowRoleReadOnlyDiagnosticOnly.IsPresent, $WindowRecoveryOnly.IsPresent, $H1ARecoveryOnly.IsPresent, $WindowI2I5H1A.IsPresent, $WindowH1A.IsPresent, $WindowBatchAttestationOnly.IsPresent,
   $ProvisionWindowSecrets.IsPresent,
   $WindowTransportSelfTestOnly.IsPresent,
   $WindowRoleTransportSelfTestOnly.IsPresent,
@@ -381,6 +400,7 @@ if ($ProviderEgressOnly -and $branch -ne 'codex/u03-final-gates-20261020') { Sto
 if ($WindowRolePreflightOnly -and $branch -ne 'codex/u03-final-gates-20261020') { Stop-B4 'WRONG_MODE_BRANCH' }
 if ($WindowRoleReadOnlyDiagnosticOnly -and $branch -ne 'codex/u03-final-gates-20261020') { Stop-B4 'WRONG_MODE_BRANCH' }
 if ($WindowRecoveryOnly -and $branch -ne 'codex/u03-final-gates-20261020') { Stop-B4 'WRONG_MODE_BRANCH' }
+if ($H1ARecoveryOnly -and $branch -ne 'codex/h1a-integral-20261022') { Stop-B4 'WRONG_MODE_BRANCH' }
 if ($WindowI2I5H1A -and $branch -ne 'codex/u03-final-gates-20261020') { Stop-B4 'WRONG_MODE_BRANCH' }
 if ($WindowH1A -and $branch -ne 'codex/h1a-integral-20261022') { Stop-B4 'WRONG_MODE_BRANCH' }
 if (($WindowBatchAttestationOnly -or $ProvisionWindowSecrets) -and $branch -ne 'codex/h1a-integral-20261022') { Stop-B4 'WRONG_MODE_BRANCH' }
@@ -424,7 +444,7 @@ if ($ProviderEgressOnly) {
 
 $pushed = $false
 $isH1AWindow = $WindowH1A.IsPresent
-$windowExpectedBranch = if ($isH1AWindow -or $WindowBatchAttestationOnly -or $ProvisionWindowSecrets) { 'codex/h1a-integral-20261022' } else { 'codex/u03-final-gates-20261020' }
+$windowExpectedBranch = if ($isH1AWindow -or $H1ARecoveryOnly -or $WindowBatchAttestationOnly -or $ProvisionWindowSecrets) { 'codex/h1a-integral-20261022' } else { 'codex/u03-final-gates-20261020' }
 $previewCredentials = $null
 $adminKey = $null
 $publicKey = $null
@@ -589,6 +609,82 @@ try {
     if (-not $inspection.DeploymentNotFound) { Stop-B4 'WINDOW_RECOVERY_DEPLOYMENT_ABSENCE_UNVERIFIED' }
     if (-not (Remove-U03WindowBatch)) { Stop-B4 'WINDOW_RECOVERY_VAULT_REMOVE_FAILED' }
     Write-Output 'U03_WINDOW_RECOVERY_TEARDOWN PASS branchVariablesAbsent=true deploymentAbsent=true vaultRemoved=true'
+    return
+  }
+  if ($H1ARecoveryOnly) {
+    $recoveryRun = 'f7ee4d0a-edb4-4276-88fc-03bbab570a19'
+    $recoveryDeployment = 'dpl_HR7dit3yEnunZWCHi4cXUNS7Vrn9'
+    $recoveryHost = 'plataforma-rubik-seo-a0b46g2ws-juanma-espinosas-projects.vercel.app'
+    $recoverySha = '0c06a300f3870af9cca5e5468a9401ccf7488b41'
+    if ($RunId -cne $recoveryRun -or $DeploymentId -cne $recoveryDeployment -or
+        $DeploymentHost -cne $recoveryHost -or $DeploymentSha -cne $recoverySha -or
+        -not (Test-Path -LiteralPath $h1aRecoveryOperator -PathType Leaf)) { Stop-B4 'H1A_RECOVERY_PIN_REJECTED' }
+    try { $recoveryBatch = Get-U03WindowBatch } catch { Stop-B4 'H1A_RECOVERY_VAULT_UNAVAILABLE' }
+    if ($recoveryBatch.RunId -cne $recoveryRun -or $recoveryBatch.Sha -cne $recoverySha -or
+        $recoveryBatch.ProjectId -cne 'prj_HgnTtNtisi9Kt1A4Dq2pxoCQBook' -or
+        $recoveryBatch.SupabaseRef -cne 'rhnnplewqsekrnaousyl' -or
+        $recoveryBatch.Branch -cne 'codex/h1a-integral-20261022') { Stop-B4 'H1A_RECOVERY_VAULT_IDENTITY_MISMATCH' }
+    foreach ($name in (Get-U03WindowVariableNames)) {
+      $inherited = [Environment]::GetEnvironmentVariable($name)
+      if ([string]::IsNullOrEmpty($inherited) -or $inherited -cne ([string]$recoveryBatch.Values.$name)) {
+        Stop-B4 'H1A_RECOVERY_BRANCH_BATCH_MISMATCH'
+      }
+      Set-Item -LiteralPath "Env:$name" -Value ([string]$recoveryBatch.Values.$name)
+    }
+    $env:U03_PIN_DEPLOYMENT_ID = $recoveryDeployment
+    $env:U03_PIN_DEPLOYMENT_HOST = $recoveryHost
+    $env:U03_PIN_DEPLOYMENT_SHA = $recoverySha
+    $env:U03_PIN_DEPLOYMENT_BRANCH = 'codex/h1a-integral-20261022'
+    $recoveryBatch = $null
+    try {
+      $recoveryCredentials = Get-B4PreviewCredentials
+      if ($recoveryCredentials.ProjectRef -cne 'rhnnplewqsekrnaousyl') { Stop-B4 'H1A_RECOVERY_PREVIEW_KEYS_REF_MISMATCH' }
+      $recoveryKeys = @{ AdminKey=[string]$recoveryCredentials.AdminKey; PublicKey=[string]$recoveryCredentials.PublicKey }
+      if ([string]::IsNullOrWhiteSpace($recoveryKeys.AdminKey) -or [string]::IsNullOrWhiteSpace($recoveryKeys.PublicKey)) {
+        Stop-B4 'H1A_RECOVERY_PREVIEW_KEYS_UNAVAILABLE'
+      }
+      $secureDatabasePassword = Read-Host -Prompt 'Recuperación H1-A: Database password existente de Supabase Preview (entrada oculta)' -AsSecureString
+      $passwordBstr = [IntPtr]::Zero
+      try {
+        $passwordBstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureDatabasePassword)
+        $windowRolePlainPassword = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($passwordBstr)
+        if ([string]::IsNullOrEmpty($windowRolePlainPassword)) { Stop-B4 'H1A_RECOVERY_PASSWORD_EMPTY' }
+        $result = Invoke-U03WindowRoleChild -Mode 'h1a-recover' -RunId $recoveryRun -PasswordText $windowRolePlainPassword -ChildPath $h1aRecoveryOperator -PreviewKeys $recoveryKeys
+        if ($result.SafeLine) { Write-Output $result.SafeLine }
+        if (-not $result.Passed) { Stop-B4 'H1A_RECOVERY_DATABASE_OR_FINAL_READ_BLOCKED' }
+      } finally {
+        if ($passwordBstr -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($passwordBstr) }
+        if ($secureDatabasePassword) { $secureDatabasePassword.Dispose(); $secureDatabasePassword=$null }
+        $windowRolePlainPassword=$null
+      }
+      if (-not (Write-H1ARecoveryEvent -CaseId 'recovery-configuration-teardown' -Status 'ATTEMPTED')) { Stop-B4 'H1A_RECOVERY_LEDGER_UNAVAILABLE' }
+      if (-not (Remove-U03WindowDeploymentConfiguration -DeploymentId $recoveryDeployment)) {
+        [void](Write-H1ARecoveryEvent -CaseId 'recovery-configuration-teardown' -Status 'BLOCKED' -Code 'RECOVERY_TEARDOWN_UNVERIFIED')
+        Stop-B4 'H1A_RECOVERY_BRANCH_VARIABLE_OR_DEPLOYMENT_TEARDOWN_BLOCKED'
+      }
+      $inspection = Invoke-U03WindowVercelCli -Arguments @('api',"/v13/deployments/$recoveryDeployment") -InputText ''
+      if (-not $inspection.DeploymentNotFound) {
+        [void](Write-H1ARecoveryEvent -CaseId 'recovery-configuration-teardown' -Status 'BLOCKED' -Code 'RECOVERY_TEARDOWN_UNVERIFIED')
+        Stop-B4 'H1A_RECOVERY_DEPLOYMENT_ABSENCE_UNVERIFIED'
+      }
+      if (-not (Write-H1ARecoveryEvent -CaseId 'recovery-configuration-teardown' -Status 'PASS')) { Stop-B4 'H1A_RECOVERY_LEDGER_UNAVAILABLE' }
+      if (-not (Write-H1ARecoveryEvent -CaseId 'recovery-vault-teardown' -Status 'ATTEMPTED')) { Stop-B4 'H1A_RECOVERY_LEDGER_UNAVAILABLE' }
+      if (-not (Remove-U03WindowBatch)) {
+        [void](Write-H1ARecoveryEvent -CaseId 'recovery-vault-teardown' -Status 'BLOCKED' -Code 'RECOVERY_VAULT_UNVERIFIED')
+        Stop-B4 'H1A_RECOVERY_VAULT_REMOVE_FAILED'
+      }
+      try { $null = Get-U03WindowBatch; Stop-B4 'H1A_RECOVERY_VAULT_ABSENCE_UNVERIFIED' }
+      catch {
+        if ($_.Exception.Message -notlike 'U03_WINDOW_VAULT:VAULT_ABSENT') { throw }
+      }
+      if (-not (Write-H1ARecoveryEvent -CaseId 'recovery-vault-teardown' -Status 'PASS')) { Stop-B4 'H1A_RECOVERY_LEDGER_UNAVAILABLE' }
+      Write-Output 'H1A_RECOVERY_TEARDOWN PASS branchVariablesAbsent=true deploymentAbsent=true vaultRemoved=true'
+    } finally {
+      if ($recoveryCredentials) { $recoveryCredentials.AdminKey=$null; $recoveryCredentials.PublicKey=$null }
+      if ($recoveryKeys) { $recoveryKeys.AdminKey=$null; $recoveryKeys.PublicKey=$null }
+      foreach ($name in (Get-U03WindowVariableNames)) { Remove-Item -LiteralPath "Env:$name" -ErrorAction SilentlyContinue }
+      $recoveryCredentials=$null; $recoveryKeys=$null
+    }
     return
   }
   if ($WindowRolePreflightOnly -or $WindowRoleReadOnlyDiagnosticOnly -or $WindowI2I5H1A -or $WindowH1A -or $WindowBatchAttestationOnly) {
