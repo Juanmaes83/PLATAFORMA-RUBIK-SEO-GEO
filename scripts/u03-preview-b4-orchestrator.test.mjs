@@ -4,11 +4,28 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { chromiumEnvironment, networkEnvironment, PIN } from './u03-preview-b4-runner.mjs';
-import { PRIOR_DATA_API_RUN_ID, parseCliJson, readPreviewAuthSettings, runHostedU03Campaign, runPreviewReadOnlySql, runReadOnlyPreflight, safeLedgerDetail, verifyFinalPreviewState, verifyInitialPreviewState, verifyReadOnlyPreviewState } from './u03-preview-b4-orchestrator.mjs';
+import { PREFLIGHT_RESULT_FIELDS, PREFLIGHT_SQL, PRIOR_DATA_API_RUN_ID, parseCliJson, readPreviewAuthSettings, runHostedU03Campaign, runProtectedWindowSurfaces, runPreviewReadOnlySql, runReadOnlyPreflight, safeLedgerDetail, verifyFinalPreviewState, verifyInitialPreviewState, verifyProtectedWindowRuntime, verifyReadOnlyPreviewState } from './u03-preview-b4-orchestrator.mjs';
 import { V4_SECURITY_DEFINER_ALLOWLIST } from './u03-preview-v4-receipt.mjs';
 
 const runId = 'u03-orchestrator-test-run';
 const sha = 'a'.repeat(40);
+
+test('signed runtime probe records only allowlisted stage codes from the fixed host', async () => {
+  const run = 'c14f4c11-570f-4e03-a3a1-33a702b85baa';
+  const env = { U03_PREVIEW_WRITER_WINDOW: 'armed-run-capability', U03_PREVIEW_WRITER_WINDOW_RUN_ID: run,
+    U03_PREVIEW_WRITER_WINDOW_REF: PIN.supabaseRef, U03_PREVIEW_WRITER_WINDOW_SHA: PIN.sha,
+    U03_PIN_DEPLOYMENT_ID: PIN.deploymentId, U03_PIN_DEPLOYMENT_HOST: PIN.host, U03_PIN_DEPLOYMENT_SHA: PIN.sha,
+    U03_PREVIEW_WRITER_WINDOW_SECRET: 'fictional-secret', VERCEL_OIDC_TOKEN: 'fictional-token' };
+  const response = (code, url = `https://${PIN.host}/api/u03/window`) => ({ status: 404, url,
+    headers: { get: () => code } });
+  await assert.rejects(verifyProtectedWindowRuntime({ runId: run, env,
+    fetchImpl: async () => response('RUNTIME_CLIENT_TLS_REJECTED') }), { message: 'RUNTIME_CLIENT_TLS_REJECTED' });
+  await assert.rejects(verifyProtectedWindowRuntime({ runId: run, env,
+    fetchImpl: async () => response('free-form-secret') }), { message: 'WINDOW_RUNTIME_PREFLIGHT_HTTP_404' });
+  await assert.rejects(verifyProtectedWindowRuntime({ runId: run, env,
+    fetchImpl: async () => response('RUNTIME_CLIENT_TLS_REJECTED', 'https://other.example/api/u03/window') }),
+  { message: 'WINDOW_RUNTIME_EXTERNAL_RESPONSE_REJECTED' });
+});
 
 test('ledger retains only categorized browser diagnostics and discards unsafe strings', () => {
   const safe = safeLedgerDetail({
@@ -61,7 +78,7 @@ const passingPreflight = async () => ({
 });
 const passingFinal = async () => ({
   inventoriesClear: true, outboxClear: true, capabilitiesSafe: true,
-  state: { auth_users: 0, organizations: 0, projects: 0, organization_members: 0, project_members: 0, invitations: 0, audit_events: 0, outbox_total: 0, pending_outbox: 0, writer_locked: true, environment: 'preview', project_ref: PIN.supabaseRef },
+  state: { auth_users: 0, organizations: 0, projects: 0, organization_members: 0, project_members: 0, invitations: 0, audit_events: 0, provider_results: 0, imports: 0, audit_idempotency: 0, outbox_total: 0, pending_outbox: 0, openseo_project_jobs: 0, openseo_project_connections: 0, webmaster_properties: 0, provider_budgets: 0, provider_spend: 0, openseo_google_properties: 0, google_captures: 0, writer_locked: true, window_writer_present: false, window_policy_residue: 0, writer_sessions: 0, admin_can_manage_roles: true, admin_can_terminate_sessions: true, environment: 'preview', project_ref: PIN.supabaseRef },
 });
 
 async function withRoot(fn) {
@@ -196,6 +213,36 @@ for (const fails of [false, true]) {
     assert.equal(ledger.includes('fixture@example.test'), false);
   }));
 }
+
+test('server provider-egress campaign runs only the two guarded actions and cleans one owner fixture', async () => withRoot(async root => {
+  const calls = [];
+  const result = await runHostedU03Campaign({
+    root, sha, runId, env: secrets, mode: 'provider-egress', preflightFn: passingPreflight,
+    fixtureFactory: () => ({ namespace: 'u03-egress-test',
+      createSessionFixtures: async () => { calls.push('fixture'); return { account: { email: 'fixture@example.test', password: 'secret', api: {} }, path: '/proyectos/u03-egress-test-a/a1' }; },
+      runMatrix: async () => { throw new Error('DATA_API_MUST_NOT_RUN'); },
+      cleanup: async () => { calls.push('cleanup'); return { ok: true, userIds: [], organizationIds: [], projectIds: [] }; },
+    }),
+    providerEgressFn: async ({ path, env, runId: actualRunId }) => {
+      calls.push('actions');
+      assert.equal(path, '/proyectos/u03-egress-test-a/a1');
+      assert.equal(actualRunId, runId);
+      assert.equal(env.VERCEL_OIDC_TOKEN, secrets.VERCEL_OIDC_TOKEN);
+      return { passed: true, captures: ['desktop.png'] };
+    },
+    browserFn: async () => { throw new Error('B4_MUST_NOT_RUN'); }, finalCheckFn: passingFinal,
+  });
+  assert.equal(result.status, 'PASS');
+  assert.deepEqual(calls, ['fixture', 'actions', 'cleanup']);
+  const rows = (await readFile(result.ledgerPath, 'utf8')).trim().split('\n').map(JSON.parse);
+  assert.equal(rows.find(row => row.caseId === 'data-api-matrix')?.status, 'SKIP_PRIOR_EVIDENCE');
+  assert.equal(rows.find(row => row.caseId === 'browser-b4')?.status, 'SKIP_PRIOR_EVIDENCE');
+  assert.equal(rows.find(row => row.caseId === 'fixture-cleanup')?.status, 'PASS');
+  assert.equal(rows.find(row => row.caseId === 'final-inventory')?.status, 'PASS');
+  assert.equal(rows.find(row => row.caseId === 'outbox-final')?.status, 'PASS');
+  for (const secret of Object.values(secrets)) assert.equal(JSON.stringify(rows).includes(secret), false);
+  assert.equal(JSON.stringify(rows).includes('fixture@example.test'), false);
+}));
 
 test('Playwright-only campaign reuses fixtures and cleanup, records prior Data API evidence, and verifies zero inventory/outbox', async () => withRoot(async root => {
   const calls = [];
@@ -513,7 +560,7 @@ test('read-only SQL uses pinned ref, --output json and --file, then removes its 
 test('no-key read-only preflight verifies identity, 27 migrations, empty counts and final inventory', async () => {
   const state = {
     auth_users: 0, organizations: 0, projects: 0, organization_members: 0, project_members: 0,
-    invitations: 0, audit_events: 0, outbox_total: 0, pending_outbox: 0, writer_locked: true,
+    invitations: 0, audit_events: 0, provider_results: 0, imports: 0, audit_idempotency: 0, outbox_total: 0, pending_outbox: 0, openseo_project_jobs: 0, openseo_project_connections: 0, webmaster_properties: 0, provider_budgets: 0, provider_spend: 0, openseo_google_properties: 0, google_captures: 0, writer_locked: true, window_writer_present: false, window_policy_residue: 0, writer_sessions: 0, admin_can_manage_roles: true, admin_can_terminate_sessions: true, receipt_writer_present: false, receipt_writer_executable_functions: [], receipt_writer_security_definers: [],
     environment: 'preview', project_ref: PIN.supabaseRef,
     migrations: [
       '20260928120000', '20260928150000', '20261007120000', '20261007150000', '20261009071705',
@@ -536,10 +583,63 @@ test('no-key read-only preflight verifies identity, 27 migrations, empty counts 
   assert.equal(final.inventoriesClear && final.outboxClear && final.capabilitiesSafe, true);
 });
 
+test('preflight SQL selects every required inventory count and missing result columns have a schema error', async () => {
+  for (const field of ['provider_results', 'imports', 'audit_idempotency']) {
+    assert.match(PREFLIGHT_SQL, new RegExp(`count\\(\\*\\)::int from (?:public|private)\\.${field}\\) as ${field}`));
+  }
+  const state = {
+    auth_users: 0, organizations: 0, projects: 0, organization_members: 0, project_members: 0,
+    invitations: 0, audit_events: 0, provider_results: 0, imports: 0, audit_idempotency: 0,
+    outbox_total: 0, pending_outbox: 0, openseo_project_jobs: 0, openseo_project_connections: 0,
+    webmaster_properties: 0, provider_budgets: 0, provider_spend: 0, openseo_google_properties: 0,
+    google_captures: 0, writer_locked: true, window_writer_present: false, window_policy_residue: 0,
+    writer_sessions: 0, admin_can_manage_roles: true, admin_can_terminate_sessions: true,
+    receipt_writer_present: false, receipt_writer_executable_functions: [], receipt_writer_security_definers: [],
+    environment: 'preview', project_ref: PIN.supabaseRef,
+    migrations: ['20260928120000', '20260928150000', '20261007120000', '20261007150000', '20261009071705',
+      '20261009120000', '20261009150000', '20261009170000', '20261009180000', '20261010090000',
+      '20261010150000', '20261010160000', '20261012090000', '20261012100000', '20261012110000',
+      '20261012120000', '20261012130000', '20261015115750', '20261015145025', '20261015170000',
+      '20261015171000', '20261015172000', '20261015180000', '20261015183000', '20261015190000',
+      '20261015201500', '20261015210000'],
+  };
+  assert.deepEqual(PREFLIGHT_RESULT_FIELDS.filter(field => !Object.hasOwn(state, field)), []);
+  delete state.provider_results;
+  await assert.rejects(verifyReadOnlyPreviewState({ sql: async () => state }),
+    error => error.message === 'PREVIEW_READ_ONLY_RESULT_SCHEMA_INCOMPLETE');
+  state.provider_results = 1;
+  await assert.rejects(verifyReadOnlyPreviewState({ sql: async () => state }),
+    error => error.message === 'PREVIEW_INITIAL_INVENTORY_NOT_EMPTY');
+});
+
+test('final inventory gate counts populated result/import/idempotency surfaces and requires window rollback', async () => {
+  const state = { auth_users: 0, organizations: 0, projects: 0, organization_members: 0, project_members: 0,
+    invitations: 0, audit_events: 0, provider_results: 0, imports: 0, audit_idempotency: 0,
+    outbox_total: 0, pending_outbox: 0, openseo_project_jobs: 0, openseo_project_connections: 0,
+    webmaster_properties: 0, provider_budgets: 0, provider_spend: 0, openseo_google_properties: 0,
+    google_captures: 0, window_writer_present: false, window_policy_residue: 0, writer_sessions: 0,
+    writer_locked: true, environment: 'preview', project_ref: PIN.supabaseRef };
+  const sql = async () => state;
+  assert.equal((await verifyFinalPreviewState({ sql })).inventoriesClear, true);
+  state.provider_results = 1;
+  assert.equal((await verifyFinalPreviewState({ sql })).inventoriesClear, false);
+  state.provider_results = 0;
+  state.imports = 1;
+  assert.equal((await verifyFinalPreviewState({ sql })).inventoriesClear, false);
+  state.imports = 0;
+  delete state.audit_idempotency;
+  assert.equal((await verifyFinalPreviewState({ sql })).inventoriesClear, false);
+  state.audit_idempotency = 0;
+  state.window_writer_present = true;
+  state.window_policy_residue = 4;
+  assert.equal((await verifyFinalPreviewState({ sql, allowTemporaryWindowCapability: true })).capabilitiesSafe, true);
+  assert.equal((await verifyFinalPreviewState({ sql })).capabilitiesSafe, false);
+});
+
 test('read-only campaign preflight fails on an extra executable receipt-writer SECURITY DEFINER', async () => {
   const unsafe = async () => ({
     auth_users: 0, organizations: 0, projects: 0, organization_members: 0, project_members: 0,
-    invitations: 0, audit_events: 0, outbox_total: 0, pending_outbox: 0, writer_locked: true,
+    invitations: 0, audit_events: 0, provider_results: 0, imports: 0, audit_idempotency: 0, outbox_total: 0, pending_outbox: 0, openseo_project_jobs: 0, openseo_project_connections: 0, webmaster_properties: 0, provider_budgets: 0, provider_spend: 0, openseo_google_properties: 0, google_captures: 0, writer_locked: true, window_writer_present: false, window_policy_residue: 0, writer_sessions: 0, admin_can_manage_roles: true, admin_can_terminate_sessions: true, receipt_writer_present: true, receipt_writer_executable_functions: [...V4_SECURITY_DEFINER_ALLOWLIST, 'public.unapproved_definer()'],
     environment: 'preview', project_ref: PIN.supabaseRef,
     migrations: ['20260928120000', '20260928150000', '20261007120000', '20261007150000', '20261009071705',
       '20261009120000', '20261009150000', '20261009170000', '20261009180000', '20261010090000',
@@ -548,6 +648,7 @@ test('read-only campaign preflight fails on an extra executable receipt-writer S
       '20261015171000', '20261015172000', '20261015180000', '20261015183000', '20261015190000',
       '20261015201500', '20261015210000'],
     receipt_writer_present: true,
+    receipt_writer_executable_functions: [...V4_SECURITY_DEFINER_ALLOWLIST, 'public.unapproved_definer()'],
     receipt_writer_security_definers: [...V4_SECURITY_DEFINER_ALLOWLIST, 'public.unapproved_definer()'],
   });
   await assert.rejects(verifyReadOnlyPreviewState({ sql: unsafe }), /PREVIEW_RECEIPT_SECURITY_DEFINER_UNSAFE/);
@@ -574,25 +675,154 @@ test('initial preflight completes with the mapped read-only state and reports mi
       assert.equal(ref, PIN.supabaseRef);
       return {
         auth_users: 0, organizations: 0, projects: 0, organization_members: 0, project_members: 0,
-        invitations: 0, audit_events: 0, outbox_total: 0, pending_outbox: 0, writer_locked: true,
+        invitations: 0, audit_events: 0, provider_results: 0, imports: 0, audit_idempotency: 0, outbox_total: 0, pending_outbox: 0, openseo_project_jobs: 0, openseo_project_connections: 0, webmaster_properties: 0, provider_budgets: 0, provider_spend: 0, openseo_google_properties: 0, google_captures: 0, writer_locked: true, window_writer_present: false, window_policy_residue: 0, writer_sessions: 0, admin_can_manage_roles: true, admin_can_terminate_sessions: true, receipt_writer_present: false, receipt_writer_executable_functions: [], receipt_writer_security_definers: [],
         environment: 'preview', project_ref: PIN.supabaseRef, migrations: migrationVersions,
       };
     },
   });
   assert.deepEqual(result.initial, {
     authUsers: 0, organizations: 0, projects: 0, organizationMembers: 0, projectMembers: 0, invitations: 0,
-    auditEvents: 0, outboxTotal: 0, pendingOutbox: 0, migrationCount: 27,
+    auditEvents: 0, providerResults: 0, imports: 0, auditIdempotency: 0, outboxTotal: 0, pendingOutbox: 0, migrationCount: 27,
     latestMigration: '20261015210000', writerLocked: true, environment: 'preview', projectRef: PIN.supabaseRef,
     authSettingsHttpStatus: 200,
   });
   assert.deepEqual([settingsRead, identityRead, usersRead, sqlRead], [1, 1, 1, 1]);
 });
 
+test('directed window campaign proves runtime before fixtures and never repeats prior matrix or B-4', async () => {
+  const events = [];
+  const runId = 'c14f4c11-570f-4e03-a3a1-33a702b85baa';
+  const env = { U03_PREVIEW_ADMIN_KEY: 'sb_secret_fictional', U03_PREVIEW_PUBLIC_KEY: 'sb_publishable_fictional',
+    U03_PREVIEW_WRITER_WINDOW: 'armed-run-capability', U03_PREVIEW_WRITER_WINDOW_RUN_ID: runId };
+  const fixtures = { namespace: `u03-${runId.replaceAll('-','').slice(0,12)}`,
+    createUsers: async () => events.push('users'), createOrganizations: async () => { events.push('organizations'); return {}; },
+    createProjects: async () => { events.push('projects'); return { a1: 'fictional-project-id' }; },
+    actorBearer: async () => ({ accessToken: 'fictional-token' }),
+    cleanup: async () => ({ ok: true }), snapshot: () => ({ projectIds: [] }) };
+  const verified = { vercel: { deploymentId: PIN.deploymentId, sha: PIN.sha, host: PIN.host },
+    initial: { projectRef: PIN.supabaseRef, authSettingsHttpStatus: 200 } };
+  const result = await runHostedU03Campaign({ env, sha: PIN.sha, runId, mode: 'window-i2-i5',
+    preflightFn: async () => verified, fixtureFactory: () => { events.push('fixture-factory'); return fixtures; },
+    runtimePreflightFn: async () => { events.push('runtime'); return { passed: true, status: 200 }; },
+    windowSurfacesFn: async () => { events.push('surfaces'); return { i2: true, i5: true }; },
+    windowCleanupFn: async () => { events.push('window-cleanup'); return true; },
+    finalCheckFn: async ({ allowTemporaryWindowCapability }) => { events.push(`final:${allowTemporaryWindowCapability}`);
+      return { inventoriesClear: true, outboxClear: true, capabilitiesSafe: true, state: { writer_locked: true,
+        environment: 'preview', project_ref: PIN.supabaseRef, auth_users: 0, organizations: 0, projects: 0,
+        organization_members: 0, project_members: 0, invitations: 0, audit_events: 0, outbox_total: 0, pending_outbox: 0 } }; },
+    ledger: async () => {}, root: process.cwd() });
+  assert.equal(result.status, 'PASS');
+  assert.ok(events.indexOf('runtime') < events.indexOf('fixture-factory'));
+  assert.deepEqual(events.slice(-3), ['surfaces','window-cleanup','final:true']);
+  assert.equal(events.includes('matrix'), false);
+  assert.equal(events.includes('browser'), false);
+});
+
+test('I-2/I-5 surface proof never invokes export or restore', async () => {
+  const seen = [];
+  const fixtureId = '94e1bcf1-f329-46e2-a312-79741809c8ae';
+  const fixtures = { namespace: 'u03-c14f4c11570f', actorBearer: async actor => ({ accessToken: `fictional-${actor}` }),
+    verifyPopulatedCrossSurface: async ({ a1, b1, resultIdA, importIdA, auditSeqA, resultIdB, importIdB, auditSeqB }) => {
+      assert.equal(a1, 'project-a'); assert.equal(b1, 'project-b');
+      assert.equal(resultIdA, fixtureId); assert.equal(importIdA, fixtureId); assert.equal(auditSeqA, 7);
+      assert.equal(resultIdB, '94e1bcf1-f329-46e2-a312-79741809c8ad');
+      assert.equal(importIdB, '94e1bcf1-f329-46e2-a312-79741809c8ad'); assert.equal(auditSeqB, 8);
+      return { passed: true, checks: ['audit_events', 'provider_results', 'imports'] };
+    } };
+  const proof = await runProtectedWindowSurfaces({ fixtures, a1: 'project-a', b1: 'project-b',
+    runId: 'c14f4c11-570f-4e03-a3a1-33a702b85baa',
+    env: { VERCEL_OIDC_TOKEN: 'fictional-oidc', U03_PREVIEW_WRITER_WINDOW_SECRET: 'fictional-window-secret' },
+    fetchImpl: async (url, options) => {
+      assert.match(url, /\/api\/u03\/window-fixtures\/u03-c14f4c11570f-(?:a|b)\/(?:a1|b1)$/);
+      const kind = JSON.parse(options.body).kind;
+      const actor = options.headers.authorization.includes('ownerB') ? 'ownerB' : 'ownerA';
+      seen.push(`${actor}:${kind}`);
+      const id = actor === 'ownerA' ? fixtureId : '94e1bcf1-f329-46e2-a312-79741809c8ad';
+      return { status: 200, json: async () => ({ ok: true, kind, id, seq: actor === 'ownerA' ? 7 : 8 }) };
+    },
+    i2RoutesFn: async ({ resultId }) => { assert.equal(resultId, fixtureId); seen.push('i2-routes');
+      return { passed: true, positiveCount: 2, negativeCount: 5 }; },
+    ledger: async () => {},
+  });
+  assert.deepEqual(seen, ['ownerA:audit', 'ownerA:result', 'ownerA:import', 'ownerB:audit', 'ownerB:result', 'ownerB:import', 'i2-routes']);
+  assert.equal(proof.i2, true);
+  assert.equal(proof.i5, true);
+});
+
+test('window fixture 503 records only its enumerated server code', async () => {
+  const fixtureId = '94e1bcf1-f329-46e2-a312-79741809c8ae';
+  const seen = [];
+  const fixtures = { namespace: 'u03-c14f4c11570f', actorBearer: async () => ({ accessToken: 'fictional' }) };
+  const env = { VERCEL_OIDC_TOKEN: 'fictional-oidc', U03_PREVIEW_WRITER_WINDOW_SECRET: 'fictional-window-secret' };
+  await assert.rejects(runProtectedWindowSurfaces({ fixtures, a1: fixtureId, b1: 'project-b',
+    runId: 'c14f4c11-570f-4e03-a3a1-33a702b85baa', env,
+    fetchImpl: async (_url, options) => {
+      const kind = JSON.parse(options.body).kind;
+      seen.push(kind);
+      if (kind === 'result') return { status: 503, json: async () => ({ ok: false, code: 'RECEIPT_PENDING',
+        detail: 'postgres://should-never-be-recorded password=private' }) };
+      return { status: 200, json: async () => ({ ok: true, kind, seq: 7 }) };
+    }, ledger: async () => {},
+  }), error => {
+    assert.equal(error.message, 'WINDOW_FIXTURE_HTTP_RESULT_503_RECEIPT_PENDING');
+    assert.doesNotMatch(error.message, /postgres|password|private/i);
+    return true;
+  });
+  assert.deepEqual(seen, ['audit', 'result']);
+});
+
+test('window fixture 503 with an unknown body code remains safely unclassified', async () => {
+  const fixtureId = '94e1bcf1-f329-46e2-a312-79741809c8ae';
+  const fixtures = { namespace: 'u03-c14f4c11570f', actorBearer: async () => ({ accessToken: 'fictional' }) };
+  await assert.rejects(runProtectedWindowSurfaces({ fixtures, a1: fixtureId, b1: 'project-b',
+    runId: 'c14f4c11-570f-4e03-a3a1-33a702b85baa',
+    env: { VERCEL_OIDC_TOKEN: 'fictional-oidc', U03_PREVIEW_WRITER_WINDOW_SECRET: 'fictional-window-secret' },
+    fetchImpl: async (_url, options) => JSON.parse(options.body).kind === 'audit'
+      ? { status: 200, json: async () => ({ ok: true, kind: 'audit', seq: 7 }) }
+      : { status: 503, json: async () => ({ ok: false, code: 'DATABASE_DSN_AND_SECRET' }) },
+    ledger: async () => {},
+  }), error => error.message === 'WINDOW_FIXTURE_HTTP_RESULT_503_UNCLASSIFIED');
+});
+
+test('window fixture 503 distinguishes signing setup from unresolved receipt without exposing body details', async () => {
+  const fixtureId = '94e1bcf1-f329-46e2-a312-79741809c8ae';
+  const fixtures = { namespace: 'u03-c14f4c11570f', actorBearer: async () => ({ accessToken: 'fictional' }) };
+  await assert.rejects(runProtectedWindowSurfaces({ fixtures, a1: fixtureId, b1: 'project-b',
+    runId: 'c14f4c11-570f-4e03-a3a1-33a702b85baa',
+    env: { VERCEL_OIDC_TOKEN: 'fictional-oidc', U03_PREVIEW_WRITER_WINDOW_SECRET: 'fictional-window-secret' },
+    fetchImpl: async (_url, options) => JSON.parse(options.body).kind === 'audit'
+      ? { status: 200, json: async () => ({ ok: true, kind: 'audit', seq: 7 }) }
+      : { status: 503, json: async () => ({ ok: false, code: 'SIGNING_UNAVAILABLE', detail: 'must not be copied' }) },
+    ledger: async () => {},
+  }), error => error.message === 'WINDOW_FIXTURE_HTTP_RESULT_503_SIGNING_UNAVAILABLE');
+});
+
+test('directed window never deletes projects when product receipt reconciliation fails', async () => {
+  const events = [];
+  const runId = 'c14f4c11-570f-4e03-a3a1-33a702b85baa';
+  const env = { U03_PREVIEW_ADMIN_KEY: 'sb_secret_fictional', U03_PREVIEW_PUBLIC_KEY: 'sb_publishable_fictional',
+    U03_PREVIEW_WRITER_WINDOW: 'armed-run-capability', U03_PREVIEW_WRITER_WINDOW_RUN_ID: runId };
+  const fixtures = { namespace: `u03-${runId.replaceAll('-','').slice(0,12)}`,
+    createUsers: async () => {}, createOrganizations: async () => ({}), createProjects: async () => ({}),
+    cleanup: async () => { events.push('fixture-cleanup'); return { ok: true }; }, snapshot: () => ({ projectIds: [] }) };
+  const verified = { vercel: { deploymentId: PIN.deploymentId, sha: PIN.sha, host: PIN.host },
+    initial: { projectRef: PIN.supabaseRef, authSettingsHttpStatus: 200 } };
+  const result = await runHostedU03Campaign({ env, sha: PIN.sha, runId, mode: 'window-i2-i5',
+    preflightFn: async () => verified, fixtureFactory: () => fixtures,
+    runtimePreflightFn: async () => ({ passed: true, status: 200 }), windowSurfacesFn: async () => ({ i2: true, i5: true }),
+    windowCleanupFn: async () => { events.push('receipt-cleanup'); throw new Error('WINDOW_RECEIPT_RECONCILIATION_FAILED'); },
+    finalCheckFn: async () => ({ inventoriesClear: false, outboxClear: false, capabilitiesSafe: true, state: {} }),
+    ledger: async () => {}, root: process.cwd() });
+  assert.equal(result.status, 'FAIL_CLEANUP_PARTIAL');
+  assert.deepEqual(events, ['receipt-cleanup']);
+  assert.equal(result.cleanupResult?.ok, false);
+});
+
 test('owner wrapper runs no-key preflight before DPAPI load; V-4 uses one hidden admin URL and automatic containment', async () => {
   const script = await readFile(new URL('./u03-preview-b4-owner.ps1', import.meta.url), 'utf8');
   const operator = await readFile(new URL('./u03-preview-v4-operator.mjs', import.meta.url), 'utf8');
   const preflight = script.indexOf('& node $runner --readonly-preflight');
-  const credentialLoad = script.indexOf('$previewCredentials = Get-B4PreviewCredentials');
+  const credentialLoad = script.lastIndexOf('$previewCredentials = Get-B4PreviewCredentials');
   const credentialPreflight = script.indexOf('& node $runner --credential-preflight-only');
   const credentialSave = script.indexOf('Save-B4PreviewCredentials');
   const campaignPath = script.slice(credentialLoad, script.lastIndexOf('} finally'));
@@ -613,7 +843,29 @@ test('owner wrapper runs no-key preflight before DPAPI load; V-4 uses one hidden
   assert.match(operator, /\$\{RECEIPT_ROLE\}\.\$\{PREVIEW_REF\}/);
   assert.match(script, /-ExpectedPrefix 'sb_secret_'[\s\S]*-ExpectedPrefix 'sb_publishable_'/);
   assert.doesNotMatch(script, /Read-B4Secret/);
-  assert.doesNotMatch(script, /'U03_PREVIEW_ADMIN_KEY','U03_PREVIEW_PUBLIC_KEY'/);
+  const generalEnvironmentKeep = script.match(/\$keep = @\(([^\r\n]+)\)/)?.[1] ?? '';
+  assert.doesNotMatch(generalEnvironmentKeep, /U03_PREVIEW_ADMIN_KEY|U03_PREVIEW_PUBLIC_KEY/);
+  assert.match(script, /if \(\$Mode -in @\('keys','sequence'\) -and \$null -ne \$PreviewKeys\)[\s\S]*\['U03_PREVIEW_ADMIN_KEY'\] = \[string\]\$PreviewKeys\.AdminKey[\s\S]*\['U03_PREVIEW_PUBLIC_KEY'\] = \[string\]\$PreviewKeys\.PublicKey/);
+  assert.match(script, /Invoke-U03WindowRoleChild -Mode 'keys'[\s\S]*Read-Host -Prompt 'Database password existente/);
+  assert.match(script, /SEQUENCE_PREVIEW_KEYS_REQUIRED/);
   assert.match(script, /finally\s*\{[\s\S]*Get-ChildItem Env:[\s\S]*U03_\*/);
   assert.match(script, /finally\s*\{[\s\S]*previewCredentials\.AdminKey = \$null[\s\S]*previewCredentials\.PublicKey = \$null/);
+});
+
+test('H1-A owner mode checks branch vars, deployment and local signing config before one password prompt and finally containment', async () => {
+  const script = await readFile(new URL('./u03-preview-b4-owner.ps1', import.meta.url), 'utf8');
+  const modeStart = script.indexOf('if ($WindowRolePreflightOnly -or $WindowRoleReadOnlyDiagnosticOnly -or $WindowI2I5H1A -or $WindowBatchAttestationOnly)');
+  const localConfig = script.indexOf("Invoke-U03WindowRoleChild -Mode 'local'", modeStart);
+  const attestation = script.indexOf("Invoke-U03WindowRoleChild -Mode 'attest'", localConfig);
+  const passwordPrompt = script.indexOf('Read-Host -Prompt', localConfig);
+  const sequenceLaunch = script.indexOf("$childMode = if ($WindowI2I5H1A) { 'sequence' }", passwordPrompt);
+  const finallyBlock = script.slice(script.indexOf('} finally {', sequenceLaunch));
+  assert.ok(modeStart >= 0 && localConfig > modeStart && attestation > localConfig && passwordPrompt > attestation && sequenceLaunch > passwordPrompt);
+  assert.match(script, /if \(\$WindowI2I5H1A -and \$branch -ne 'codex\/u03-final-gates-20261020'\)/);
+  assert.match(script, /WINDOW_BATCH_IDENTITY_MISMATCH/);
+  assert.match(script, /\$psi\.Arguments = '--conditions=react-server/);
+  assert.match(script, /\$Mode -eq 'local'[\s\S]*--local-preflight-only/);
+  assert.match(finallyBlock, /\$WindowI2I5H1A[\s\S]*Invoke-U03WindowRoleChild -Mode 'contain'/);
+  assert.match(script, /'RUBIK_AUDIT_DATABASE_URL','PROVENANCE_SIGNING_KEYS','PROVENANCE_ACTIVE_KEY_ID'/);
+  assert.match(script, /if \(-not \$WindowRolePreflightOnly -and -not \$WindowRoleReadOnlyDiagnosticOnly -and -not \$WindowI2I5H1A/);
 });

@@ -60,14 +60,14 @@ export async function waitForExpiry(exp, { now = () => Date.now(), sleep = ms =>
   }
 }
 
-async function guardedPage(browser, token, width) {
+async function guardedPage(browser, token, width, runId) {
   const context = await browser.newContext({ viewport: { width, height: width === 390 ? 844 : 900 } });
   const page = await context.newPage();
   const securityEvents = [];
   const diagnostics = createPageDiagnostics(page);
   const pageErrors = { count: 0 };
   page.on('pageerror', () => { pageErrors.count++; });
-  const session = await installScopedRoutes(context, page, token, origin, event => securityEvents.push(event), event => diagnostics.addRouteEvent(event));
+  const session = await installScopedRoutes(context, page, token, origin, event => securityEvents.push(event), event => diagnostics.addRouteEvent(event), runId);
   page.on('request', request => {
     try {
       if (new URL(request.url()).origin !== origin && ['fetch', 'xhr'].includes(request.resourceType()))
@@ -108,7 +108,7 @@ export async function runSessionProviders({ env, account, path, ledger, runId, c
   try {
     await ledger('chromium-version', 'INFO', { version: browser.version() });
     for (const [viewport, width] of [['desktop', 1280], ['mobile', 390]]) {
-      const current = await guardedPage(browser, env.VERCEL_OIDC_TOKEN, width);
+      const current = await guardedPage(browser, env.VERCEL_OIDC_TOKEN, width, runId);
       if (viewport === 'desktop') desktop = current;
       try {
         await login(current.page, current.context, account.email, account.password,
@@ -139,7 +139,7 @@ export async function runSessionProviders({ env, account, path, ledger, runId, c
     // Tamper only an isolated copy. A valid cookie from another browser context
     // is still valid and is not evidence for S-3.
     const corrupted = tamperSessionCookies(before.cookies);
-    const tampered = await guardedPage(browser, env.VERCEL_OIDC_TOKEN, 1280);
+    const tampered = await guardedPage(browser, env.VERCEL_OIDC_TOKEN, 1280, runId);
     try {
       await tampered.context.addCookies(corrupted);
       const denial = await tampered.page.goto(`${origin}/panel`, { waitUntil: 'domcontentloaded' });

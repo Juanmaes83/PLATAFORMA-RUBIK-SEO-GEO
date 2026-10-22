@@ -98,6 +98,23 @@ test('uncertain creation deletes only the recovered UUID and verifies its absenc
   assert.equal(state.rows.some(row => row.status === 'FAIL'), false);
 });
 
+test('ledger write failure blocks cleanup success but does not stop deletion of later owned IDs', async () => {
+  const second = '123e4567-e89b-42d3-a456-426614174001';
+  const removed = [];
+  const rows = [];
+  const ledger = async (caseId, status, detail) => {
+    if (detail?.id === second) throw new Error('fictional ledger I/O failure');
+    rows.push({ caseId, status, ...detail });
+  };
+  const complete = await cleanupTrackedIds([id, second], async value => {
+    removed.push(value);
+    return { data: [{ id: value }], error: null };
+  }, ledger, 'cleanup-project');
+  assert.equal(complete, false);
+  assert.deepEqual(removed, [second, id]);
+  assert.deepEqual(rows, [{ caseId: 'cleanup-project', status: 'PASS', id, removed: 1 }]);
+});
+
 function assertNoSensitiveDiagnostic(row) {
   const text = JSON.stringify({ category: row.category, code: row.code, http: row.http, message: row.message });
   for (const forbidden of [id, email, secret, jwt, 'Bearer']) assert.equal(text.includes(forbidden), false, forbidden);

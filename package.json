@@ -18,14 +18,18 @@
     "verify": "npm run check:core-pin && npm run check:secrets && npm run lint && npm run typecheck && npm run test && npm run build",
     "verify:s1-local": "node scripts/verify-s1-local.mjs",
     "test:e2e": "playwright test",
-    "test:u03-b4": "node --test scripts/u03-preview-b4.test.mjs scripts/u03-preview-b4-orchestrator.test.mjs scripts/u03-preview-data-api-lifecycle.test.mjs scripts/u03-preview-v4-receipt.test.mjs scripts/u03-preview-v4-operator.test.mjs scripts/u03-preview-session-providers.test.mjs",
+    "test:u03-b4": "node --conditions=react-server --test scripts/u03-preview-b4.test.mjs scripts/u03-preview-b4-orchestrator.test.mjs scripts/u03-preview-data-api-lifecycle.test.mjs scripts/u03-preview-v4-receipt.test.mjs scripts/u03-preview-v4-operator.test.mjs scripts/u03-preview-session-providers.test.mjs scripts/u03-preview-provider-egress.test.mjs scripts/u03-window-role-preflight.test.mjs scripts/u03-preview-window-capability.test.mjs scripts/u03-preview-h1a-sequence.test.mjs scripts/u03-preview-window-run.test.mjs scripts/u03-preview-window-provision.test.mjs scripts/u03-preview-window-vault.test.mjs scripts/u03-preview-window-attestation.test.mjs",
+    "test:u03-preflight-n1": "node --test scripts/u03-preview-preflight-n1.test.mjs",
     "visual:evidence": "node scripts/visual-evidence.mjs",
     "verify:export": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/verify-export.mjs",
     "db:start": "npx --yes supabase@2.118.0 start -x postgres-meta,imgproxy,vector,logflare,supavisor,studio,realtime,storage-api,edge-runtime",
     "db:stop": "npx --yes supabase@2.118.0 stop",
     "db:reset": "npx --yes supabase@2.118.0 db reset",
     "test:db": "npx --yes supabase@2.118.0 test db",
-    "test:integration": "vitest run --config vitest.integration.config.mts"
+    "test:integration": "vitest run --config vitest.integration.config.mts",
+    "test:u03-http-restore": "node scripts/u03-window-local-http-restore.mjs",
+    "test:u03-window-fixture-result": "node scripts/u03-window-fixture-result-local.mjs",
+    "test:u03-window-i5": "node scripts/u03-window-i5-local.mjs"
   },
   "dependencies": {
     "@rubik/seo-geo-core": "git+https://github.com/Juanmaes83/RUBIK-SEO-GEO-CORE.git#2aaf12700542e4499cfdd27a491d072abb635ca2",

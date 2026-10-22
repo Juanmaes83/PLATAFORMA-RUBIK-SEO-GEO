@@ -1,5 +1,122 @@
 # U03 · matriz alojada de Preview · 18/10/2026
 
+## Run 26f7efe8 · recuperación de contención · 21/10/2026
+
+El run `26f7efe8-e5e4-4d68-bfea-e53a7a4bfa8e` instaló el principal nuevo en NOLOGIN y se detuvo antes de activarlo o crear fixtures. Ownership, NOLOGIN, OID y sesiones pasaron; `containment-new-login` quedó BLOCKED con `CONTAINMENT_NEW_LOGIN_QUERY_FAILED` en el intento inicial y en dos vías independientes. Los ledgers originales permanecen intactos. La traza de Supavisor de esa ventana sitúa cuatro errores de autenticación en `auth_scram_first_wait`, categoría interna «user not found»; el ledger original no distingue si el error final provino de `connect()` o de la relectura administrativa que el código ejecutaba dentro del mismo `catch`.
+
+La recuperación de **ese** run es PASS separado: lectura administrativa previa confirmó ref Preview, 27 migraciones, marcador propio, rol NOLOGIN, cuatro políticas exactas, guarda temporal, cero sesiones, inventario/outbox cero y escritor general bloqueado. Se aplicó el rollback acotado y otra lectura independiente verificó rol/políticas/sesiones cero, guarda original, inventario/outbox total/pending cero y escritor general NOLOGIN. Luego se retiraron los ocho nombres de variables de la rama, el deployment y el vault DPAPI, y se verificó su ausencia. Reconciliación manual sanitizada, registrada después de las operaciones y distinta del ledger automático original: `test-results/u03-hosted/26f7efe8-e5e4-4d68-bfea-e53a7a4bfa8e-recovery.jsonl`. No hubo positivos alojados; I-2, I-5 y U03 global siguen **BLOCKED**. H1-A permanece separado.
+
+## Corte dirigido I-2/I-5 · 21/10/2026
+
+La recuperación del run `840261c6-e410-4e25-893a-9206fd3f74ef` es **PASS de recuperación**, con su ledger original BLOCKED intacto. Acreditó rol/políticas/sesiones cero, guarda original, inventario/outbox cero y escritor general NOLOGIN; después se retiraron las ocho variables de rama, el deployment y el vault. No hubo fixtures y **no acredita I-2 ni I-5**.
+
+El operador separa ahora `window-i2-i5` de H1-A. I-5 exige filas pobladas de `audit_events`, `provider_results` e `imports`, creadas por los firmantes y flujos reales, lectura propia A y ausencia para B e IDs inexistentes. I-2 exige control positivo de A en las rutas reales de auditoría y resultado, y 404 para B en auditoría, resultado y exportación de A1, comparado con IDs inexistentes. La negativa de exportación de B lleva una capacidad de ventana válida para que el 404 pruebe autorización del producto. U03 no solicita el documento de exportación de A ni restaura datos: esas acciones pertenecen a H1-A.
+
+El modo dirigido solo puede registrar `u03-global-result PASS` desde el wrapper Windows después de I-2/I-5, conciliación de recibos, limpieza por IDs, comprobación independiente de rol/políticas/sesiones e inventario/outbox cero y retirada verificada de variables/deployment/vault. El proceso Node registra antes `u03-sql-final-result`; ese resultado por sí solo no cierra U03. **I-2, I-5 y U03 alojados siguen BLOCKED hasta la nueva ejecución**. H1-A y H1/H2 son gates separados y permanecen abiertos. No se repitió ninguna campaña alojada previa.
+
+## Reconciliación prioritaria del run 840261c6 · 21/10/2026
+
+**I-2/I-5 alojado y H1-A alojado: BLOCKED.** El ledger original `test-results/u03-hosted-window/840261c6-e410-4e25-893a-9206fd3f74ef.jsonl` acredita `install-role-nologin PASS`, sin activación ni conexión del principal por Session pooler. El ledger independiente conserva `DATABASE_ERROR_UNCLASSIFIED` en contención. La lectura independiente comunicada por Juanma confirma inventarios/outbox cero, rol propio NOLOGIN con marcador del run, cuatro políticas y cero sesiones. Las ocho variables de rama y el deployment temporal siguen presentes; no hubo fixtures.
+
+La conexión dirigida al rol ya bloqueado devolvió `DatabaseError` sin SQLSTATE. El código anterior solo aceptaba `28P01/28000` como rechazo de nueva conexión; este resultado explica una vía concreta de fallo de `blockRole`, pero el ledger original no permite atribuirle retrospectivamente una etapa. El operador nuevo registra por separado propiedad, NOLOGIN, lectura de NOLOGIN, OID, terminación, sesiones y nueva conexión. Ante un `DatabaseError` sin SQLSTATE, solo acredita contención después de releer administrativamente NOLOGIN y cero sesiones; no lo registra como rechazo de autenticación probado por el pooler.
+
+El modo `-WindowRecoveryOnly` queda limitado al run exacto. Antes de escribir exige ref/identidad/TLS, 27 migraciones, inventario/outbox cero, escritor general bloqueado, marcador propio, NOLOGIN, cero sesiones, cuatro políticas con ámbito/TTL/rol exactos y guarda temporal reconocible. El rollback restaura la guarda original y retira políticas, grants y rol. Otra conexión administrativa verifica rol/políticas/sesiones cero, guarda original, inventario/outbox cero y escritor general NOLOGIN.
+
+**Recuperación PASS:** el ledger nuevo `test-results/u03-hosted/840261c6-e410-4e25-893a-9206fd3f74ef-recovery.jsonl` conserva prelectura, propiedad, rollback y lectura SQL final, todos PASS. La lectura independiente de otra conexión dio rol/políticas/sesiones 0, guarda original, inventarios y outbox total/pending 0, escritor general NOLOGIN. Después, metadatos Vercel independientes confirmaron los ocho nombres de rama ausentes y API de deployment 404 `Deployment not found`; el vault DPAPI ya no existe. El ledger original permanece intacto. **Este PASS solo cierra la recuperación del residuo**; I-2/I-5 alojados y H1-A alojado siguen BLOCKED, sin filas ni pruebas positivas alojadas. No se abre otra campaña en este corte.
+
+## Transporte de ventana DPAPI y attestation · corrección en PR #143 · 20/10/2026
+
+La causa del bloqueo `WINDOW_BRANCH_ENV_NOT_READY` era de diseño: el provisionador Node enviaba ocho valores a Vercel y borraba su copia en memoria; después el wrapper esperaba los valores en el entorno local. `vercel env ls` solo permite verificar nombres, no recuperar ni comparar los Secret. Se elimina esa ruta Node: ahora `scripts/u03-preview-b4-owner.ps1 -ProvisionWindowSecrets` genera un único lote en PowerShell 5.1, lo cifra con DPAPI CurrentUser y entropía ligada a proyecto Vercel, ref, rama, SHA, runId y SID, verifica ACL heredadas privadas, y solo entonces rota las ocho variables Preview de `codex/u03-final-gates-20261020`. No cambia Production, otras ramas ni variables Preview generales.
+
+La rotación borra primero `U03_PREVIEW_WRITER_WINDOW`, añade las otras siete variables con `--sensitive` y la bandera armada al final. Una interrupción elimina el lote remoto, verifica si la bandera quedó ausente y conserva el vault DPAPI para reconciliar/reintentar; no inicia una campaña. Un lote existente solo se reutiliza si proyecto/ref/rama/SHA/SID concuerdan. Los valores viajan por `ProcessStartInfo.StandardInput.BaseStream` UTF-8, no por argumentos, archivos en claro, logs, historial o portapapeles. La antigua ruta Node `u03-preview-window-provision.mjs` falla cerrada y remite a la PowerShell visible.
+
+Un nuevo endpoint POST `/api/u03/window-challenge`, dentro del deployment protegido, devuelve únicamente comprobantes HMAC de los valores de ventana, URL de rol, clave de firma e ID activo, junto con la identidad no secreta del pooler. `-WindowBatchAttestationOnly` y `-WindowI2I5H1A` validan el proyecto/link, rama, HEAD, SHA, runId y formatos desde DPAPI; comprueban por el host, ID y SHA exactos mediante OIDC que los cuatro comprobantes coinciden byte a byte; rechazan redirects, hosts/deployments ajenos y mismatch. El reto debe pasar antes de solicitar la Database password. Los preflights de Auth, identidad alojada, 27 migraciones, TLS verify-full, Session pooler, SET ROLE, privilegios, RLS, inventario/outbox y contención administrativa siguen siendo gates separados.
+
+**Evidencia de este corte:** tests PowerShell 5.1 reales (DPAPI entre procesos, corrupción/identidad, parser, fallo en la tercera alta y rollback), tests Node de HMAC/configuración y orden fail-closed: 13/13 PASS. El Vercel CLI 54.6.1 real aceptó por stdin una variable ficticia sensible y Unicode/reservados en el ámbito Preview de esta rama; la variable temporal se retiró y se verificó ausente. El wrapper/Node real pasó también la prueba UTF-8 no ASCII y fallo del hijo con contención simulada. No se rotaron todavía las ocho variables, no se desplegó este código, no se ejecutó el challenge alojado ni se pidió Database password; no hubo SQL ni fixtures en Supabase. No atribuir estos resultados a una campaña alojada.
+
+| Gate | Estado de este corte | Alcance/evidencia |
+|---|---|---|
+| DPAPI CurrentUser + SID/entropía + ACL | **PASS local** | PowerShell 5.1 real; se reabre el vault en otro proceso, bytes secretos ausentes del JSON, corrupción e identidad ajena rechazadas. |
+| Vercel CLI stdin UTF-8 | **PASS operativo limitado** | Variable ficticia sensible de nombre único en Preview/branch; eliminada y lectura posterior confirma ausencia. No demuestra aún igualdad del lote final. |
+| Rotación de ocho variables | **PASS de lógica local / NO EJECUTADA en Vercel** | Fallo inyectado a mitad: lote desarmado, rollback confirmado, vault conservado; bandera se activa última. |
+| Desafío lote local↔deployment | **PASS unitario / ALOJADO PENDIENTE** | HMAC de cuatro campos y negativos cubiertos localmente. Requiere desplegar el SHA final y pasar por el host protegido fijado. |
+| Session pooler/SET ROLE del nuevo rol | **PENDIENTE** | No equivale al PASS V-4 de otro rol; solo el operador de campaña posterior puede acreditarlo. |
+| I-2/I-5 y H1-A alojados | **BLOCKED / no ejecutados** | No fixtures, SQL de instalación, firma, recibos ni exportación alojada. U03/H1/H2 siguen abiertos. |
+
+## Implementación de la secuencia I-2/I-5 + H1-A · PR #143
+
+En HEAD de esta actualización quedó implementado y probado localmente el coordinador fail-closed `-WindowI2I5H1A`: preflight del deployment/ref/27 migraciones/inventario, rol `rubik_preview_u03_writer` inicialmente NOLOGIN, prueba administrativa independiente de NOLOGIN y terminación de sesiones, activación corta y `SET ROLE` por Session pooler TLS verify-full, escritura autenticada limitada al run, filas firmadas por flujos reales, recibos, export HTTP, verificación offline y restore doble en otro stack local. `finally` bloquea y termina sesiones, reconcilia recibos, limpia solo IDs propios, comprueba inventario/outbox y retira las variables de rama y deployment solo después de verificar cero residuos.
+
+La ventana de aplicación usa las ocho variables Vercel sensibles limitadas a la rama exacta `codex/u03-final-gates-20261020`; no se definen variables Preview globales. El HMAC de autorización incluye `runId`, `VERCEL_DEPLOYMENT_ID`, host efectivo `VERCEL_URL`, SHA y expiración; la ruta también exige que el host de la petición coincida. La prueba negativa rechaza otro deployment, host, SHA, rama, run, scope y expiración. Así se evita el ciclo de necesitar un host efímero antes del deploy: se provisiona la configuración para el SHA ya fijado y, después, el operador consulta y fija el ID/host/SHA del deployment READY. Ninguna escritura se habilita con alias.
+
+El endpoint interno de cierre `/api/u03/window-cleanup/[tenantId]/[projectId]` permite al owner, bajo el mismo HMAC y namespace, borrar resultados e imports con `eraseProviderResults`/`eraseImport` y procesar recibos permitidos con `processAuditOutboxWithPool`, el firmante real del producto. Un recibo con acción o scope inesperado falla cerrado; si el cierre no acredita cero pendientes, el arnés conserva proyectos, IDs y ledger en vez de borrar su contexto.
+
+Estado de esta publicación: pruebas dirigidas y `npm run verify` locales PASS; sin campaña alojada ni filas creadas. La configuración branch-specific y el deployment nuevo deben comprobarse antes de entregar el comando de ejecución; hasta esa comprobación, nuevo rol por Session pooler, I-2/I-5 alojado y H1-A alojado siguen BLOCKED. La prueba local de export/restore no se etiqueta como PASS alojado. H1/H2 siguen abiertos.
+
+## Corte actual #143 · HTTP/restauración local real y contención · 20/10/2026
+
+HEAD de trabajo al iniciar: `26e8cb26004c0a96e0df4db862c9dcb2b61c2499`; `main@a0a40b776361f292d910e285b390d5e753da8d7b`; #143 OPEN/Draft. El nuevo código de ensayo es local y no requiere despliegue de aplicación; no se publicó un deployment nuevo ni se escribió en Preview.
+
+| Gate | Estado | Evidencia y límite |
+|---|---|---|
+| Exportación por socket HTTP local | **PASS local** | Run `c45dfdd6-3a84-4b13-8185-13b820b9e0e5`: Next 16 real escuchó solo en `127.0.0.1`; sesión ficticia iniciada en Auth local; ruta `/proyectos/<namespace>/a1/exportar` respondió HTTP 200. No es Preview ni Chromium. |
+| Manifiesto, manipulación y restore | **PASS local, destino separado** | El manifiesto se verificó offline; una copia alterada se rechazó por firma/cadena. Restore doble a `rubik-u03-restore-20261020`, segundo stack vacío con 27/27 N1, conservó filas/hash/firma y fue idempotente. No acredita H1-A alojado. |
+| Contención administrativa y TTL | **PASS local, PostgreSQL directo** | Run `c54f8e86-80ed-4b4d-83b1-31a63698f31d`: NOLOGIN independiente rechazó conexión nueva antes de fixtures; sesión ya abierta observada; TTL RLS denegó la escritura; PostgreSQL confirmó `57P01` al terminar sesión; relogin rechazado; rollback retiró rol/políticas/tabla de prueba. |
+| Session pooler local | **BLOCKED por entorno** | Evidencia previa: Supavisor CLI no tiene tenant local reproducible (`CLIENT_ERROR`). No se repitió login; el ensayo directo no se etiqueta como prueba de pooler. El stack de destino excluyó Supavisor. |
+| Session pooler Preview / nuevo rol | **BLOCKED / no ejecutado** | No se proporcionó entrada segura visible en esta sesión; no se instaló ni activó rol, no se cambió configuración y no se probó TLS/`SET ROLE` para `rubik_preview_u03_writer`. V-4 usó otro rol. |
+| I-2/I-5 alojados y H1-A alojado | **BLOCKED** | Sin campaña, deployment ni fixtures en Preview. Se requieren primero el preflight de conexión y la prueba NOLOGIN/terminación de sesiones del rol nuevo por una vía administrativa independiente. |
+
+Limpieza independiente antes de retirar contenedores: fuente `0|0|0|0|0|0|0|0|0|0|0` (Auth/org/proyecto/audit/result/import/outbox total/pending, roles temporales, políticas temporales); destino `0|0|0|0|0|0|0|0`. El operador retiró ambos workdirs/containers. Ledgers locales ignorados por Git: `test-results/u03-window-http-restore.jsonl` y `test-results/u03-window-local-security.jsonl`; contienen runId, fases enumeradas y estados, sin cookies/tokens/contraseñas/IDs de fixture.
+
+U03 conserva sus PASS alojados previos, pero sigue abierto; H1-A, U04/Sarah, R1 y H2 también. GitHub Actions sigue bloqueada por facturación; no se declara CI verde.
+
+## Estado separado de transporte y flujos · actualización 20/10/2026
+
+PR #143 continúa OPEN/Draft desde HEAD `6149206f62d6c9ed7059aa344b8ff3acd558d6e5`, base `main@a0a40b776361f292d910e285b390d5e753da8d7b`. No se hicieron escrituras alojadas.
+
+| Gate | Estado | Evidencia y límite |
+|---|---|---|
+| Lógica firmada local con rol limitado | **PASS** | Stack nuevo `rubik-u03-window-20261020`, migraciones 27/27 hasta `20261015210000`; run `55a32ed0-9b4a-4118-b165-8d3ab6ee2ba7`, transporte PostgreSQL directo. Pasaron `provenance.integration`, `imports.integration` y `restore.integration`: firmas reales de la app, aislamiento con filas pobladas, recibos, verificación offline, restauración idempotente y rollback ante conflicto. Inventario/outbox final cero; rol temporal retirado. No valida Session pooler. El nuevo run `721ebe4e-8117-4c73-aa47-93680bc321d3` añade el handler de exportación local, con el límite descrito abajo. |
+| Pooler local (Supavisor) | **BLOCKED** | Run `df4840bc-ff22-4a7f-8932-765fde34952f`: `CLIENT_ERROR`; el mismo run valida por conexión directa identidad, SET ROLE, grants, RLS, allowlist SECURITY DEFINER, TTL y rollback. Inspección de solo lectura del contenedor: CLI arranca Supavisor pero no establece `POOLER_TENANT_ID`; la guía de self-hosted requiere tenant/bootstrap separado (`pooler.exs`). El código de error de cliente no se eleva a diagnóstico de protocolo más específico. La ruta directa no acredita pooler. |
+| HTTP local de exportación H1-A | **PASS acotado / H1-A BLOCKED** | Run original `12798f0f-686e-4c86-809f-2ec18acc6694` conserva su `NOT_ALLOWED`, aún sin causa. La reproducción instrumentada `81795f30-5873-40a2-9113-f714655bc016` no lo reprodujo: Auth, actor y `appendTrustedAudit` pasaron. GET del handler real devolvió 200; verificación offline, detección de alteración y restore doble idempotente pasaron. No fue socket/Chromium ni destino de restauración separado, así que no es H1-A completo ni evidencia alojada. |
+| Session pooler de Preview | **BLOCKED / no ejecutado** | No se creó ni activó rol en `rhnnplewqsekrnaousyl`. El PASS de V-4 usa otro rol y no acredita `rubik_preview_u03_writer`, `SET ROLE` ni esta conexión. |
+| I-2/I-5 alojado y H1-A alojado | **BLOCKED** | Sin fixtures alojados, claves activadas ni escritura. Preflight/rollback del nuevo rol y Session pooler de Preview deben pasar antes de cualquier fixture. |
+
+Ledgers locales ignorados por Git: `test-results/u03-window-local-flows.jsonl`, `test-results/u03-window-local-security.jsonl` y `test-results/u03-window-local-http.jsonl`. El intento HTTP `0e224a3c-64a2-451e-b047-afb267ff122c` dejó políticas temporales propias; se retiraron por sus cuatro nombres exactos y su estado final es cero políticas `u03_http_%`. Los usuarios de namespace local `u03-*` se reconciliaron; el inventario Auth/org/proyecto/auditoría/resultados/import/outbox quedó en cero. `rubik_audit_writer` volvió a NOLOGIN, no quedan roles `u03_window_%`, y `node scripts/u03-window-local-stack.mjs stop` retiró este stack: cero contenedores etiquetados y workdir eliminado.
+
+## Corte reconciliado tras #142 · 20/10/2026
+
+### Revisión local de ventana · 20/10/2026
+
+En stack nuevo y ya retirado `rubik-u03-window-20261020`, N1 27/27: Postgres directo confirmó SET ROLE, grants mínimos, no BYPASSRLS/Auth, allowlist SECURITY DEFINER, cuatro scopes RLS por UUID, rechazo fuera de scope, TTL en sesión persistente y rollback limpio (runs locales `dd1cb050-a230-4d6b-b6fa-d4477dce3904`, `47f00155-4a87-42e3-ac77-de05c5fdd558` y `f108d27c-d46a-474b-b23c-8c5599f91b35`). El intento de Session pooler quedó BLOCKED porque el Supavisor local no tiene tenant provisionado (`CLIENT_ERROR`); no se atribuye el resultado de Postgres directo al pooler. No se ejercitaron los flujos firmados audit/result/import ni todos los fallos/restores; operador integral pendiente. Sin escrituras alojadas.
+
+La base vigente es `main@a0a40b776361f292d910e285b390d5e753da8d7b`; #129, #141 y #142 están fusionadas. Este corte prevalece sobre las filas históricas inferiores, que se conservan como registro y no describen el estado actual.
+
+| Gate | Estado reutilizable | Evidencia/alcance | Pendiente real |
+|---|---|---|---|
+| U02 | PASS acotado | #129 fusionada; Preview aislado `rhnnplewqsekrnaousyl` | Ninguno en el alcance U02 probado |
+| Data API 12/12 | PASS | Run `2c72f352-fd79-43d1-8aa0-3f4ba34b33e1`; no repetir | Ninguno salvo invalidación por cambio contractual |
+| B-4 | PASS | Run `5847ce5a-43b9-4dde-9931-61bd8113b27e`; aceptación visual de Juanma registrada después del ledger | Ninguno salvo invalidación |
+| V-4 | PASS | Run `b170134c-5538-4f81-b459-1bb762b95bad`; JWT vigente tras retirada, recibo firmado, contención y limpieza | Ninguno salvo invalidación |
+| V-1/V-2/V-3 | PASS acotado | #138, run `4fe31225-3194-4913-a7dc-319c0fe88cf1` | Ninguno en el alcance probado |
+| I-8/P-2 | PASS acotado | #140, run `59b8ec61-3db5-44ee-80e9-ef3918da0ec4` | No demuestra aislamiento cruzado de filas firmadas pobladas |
+| S-2/S-3a/S-4/P-1 navegador | PASS | #142, run `24d0ac0f-5688-4f82-ba0d-101b4f085c30`, deployment #141 `28fd3927`; limpieza final independiente a cero | Solo repetir el tramo afectado si cambia su contrato |
+| S-3b | NO APLICABLE por decisión expresa de Juanma | Una cookie bearer válida es transferible entre contextos si no existe vinculación al dispositivo; implementar device binding cambiaría el producto y no forma parte del contrato | Se mantienen separados los PASS de cookie alterada (S-3a), logout y revocación; no se atribuye PASS a S-3b |
+| S-5 | PASS · emisor ajeno aislado | Run `87fff99a-3176-45b7-9308-07985dd1d5e8`, deployment #141 `dpl_Hmpevn3Vds4pFUzbiiFFB3vVGCKD`, Preview `rhnnplewqsekrnaousyl`; Auth local real emitió `iss=http://127.0.0.1:55421/auth/v1` con `exp` futuro; Data API 401 y `/panel` redirigió a `/acceso`; usuario local eliminado y stack/carpeta temporal retirados. [Resumen de ledger/evidencia](evidence/U03-S5-EMISOR-AJENO-20261020.md) | No equivale a JWT de Production. No se accedió a Production ni se crearon fixtures allí; el ledger local conserva ID y limpieza PASS |
+| I-2 / I-5 filas firmadas | BLOCKED | #140 solo acreditó tablas firmadas vacías; run local `dd1cb050-a230-4d6b-b6fa-d4477dce3904` probó grants/RLS/TTL por Postgres directo, pero no Session pooler ni flujos firmados de audit/result/import | Provisionar tenant del pooler en un nuevo stack local aislado y terminar ensayo de flujos/fallos/rollback; operador completo pendiente. No hubo SQL ni fixtures alojados |
+| P-1 egreso de servidor | PASS acotado | Run `6311c85c-5d97-4af4-9569-7336f2232222`, Preview `rhnnplewqsekrnaousyl`, deployment `dpl_FX2BbLxBZPg38hYqikhhsEprGdPL`, SHA funcional `85f93a5b7f7b9db26a2ade4f75fdf3d12aaf18d4`, host `plataforma-rubik-seo-9lkzlkvr1-juanma-espinosas-projects.vercel.app`; dos acciones autenticadas (OpenSEO y Google vía OpenSEO), dos eventos `gate/outbound:false`, cero eventos `transport` en Functions logs filtrados por run/deployment | PASS limitado a las rutas instrumentadas y observadas; no se consultó un backend de tracing para spans. Otras rutas no cubiertas no quedan probadas |
+| H1-A / H1-B / H2 | BLOCKED | No hay pasada integral nueva | H1-A completo; después decisión R1 y piloto U04 con aceptación humana de Sarah; H2 tras H1 y gates N1-07/08 |
+
+## Corte operativo · 20/10/2026 · P-1 servidor y ventana I-2/I-5
+
+P-1 navegador del run #142 permanece PASS y no se repite. P-1 servidor quedó **PASS acotado** en deployment `dpl_FX2BbLxBZPg38hYqikhhsEprGdPL`, host `plataforma-rubik-seo-9lkzlkvr1-juanma-espinosas-projects.vercel.app`, SHA funcional `85f93a5b7f7b9db26a2ade4f75fdf3d12aaf18d4`, ref `rhnnplewqsekrnaousyl`, run `6311c85c-5d97-4af4-9569-7336f2232222`. Logs se leyeron antes de las acciones (baseline vacío) y después se observaron dos eventos `gate/outbound:false`, destinos `openseo` y `google-via-openseo`, con cero eventos `transport` en la consulta exacta por deployment/runId. La interfaz mostró el bloqueo de OpenSEO y Google (`/google?error=DISABLED`, respuesta Server Action HTTP 200). Ledger: `test-results/u03-hosted/6311c85c-5d97-4af4-9569-7336f2232222.jsonl`; captura saneada local: `test-results/u03-hosted/6311c85c-5d97-4af4-9569-7336f2232222/6311c85c-5d97-4af4-9569-7336f2232222-desktop-provider-egress.png`. Limpieza PASS; inventario Auth/org/proyecto/membresías/auditoría a cero; outbox total/pending cero; writer bloqueado. La evidencia solo cubre las dos Server Actions instrumentadas y logs consultados: no se inspeccionaron spans de tracing ni se afirma cobertura global de cualquier otra salida.
+
+La organización candidata `rubi` es Free y ya tiene dos proyectos activos. Se descartan un tercer proyecto sin cupo/cotización y Branching (no incluido en Free; Pro empieza en $25/mes, antes de compute). La propuesta de menor coste es un deployment Preview protegido separado en el mismo proyecto Vercel y el mismo ref Supabase Preview, con variables específicas para la rama U03 y ventana SQL de hasta 30 minutos. La app conserva Auth fijado en `mode.ts`; la ventana queda cerrada en todos los Previews ordinarios. No se creó recurso, cambió plan ni se activó rol/variable. Ver [diseño y runbook U03/H1-A](U03-I2-I5-H1A-VENTANA-20261020.md).
+
+Tests locales y gates actuales se registran en PR #143. Las ejecuciones fallidas previas se conservan como `FAIL_CLEANED`; no se alteraron sus ledgers. No hubo SQL alojado ni fixtures de I-2/I-5/H1-A. La ejecución PASS no repitió Data API 12/12 ni B-4.
+
+El Preview destino autorizado de las pruebas de rechazo es `rhnnplewqsekrnaousyl`. Un S-5 alojado se considerará prueba de rechazo contra Preview solamente; el emisor será un stack ficticio separado y no se accederá a Production.
+
 ## Estado verificado · V-4 alojado PASS · 19/10/2026
 
 En `rhnnplewqsekrnaousyl`, el run `b170134c-5538-4f81-b459-1bb762b95bad` terminó `campaign-global: PASS` y `receipt-role-containment: PASS` sobre #129@`e213238c136909c652907b026eac5e412077329a`. La misma entrada segura dio `admin-password-transport: PASS` y `admin-connection-diagnostic: PASS`; después pasaron `membership-grant-before-withdrawal`, `membership-revocation-after-withdrawal` con el JWT aún vigente, `withdrawal-receipt`, `fixture-cleanup`, `final-inventory`, `outbox-final` y `capabilities-final`. Data API 12/12 (`2c72f352-fd79-4360-8c9b-3c619715c574`) y B-4 Chromium escritorio/móvil con aceptación visual posterior de Juanma (`5847ce5a-43b9-4dde-9931-61bd8113b27e`) son evidencia anterior; no se repitieron en V-4.
@@ -212,3 +329,180 @@ La consulta real ejecutada a través de `runPreviewReadOnlySql` fue solo lectura
 El wrapper `scripts/u03-preview-b4-owner.ps1` ejecuta primero deployment protegido + SQL de solo lectura y solo después pide las claves necesarias para Auth. La opción `-ReadOnlyPreflightOnly` permitió ejecutar el wrapper completo hasta PASS y salir antes de prompts, fixtures o navegador. Salida sanitizada: `READ_ONLY_PREFLIGHT PASS; ref rhnnplewqsekrnaousyl; migrations 27; latest 20261015210000; inventory zero; writer locked`. La prueba local de 26/26 incluye orden del prompt, remoción del SQL temporal, allowlist del ref y cleanup `finally`. No se ejecutó la campaña con fixtures. U03, H1 y H2 siguen abiertos.
 
 CLI consultado: [referencia oficial `db query`](https://supabase.com/docs/reference/cli/supabase-db-query). Gate del código y consulta real: HEAD de esta actualización.
+## Corte local de diagnóstico HTTP y transporte · 20/10/2026 · #143
+
+SHA funcional probado `36598502de404a52b7fe6e347c661c8a6fbb885a`; la actualización documental y HEAD publicado se registrarán al cerrar este corte. Rama `codex/u03-final-gates-20261020`, base `main@a0a40b776361f292d910e285b390d5e753da8d7b`. La PR permanece OPEN/Draft. No hubo consultas ni escrituras alojadas y el deployment no cambió.
+
+| Gate | Resultado de este corte | Evidencia y alcance |
+|---|---|---|
+| `NOT_ALLOWED` local | **NO REPRODUCIDO** | Run `81795f30-5873-40a2-9113-f714655bc016`: Auth coincide, `audit_writer_actor` devuelve actor/rol/org/slugs esperados y `appendTrustedAudit` finaliza. No apareció SQLSTATE `42501`; por ello no se atribuye causa a privilegios ni se cambia autorización/RLS. El ledger solo guarda `runId`, fase cerrada, categoría, resultado y SQLSTATE permitido. La causa del run histórico `12798f0f-686e-4c86-809f-2ec18acc6694` continúa sin identificar. |
+| Exportación local | **PASS acotado, handler** | El GET real de `src/app/proyectos/[tenantId]/[projectId]/exportar/route.ts` devolvió 200 con Supabase/Auth/PostgreSQL locales y escritura firmada. El test llama al handler con `Request` y `Response`; la sesión/client se inyectan en el límite Next, por lo que no es recorrido de socket, Chromium ni Preview. La atestación local requerida `RUBIK_RECOVERY_SCHEMA_ATTESTATION=pre-n2-through-20261015210000` quedó fija en el fixture. Sin ella, el primer intento respondió 503 por contrato de esquema desconocido; no era `NOT_ALLOWED`. |
+| Verificación y manipulación | **PASS local** | Run `81795f30-5873-40a2-9113-f714655bc016`: verificación offline válida; al alterar una acción, la cadena/HMAC se vuelve inválida y `planRestore` devuelve `TAMPERED`. La verificación informa `audit.valid=false` y mismatch; su `ok` estructural puede seguir siendo true. |
+| Restauración doble | **PASS de idempotencia, destino limitado** | El operador generó el plan desde el export, borró únicamente la organización ficticia del run y aplicó dos veces el SQL de restauración en el mismo PostgreSQL local desechable. La segunda aplicación fue idempotente. Esto no demuestra restauración en una segunda base separada ni completa H1-A. |
+| Limpieza local | **PASS** | Ledger `test-results/u03-window-local-http-diagnostic.jsonl` (ignorado por Git). Lectura independiente final: Auth, organizaciones, proyectos, membresías, audit_events, provider_results, imports, outbox total/pending, roles `u03_diag_*` y políticas `u03_d_*` en cero; `rubik_audit_writer` NOLOGIN. Stack Docker 27/27 retirado después. |
+| Session pooler local | **BLOCKED / transporte** | PostgreSQL directo conserva PASS previo. El contenedor inspeccionado es `supavisor:2.9.13`, no PgBouncer; TCP 63429 acepta conexión, pero el intento del rol termina `CLIENT_ERROR` sin SQLSTATE o categoría de servidor más precisa. El contenedor no tiene `POOLER_TENANT_ID`; el modo está fijado a `session`. Se detiene aquí: sin tenant reproducible no se afirma `SET ROLE` por el pooler. La guía self-hosted documenta que Supavisor requiere el tenant ID en el usuario ([acceso a Postgres](https://supabase.com/docs/guides/self-hosting/accessing-postgres)). |
+| Pooler de Preview, I-2/I-5 y H1-A alojados | **NO EJECUTADO / BLOCKED** | No se ejecutó SQL, no se instaló ni activó rol en `rhnnplewqsekrnaousyl`, no hubo fixtures ni deployment. No se reejecutaron Data API 12/12, B-4, V-4 ni P-1. |
+
+Pruebas de esta revisión: `tests/integration/u03-window-http-diagnostic.integration.test.ts` **1/1 PASS** sobre N1 local 27/27 y `tests/u03-local-diagnostic.test.ts` **3/3 PASS**. La regresión cubre que falte la atestación local de esquema (el endpoint responde 503), diagnósticos sin texto libre/secretos y rechazo de manipulación. No se confirmó ni corrigió el `NOT_ALLOWED` histórico, por lo que no se presenta como una regresión reparada.
+
+Siguiente gate de Preview preparado, pero no ejecutado: tras instalar el rol temporal por un procedimiento aparte aprobado, comprobar TLS `verify-full`, `session_user`, `current_user` después de `SET ROLE`, privilegios efectivos/allowlist SECURITY DEFINER, centinela exacto, RLS dentro/fuera de scope y NOLOGIN/rollback en finally antes de fixtures. El operador futuro necesita solo la contraseña Database existente de Preview, introducida por `Read-Host -AsSecureString`; generará localmente la contraseña temporal. La entrada no se pide ahora. Resultado esperado: `POOLER_ROLE_PREFLIGHT PASS`, identidad Preview exacta, `session_user=rubik_preview_u03_writer`, `current_user=rubik_audit_writer`, allowlist exacta y rol temporal bloqueado/retirado con cero inventario/outbox. Hasta tener un operador probado, no hay comando de campaña ni autorización de escritura.
+
+U03, H1 y H2 siguen abiertos. U03 conserva sus PASS previos; el handler local no acredita I-2/I-5 alojado. H1-A requiere export HTTP bajo sesión real y restore a destino local separado; R1, aceptación humana, U04/Sarah y H2 siguen pendientes. Actions no está verde por el bloqueo de facturación.
+
+## Corte #143: operador de rol temporal sin fixtures · 20/10/2026
+
+El nuevo modo `-WindowRolePreflightOnly` está implementado y sus pruebas locales pasan, pero todavía **no se ha ejecutado en Preview**. No hubo conexión, SQL, cambios de rol/políticas, fixtures ni despliegue. Resultados separados:
+
+| Caso | Resultado | Entorno y evidencia | Siguiente gate |
+|---|---|---|---|
+| Operador: destino, TLS, TTL, SET ROLE, privilegios, allowlist SECURITY DEFINER antes/después de SET ROLE, NOLOGIN, terminación y rollback bajo fallos simulados | **PASS local** | 9 tests Node de mocks + parser PowerShell, incluido bloqueo por SECURITY DEFINER extra heredado de PUBLIC; no prueba PostgreSQL ni pooler real. | Juanma ejecuta solo el preflight del rol en PowerShell visible. |
+| Conexión PostgreSQL directa local y flujos firmados/HTTP/restore | **PASS local, previo reutilizado** | Run HTTP/restore `c45dfdd6-3a84-4b13-8185-13b820b9e0e5`. | Sin repetición. |
+| Supavisor local | **BLOCKED por entorno** | `CLIENT_ERROR` del intento previo; no se repitió. | No se usa como sustituto ni se reabre el bucle. |
+| Nuevo `rubik_preview_u03_writer` por Session pooler Preview | **BLOCKED / no ejecutado** | No se pidió ni usó Database password; no SQL alojado. | Ejecutar el comando visible fijado en el runbook; entrada única oculta solo si pasan preflights. |
+| I-2/I-5 con filas pobladas en Preview | **BLOCKED** | Sin fixtures; positivos/negativos con RLS poblado siguen pendientes. | Solo tras PASS del nuevo rol, en una autorización posterior. |
+| H1-A alojado | **BLOCKED** | No desplegado/ejecutado en esta iteración. | Tras gates de rol y campaña poblada. |
+
+La evidencia histórica V-4 no acredita el rol nuevo. El deployment `dpl_FX2BbLxBZPg38hYqikhhsEprGdPL` / SHA `85f93a5b7f7b9db26a2ade4f75fdf3d12aaf18d4` / host `plataforma-rubik-seo-9lkzlkvr1-juanma-espinosas-projects.vercel.app` se usa como pin del control de protección/ref; no incluye el operador de este SHA. El comando y condiciones están en `docs/U03-I2-I5-H1A-VENTANA-20261020.md`.
+
+### Corrección del preflight de inventario · 20/10/2026
+
+El run posterior de `-WindowRolePreflightOnly` se detuvo antes de pedir credenciales con `PREVIEW_INITIAL_INVENTORY_NOT_EMPTY`. La causa fue una discrepancia del propio SQL: el validador exigía los conteos `provider_results`, `imports` y `audit_idempotency`, pero la consulta no los seleccionaba. Se añadieron los tres `COUNT(*)`; una columna ausente ahora produce `PREVIEW_READ_ONLY_RESULT_SCHEMA_INCOMPLETE`, separado de un conteo no cero. No se convierten campos ausentes en cero.
+
+Regresión local: prueba unitaria de columnas/categorías y prueba de integración que ejecuta el `PREFLIGHT_SQL` real contra un stack aislado N1 27/27. Las migraciones no incluyen el centinela `private.environment_identity`, instalado aparte en Preview; la integración lo crea y retira efímeramente en ese stack. Ambas pruebas pasan. Lectura independiente solo de conteos en Preview `rhnnplewqsekrnaousyl`: identidad exacta, 27 migraciones hasta `20261015210000`, todos los conteos de inventario/outbox en cero, writer general bloqueado y rol/políticas/sesiones temporales ausentes. No se instaló rol ni se crearon fixtures. El preflight podrá repetirse tras publicar el fix; no se repiten campañas alojadas ya aprobadas.
+
+### Corrección del preflight de inventario · 20/10/2026
+
+El modo -WindowRolePreflightOnly se detuvo antes de pedir credenciales con PREVIEW_INITIAL_INVENTORY_NOT_EMPTY. La causa fue una discrepancia del SQL: el validador exigía provider_results, imports y audit_idempotency, pero PREFLIGHT_SQL no los seleccionaba. Se añadieron los tres COUNT(*); una columna ausente ahora produce PREVIEW_READ_ONLY_RESULT_SCHEMA_INCOMPLETE, separado de un conteo no cero. No se convierten campos ausentes en cero.
+
+Regresión local: prueba unitaria de columnas/categorías y prueba de integración que ejecuta el PREFLIGHT_SQL real contra un stack local aislado N1 27/27. Las migraciones no incluyen private.environment_identity, instalada aparte en Preview; la integración crea y elimina una tabla/registro efímero solo dentro del stack propio. Ambas pruebas pasan. La lectura independiente solo de conteos en Preview rhnnplewqsekrnaousyl confirmó identidad exacta, 27 migraciones hasta 20261015210000, inventario/outbox cero, escritor general bloqueado y rol/políticas/sesiones temporales ausentes. No se instaló rol ni se crearon fixtures alojados. El preflight de rol podrá repetirse tras publicar el fix; no se repiten campañas aprobadas.
+
+## Corrección de transporte PowerShell 5.1 · 20/10/2026
+
+El run dc1242ff-670e-4bf0-82c1-ea56cc87f7f1 alcanzó el prompt, pero falló antes de Process.Start: Windows PowerShell 5.1 no expone ProcessStartInfo.StandardInputEncoding. No hubo conexión administrativa, instalación/bloqueo de rol, políticas ni fixtures en ese intento.
+
+El wrapper ahora serializa JSON en memoria con UTF-8 sin BOM y escribe bytes directamente en StandardInput.BaseStream; la contraseña no va en argumentos, archivos ni stdout. Toda preparación/ejecución del hijo está dentro de try/catch/finally y devuelve un resultado estructurado saneado. El finally captura errores propios del child launch, ejecuta la vía de contención y no reemplaza la excepción primaria.
+
+Prueba real en powershell.exe 5.1: modo local WindowRoleTransportSelfTestOnly ejecutó el wrapper y procesos Node hijos con texto ficticio no ASCII; el hijo validó los mismos caracteres, se simuló una salida de fallo, un error preparando el hijo y la contención desde finally. PASS; stdout no contiene el texto ficticio. Suite dirigida del rol 10/10 PASS; npm run verify 624 PASS / 1 SKIP, build y escaneo de secretos PASS. No hubo otra campaña.
+
+Lectura independiente, counts-only, del Preview rhnnplewqsekrnaousyl tras el run: 27 migraciones hasta 20261015210000; inventario y outbox total/pending a cero; writer general bloqueado; rubik_preview_u03_writer, políticas y sesiones temporales ausentes. No hay limpieza pendiente. U03/H1/H2 siguen abiertos.
+
+### Run 8e2fe576: diagnóstico de primera consulta y contención por estado
+
+El ledger `test-results/u03-hosted/8e2fe576-1cf8-46cf-a98c-3117070ada81.jsonl` solo identifica `DATABASE` sin SQLSTATE/código para la primera consulta Node; la causa concreta sigue **sin identificarse**. La lectura independiente posterior comunicada por Juanma acredita cero rol/políticas/sesiones temporales e inventario/outbox, writer general bloqueado, identidad, 27 migraciones y capacidades admin correctas. No se repitió la consulta alojada en esta revisión.
+
+| Control | Estado | Evidencia y límite |
+|---|---|---|
+| Clasificador de fallo | **PASS local** | DNS, TCP, TLS, 28P01/28000, SQLSTATE 42501 y condiciones preflight se convierten a categorías/códigos allowlisted; nunca se persiste `message`, SQL, DSN o secreto. |
+| Diagnóstico `-WindowRoleReadOnlyDiagnosticOnly` | **LISTO; hosted pendiente** | Solo ejecuta `READ_ONLY_SQL`; prueba mock valida resultado de migraciones concreto y transporte. No instala rol/políticas ni crea fixtures. No determina por sí solo la causa del run anterior hasta ejecutarse una vez con la entrada segura. |
+| Contención con rol ausente | **PASS local** | Comprueba ausencia, políticas/sesiones, inventario/outbox y estado final desde proceso/conexión independiente; omite `ALTER ROLE` cuando no existe. |
+| Contención con rol propio | **PASS local simulado** | Sigue exigiendo marcador del run, NOLOGIN, terminación de sesiones propias y verificación antes de rollback. |
+
+Prueba dirigida del módulo: 14/14 PASS; self-test real PowerShell 5.1 incluye salida diagnóstica simulada. No hubo SQL, despliegue o fixtures alojados. El siguiente comando read-only y pins exactos están en el runbook; el nuevo rol por Session pooler, I-2/I-5 alojado y H1-A siguen BLOCKED hasta gates posteriores. No se repitieron Data API, B-4, V-4 ni campañas aprobadas.
+
+TLS del diagnostico read-only: PASS local. El control `CLIENT_TLS` observa el TLSSocket de Node y exige socket cifrado/autorizado, CA fijada, host/SNI del pooler y `rejectUnauthorized=true`. `pg_stat_ssl` queda como `backend_tls_active`, dato del pooler a PostgreSQL que no determina TLS del cliente. El run alojado 48bfd21f tuvo un falso bloqueo por esa mezcla; no se repitio. El nuevo diagnostico alojado queda pendiente.
+
+## Ventana DPAPI y atestacion exacta · 20/10/2026
+
+La causa de `WINDOW_BRANCH_ENV_NOT_READY` queda demostrada: la ruta previa generaba y subia los ocho Secret, descartaba su copia local y luego el wrapper esperaba leerlos como entorno local. Se reemplazo por vault DPAPI CurrentUser, vinculado a proyecto Vercel, ref, rama, SHA, runId y SID; el mismo lote se cifra antes de cargarlo a Vercel por stdin. No se intenta recuperar ningun valor Secret desde el CLI.
+
+Prueba real de Vercel CLI 54.6.1: metadata de las ocho variables indica `sensitive`, Preview y rama `codex/u03-final-gates-20261020`. Se rotaron solo en ese alcance; el flag de ventana se agrego al final. Un desafio HMAC real al deployment protegido verifico igualdad de los cuatro valores sensibles y coincidencia de ref/rama/run/deployment/host/SHA, ademas de OIDC y preflight read-only (27 migraciones, inventario/outbox cero y writer general bloqueado). Evidencia intermedia: run `5fe4be63-0572-46eb-9982-28be1e5462c3`, deployment `dpl_64R7BmbFbdkuoN8U6rCLG3xjtxaU`, SHA `20ffa8a8a63d9f044d77566c28847dd31de8aaeb`; no se pidio Database password ni se instalo rol ni se crearon fixtures. El SHA final de esta correccion requiere nuevo lote/deployment y nueva atestacion antes de cualquier operador SQL.
+
+La primera pasada de esa atestacion se detuvo porque Windows PowerShell 5.1 trato la advertencia Node `MODULE_TYPELESS_PACKAGE_JSON` emitida por stderr como error terminante antes de continuar. La invocacion directa se retiro; el hijo ahora se lanza con `--conditions=react-server`, stdin UTF-8 y salida/errores capturados, y el operador solo acepta una linea allowlisted. La atestacion posterior del SHA intermedio paso. `test:u03-b4` 123/123 y `npm run verify` local pasaron antes de la ultima endurecida de rotacion; repetir tras publicar el SHA final. No hubo fixtures.
+
+Rotacion fail-closed: solo se aceptan los ocho metadatos de rama/scope/Secret exactos. El flag se quita primero y se crea ultimo. Si hay interrupcion, se retiran los nombres del lote y se verifica ausencia total antes de permitir reintento; el vault DPAPI queda retenido. Un SHA distinto crea un lote nuevo, lo cifra antes de rotar y no reutiliza los valores del lote anterior. La validacion del rol y la campana I-2/I-5/H1-A siguen pendientes.
+
+### Orden deployment/variables · diagnóstico del run 035f262d
+
+La atestación final quedó **BLOCKED, sin password ni fixtures**. El deployment `dpl_FTdkkM9SsgR3mLwZB1Y61PD2roSW` para SHA `71191f5a92b508eb37ea3ffc575187e1b48d2bc1` se creó a `1792526623196`; las ocho variables se actualizaron después, entre `1792526647112` y `1792526659719`. La lectura de metadatos confirma, por tanto, que ese deployment fue creado antes de terminar la rotación. El preflight protegido sí pasó (27 migraciones, inventario/outbox cero, writer bloqueado); el POST de desafío devolvió 404 genérico porque el deployment no tenía la ventana ligada al run/SHA actual. Se añadió una categoría segura `WINDOW_CHALLENGE_ROUTE_OR_WINDOW_NOT_READY`. Próximo paso técnico: redeploy de ese SHA después de la rotación, luego repetir solo la atestación y verificar igualdad HMAC. No se instala rol ni se crean fixtures hasta que pase.
+
+### Diagnostico posterior de atestacion, SHA 71191f5
+La atestacion se detuvo en modo read-only para run 035f262d-4c14-4241-b091-eac08f30f4e1. Deployment dpl_FTdkkM9SsgR3mLwZB1Y61PD2roSW fue creado a 1792526623196; las ocho variables de rama se actualizaron despues, desde 1792526647112 hasta 1792526659719. La causa del 404 queda acreditada por el orden: el deployment precedio a completar la rotacion. El preflight OIDC/read-only paso: ref Preview exacto, 27 migraciones, inventario/outbox cero y escritor general bloqueado. El POST HMAC 404 no acredita igualdad de bytes.
+Se agrego diagnostico seguro para 303 redirect de proteccion, 401/403, 404, 5xx y otros HTTP; pruebas locales cubren 303/403/404. Proximo paso: deployment Git-linked del SHA funcional creado despues de la rotacion y repetir unicamente el desafio HMAC. No solicitar Database password ni instalar rol/fixtures hasta HMAC PASS.
+
+### Atestacion tras redeploy posterior a la rotacion
+Run DPAPI `c5dfdc36-73c0-4b19-8eaa-c6c07123f9f7`; atestacion HMAC PASS para SHA funcional `7131d1e4cadb76bb4d2c6b1bdc3c49ced04aa03b`, deployment READY `dpl_AWwijDdQgJWiT2vPU23WwYqWu86B`, host `plataforma-rubik-seo-dxdwiilf1-juanma-espinosas-projects.vercel.app`. El primer deployment del SHA se creo antes de acabar la rotacion y dio 404; al redeplegar despues de las ocho actualizaciones, el endpoint protegido verifico por HMAC el lote local y el contexto exacto. Preflights read-only: ref rhnnplewqsekrnaousyl, 27 migraciones hasta 20261015210000, inventario/outbox cero y writer bloqueado. Sin password, SQL de escritura, rol ni fixtures. El commit documental posterior exige lote/deployment/atestacion propios antes de la operacion del rol.
+## Incidente de transporte y rotación parcial · 20/10/2026
+
+- **Run** `acb960e2-0a87-4e75-94ae-ed7014cd8dc2`: conserva su ledger original. Hijo de secuencia bloqueado por `PREVIEW_KEYS_REQUIRED` antes de instalar el rol o crear fixtures.
+- **Causa/corrección local:** el wrapper eliminaba las claves DPAPI tras el preflight anterior al hijo. Ahora recarga las mismas claves solo para el proceso `sequence`; el hijo confirma presencia/formato antes del prompt de Database password. PowerShell 5.1 real prueba éxito con claves ficticias y el rechazo anterior cuando faltan.
+- **Teardown:** stdout/stderr de `vercel.cmd` ya no pueden arrojar una excepción antes de evaluar exit code. Nombres ausentes se toleran; el deployment/vault se conserva hasta que un listado independiente pruebe que los ocho nombres de ventana desaparecieron. La prueba cubre lote parcial de siete, banners, retirada idempotente y bandera al final.
+- **Preview previo al cambio remoto:** lectura independiente solo de conteos: migraciones N1 27/27; inventario y outbox total/pending cero; rol/políticas/sesiones temporales ausentes; writer general bloqueado. Metadatos Vercel: 7/8 nombres Sensitive en Preview y rama fijada, primera bandera ausente. No se hizo SQL de escritura ni se creó fixture.
+- **Estado de gate:** fix y pruebas locales PASS. Nueva rotación DPAPI, deployment y atestación HMAC del SHA publicado pendientes. I-2/I-5 alojado BLOCKED hasta completar atestación, rol Session pooler/contención, campaña y limpieza. U03/H1/H2 siguen abiertos.
+
+### Run f6350df4: barrera previa a instalar el rol (20/10/2026)
+
+El ledger original del SHA `657d69b8ad693afba469375b89c5800c9841d32c` conserva `admin-read-only-preflight PASS`, luego `role-sequence-failure BLOCKED`; no existe `install-role-nologin ATTEMPTED`. No se atribuye retrospectivamente una fase que ese binario no registraba. La lectura independiente, solo de conteos y con identidad Preview exacta, confirmó 27 migraciones hasta `20261015210000`, RLS habilitada en las cuatro tablas, y 38 funciones SECURITY DEFINER visibles para el administrador. El SQL previo comparaba erróneamente ese conjunto administrativo con una allowlist de dos. Al medir el rol efectivo `rubik_audit_writer` hay cuatro funciones; dos adicionales proceden del grant explícito de la migración `20261015190000_s1_provider_rpc_boundary.sql` (RPC de OpenSEO y Google). No se cambian grants, RLS ni allowlist para lograr PASS: la capacidad del rol excede el contrato mínimo de esta ventana.
+
+El operador ahora registra ATTEMPTED y PASS/BLOCKED por separado para la allowlist del rol efectivo y RLS. Los bloqueos distinguen SECDEF/RLS_QUERY_FAILED, SECDEF/RLS_UNEXPECTED_RESULT y SECDEF/RLS_LEDGER_FAILED; SQLSTATE solo si está allowlisted. Ante cualquiera, el primer SQL de instalación no comienza. La regresión reproduce cuatro funciones efectivas y comprueba SECDEF_UNEXPECTED_RESULT, ausencia de instalación y ledger sin nombres de funciones ni secretos; también cubre error SQL, RLS y fallo de ledger.
+
+Lectura final independiente: rol temporal 0, políticas 0, sesiones 0; usuarios, organizaciones, membresías, proyectos, auditoría, resultados, imports, idempotencia y outbox total/pending 0; escritor general NOLOGIN. Las ocho variables y el deployment temporal de este run fueron retirados. I-2/I-5 alojado y H1-A siguen ABIERTOS. Una nueva ventana solo se propondrá tras diseñar y verificar un principal con privilegios de firma estrictamente necesarios, probar la contención completa y acreditar de nuevo deployment/SHA/variables.
+# Actualización 21/10/2026 · principal mínimo de firma
+
+| Gate | Estado | Evidencia y límite |
+| --- | --- | --- |
+| Lógica firmada, I-2/I-5 poblado y TTL/NOLOGIN | **PASS local (PostgreSQL directo)** | Run `f2b1eff8-95f7-4482-84d5-cacba318e4ab`; firmante real, A positivo/B negativo, otro run denegado, RPC de proveedores no ejecutables, recibos completados/reintentados, sesión abierta denegada tras caducidad y NOLOGIN. SQL independiente final cero. [Matriz de contrato](U03-PRINCIPAL-MINIMO-20261021.md). |
+| HTTP/export/restore | **PASS local acotado** | Route Handler por socket loopback; manifiesto verificado y alteración rechazada; restauración doble en segundo stack local. No acredita origen alojado. |
+| Session pooler local | **BLOCKED por entorno** | `CLIENT_ERROR` previo de Supavisor; el test directo no equivale al pooler. |
+| Session pooler Preview del nuevo rol | **BLOCKED / sin ejecutar** | Requiere nuevo deployment protegido y lote del SHA final; no se instaló rol en Preview. |
+| I-2/I-5 alojados y H1-A alojado | **BLOCKED / sin ejecutar** | No se crearon fixtures ni se alteró Preview. U03/H1/H2 siguen abiertos. |
+
+El nuevo principal `rubik_preview_u03_writer` no hereda ni hace `SET ROLE rubik_audit_writer`; conserva dos funciones `SECURITY DEFINER` efectivas y deniega ambas RPC de proveedor por privilegio efectivo. Los grants de producto no se revocan. El operador instala políticas acotadas y una rama de guarda de inserción atada a identidad SQL/comentario administrativo/run/TTL/proyecto, y la revierte tras inventario/outbox cero. Los PASS alojados anteriores mantienen sus ledgers, sin repetición. GitHub Actions sigue sin jobs por facturación.
+
+## Ledger de fixtures I-2/I-5 · run dd0a179e · 21/10/2026
+
+El ledger original `test-results/u03-hosted-window/dd0a179e-20b0-4d2a-b631-46852d0debfe.jsonl` conserva su resultado **BLOCKED**. La prelectura administrativa, el principal nuevo por Session pooler y `deployment-runtime-pooler-proof` pasaron; el fallo ocurrió al entrar en las altas ficticias, antes de que hubiera positivos I-2/I-5. La lectura independiente posterior, separada del ledger, confirmó Preview con inventario y outbox total/pending en cero, rol/políticas/sesiones temporales ausentes y escritor general bloqueado. Esa lectura no reescribe ni eleva el run a PASS.
+
+La causa reproducida fue una discrepancia del contrato de ledger: `createWindowLedger()` rechazaba mayúsculas, mientras las fases reales usaban `fixture-user-ownerA` y `auth-login-ownerA` (y sus equivalentes ownerB). Además, las fases pobladas I-5 producían `_` en nombres de tablas. El ledger ahora normaliza determinísticamente a minúsculas y convierte `_` a `-` antes de validar y escribir (`ownerA` → `ownera`, `audit_events` → `audit-events`); ownerA y ownerB permanecen distintos y la forma canónica solo admite `[a-z0-9-]` de hasta 80 caracteres. Se añadió verificación de las fases críticas, metadata del run y marcador final `sequence-complete`; un ledger ausente/incompleto devuelve BLOCKED, nunca PASS. Una falla de escritura del ledger durante cleanup bloquea el resultado, pero no interrumpe los intentos de borrar los demás IDs propios.
+
+Regresiones dirigidas para fases de alta/login/reconciliación/cleanup, colisiones, formato inválido, escritura fallida y rechazo de ledger incompleto pasaron localmente. No se repitió ninguna prueba alojada. Este arreglo no acredita I-2/I-5: siguen BLOCKED hasta positivos firmados alojados y limpieza independiente. H1-A es un gate separado. El lote y deployment del run `dd0a179e…` no se reutilizan; se prepararán para el SHA corregido después de publicar el fix.
+# Tramo dirigido `/api/u03/window` · run ab423d60 · 21/10/2026
+
+El run `ab423d60-d048-45f0-9a89-cfd467e7111e` pasó preflight administrativo, allowlist y RLS; instaló el principal nuevo NOLOGIN, acreditó contención independiente, lo activó y pasó identidad/TLS/privilegios por el Session pooler de Preview. `GET /api/u03/window` devolvió 404 antes de fixtures. Los ledgers originales se conservan; I-2, I-5 y U03 **no** pasaron. La contención y el rollback terminaron con rol/políticas/sesiones cero. Una lectura independiente posterior confirma 27 N1, usuarios/organizaciones/proyectos/auditoría/resultados/imports/idempotencia/outbox cero y escritor general NOLOGIN. Las ocho variables, el deployment y el vault se comprobaron ausentes. H1-A no se ejecutó.
+
+El 404 anterior no identifica por sí mismo la barrera exacta. En `node-postgres`, `Pool({ connectionString })` deja `pool.options.host/port` vacíos y resuelve esos campos en `client.connectionParameters`; la comparación del handler con `pool.options` hacía fallar siempre su control TLS tras conectar. Se reprodujo con `pg` real sin red. El fix lee host/puerto efectivos del cliente y mantiene CA, hostname, cifrado y autorización TLS. El handler conserva cuerpo/estado públicos 404; solo una petición con capacidad de run válida recibe una categoría cerrada en cabecera y se registra el código saneado en Functions. El cliente acepta exclusivamente códigos enumerados y rechaza host externo. Las pruebas locales cubren las barreras restantes; falta comprobar el nuevo deployment protegido y, después, la campaña alojada con positivos y limpieza.
+
+## Diagnostico del resultado I-5 - run 6f59f06d - 21/10/2026
+
+El ledger original 6f59f06d-03db-4816-aad8-3b2e670ad32d permanece BLOCKED e intacto: Session pooler, runtime y auditoria de fixture pasaron; resultado sintetico devolvio 503; limpieza/contencion y lectura independiente reportada quedaron limpias. El deployment temporal ya no esta disponible para recuperar el cuerpo/log, por lo que el codigo historico exacto no se atribuye al run.
+
+La reproduccion local N1 identifico el flujo: storeProviderResult crea una fila provider_results firmada y no genera outbox google.capture. Ese recibo se crea solo por el trigger de google_captures al completar una captura. El handler anterior intentaba firmar por ID del resultado, recibia RECEIPT_NOT_FOUND y lo devolvia como RECEIPT_PENDING. Se corrigio para verificar la fila mediante lectura RLS, usar ID/fecha deterministas en retries y dejar el recibo real provider-results.erase a la limpieza. Los ledgers futuros conservan solo los codigos 503 permitidos.
+
+Prueba local del handler y cleanup en stack efimero exactamente 27 N1: firma verificada, retry idempotente, negativos, recibo de borrado procesado y reintentado, limpieza a cero y rol/politicas retirados. No es evidencia de Preview. I-2/I-5/U03 alojados siguen BLOCKED hasta positivos poblados y firmados, recibos resueltos y lectura final independiente; H1-A continua separado.
+
+Checks: handler N1 PASS; test:u03-b4 140/140; npm run verify 638 PASS / 1 SKIP, secret scan 774 archivos, lint/typecheck/build PASS.
+
+## Diagnóstico instrumentado de I-5 · run 3d27ccf9 · 22/10/2026
+
+El ledger alojado `test-results/u03-hosted-window/3d27ccf9-ff2d-406f-b701-576d5ae8073d.jsonl` permanece BLOCKED e intacto. Registra `window-fixture-audit`, `window-fixture-result` e `window-fixture-import` PASS, `i5-populated-audit-events` FAIL y limpieza `FAIL_CLEANED`, pero no contiene etapa, código, valores de aserción ni causa. La causa de ese run es **no reconstruible**; no se atribuye retrospectivamente al defecto hallado después. La lectura independiente posterior dejó Preview con inventario y outbox cero.
+
+La reproducción local encontró que la lectura de ID inexistente de `audit_events` consultaba `seq=Number.MAX_SAFE_INTEGER`, mientras N1 define `seq integer` positivo. Ese filtro excede int4 y produce error de consulta, no una lectura vacía. El centinela ahora es `0`, garantizado ausente por `seq >= 1` y válido para int4; una regresión verifica el rango y la ausencia de falso PASS.
+
+**PASS local, no alojado:** integración `495d0947-34fe-4997-a384-9ce184c0a23a`, stack desechable `rubik-u03-i5-20261022`, 27 migraciones hasta `20261015210000`, transporte PostgreSQL directo. Firmantes reales de auditoría/resultados y flujo de import; A/B con filas pobladas, lecturas propias positivas, negativas cruzadas/outsider/IDs ausentes en tres superficies, firma alterada rechazada, retry idempotente, recibos procesados/reintentados y cleanup independiente a cero. Stack retirado. No acredita Session pooler ni Preview.
+
+| Gate | Estado | Límite |
+|---|---|---|
+| Diagnóstico original 3d27 | No reconstruible | Ledger sin etapa/código; intacto. |
+| I-5 | PASS local / BLOCKED alojado | Falta positivo firmado en Preview. |
+| I-2 | BLOCKED alojado | Requiere sus pruebas de rutas reales; no se infiere de I-5 local. |
+| U03 | BLOCKED | Faltan positivos alojados I-2/I-5 y limpieza independiente. |
+| H1-A | Separado / pendiente | No condiciona U03. |
+
+No hubo ventana ni fixtures alojados en este diagnóstico.
+
+## Cierre alojado I-2/I-5 y U03 · 22/10/2026
+
+La campaña dirigida del run `330c6e4b-14ad-439a-a8cf-43d92c73fadb` terminó con `sequence-complete PASS` y `u03-global-result PASS`. El ledger local conservado es `test-results/u03-hosted-window/330c6e4b-14ad-439a-a8cf-43d92c73fadb.jsonl`; el resumen del ledger se compartió y auditó el 22/10. Esta sección es el estado vigente y supersede los estados BLOCKED de los cortes históricos inferiores; esos registros se conservan sin reescritura.
+
+| Gate | Estado | Evidencia y alcance |
+|---|---|---|
+| I-2 | **PASS alojado** | `i2-owner-positive PASS` (2); `i2-foreign-and-missing-routes PASS` (5); `i2-protected-routes PASS` (7). |
+| I-5 audit_events | **PASS alojado con filas pobladas** | `i5-populated-audit-events CHECKS_COMPLETE PASS`; 8 comprobaciones de visibilidad esperada; lecturas positivas y negativas según el operador. |
+| I-5 provider_results | **PASS alojado con filas pobladas** | `i5-populated-provider-results CHECKS_COMPLETE PASS`; 8 comprobaciones de visibilidad esperada. |
+| I-5 imports | **PASS alojado con filas pobladas** | `i5-populated-imports CHECKS_COMPLETE PASS`; 8 comprobaciones de visibilidad esperada. |
+| Firmas y superficies pobladas | **PASS alojado** | `i5-populated-signed-rows PASS` (3) y `window-i2-i5-populated-surfaces PASS` (2). Los flujos legítimos del producto generaron las filas; la evidencia local no se usa como sustituto. |
+| Recibos, limpieza y estado final | **PASS alojado** | `i2-evidence-before-role-rollback`, `i5-evidence-before-role-rollback`, `fixture-cleanup`, `final-inventory`, `outbox-final`, `capabilities-final` e `independent-containment-and-final-read` PASS. El resumen de PowerShell confirma rol/políticas/sesiones temporales en cero, inventario cero, outbox total/pending cero y escritor general NOLOGIN. |
+| Retirada de ventana | **PASS** | `U03_WINDOW_TEARDOWN PASS`: variables de rama retiradas y deployment temporal eliminado. |
+| U03 | **PASS / CERRADO** | `u03-sql-final-result PASS`, `i2-final-result PASS`, `i5-final-result PASS`, `sequence-complete PASS` y `u03-global-result PASS`. El PASS de U03 incluye los PASS anteriores reutilizados; B-4 y Data API aparecen como `SKIP_PRIOR_EVIDENCE`, sin repetición. |
+| H1-A | **NO EJECUTADO; independiente** | `h1a-result NOT_RUN`. No condiciona el cierre de U03. H1/H2 y U04/Sarah permanecen abiertos según sus propios gates. |
+
+Deployment usado: `dpl_56PEz8SoynyU8UD1ufRenAesQyx5`, host `plataforma-rubik-seo-9u4p45110-juanma-espinosas-projects.vercel.app`, SHA funcional `ed0bbee9006feabae546fa376e4eaf7beffafc42`, Preview `rhnnplewqsekrnaousyl`. El run de campaña finalizó PASS; no repetirlo. El ledger registra `run-artifacts NONE`; la salida saneada y el ledger original quedan conservados localmente por Juanma, sin incorporarlos al repositorio.

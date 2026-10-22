@@ -14,10 +14,12 @@ import type { ProviderError, ProviderResult } from "@rubik/seo-geo-core/provider
 import { providers } from "@/lib/core";
 import { MIN_PAGES, isAuditableHostname, readOpenSeoConfig, type OpenSeoConfig, type OpenSeoConfigState } from "./config";
 import { createOpenSeoMcpClient, type FetchLike, type OpenSeoMcpClient } from "./mcp-client";
+import { recordProviderInvocation, type ProviderDestination } from "./provider-egress";
 
 export interface BridgeDeps {
   env?: Record<string, string | undefined>;
   fetchImpl?: FetchLike;
+  runId?: string | null;
   clock?: () => Date;
   /** Loaded server-side from this Rubik project's job binding, never from form data. */
   activeJob?: ActiveAuditJob | null;
@@ -45,7 +47,8 @@ function configured(deps: BridgeDeps): { config: OpenSeoConfig } | { error: Brid
 }
 
 function client(config: OpenSeoConfig, deps: BridgeDeps): OpenSeoMcpClient {
-  return createOpenSeoMcpClient({ mcpUrl: config.mcpUrl, apiKey: config.apiKey, maxPages: config.maxPages, fetchImpl: noRedirectFetch(deps.fetchImpl) });
+  return createOpenSeoMcpClient({ mcpUrl: config.mcpUrl, apiKey: config.apiKey, maxPages: config.maxPages, fetchImpl: noRedirectFetch(deps.fetchImpl),
+    runId: deps.runId ?? undefined, destination: "openseo" satisfies ProviderDestination });
 }
 
 async function withClient<T>(config: OpenSeoConfig, deps: BridgeDeps, run: (mcp: OpenSeoMcpClient) => Promise<T>): Promise<T> {
@@ -83,6 +86,7 @@ export async function testOpenSeoConnection(deps: BridgeDeps = {}): Promise<Conn
   const { config } = c;
 
   const adapter = new intelligence.OpenSEOAdapter({ endpoint: config.endpoint, fetchImpl: noRedirectFetch(deps.fetchImpl), timeout: 8000 });
+  recordProviderInvocation(deps.runId ?? undefined, "openseo");
   const health = await adapter.connectivity();
   let whoamiFields: string[] = [];
 

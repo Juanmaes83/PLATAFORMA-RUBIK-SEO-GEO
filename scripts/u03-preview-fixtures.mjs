@@ -96,15 +96,20 @@ export async function createScopedFixture({ caseId, scope, insert, lookup, track
 export async function cleanupTrackedIds(ids, remove, ledger, caseId) {
   let ok = true;
   for (const id of [...new Set(ids)].reverse()) {
+    let safe = false;
+    let removed = null;
     try {
       const result = await remove(id);
-      const safe = !result?.error && Array.isArray(result?.data) &&
+      safe = !result?.error && Array.isArray(result?.data) &&
         result.data.length <= 1 && result.data.every(row => row.id === id);
-      await ledger(caseId, safe ? 'PASS' : 'FAIL', { id, removed: result?.data?.length ?? null });
-      if (!safe) ok = false;
+      removed = result?.data?.length ?? null;
+    } catch { safe = false; }
+    if (!safe) ok = false;
+    try {
+      await ledger(caseId, safe ? 'PASS' : 'FAIL', { id, removed });
     } catch {
+      // A broken ledger must block success, but never prevent deletion of later owned IDs.
       ok = false;
-      await ledger(caseId, 'FAIL', { id });
     }
   }
   return ok;

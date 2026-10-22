@@ -15,6 +15,7 @@ import { checkGoogleTools, testOpenSeoConnection, type AuditFollowUp, type Audit
 import { resolveOpenSeoTarget } from "./target";
 import { connectProject, revokeProjectConnection, type ConnectionError } from "./connections";
 import { googleCatalogCheckEnabled } from "./mcp-client";
+import { recordProviderGate, requestProviderRunId } from "./provider-egress";
 
 // OpenSEO Server Actions (ADR 0006). Every action authenticates, loads the membership through
 // RLS and asks the Core whether the role may `manage-connectors` in THAT project; the hidden
@@ -52,12 +53,16 @@ const followRefused = (error: BridgeError): AuditFollowUp => ({ report: null, ca
 export async function testConnectionAction(_prev: ConnectionState, formData: FormData): Promise<ConnectionState> {
   const context = await authorized(formData);
   if (!context) return { denied: true };
-  if (!await writerReady(context)) return { status: "NOT_CONNECTED", health: null, authorization: "NOT_VERIFIED", reason: writerError.code,
-    failingChecks: [], whoamiFields: [], checkedAt: null, error: writerError };
+  const runId = await requestProviderRunId();
+  if (!await writerReady(context)) {
+    recordProviderGate(runId, "openseo", "blocked");
+    return { status: "NOT_CONNECTED", health: null, authorization: "NOT_VERIFIED", reason: writerError.code,
+      failingChecks: [], whoamiFields: [], checkedAt: null, error: writerError };
+  }
   const target = await resolveOpenSeoTarget(context.client, context.project.projectId);
   if ("error" in target) return { status: "NOT_CONNECTED", health: null, authorization: "NOT_VERIFIED", reason: target.error.code,
     failingChecks: [], whoamiFields: [], checkedAt: null, error: target.error };
-  return testOpenSeoConnection({ env: target.env });
+  return testOpenSeoConnection({ env: target.env, runId });
 }
 
 export async function startAuditAction(_prev: AuditStartState, formData: FormData): Promise<AuditStartState> {
@@ -67,13 +72,14 @@ export async function startAuditAction(_prev: AuditStartState, formData: FormDat
   if (field(formData, "confirm") !== "on") {
     return { ok: false, auditId: null, url: null, maxPages: null, startedAt: null, reused: false, error: { code: "CONFIRMATION_REQUIRED", message: "Confirma el lanzamiento manual.", retryable: false } };
   }
-  if (!await writerReady(context)) return startRefused(writerError);
+  const runId = await requestProviderRunId();
+  if (!await writerReady(context)) { recordProviderGate(runId, "openseo", "blocked"); return startRefused(writerError); }
   const input = { url: field(formData, "url"), maxPages: Number(field(formData, "maxPages")), projectDomain: access.project.domain };
   const target = await resolveOpenSeoTarget(client, project.projectId);
   if ("error" in target) return startRefused(target.error);
   if (!projectJobsEnabled()) return startRefused({ code: "PERSISTENCE_DISABLED", message: "El registro de trabajos no está activado. No se ha lanzado ningún rastreo.", retryable: false });
   if (!serverKeyring()) return startRefused({ code: "SIGNING_MISSING", message: "Faltan las claves de firma del servidor. No se ha lanzado ningún rastreo.", retryable: false });
-  return startProjectAudit(client, project, input, { env: target.env }, target.connection);
+  return startProjectAudit(client, project, input, { env: target.env, runId }, target.connection);
 }
 
 export async function followAuditAction(_prev: AuditFollowState, formData: FormData): Promise<AuditFollowState> {
@@ -82,11 +88,15 @@ export async function followAuditAction(_prev: AuditFollowState, formData: FormD
   const { access, client, project } = context;
   const auditId = field(formData, "auditId");
   const save = field(formData, "intent") === "save";
-  if (!await writerReady(context)) return { auditId, saveStatus: "unavailable", ...followRefused(writerError) };
+  const runId = await requestProviderRunId();
+  if (!await writerReady(context)) {
+    recordProviderGate(runId, "openseo", "blocked");
+    return { auditId, saveStatus: "unavailable", ...followRefused(writerError) };
+  }
   const target = await resolveOpenSeoTarget(client, project.projectId);
   if ("error" in target) return { auditId, saveStatus: "unavailable", ...followRefused(target.error) };
   if (projectJobsEnabled()) {
-    const result = await followProjectAudit(client, project, auditId, access.project.domain, save, serverKeyring(), { env: target.env }, target.connection);
+    const result = await followProjectAudit(client, project, auditId, access.project.domain, save, serverKeyring(), { env: target.env, runId }, target.connection);
     if (result.saveStatus === "saved" || result.saveStatus === "audit-pending") revalidatePath(`/proyectos/${access.project.tenantId}/${access.project.projectId}/auditoria-tecnica`);
     return { auditId, ...result };
   }
@@ -169,9 +179,11 @@ export type GoogleToolsState = GoogleToolsReport | Denied | null;
 export async function checkGoogleToolsAction(_prev: GoogleToolsState, formData: FormData): Promise<GoogleToolsState> {
   const context = await authorized(formData);
   if (!context) return { denied: true };
+  const runId = await requestProviderRunId();
+  if (!googleCatalogCheckEnabled()) recordProviderGate(runId, "google-via-openseo", "blocked");
   if (!googleCatalogCheckEnabled()) return { ok: false, error: { code: "GOOGLE_CATALOG_DISABLED", message: "La comprobación del catálogo de Google no está activada.", retryable: false } };
   if (!await writerReady(context)) return { ok: false, error: writerError };
   const target = await resolveOpenSeoTarget(context.client, context.project.projectId);
   if ("error" in target) return { ok: false, error: target.error };
-  return checkGoogleTools({ env: target.env });
+  return checkGoogleTools({ env: target.env, runId });
 }

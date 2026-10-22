@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
-import { randomUUID } from 'node:crypto';
-import { execFile } from 'node:child_process';
+import { createHmac, randomUUID } from 'node:crypto';
+import { register } from 'node:module';
+import { execFile, spawn } from 'node:child_process';
 import { mkdir, appendFile, mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
@@ -8,11 +9,13 @@ import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { createPreviewAdminClient } from './u03-preview-api-key.mjs';
 import { createDataApiFixtureRun, U03_PREVIEW_REF } from './u03-preview-data-api.mjs';
-import { PIN, networkEnvironment, preflight, runB4 } from './u03-preview-b4-runner.mjs';
+import { PIN, networkEnvironment, preflight, runB4, scopedHeaders } from './u03-preview-b4-runner.mjs';
 import { isV4SecurityDefinerAllowlistOnly, openPreviewReceiptProcessor } from './u03-preview-v4-receipt.mjs';
 import { runSessionProviders } from './u03-preview-session-providers.mjs';
+import { runProviderEgressOnly } from './u03-preview-provider-egress.mjs';
 
 const execFileAsync = promisify(execFile);
+register('./lib/app-ts-hooks.mjs', import.meta.url);
 const SUPABASE_URL = `https://${U03_PREVIEW_REF}.supabase.co`;
 export const PRIOR_DATA_API_RUN_ID = '2c72f352-fd79-4360-8c9b-3c619715c574';
 export const PRIOR_B4_RUN_ID = '5847ce5a-43b9-4dde-9931-61bd8113b27e';
@@ -35,7 +38,22 @@ export const PREFLIGHT_SQL = `select
   (select count(*)::int from public.audit_events) as audit_events,
   (select count(*)::int from private.audit_outbox) as outbox_total,
   (select count(*)::int from private.audit_outbox where state = 'pending') as pending_outbox,
+  (select count(*)::int from public.provider_results) as provider_results,
+  (select count(*)::int from public.imports) as imports,
+  (select count(*)::int from private.audit_idempotency) as audit_idempotency,
+  (select count(*)::int from private.openseo_project_jobs) as openseo_project_jobs,
+  (select count(*)::int from private.openseo_project_connections) as openseo_project_connections,
+  (select count(*)::int from private.webmaster_properties) as webmaster_properties,
+  (select count(*)::int from private.provider_budgets) as provider_budgets,
+  (select count(*)::int from private.provider_spend) as provider_spend,
+  (select count(*)::int from private.openseo_google_properties) as openseo_google_properties,
+  (select count(*)::int from private.google_captures) as google_captures,
   (select not rolsuper and not rolcanlogin and not rolbypassrls from pg_roles where rolname = 'rubik_audit_writer') as writer_locked,
+  (select exists (select 1 from pg_roles where rolname = 'rubik_preview_u03_writer')) as window_writer_present,
+  (select count(*)::int from pg_policies where policyname like 'u03_preview_writer_%') as window_policy_residue,
+  (select count(*)::int from pg_stat_activity where usename in ('rubik_audit_writer','rubik_preview_u03_writer')) as writer_sessions,
+  (select (rolsuper or rolcreaterole) from pg_roles where rolname=current_user) as admin_can_manage_roles,
+  ((select rolsuper from pg_roles where rolname=current_user) or pg_has_role(current_user,'pg_signal_backend','MEMBER')) as admin_can_terminate_sessions,
   (select exists (select 1 from pg_roles where rolname = 'rubik_preview_receipt_writer')) as receipt_writer_present,
   (select coalesce(array_agg(format('%I.%I(%s)', n.nspname, p.proname, oidvectortypes(p.proargtypes)) order by n.nspname, p.proname, oidvectortypes(p.proargtypes)), array[]::text[])
     from pg_roles r cross join pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -59,8 +77,21 @@ const FINAL_SQL = `select
   (select count(*)::int from public.project_members) as project_members,
   (select count(*)::int from private.project_invitations) as invitations,
   (select count(*)::int from public.audit_events) as audit_events,
+  (select count(*)::int from public.provider_results) as provider_results,
+  (select count(*)::int from public.imports) as imports,
+  (select count(*)::int from private.audit_idempotency) as audit_idempotency,
   (select count(*)::int from private.audit_outbox) as outbox_total,
   (select count(*)::int from private.audit_outbox where state = 'pending') as pending_outbox,
+  (select count(*)::int from private.openseo_project_jobs) as openseo_project_jobs,
+  (select count(*)::int from private.openseo_project_connections) as openseo_project_connections,
+  (select count(*)::int from private.webmaster_properties) as webmaster_properties,
+  (select count(*)::int from private.provider_budgets) as provider_budgets,
+  (select count(*)::int from private.provider_spend) as provider_spend,
+  (select count(*)::int from private.openseo_google_properties) as openseo_google_properties,
+  (select count(*)::int from private.google_captures) as google_captures,
+  (select exists(select 1 from pg_roles where rolname='rubik_preview_u03_writer')) as window_writer_present,
+  (select count(*)::int from pg_policies where policyname like 'u03_preview_writer_%') as window_policy_residue,
+  (select count(*)::int from pg_stat_activity where usename in ('rubik_audit_writer','rubik_preview_u03_writer')) as writer_sessions,
   (select not rolsuper and not rolcanlogin and not rolbypassrls from pg_roles where rolname = 'rubik_audit_writer') as writer_locked,
   (select environment from private.environment_identity limit 1) as environment,
   (select project_ref from private.environment_identity limit 1) as project_ref`;
@@ -70,11 +101,12 @@ const LEDGER_KEYS = new Set([
   'path', 'viewport', 'conclusion', 'viewportWidth', 'documentWidth', 'bodyWidth', 'visibleErrorCount',
   'consoleErrorCount', 'pageErrorCount', 'hydrationErrorCount', 'version', 'projectIds', 'organizationIds',
   'userIds', 'authUsers', 'organizations', 'projects', 'organizationMembers', 'projectMembers', 'invitations', 'auditEvents',
+  'providerResults', 'imports', 'auditIdempotency',
   'outboxTotal', 'pendingOutbox', 'writerLocked', 'migrationCount', 'latestMigration', 'environment',
   'projectRef', 'deploymentId', 'sha', 'host', 'result', 'visualReview',
   'adminKeyFormat', 'publicKeyFormat',
   'pathname', 'errorCode', 'actionHttpStatus', 'sessionCookiePresent', 'routeEvents', 'capturePath',
-  'phase', 'diagnostics',
+  'phase', 'diagnostics', 'stage', 'expectedCount', 'observedCount', 'valueMatch', 'receiptState', 'httpStatus', 'sqlstate',
   'mode', 'evidenceRunId',
 ]);
 
@@ -104,9 +136,28 @@ export function safeLedgerDetail(input = {}) {
       continue;
     }
     if (key === 'category' && !['DNS', 'TCP', 'TLS', 'AUTHENTICATION', 'PERMISSION', 'CAPABILITY', 'IDENTITY',
-      'PRECONDITION', 'CONFIGURATION', 'READ_ONLY_ADMIN', 'DATABASE'].includes(value)) continue;
+      'PRECONDITION', 'CONFIGURATION', 'READ_ONLY_ADMIN', 'DATABASE', 'TRANSPORT_FAILURE', 'HTTP_FAILURE',
+      'RESPONSE_INVALID', 'FIXTURE_CREATED', 'EXPECTED_VISIBILITY', 'QUERY_FAILED', 'DIAGNOSTIC_INCOMPLETE',
+      'ASSERTION_MISMATCH', 'CHECKS_COMPLETE'].includes(value)) continue;
+    if (key === 'code' && !(new Set(['V4_CREDENTIAL_MISSING', 'SIGNING_UNAVAILABLE', 'UNCLASSIFIED',
+      'WINDOW_FIXTURE_TRANSPORT_FAILED', 'WINDOW_FIXTURE_ACTOR_AUTH_FAILED',
+      'WINDOW_FIXTURE_RESPONSE_INVALID', 'WINDOW_LEDGER_WRITE_FAILED', 'DATA_API_EXCEPTION', 'DATA_API_QUERY_FAILED',
+      'SQL_PRIVILEGE_DENIED', 'DATA_API_RESULT_INCOMPLETE', 'ROW_COUNT_MISMATCH', 'ROW_KEY_MISMATCH',
+      'I5_ASSERTION_FAILED', 'I5_LEDGER_WRITE_FAILED', 'SIGNATURE_INVALID', 'RECEIPT_PENDING', 'RECEIPT_RESOLVED',
+      'HTTP_STATUS_INVALID', 'DNS_RESOLUTION_FAILED', 'SESSION_POOLER_IPV4_UNAVAILABLE', 'TCP_CONNECTION_TIMEOUT',
+      'TCP_CONNECTION_REFUSED', 'TCP_CONNECTION_FAILED', 'TLS_CERTIFICATE_OR_HANDSHAKE_REJECTED',
+      'DATABASE_AUTHENTICATION_REJECTED', 'SQL_PERMISSION_DENIED', 'READ_ONLY_SQL_PERMISSION_DENIED',
+      'TLS_OR_DATABASE_HANDSHAKE_FAILED', 'READ_ONLY_DATABASE_CHECK_FAILED', 'PREVIEW_DATABASE_TARGET_REJECTED',
+      'PASSWORD_COMPARISON_INPUT_MISSING', 'URL_PASSWORD_BYTES_MISMATCH', 'URL_PASSWORD_BYTES_MATCH']).has(value) || /^HTTP_[45]\d\d$/.test(String(value)))) continue;
+    if (key === 'sqlstate' && !new Set(['42501', '28P01', '28000', '57P01', '0A000', '42704', '42710']).has(value)) continue;
+    if (key === 'actor' && !['ownerA', 'ownerB', 'outsider'].includes(value)) continue;
+    if (key === 'stage' && !['FIXTURE_INPUT', 'OWN_READ', 'CROSS_READ', 'OUTSIDER_READ', 'MISSING_READ'].includes(value)) continue;
+    if (key === 'receiptState' && !['NOT_REQUIRED', 'DEFERRED_TO_CLEANUP', 'RESOLVED'].includes(value)) continue;
+    if (['expectedCount', 'observedCount', 'httpStatus'].includes(key) && value !== null &&
+      (!Number.isSafeInteger(value) || value < 0)) continue;
+    if (key === 'valueMatch' && typeof value !== 'boolean') continue;
     if (key === 'phase' && !['login', 'login-B', 'login-revoked', '/panel-A', '/panel-B', '/A1', '/A2', '/B1', 'deny-B1', 'deny-A1-A2', 'logout-A', 'logout-B', 'revoked-access'].includes(value)) continue;
-    if (key === 'mode' && !['full', 'playwright-only', 'membership-revocation', 'roles-invitations', 'cross-surface', 'session-providers'].includes(value)) continue;
+    if (key === 'mode' && !['full', 'playwright-only', 'membership-revocation', 'roles-invitations', 'cross-surface', 'session-providers', 'provider-egress', 'window-i2-i5'].includes(value)) continue;
     if (key === 'evidenceRunId' && ![PRIOR_DATA_API_RUN_ID, PRIOR_B4_RUN_ID].includes(value)) continue;
     if (typeof value === 'string') result[key] = value.slice(0, 240);
     else if (typeof value === 'number' || typeof value === 'boolean' || value === null) result[key] = value;
@@ -204,7 +255,7 @@ export function classifySupabaseKeyFormat(value) {
   return 'inválido';
 }
 
-function assertPreviewKeyFormats(adminKey, publicKey) {
+export function assertPreviewKeyFormats(adminKey, publicKey) {
   const adminKeyFormat = classifySupabaseKeyFormat(adminKey);
   const publicKeyFormat = classifySupabaseKeyFormat(publicKey);
   const adminCompatible = adminKeyFormat === 'sb_secret_' || adminKeyFormat === 'legado';
@@ -263,7 +314,8 @@ export async function verifyInitialPreviewState({ env = process.env, fetchImpl =
     initial: {
       authUsers: state.authUsers, organizations: state.organizations, projects: state.projects,
       organizationMembers: state.organizationMembers, projectMembers: state.projectMembers, invitations: state.invitations,
-      auditEvents: state.auditEvents, outboxTotal: state.outboxTotal, pendingOutbox: state.pendingOutbox,
+      auditEvents: state.auditEvents, providerResults: state.providerResults, imports: state.imports,
+      auditIdempotency: state.auditIdempotency, outboxTotal: state.outboxTotal, pendingOutbox: state.pendingOutbox,
       migrationCount: state.migrationCount, latestMigration: state.latestMigration,
       writerLocked: state.writerLocked, environment: state.environment, projectRef: state.projectRef,
       authSettingsHttpStatus,
@@ -271,23 +323,43 @@ export async function verifyInitialPreviewState({ env = process.env, fetchImpl =
   };
 }
 
+export const PREFLIGHT_RESULT_FIELDS = Object.freeze([
+  'auth_users', 'organizations', 'projects', 'organization_members', 'project_members', 'invitations',
+  'audit_events', 'outbox_total', 'pending_outbox', 'provider_results', 'imports', 'audit_idempotency',
+  'openseo_project_jobs', 'openseo_project_connections', 'webmaster_properties', 'provider_budgets',
+  'provider_spend', 'openseo_google_properties', 'google_captures', 'writer_locked',
+  'window_writer_present', 'window_policy_residue', 'writer_sessions', 'admin_can_manage_roles',
+  'admin_can_terminate_sessions', 'receipt_writer_present', 'receipt_writer_executable_functions',
+  'receipt_writer_security_definers', 'environment', 'project_ref', 'migrations',
+]);
+
 export async function verifyReadOnlyPreviewState({ sql = runPreviewReadOnlySql } = {}) {
   const state = await sql(PREFLIGHT_SQL, { ref: U03_PREVIEW_REF });
+  const missingFields = PREFLIGHT_RESULT_FIELDS.filter(field => !Object.hasOwn(state ?? {}, field));
+  if (missingFields.length) throw new Error('PREVIEW_READ_ONLY_RESULT_SCHEMA_INCOMPLETE');
   const expected = EXPECTED_N1_MIGRATIONS;
   const migrationMatch = Array.isArray(state.migrations) && state.migrations.length === expected.length &&
     expected.every((version, index) => state.migrations[index] === version);
   if (!migrationMatch) throw new Error('N1_MIGRATION_SET_MISMATCH');
   if (state.environment !== 'preview' || state.project_ref !== U03_PREVIEW_REF) throw new Error('PREVIEW_DATABASE_IDENTITY_INVALID');
   if (state.writer_locked !== true) throw new Error('WRITER_CAPABILITY_NOT_LOCKED');
+  if (state.window_writer_present === true || state.window_policy_residue !== 0 || state.writer_sessions !== 0)
+    throw new Error('TEMPORARY_ROLE_OR_SESSION_RESIDUE');
+  if (state.admin_can_manage_roles !== true || state.admin_can_terminate_sessions !== true)
+    throw new Error('ADMIN_CONTAINMENT_CAPABILITY_MISSING');
   if (state.receipt_writer_present === true &&
       !isV4SecurityDefinerAllowlistOnly(state.receipt_writer_security_definers))
     throw new Error('PREVIEW_RECEIPT_SECURITY_DEFINER_UNSAFE');
-  const empty = ['auth_users', 'organizations', 'projects', 'organization_members', 'project_members', 'invitations', 'audit_events', 'outbox_total', 'pending_outbox'];
+  const empty = ['auth_users', 'organizations', 'projects', 'organization_members', 'project_members', 'invitations', 'audit_events',
+    'provider_results', 'imports', 'audit_idempotency', 'outbox_total', 'pending_outbox', 'openseo_project_jobs',
+    'openseo_project_connections', 'webmaster_properties', 'provider_budgets', 'provider_spend',
+    'openseo_google_properties', 'google_captures'];
   if (empty.some(field => state[field] !== 0)) throw new Error('PREVIEW_INITIAL_INVENTORY_NOT_EMPTY');
   return {
     authUsers: state.auth_users, organizations: state.organizations, projects: state.projects,
     organizationMembers: state.organization_members, projectMembers: state.project_members, invitations: state.invitations,
-    auditEvents: state.audit_events, outboxTotal: state.outbox_total, pendingOutbox: state.pending_outbox,
+    auditEvents: state.audit_events, providerResults: state.provider_results, imports: state.imports,
+    auditIdempotency: state.audit_idempotency, outboxTotal: state.outbox_total, pendingOutbox: state.pending_outbox,
     migrationCount: state.migrations.length, latestMigration: state.migrations.at(-1),
     writerLocked: state.writer_locked, environment: state.environment, projectRef: state.project_ref,
   };
@@ -299,23 +371,252 @@ export async function runReadOnlyPreflight({ token = process.env.VERCEL_OIDC_TOK
   return { vercel, initial };
 }
 
-export async function verifyFinalPreviewState({ sql = runPreviewReadOnlySql } = {}) {
+export async function verifyFinalPreviewState({ sql = runPreviewReadOnlySql, allowTemporaryWindowCapability = false } = {}) {
   const state = await sql(FINAL_SQL, { ref: U03_PREVIEW_REF });
-  const inventoriesClear = ['auth_users', 'organizations', 'projects', 'organization_members', 'project_members', 'invitations', 'audit_events']
-    .every(field => state[field] === 0);
-  const outboxClear = state.outbox_total === 0 && state.pending_outbox === 0;
-  const capabilitiesSafe = state.writer_locked === true && state.environment === 'preview' && state.project_ref === U03_PREVIEW_REF;
+  const inventoryFields = ['auth_users', 'organizations', 'projects', 'organization_members', 'project_members', 'invitations', 'audit_events',
+    'provider_results', 'imports', 'audit_idempotency', 'openseo_project_jobs', 'openseo_project_connections', 'webmaster_properties',
+    'provider_budgets', 'provider_spend', 'openseo_google_properties', 'google_captures'];
+  const schemaComplete = !!state && [...inventoryFields, 'outbox_total', 'pending_outbox', 'window_writer_present',
+    'window_policy_residue', 'writer_sessions', 'writer_locked', 'environment', 'project_ref'].every(field => Object.hasOwn(state, field));
+  const inventoriesClear = schemaComplete && inventoryFields.every(field => state[field] === 0);
+  const outboxClear = schemaComplete && state.outbox_total === 0 && state.pending_outbox === 0;
+  const capabilitiesSafe = schemaComplete && state.writer_locked === true && state.environment === 'preview' &&
+    state.project_ref === U03_PREVIEW_REF && (allowTemporaryWindowCapability
+      ? state.window_writer_present === true && state.window_policy_residue === 4
+      : state.window_writer_present === false && state.window_policy_residue === 0 && state.writer_sessions === 0);
   return { inventoriesClear, outboxClear, capabilitiesSafe, state };
+}
+
+function u03WindowCapability(runId, expiresAt, env = process.env) {
+  const secret = env.U03_PREVIEW_WRITER_WINDOW_SECRET;
+  if (!secret || !PIN.deploymentId.startsWith('dpl_') || !PIN.host || !/^[0-9a-f]{40}$/i.test(PIN.sha))
+    throw new Error('WINDOW_CAPABILITY_CONFIGURATION_INVALID');
+  return createHmac('sha256', secret).update([
+    'rubik-u03-window-v1', runId, PIN.deploymentId.toLowerCase(), PIN.host.toLowerCase(), PIN.sha.toLowerCase(), String(expiresAt),
+  ].join('\n'), 'utf8').digest('hex');
+}
+
+async function invokeWindowFixture({ kind, actor = 'ownerA', tenantId, projectId, fixtures, runId, env, fetchImpl = fetch, ledger }) {
+  const caseId = `window-fixture-${kind}`;
+  const stageDetail = { actor, stage: 'FIXTURE_INPUT' };
+  try { await ledger(caseId, 'ATTEMPTED', stageDetail); }
+  catch { throw new Error('WINDOW_LEDGER_WRITE_FAILED'); }
+  let bearer;
+  try { bearer = await fixtures.actorBearer(actor); }
+  catch {
+    try { await ledger(caseId, 'BLOCKED', { ...stageDetail, category: 'AUTH_FAILURE', code: 'WINDOW_FIXTURE_ACTOR_AUTH_FAILED' }); }
+    catch { throw new Error('WINDOW_LEDGER_WRITE_FAILED'); }
+    throw new Error('WINDOW_FIXTURE_ACTOR_AUTH_FAILED');
+  }
+  const origin = `https://${PIN.host}`;
+  const expiresAt = Date.now() + 10 * 60_000;
+  const url = `${origin}/api/u03/window-fixtures/${encodeURIComponent(tenantId)}/${projectId}`;
+  const token = env.VERCEL_OIDC_TOKEN;
+  if (!token) throw new Error('OIDC_TOKEN_MISSING');
+  const headers = scopedHeaders(url, {
+    authorization: `Bearer ${bearer.accessToken}`, 'content-type': 'application/json',
+    'x-rubik-u03-expires': String(expiresAt), 'x-rubik-u03-capability': u03WindowCapability(runId, expiresAt, env),
+  }, token, origin, runId);
+  let response;
+  try { response = await fetchImpl(url, { method: 'POST', headers, body: JSON.stringify({ kind, runId }), redirect: 'manual', signal: AbortSignal.timeout(20000) }); }
+  catch {
+    try { await ledger(caseId, 'BLOCKED', { ...stageDetail, category: 'TRANSPORT_FAILURE', code: 'WINDOW_FIXTURE_TRANSPORT_FAILED' }); }
+    catch { throw new Error('WINDOW_LEDGER_WRITE_FAILED'); }
+    throw new Error('WINDOW_FIXTURE_TRANSPORT_FAILED');
+  }
+  if (response.status !== 200) {
+    // The fixture endpoint keeps its public body closed and small. Read only the enumerated
+    // 503 code; never forward arbitrary response text, details or SQL to the campaign ledger.
+    if (response.status === 503) {
+      const body = await response.json().catch(() => null);
+      const safe503 = new Set(['SIGNING_UNAVAILABLE', 'RECEIPT_PENDING']);
+      const code = body?.ok === false && safe503.has(body.code) ? body.code : 'UNCLASSIFIED';
+      try { await ledger(caseId, 'BLOCKED', { ...stageDetail, category: 'HTTP_FAILURE', httpStatus: 503, code }); }
+      catch { throw new Error('WINDOW_LEDGER_WRITE_FAILED'); }
+      throw new Error(`WINDOW_FIXTURE_HTTP_${kind.toUpperCase()}_503_${code}`);
+    }
+    const code = Number.isInteger(response.status) && response.status >= 400 && response.status <= 599
+      ? `HTTP_${response.status}` : 'HTTP_STATUS_INVALID';
+    try { await ledger(caseId, 'BLOCKED', { ...stageDetail, category: 'HTTP_FAILURE',
+      ...(Number.isInteger(response.status) ? { httpStatus: response.status } : {}), code }); }
+    catch { throw new Error('WINDOW_LEDGER_WRITE_FAILED'); }
+    throw new Error(`WINDOW_FIXTURE_HTTP_${kind.toUpperCase()}_${code}`);
+  }
+  const body = await response.json().catch(() => null);
+  if (body?.ok !== true || body.kind !== kind || (kind === 'audit' ? !Number.isSafeInteger(body.seq) : typeof body.id !== 'string')) {
+    try { await ledger(caseId, 'BLOCKED', { ...stageDetail, category: 'RESPONSE_INVALID', code: 'WINDOW_FIXTURE_RESPONSE_INVALID' }); }
+    catch { throw new Error('WINDOW_LEDGER_WRITE_FAILED'); }
+    throw new Error(`WINDOW_FIXTURE_RESPONSE_INVALID_${kind.toUpperCase()}`);
+  }
+  try { await ledger(caseId, 'PASS', { ...stageDetail, category: 'FIXTURE_CREATED', count: kind === 'audit' ? body.seq : 1 }); }
+  catch { throw new Error('WINDOW_LEDGER_WRITE_FAILED'); }
+  return body;
+}
+
+export async function verifyProtectedWindowRuntime({ runId, env = process.env, fetchImpl = fetch }) {
+  if (env.U03_PREVIEW_WRITER_WINDOW !== 'armed-run-capability' || env.U03_PREVIEW_WRITER_WINDOW_RUN_ID !== runId ||
+      env.U03_PREVIEW_WRITER_WINDOW_REF !== U03_PREVIEW_REF || env.U03_PREVIEW_WRITER_WINDOW_SHA !== PIN.sha ||
+      env.U03_PIN_DEPLOYMENT_ID !== PIN.deploymentId || env.U03_PIN_DEPLOYMENT_HOST !== PIN.host ||
+      env.U03_PIN_DEPLOYMENT_SHA !== PIN.sha) throw new Error('WINDOW_DEPLOYMENT_ENVIRONMENT_MISMATCH');
+  const origin = `https://${PIN.host}`;
+  const url = `${origin}/api/u03/window`;
+  const expiresAt = Date.now() + 5 * 60_000;
+  const token = env.VERCEL_OIDC_TOKEN;
+  if (!token) throw new Error('OIDC_TOKEN_MISSING');
+  const headers = scopedHeaders(url, {
+    'x-rubik-u03-expires': String(expiresAt),
+    'x-rubik-u03-capability': u03WindowCapability(runId, expiresAt, env),
+  }, token, origin, runId);
+  let response;
+  try { response = await fetchImpl(url, { method: 'GET', headers, redirect: 'manual', signal: AbortSignal.timeout(20000) }); }
+  catch { throw new Error('WINDOW_RUNTIME_PREFLIGHT_TRANSPORT_FAILED'); }
+  if (response.url && new URL(response.url).origin !== origin) throw new Error('WINDOW_RUNTIME_EXTERNAL_RESPONSE_REJECTED');
+  if (response.status === 404) {
+    const code = response.headers?.get?.('x-rubik-u03-diagnostic');
+    if (new Set(['RUNTIME_WRITER_POOL_UNAVAILABLE','RUNTIME_CLIENT_TLS_REJECTED','RUNTIME_PRINCIPAL_REJECTED',
+      'RUNTIME_PRIVILEGES_REJECTED','RUNTIME_DEFINERS_REJECTED','RUNTIME_PROVIDER_RPC_REJECTED',
+      'RUNTIME_RLS_REJECTED','RUNTIME_INVENTORY_REJECTED','RUNTIME_POOL_CONNECT_QUERY_FAILED',
+      'RUNTIME_TLS_QUERY_FAILED','RUNTIME_IDENTITY_QUERY_FAILED','RUNTIME_DEFINERS_QUERY_FAILED',
+      'RUNTIME_PROVIDER_RPC_QUERY_FAILED','RUNTIME_RLS_QUERY_FAILED','RUNTIME_INVENTORY_QUERY_FAILED']).has(code))
+      throw new Error(code);
+  }
+  if (response.status !== 200)
+    throw new Error(`WINDOW_RUNTIME_PREFLIGHT_HTTP_${response.status}`);
+  const body = await response.json().catch(() => null);
+  const expected = ['CLIENT_TLS','DIRECT_PRINCIPAL','PRIVILEGES','PROVIDER_RPC_DENIED','SECURITY_DEFINER_ALLOWLIST','RLS','EMPTY_INITIAL_STATE'];
+  if (body?.ok !== true || JSON.stringify(body.checks) !== JSON.stringify(expected))
+    throw new Error('WINDOW_RUNTIME_PREFLIGHT_REJECTED');
+  return { passed: true, status: response.status };
+}
+
+export async function runProtectedWindowSurfaces({ fixtures, a1, b1, runId, env = process.env, fetchImpl = fetch, ledger,
+  i2RoutesFn = null }) {
+  if (!fixtures || !a1 || !b1 || typeof ledger !== 'function') throw new Error('WINDOW_SURFACE_INPUT_INVALID');
+  const created = {};
+  for (const owner of [
+    { actor: 'ownerA', tenantId: `${fixtures.namespace}-a`, projectId: 'a1', id: a1, suffix: 'A' },
+    { actor: 'ownerB', tenantId: `${fixtures.namespace}-b`, projectId: 'b1', id: b1, suffix: 'B' },
+  ]) {
+    const audit = await invokeWindowFixture({ kind: 'audit', ...owner, fixtures, runId, env, fetchImpl, ledger });
+    const result = await invokeWindowFixture({ kind: 'result', ...owner, fixtures, runId, env, fetchImpl, ledger });
+    const imported = await invokeWindowFixture({ kind: 'import', ...owner, fixtures, runId, env, fetchImpl, ledger });
+    created[owner.suffix] = { auditSeq: audit.seq, resultId: result.id, importId: imported.id };
+  }
+  const cross = await fixtures.verifyPopulatedCrossSurface({ a1, b1,
+    auditSeqA: created.A.auditSeq, auditSeqB: created.B.auditSeq,
+    resultIdA: created.A.resultId, resultIdB: created.B.resultId,
+    importIdA: created.A.importId, importIdB: created.B.importId });
+  if (cross?.passed !== true || cross.checks?.length !== 3) throw new Error('I5_POPULATED_CROSS_SURFACE_REJECTED');
+  await ledger('i5-populated-signed-rows', 'PASS', { cases: cross.checks.length });
+  const routeCheck = i2RoutesFn ?? (await import('./u03-preview-i2-routes.mjs')).runProtectedI2Routes;
+  const routes = await routeCheck({ fixtures, resultId: created.A.resultId, runId, env, ledger,
+    capabilityFor: expiresAt => u03WindowCapability(runId, expiresAt, env) });
+  if (routes?.passed !== true || routes.positiveCount < 2 || routes.negativeCount < 5)
+    throw new Error('I2_PROTECTED_ROUTES_REJECTED');
+  await ledger('i2-protected-routes', 'PASS', { cases: routes.positiveCount + routes.negativeCount });
+  return { i2: true, i5: true, resultId: created.A.resultId };
+}
+
+/** H1-A export/verification/restore is deliberately separate from the U03 matrix. */
+export async function runProtectedWindowH1Export({ fixtures, runId, env = process.env, fetchImpl = fetch, ledger }) {
+  if (!fixtures || typeof ledger !== 'function') throw new Error('H1_EXPORT_INPUT_INVALID');
+  const tenantId = fixtures.namespace + '-a';
+  const bearer = await fixtures.actorBearer('ownerA');
+  const expiresAt = Date.now() + 10 * 60_000;
+  const origin = `https://${PIN.host}`;
+  const exportUrl = `${origin}/proyectos/${encodeURIComponent(tenantId)}/a1/exportar`;
+  const headers = scopedHeaders(exportUrl, {
+    authorization: `Bearer ${bearer.accessToken}`, 'x-rubik-u03-expires': String(expiresAt),
+    'x-rubik-u03-capability': u03WindowCapability(runId, expiresAt, env),
+  }, env.VERCEL_OIDC_TOKEN, origin, runId);
+  let response;
+  try { response = await fetchImpl(exportUrl, { headers, redirect: 'manual', signal: AbortSignal.timeout(30000) }); }
+  catch { throw new Error('PREVIEW_HTTP_EXPORT_TRANSPORT_FAILED'); }
+  if (response.status !== 200 || response.url && new URL(response.url).origin !== origin) throw new Error(`PREVIEW_HTTP_EXPORT_FAILED_${response.status}`);
+  const document = await response.json().catch(() => null);
+  if (!document || typeof document !== 'object') throw new Error('PREVIEW_HTTP_EXPORT_INVALID');
+  const [{ loadKeyring }, { verifyProjectExport }, { planRestore }] = await Promise.all([
+    import('../src/lib/provenance/keyring.ts'), import('../src/lib/recovery/verify-export.ts'), import('../src/lib/restore/plan.ts'),
+  ]);
+  const loaded = loadKeyring(env);
+  if (!loaded.ok) throw new Error('LOCAL_EXPORT_KEYRING_UNAVAILABLE');
+  const project = await fixtures.actorAccess('ownerA').api.from('projects').select('id,organization_id').eq('slug','a1').eq('organization_id', (await fixtures.actorAccess('ownerA').api.from('organizations').select('id').eq('slug',tenantId).single()).data?.id).single();
+  if (project.error || !project.data) throw new Error('EXPORT_SCOPE_LOOKUP_FAILED');
+  const ref = { projectId: project.data.id, organizationId: project.data.organization_id, scope: { tenantId, projectId: 'a1' } };
+  const verified = verifyProjectExport(document, loaded.keyring, ref);
+  if (!verified.ok || verified.completeness?.status !== 'COMPLETE') throw new Error('OFFLINE_EXPORT_VERIFICATION_FAILED');
+  const altered = structuredClone(document);
+  if (!Array.isArray(altered.audit?.rows) || !altered.audit.rows.length) throw new Error('EXPORT_AUDIT_EMPTY');
+  altered.audit.rows[0].action = 'u03.tampered';
+  const tampered = verifyProjectExport(altered, loaded.keyring, ref);
+  if (tampered.ok && tampered.audit.valid) throw new Error('EXPORT_TAMPER_ACCEPTED');
+  if (planRestore(altered, loaded.keyring, { operatorId: fixtures.actorAccess('ownerA').id }).ok)
+    throw new Error('TAMPERED_RESTORE_PLAN_ACCEPTED');
+  await ledger('preview-http-export-and-offline-verification', 'PASS', { httpStatus: response.status });
+  const restore = await restorePreviewDocumentLocally(document, env);
+  await ledger('preview-export-restore-second-local-stack', restore ? 'PASS' : 'BLOCKED', { restoreCount: restore ? 2 : 0 });
+  if (!restore) throw new Error('PREVIEW_EXPORT_LOCAL_RESTORE_FAILED');
+  return { ref, runId, deploymentId: PIN.deploymentId, host: PIN.host, sha: PIN.sha, restoreStatus: 'PASS', restoreCount: 2 };
+}
+
+async function reconcileWindowProject({ fixtures, tenantId, projectId, actor, runId, env, fetchImpl, ledger }) {
+  const bearer = await fixtures.actorBearer(actor);
+  const origin = `https://${PIN.host}`;
+  const url = `${origin}/api/u03/window-cleanup/${encodeURIComponent(tenantId)}/${projectId}`;
+  const expiresAt = Date.now() + 5 * 60_000;
+  const headers = scopedHeaders(url, {
+    authorization: `Bearer ${bearer.accessToken}`, 'content-type': 'application/json',
+    'x-rubik-u03-expires': String(expiresAt), 'x-rubik-u03-capability': u03WindowCapability(runId, expiresAt, env),
+  }, env.VERCEL_OIDC_TOKEN, origin, runId);
+  let response;
+  try { response = await fetchImpl(url, { method: 'POST', headers, body: JSON.stringify({ runId }), redirect: 'manual', signal: AbortSignal.timeout(30000) }); }
+  catch { throw new Error('WINDOW_CLEANUP_TRANSPORT_FAILED'); }
+  if (response.status !== 200 || response.url && new URL(response.url).origin !== origin) throw new Error(`WINDOW_CLEANUP_HTTP_${response.status}`);
+  const body = await response.json().catch(() => null);
+  if (body?.ok !== true || !Number.isSafeInteger(body.resultRowsErased) || !Number.isSafeInteger(body.importsErased) ||
+      !Number.isSafeInteger(body.receiptsProcessed)) throw new Error('WINDOW_CLEANUP_RESPONSE_INVALID');
+  await ledger(`window-cleanup-${projectId}`, 'PASS', { resultRowsErased: body.resultRowsErased,
+    importsErased: body.importsErased, receiptsProcessed: body.receiptsProcessed });
+}
+
+export async function runProtectedWindowCleanup({ fixtures, runId, env = process.env, fetchImpl = fetch, ledger }) {
+  if (!fixtures || !ledger || !env.VERCEL_OIDC_TOKEN) throw new Error('WINDOW_CLEANUP_INPUT_INVALID');
+  const namespace = fixtures.namespace;
+  await reconcileWindowProject({ fixtures, tenantId: `${namespace}-a`, projectId: 'a1', actor: 'ownerA', runId, env, fetchImpl, ledger });
+  await reconcileWindowProject({ fixtures, tenantId: `${namespace}-a`, projectId: 'a2', actor: 'ownerA', runId, env, fetchImpl, ledger });
+  await reconcileWindowProject({ fixtures, tenantId: `${namespace}-b`, projectId: 'b1', actor: 'ownerB', runId, env, fetchImpl, ledger });
+  return true;
+}
+
+async function restorePreviewDocumentLocally(document, env) {
+  return await new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, ['scripts/u03-preview-restore-local.mjs'], { cwd: process.cwd(), windowsHide: true,
+      env: { ...process.env, PROVENANCE_SIGNING_KEYS: env.PROVENANCE_SIGNING_KEYS,
+        PROVENANCE_ACTIVE_KEY_ID: env.PROVENANCE_ACTIVE_KEY_ID }, stdio: ['pipe', 'pipe', 'ignore'] });
+    let output = '';
+    child.stdout.setEncoding('utf8');
+    child.stdout.on('data', chunk => { output = (output + chunk).slice(-1000); });
+    child.on('error', () => reject(new Error('LOCAL_RESTORE_PROCESS_START_FAILED')));
+    child.on('close', code => {
+      const match = output.match(/^U03_PREVIEW_TO_LOCAL_RESTORE PASS restoreCount=2$/m);
+      if (code === 0 && match) resolve(true);
+      else reject(new Error('PREVIEW_EXPORT_LOCAL_RESTORE_FAILED'));
+    });
+    child.stdin.on('error', () => {});
+    child.stdin.end(JSON.stringify(document));
+  });
 }
 
 export async function runHostedU03Campaign({
   env = process.env, sha, runId = randomUUID(), ledger = null, preflightFn = verifyInitialPreviewState,
   fixtureFactory = createDataApiFixtureRun, browserFn = runB4, finalCheckFn = verifyFinalPreviewState,
-  receiptProcessorFn = openPreviewReceiptProcessor, sessionProvidersFn = runSessionProviders,
+  runtimePreflightFn = verifyProtectedWindowRuntime, windowSurfacesFn = runProtectedWindowSurfaces,
+  windowCleanupFn = runProtectedWindowCleanup,
+  receiptProcessorFn = openPreviewReceiptProcessor, sessionProvidersFn = runSessionProviders, providerEgressFn = runProviderEgressOnly,
   root = process.cwd(), mode = 'full',
 } = {}) {
   if (!sha) throw new Error('CAMPAIGN_SHA_REQUIRED');
-  if (!['full', 'playwright-only', 'membership-revocation', 'roles-invitations', 'cross-surface', 'session-providers'].includes(mode)) throw new Error('CAMPAIGN_MODE_INVALID');
+  if (!['full', 'playwright-only', 'membership-revocation', 'roles-invitations', 'cross-surface', 'session-providers', 'provider-egress', 'window-i2-i5'].includes(mode)) throw new Error('CAMPAIGN_MODE_INVALID');
   const ledgerDir = join(root, 'test-results', 'u03-hosted');
   const ledgerPath = join(ledgerDir, `${runId}.jsonl`);
   const captureRoot = join(ledgerDir, runId);
@@ -340,6 +641,9 @@ export async function runHostedU03Campaign({
   let rolesPassed = false;
   let crossPassed = false;
   let sessionProvidersPassed = false;
+  let providerEgressPassed = false;
+  let windowSurfacesPassed = false;
+  let windowCleanupPassed = false;
   await ledger('campaign-start', 'STARTED', { deploymentId: PIN.deploymentId, sha: PIN.sha, host: PIN.host, projectRef: U03_PREVIEW_REF, mode });
   try {
     if (!env.U03_PREVIEW_ADMIN_KEY || !env.U03_PREVIEW_PUBLIC_KEY) throw new Error('PREVIEW_KEYS_REQUIRED');
@@ -347,6 +651,10 @@ export async function runHostedU03Campaign({
     await ledger('key-format', 'CLASSIFIED', keyFormats);
     verified = await preflightFn({ env });
     await ledger('preflight', 'PASS', { ...verified.initial, http: verified.initial?.authSettingsHttpStatus ?? null, deploymentId: verified.vercel?.deploymentId, sha: verified.vercel?.sha, host: verified.vercel?.host, projectRef: U03_PREVIEW_REF });
+    if (mode === 'window-i2-i5') {
+      const runtimeProof = await runtimePreflightFn({ runId, env });
+      await ledger('window-runtime-pooler-preflight', 'PASS', { httpStatus: runtimeProof.status, deploymentId: PIN.deploymentId, sha: PIN.sha, host: PIN.host });
+    }
     if (mode === 'membership-revocation') {
       receiptProcessor = await receiptProcessorFn({ env });
       await ledger('preview-receipt-writer', 'PASS', { projectRef: U03_PREVIEW_REF });
@@ -361,6 +669,13 @@ export async function runHostedU03Campaign({
       await ledger('browser-b4', 'SKIP_PRIOR_EVIDENCE', { evidenceRunId: PRIOR_B4_RUN_ID });
       browserResult = await sessionProvidersFn({ env, ...session, ledger, runId, captureRoot });
       sessionProvidersPassed = browserResult?.passed === true;
+    } else if (mode === 'provider-egress') {
+      const session = await fixtures.createSessionFixtures();
+      await ledger('fixture-session', 'CREATED', { namespace: fixtures.namespace, count: 1 });
+      await ledger('data-api-matrix', 'SKIP_PRIOR_EVIDENCE', { cases: 12, evidenceRunId: PRIOR_DATA_API_RUN_ID });
+      await ledger('browser-b4', 'SKIP_PRIOR_EVIDENCE', { evidenceRunId: PRIOR_B4_RUN_ID });
+      browserResult = await providerEgressFn({ env: { VERCEL_OIDC_TOKEN: env.VERCEL_OIDC_TOKEN }, ...session, ledger, runId, captureRoot });
+      providerEgressPassed = browserResult?.passed === true;
     } else if (mode === 'membership-revocation') {
       const { a1 } = await fixtures.createRevocationFixtures();
       await ledger('fixture-revocation', 'CREATED', { count: 2, namespace: fixtures.namespace });
@@ -387,6 +702,15 @@ export async function runHostedU03Campaign({
       const result = await fixtures.runCrossSurface({ ...organizations, ...projects });
       crossPassed = result.passed === true;
       await ledger('cross-surface', 'PASS', { cases: result.cases });
+    } else if (mode === 'window-i2-i5') {
+      if (env.U03_PREVIEW_WRITER_WINDOW !== 'armed-run-capability' || env.U03_PREVIEW_WRITER_WINDOW_RUN_ID !== runId)
+        throw new Error('WINDOW_CAPABILITY_ENVIRONMENT_MISMATCH');
+      await ledger('data-api-matrix', 'SKIP_PRIOR_EVIDENCE', { cases: 12, evidenceRunId: PRIOR_DATA_API_RUN_ID });
+      await ledger('browser-b4', 'SKIP_PRIOR_EVIDENCE', { evidenceRunId: PRIOR_B4_RUN_ID });
+      const surfaces = await windowSurfacesFn({ fixtures, a1: projects.a1, b1: projects.b1, runId, env, ledger });
+      if (surfaces?.i2 !== true || surfaces?.i5 !== true) throw new Error('WINDOW_I2_I5_EVIDENCE_INCOMPLETE');
+      windowSurfacesPassed = true;
+      await ledger('window-i2-i5-populated-surfaces', 'PASS', { cases: 2, deploymentId: PIN.deploymentId, host: PIN.host, sha: PIN.sha });
     } else {
       if (mode === 'playwright-only') {
         await ledger('data-api-matrix', 'SKIP_PRIOR_EVIDENCE', { cases: 12, reason: 'PRIOR_RUN_PASS', evidenceRunId: PRIOR_DATA_API_RUN_ID });
@@ -410,6 +734,16 @@ export async function runHostedU03Campaign({
     } catch { /* cleanup still proceeds */ }
   } finally {
     if (fixtures) {
+      if (mode === 'window-i2-i5') {
+        try {
+          await windowCleanupFn({ fixtures, runId, env, ledger });
+          windowCleanupPassed = true;
+        } catch (error) {
+          failure ??= typeof error?.message === 'string' && /^[A-Z0-9_]{3,80}$/.test(error.message)
+            ? error.message : 'WINDOW_RECEIPT_RECONCILIATION_FAILED';
+          try { await ledger('window-receipt-reconciliation', 'BLOCKED', { code: failure }); } catch { /* retain IDs; no project deletion */ }
+        }
+      }
       if (receiptProcessor) {
         for (const projectId of fixtures.snapshot().projectIds) {
           try {
@@ -424,6 +758,7 @@ export async function runHostedU03Campaign({
         }
       }
       try {
+        if (mode === 'window-i2-i5' && !windowCleanupPassed) throw new Error('WINDOW_CLEANUP_NOT_PROVEN');
         cleanupResult = await fixtures.cleanup();
         await ledger('fixture-cleanup', cleanupResult?.ok ? 'PASS' : 'PARTIAL', {
           userIds: cleanupResult?.userIds ?? [], organizationIds: cleanupResult?.organizationIds ?? [], projectIds: cleanupResult?.projectIds ?? [],
@@ -439,7 +774,7 @@ export async function runHostedU03Campaign({
     }
     if (verified) {
       try {
-        finalCheck = await finalCheckFn();
+        finalCheck = await finalCheckFn({ allowTemporaryWindowCapability: mode === 'window-i2-i5' });
         await ledger('final-inventory', finalCheck.inventoriesClear ? 'PASS' : 'FAIL', {
           authUsers: finalCheck.state?.auth_users ?? null, organizations: finalCheck.state?.organizations ?? null,
           projects: finalCheck.state?.projects ?? null, organizationMembers: finalCheck.state?.organization_members ?? null,
@@ -470,8 +805,17 @@ export async function runHostedU03Campaign({
       mode === 'roles-invitations' ? (rolesPassed && clean ? 'PASS' : 'BLOCKED') :
       mode === 'cross-surface' ? (crossPassed && clean ? 'PASS' : 'BLOCKED') :
       mode === 'session-providers' ? (sessionProvidersPassed && clean ? 'AWAITING_VISUAL_REVIEW' : 'BLOCKED') :
+      mode === 'provider-egress' ? (providerEgressPassed && clean ? 'PASS' : 'BLOCKED') :
+      mode === 'window-i2-i5' ? (windowSurfacesPassed && clean ? 'PASS' : 'BLOCKED') :
       (b4Pass && clean ? 'AWAITING_VISUAL_REVIEW' : 'BLOCKED'));
   try {
+    if (mode === 'window-i2-i5') {
+      await ledger('i2-evidence-before-role-rollback', status === 'PASS' ? 'PASS' : 'BLOCKED',
+        { code: status === 'PASS' ? null : failure ?? 'I2_OR_CLEANUP_UNVERIFIED' });
+      await ledger('i5-evidence-before-role-rollback', status === 'PASS' ? 'PASS' : 'BLOCKED',
+        { code: status === 'PASS' ? null : failure ?? 'I5_OR_CLEANUP_UNVERIFIED' });
+      await ledger('h1a-result', 'NOT_RUN');
+    }
     await ledger('campaign-global', status, {
       runId, sha, deploymentId: PIN.deploymentId, visualReview: b4Pass ? 'PENDING_MANUAL_REVIEW' : 'NOT_RUN',
       result: status,
@@ -486,7 +830,7 @@ export async function runHostedU03Campaign({
 
 async function main() {
   const sha = (await execFileAsync('git', ['rev-parse', 'HEAD'], { windowsHide: true })).stdout.trim();
-  const campaignModes = ['--playwright-only', '--membership-revocation-only', '--roles-invitations-only', '--cross-surface-only', '--session-providers-only'].filter(arg => process.argv.includes(arg));
+  const campaignModes = ['--playwright-only', '--membership-revocation-only', '--roles-invitations-only', '--cross-surface-only', '--session-providers-only', '--provider-egress-only', '--window-i2-i5-only'].filter(arg => process.argv.includes(arg));
   if (campaignModes.length > 1 || campaignModes.length && process.argv.some(arg => ['--readonly-preflight', '--credential-preflight-only'].includes(arg))) {
     console.error('U03 B-4 BLOCKED: CAMPAIGN_MODE_INVALID; no fixtures were created.');
     process.exitCode = 1;
@@ -521,12 +865,16 @@ async function main() {
     process.exitCode = 1;
     return;
   }
-  const mode = process.argv.includes('--session-providers-only') ? 'session-providers' :
+  const mode = process.argv.includes('--window-i2-i5-only') ? 'window-i2-i5' :
+    process.argv.includes('--provider-egress-only') ? 'provider-egress' :
+    process.argv.includes('--session-providers-only') ? 'session-providers' :
     process.argv.includes('--membership-revocation-only') ? 'membership-revocation' :
     process.argv.includes('--cross-surface-only') ? 'cross-surface' :
     process.argv.includes('--roles-invitations-only') ? 'roles-invitations' :
     process.argv.includes('--playwright-only') ? 'playwright-only' : 'full';
-  const result = await runHostedU03Campaign({ sha, env: process.env, mode });
+  const runIdAt = process.argv.indexOf('--run-id');
+  const runId = runIdAt >= 0 ? process.argv[runIdAt + 1] : undefined;
+  const result = await runHostedU03Campaign({ sha, env: process.env, mode, ...(runId ? { runId } : {}) });
   if (!['AWAITING_VISUAL_REVIEW', 'PASS'].includes(result.status)) process.exitCode = 1;
 }
 

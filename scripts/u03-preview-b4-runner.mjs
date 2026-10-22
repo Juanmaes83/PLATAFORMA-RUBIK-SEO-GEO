@@ -7,7 +7,7 @@ import { join, relative } from "node:path";
 import { chromium } from "playwright";
 
 const execFileAsync = promisify(execFile);
-export const PIN = Object.freeze({
+const PIN_DEFAULTS = {
   projectId: "prj_HgnTtNtisi9Kt1A4Dq2pxoCQBook",
   teamId: "team_hLhdb3M9MviTIysXD9whFF2c",
   deploymentId: "dpl_Hmpevn3Vds4pFUzbiiFFB3vVGCKD",
@@ -15,9 +15,19 @@ export const PIN = Object.freeze({
   branch: "codex/u03-session-isolation-20261020",
   host: "plataforma-rubik-seo-3elivlu19-juanma-espinosas-projects.vercel.app",
   supabaseRef: "rhnnplewqsekrnaousyl",
+};
+// A campaign may pin a newly-created Preview deployment by its inspected immutable ID.
+// The project, team and Supabase ref stay fixed; preflight still validates READY, branch and SHA.
+export const PIN = Object.freeze({
+  ...PIN_DEFAULTS,
+  deploymentId: process.env.U03_PIN_DEPLOYMENT_ID || PIN_DEFAULTS.deploymentId,
+  host: process.env.U03_PIN_DEPLOYMENT_HOST || PIN_DEFAULTS.host,
+  sha: process.env.U03_PIN_DEPLOYMENT_SHA || PIN_DEFAULTS.sha,
+  branch: process.env.U03_PIN_DEPLOYMENT_BRANCH || PIN_DEFAULTS.branch,
 });
 
 const OIDC_HEADER = "x-vercel-trusted-oidc-idp-token";
+const U03_RUN_ID_HEADER = "x-rubik-u03-run-id";
 const ORIGIN = `https://${PIN.host}`;
 const CHILD_ENV_KEYS = ["PATH", "SystemRoot", "WINDIR", "TEMP", "TMP", "USERPROFILE", "LOCALAPPDATA", "APPDATA", "HOMEDRIVE", "HOMEPATH", "COMSPEC", "PATHEXT", "PROCESSOR_ARCHITECTURE", "NUMBER_OF_PROCESSORS", "OS"];
 const NETWORK_ENV_KEYS = ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "all_proxy", "no_proxy", "NODE_USE_ENV_PROXY", "NODE_USE_SYSTEM_CA", "NODE_EXTRA_CA_CERTS", "SSL_CERT_FILE", "SSL_CERT_DIR"];
@@ -44,19 +54,27 @@ function normalizedHost(value) {
 export function deploymentMatches(actual, pin = PIN) {
   if (!actual || actual.id !== pin.deploymentId) return false;
   if (normalizedHost(actual.url) !== pin.host) return false;
-  if ((actual.meta?.githubCommitSha ?? actual.gitSource?.sha) !== pin.sha) return false;
-  if ((actual.meta?.githubCommitRef ?? actual.gitSource?.ref) !== pin.branch) return false;
+  // GitHub-triggered and CLI deployments use different metadata names. Reject
+  // conflicting claims instead of accepting the first populated field.
+  const shas = [actual.meta?.githubCommitSha, actual.meta?.gitCommitSha, actual.gitSource?.sha].filter(value => value != null);
+  const refs = [actual.meta?.githubCommitRef, actual.meta?.gitCommitRef, actual.gitSource?.ref].filter(value => value != null);
+  if (!shas.length || shas.some(value => value !== pin.sha)) return false;
+  if (!refs.length || refs.some(value => value !== pin.branch)) return false;
   if ((actual.projectId ?? actual.project?.id) !== pin.projectId) return false;
   if ((actual.readyState ?? actual.state) !== "READY") return false;
   if (actual.target === "production") return false;
   return true;
 }
 
-export function scopedHeaders(url, inputHeaders, token, allowedOrigin = ORIGIN) {
-  const headers = Object.fromEntries(Object.entries(inputHeaders ?? {}).filter(([key]) => key.toLowerCase() !== OIDC_HEADER));
+export function scopedHeaders(url, inputHeaders, token, allowedOrigin = ORIGIN, runId = null) {
+  const headers = Object.fromEntries(Object.entries(inputHeaders ?? {}).filter(([key]) =>
+    key.toLowerCase() !== OIDC_HEADER && key.toLowerCase() !== U03_RUN_ID_HEADER));
   let origin = "";
   try { origin = new URL(url).origin; } catch { return headers; }
-  if (origin === allowedOrigin && token) headers[OIDC_HEADER] = token;
+  if (origin === allowedOrigin) {
+    if (token) headers[OIDC_HEADER] = token;
+    if (typeof runId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(runId)) headers[U03_RUN_ID_HEADER] = runId;
+  }
   return headers;
 }
 
@@ -66,7 +84,7 @@ export function isExternalRedirect(requestUrl, redirectedFromUrl, allowedOrigin 
   catch { return true; }
 }
 
-export async function installScopedRoutes(context, page, token, allowedOrigin = ORIGIN, onEvent = () => {}, onRouteEvent = () => {}) {
+export async function installScopedRoutes(context, page, token, allowedOrigin = ORIGIN, onEvent = () => {}, onRouteEvent = () => {}, runId = null) {
   // Playwright routes are called once for a redirect chain. CDP Fetch pauses each
   // Chromium request, including the GET produced by an action's 303 response.
   const session = await context.newCDPSession(page);
@@ -108,7 +126,7 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
         (parsed.pathname === "/acceso" || Object.keys(inputHeaders).some(name => name.toLowerCase() === "next-action"));
       if (authAction) onRouteEvent("auth-action-post");
       else if (origin === allowedOrigin) onRouteEvent(navigation ? "pinned-navigation" : "pinned-request");
-      const headers = scopedHeaders(url, inputHeaders, token, allowedOrigin);
+      const headers = scopedHeaders(url, inputHeaders, token, allowedOrigin, runId);
       await session.send("Fetch.continueRequest", {
         requestId: paused.requestId,
         headers: Object.entries(headers).map(([name, value]) => ({ name, value: String(value) })),

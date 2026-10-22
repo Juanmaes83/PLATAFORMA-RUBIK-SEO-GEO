@@ -1,5 +1,13 @@
 # Control canónico del proyecto Rubik SEO/GEO
 
+## Estado operativo actual · 22/10/2026 · cierre U03 en Preview
+
+I-2, I-5 y U03 tienen **PASS alojado / CERRADO como gate** en el run `330c6e4b-14ad-439a-a8cf-43d92c73fadb` contra Preview `rhnnplewqsekrnaousyl`, deployment `dpl_56PEz8SoynyU8UD1ufRenAesQyx5` y SHA funcional `ed0bbee9006feabae546fa376e4eaf7beffafc42`. La [matriz U03](U03-PREVIEW-MATRIZ-20261018.md) y el [runbook](U03-I2-I5-H1A-VENTANA-20261020.md) documentan filas firmadas pobladas, I-2, I-5, recibos resueltos, limpieza, contención independiente y retirada de la ventana. Data API, B-4 y demás PASS previos se reutilizaron; no se repitieron. El ledger original permanece local en el checkout de Juanma y no se presenta como evidencia publicada en GitHub.
+
+La [PR #143](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/143) permanece OPEN/Draft y sin fusionar en este corte: el resultado del ensayo no acredita integración o despliegue de `main`. El código y sus rutas de prueba requieren revisión de integración por HEAD exacto antes de fusionarse. H1-A quedó `NOT_RUN`; U04/Sarah, H1 y H2 siguen abiertos. Antes de Sarah falta resolver R1 (consistencia de exportación) y las condiciones de aceptación de su [paquete](U04-PAQUETE-ACEPTACION-20261020.md). H2 añade los gates de [operación N1-07/08](H2-AUDITORIA-OPERATIVA-20261020.md). GitHub Actions permanece bloqueada por facturación; la verificación local no es CI verde.
+
+Los apartados inferiores son cortes históricos: sus referencias a U03 BLOCKED, #129 Draft, PR y deployments anteriores no sustituyen este estado. Cuando #143 se fusione, registrar el SHA de merge, el despliegue y la validación posterior en un nuevo corte, sin reescribir los ledgers.
+
 ## Estado operativo actual · 19/10/2026 · V-4 Preview acreditado
 
 La PR #129 continúa Draft. V-4 alojado pasó en el run `b170134c-5538-4f81-b459-1bb762b95bad`: retirada con JWT vigente, recibo firmado y limpieza/contención; lectura independiente confirmó inventario y outbox cero, rol/políticas temporales ausentes y escritor del producto bloqueado. Data API 12/12 y B-4 Chromium escritorio/móvil con aceptación visual son evidencia anterior. U03 global sigue abierto por los roles, invitación/consentimiento y sesión/JWT pendientes en la matriz; H1 por la pasada integral ficticia y U04/Sarah; H2 por aceptación operativa y comercial. El estado operativo inferior corresponde a cortes anteriores y sus instrucciones de repetir V-4 ya no aplican.
@@ -125,3 +133,31 @@ esta evidencia y sigue condicionado por facturación. S2 solo planificado; no im
 ## Fuentes internas
 
 `docs/ROADMAP.md`; `docs/HANDOFF.md`; `docs/OPERATIONS-STATUS.md`; `docs/SECURITY-AUDIT-MEMBERSHIP-HMAC-20261015.md`; `docs/GRUPO-3-PROTOCOLO-AISLAMIENTO-ALOJADO-20261014.md`; `docs/PILOTO-SARAH-CIERRE-TECNICO-20261015.md` (fusionada en #86).
+
+## Corte U03/#143 · 20/10/2026 · HTTP local y contención
+
+#143 continúa OPEN/Draft; HEAD de origen `26e8cb26004c0a96e0df4db862c9dcb2b61c2499`, base `main@a0a40b776361f292d910e285b390d5e753da8d7b`. P-1 servidor y PASS alojados anteriores permanecen reutilizables; no se repitieron. En el nuevo ensayo local `c45dfdd6-3a84-4b13-8185-13b820b9e0e5` (nota: ledger canónico local `test-results/u03-window-http-restore.jsonl` identifica el run exacto) Next atendió solo loopback, exportó HTTP 200, verificó firma offline, rechazó alteración y restauró dos veces en otro stack local con N1 27/27. Cleanup source/destination/outbox cero y stacks retirados. La prueba de contención local `c54f8e86-80ed-4b4d-83b1-31a63698f31d` pasó NOLOGIN, TTL RLS para sesión persistente, terminación administrativa (`57P01`), rechazo de relogin y rollback.
+
+El Session pooler CLI sigue BLOCKED por tenant no provisionado con CLIENT_ERROR previo; no se reintentó. No hubo conexión/SQL/fixtures/despliegue en Preview y no se instaló el rol nuevo. Por ello I-2/I-5 alojado y H1-A alojado siguen BLOCKED; U03/H1/H2 abiertos. `npm run verify`: 624 PASS/1 SKIP; secret scan 735 archivos. GitHub Actions bloqueada por facturación. Próximo gate: preparar modo seguro de preflight/NOLOGIN del nuevo rol y luego una única prueba desde PowerShell visible; el owner introduciría solo la Database password Preview con `Read-Host -AsSecureString` cuando el operador revisado esté listo.
+
+## Actualización #143 · 20/10/2026 · operador de rol temporal
+
+Se implementó el modo `-WindowRolePreflightOnly` en `scripts/u03-preview-b4-owner.ps1` y `scripts/u03-window-role-preflight.mjs`. Pruebas locales 9/9 del módulo nuevo y 88/88 `test:u03-b4`, incluida una función SECURITY DEFINER adicional ejecutable antes de `SET ROLE`, que bloquea sin divulgar su nombre en ledger. El wrapper acepta el formato real `true/false` de Node en la confirmación de cleanup (antes solo admitía `True/False`). El Session pooler de Preview no se probó; no se consultó ni modificó base, rol, políticas, variables o fixtures. Supavisor local conserva el BLOCKED previo sin reintento. Deployment de protección/ref fijado: `dpl_FX2BbLxBZPg38hYqikhhsEprGdPL`, SHA desplegado `85f93a5b7f7b9db26a2ade4f75fdf3d12aaf18d4`, host `plataforma-rubik-seo-9lkzlkvr1-juanma-espinosas-projects.vercel.app`; no es el deployment del código nuevo. Runbook actualizado con el único comando visible. I-2/I-5 alojado, H1-A, U03 y H1/H2 permanecen abiertos.
+
+## Corte #143 · diagnóstico read-only del run 8e2fe576 · 20/10/2026
+
+PR #143 permanece OPEN/Draft, base `main@a0a40b776361f292d910e285b390d5e753da8d7b`; HEAD previo `762c5604f5f8c159a844e7ba9f94cb72e134e698`. El run `8e2fe576-1cf8-46cf-a98c-3117070ada81` solo guardó `DATABASE` para la primera consulta Node, sin código ni SQLSTATE; la causa sigue sin identificarse. La lectura independiente posterior comunicada por Juanma confirmó Preview `rhnnplewqsekrnaousyl`, rol/políticas/sesiones temporales ausentes, inventario/outbox cero, escritor bloqueado, identidad, 27 migraciones y capacidades admin correctas.
+
+Implementado `-WindowRoleReadOnlyDiagnosticOnly`: consulta de solo lectura y diagnóstico cerrado para DNS, TCP, TLS, autenticación, SQLSTATE permitido y condiciones preflight. La contención ahora acredita rol ausente y estado final de forma independiente; si existe, bloquea solo un rol cuyo marcador corresponde al run, termina únicamente sus sesiones y verifica antes del rollback. No se tocaron RLS, grants generales o autorización de producto. No hubo ejecución alojada ni fixtures. U03/H1-A/H1/H2 siguen abiertos; Actions no se declara verde.
+
+## Correccion TLS cliente - 20/10/2026
+
+La causa de `TLS_VERIFICATION_FAILED` en run `48bfd21f-cf28-48e8-a98a-508e4bad2743` fue usar `pg_stat_ssl.ssl` como evidencia del TLS Node a Session pooler. Es el estado del tramo pooler a PostgreSQL. El gate ahora comprueba el socket TLS activo y autorizado de node-postgres junto con host/SNI, CA fijada y `rejectUnauthorized=true`; el valor backend se mantiene separado y no bloquea si es false. Regresiones locales cubren TLS valido con backend false y CA/hostname/TLS ausentes invalidos. Sin ejecucion alojada ni fixtures.
+
+## Preparacion de operador U03/H1-A - HEAD bbb11c4
+
+La revision end-to-end queda registrada en `docs/U03-OPERADOR-SECUENCIA-H1A-REVISION-20261020.md`. El deployment READY de esta rama es `dpl_tpsS6xCm4vivCoh9Rsje74rfaeCw` / host `plataforma-rubik-seo-g1z86z3n1-juanma-espinosas-projects.vercel.app` / SHA `bbb11c4179e90d8317c6fad2e4639e8060a8539a`; una peticion anonima redirigio a Vercel SSO. Las variables Preview generales comprobadas son solo NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY; no hay variables branch-specific ni DSN/keyring de ventana.
+
+El operador actual de rol hace una prueba deny-all y retira rol/politicas antes de terminar; no se conecta a una campaña positiva. cross-surface solo valida filas vacias; falta crear provider_results firmados por flujo legitimo y unir export HTTP real del Preview con restore en destino local. Sin esos tramos no hay comando unico seguro. Sin escrituras, cambios de variables o recursos Supabase en este corte. U03/I-2/I-5 y H1-A siguen BLOCKED; PR #143 permanece OPEN/Draft.
+
+Corte de trabajo #143, 21/10/2026: el run dd0a179e quedó BLOCKED por WINDOW_LEDGER_FIELD_REJECTED al emitir fases con ownerA/ownerB; las fases pobladas I-5 también incluían guiones bajos. Se conservan ledgers originales y lectura independiente posterior limpia, sin promover el run a PASS. Se corrigieron normalización, garantía de ledger completo y continuidad de limpieza ante fallo de escritura. El estado I-2/I-5 alojado y U03 sigue BLOCKED hasta positivos y limpieza nuevos; H1-A independiente. Pendiente: publicar, aprovisionar lote/deployment nuevos y atestar/preflight sin Database password antes de entregar un comando de campaña a Juanma. No reejecutar Data API, B-4, V-4, S-5 ni P-1. GitHub Actions sigue bloqueada por facturación.

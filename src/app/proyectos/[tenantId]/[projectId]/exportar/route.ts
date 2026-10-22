@@ -10,17 +10,28 @@ import { operationalStateComplete, readOperationalState } from "@/lib/recovery/o
 import { readSeoRecoveryState } from "@/lib/recovery/seo-state";
 import { readContentGeoRecoveryState } from "@/lib/recovery/content-geo-state";
 import { recoverySchemaContract } from "@/lib/recovery/schema-contract";
-import { createClient } from "@/lib/supabase/server";
+import { createBearerClient, createClient } from "@/lib/supabase/server";
 import { myProjectMembership } from "@/lib/tenancy";
+import { withPreviewWriterCapability } from "@/lib/provenance/preview-writer-capability";
 
 // Full project export (ADR 0004 §4, ADR 0005): audit trail, signed results and imports, each
 // with its verification, plus (v2) the operational state needed to recover the pilot: OpenSEO
 // connection, active and linked jobs and webmaster properties, read through the owner RPCs. Only roles with `export-data` in the Core MATRIX (today: owner). An
 // unknown project, another tenant's project and a missing permission all answer 404, so the
 // endpoint reveals nothing about projects the user cannot export.
-export async function GET(_request: Request, { params }: { params: Promise<{ tenantId: string; projectId: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ tenantId: string; projectId: string }> }) {
+  const { tenantId, projectId } = await params;
+  if (process.env.VERCEL_ENV === "preview" && process.env.U03_PREVIEW_WRITER_WINDOW === "armed-run-capability") {
+    return await withPreviewWriterCapability(request, tenantId, projectId,
+      () => exportProjectResponse(request, tenantId, projectId)) ?? new Response("Not found", { status: 404 });
+  }
+  return exportProjectResponse(request, tenantId, projectId);
+}
+
+async function exportProjectResponse(_request: Request, tenantId: string, projectId: string) {
   const notFound = () => new Response("Not found", { status: 404 });
-  const [{ tenantId, projectId }, user, supabase] = await Promise.all([params, currentUser(), createClient()]);
+  const bearer = await createBearerClient(_request);
+  const [user, supabase] = await Promise.all([bearer?.user ?? currentUser(), bearer?.client ?? createClient()]);
   if (!user || !supabase) return notFound();
   const access = projectAccess(await myProjectMembership(supabase, user.id, tenantId, projectId));
   if (!access || !access.permissions.find((p) => p.action === "export-data")?.decision.allowed) return notFound();

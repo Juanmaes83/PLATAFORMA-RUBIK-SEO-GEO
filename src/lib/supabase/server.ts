@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createServerClient } from "@supabase/ssr";
+import { createClient as createBearerSupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { previewDatabaseIdentityMatches, supabasePublicConfig } from "@/lib/auth/mode";
 import type { Database } from "./database.types";
@@ -30,6 +31,21 @@ export async function createClient() {
       },
     },
   });
+}
+
+/** Request-scoped public-key client for protected owner tools that carry a genuine Auth bearer. */
+export async function createBearerClient(request: Request) {
+  const match = /^Bearer ([A-Za-z0-9._~-]+)$/.exec(request.headers.get("authorization") ?? "");
+  const config = supabasePublicConfig(process.env);
+  if (!match || !config) return null;
+  if (process.env.VERCEL_ENV === "preview" && !await previewDatabaseIdentityMatches(process.env)) return null;
+  const client = createBearerSupabaseClient<Database>(config.url, config.publishableKey, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    global: { headers: { Authorization: `Bearer ${match[1]}` } },
+  });
+  const { data, error } = await client.auth.getUser(match[1]);
+  if (error || !data.user) return null;
+  return { client, user: data.user };
 }
 
 export type ServerClient = NonNullable<Awaited<ReturnType<typeof createClient>>>;

@@ -10,6 +10,8 @@ function controlledBackend() {
   const orgOwners = new Map();
   const invitations = [];
   let currentId = null;
+  let readFailureTable = null;
+  const queriedAuditSeqs = [];
 
   const result = (data, error = null, status = error ? 403 : 200) => ({ data, error, status });
   function query(table, actorId, adminMode = false) {
@@ -17,7 +19,7 @@ function controlledBackend() {
     let operation = 'select', payload;
     const q = {
       select() { return q; },
-      eq(key, value) { filters.push(row => row[key] === value); return q; },
+      eq(key, value) { if (table === 'audit_events' && key === 'seq') queriedAuditSeqs.push(value); filters.push(row => row[key] === value); return q; },
       in(key, values) { filters.push(row => values.includes(row[key])); return q; },
       insert(value) { operation = 'insert'; payload = value; return q; },
       update(value) { operation = 'update'; payload = value; return q; },
@@ -31,11 +33,14 @@ function controlledBackend() {
       if (table === 'projects') return orgOwners.get(row.organization_id) === actorId ||
         rows.project_members.some(member => member.project_id === row.id && member.user_id === actorId);
       if (table === 'project_members') return orgOwners.get(row.organization_id) === actorId || row.user_id === actorId;
+      if (['audit_events', 'provider_results', 'imports'].includes(table))
+        return rows.project_members.some(member => member.project_id === row.project_id && member.user_id === actorId);
       return false;
     }
     function execute() {
       const tableRows = rows[table];
       if (!tableRows) return result(null, { code: '42P01' }, 404);
+      if (operation === 'select' && table === readFailureTable) return result(null, { code: '42501' }, 403);
       if (operation === 'insert') {
         if (adminMode || !actorId) return result(null, { code: '42501' }, 403);
         if (table === 'project_members' || table === 'audit_events') return result(null, { code: '42501' }, 403);
@@ -58,6 +63,8 @@ function controlledBackend() {
         for (const row of selected) {
           tableRows.splice(tableRows.indexOf(row), 1);
           if (table === 'projects') {
+            for (const surface of ['audit_events', 'provider_results', 'imports'])
+              for (const item of rows[surface].filter(item => item.project_id === row.id)) rows[surface].splice(rows[surface].indexOf(item), 1);
             for (const member of rows.project_members.filter(member => member.project_id === row.id)) rows.project_members.splice(rows.project_members.indexOf(member), 1);
             for (const invitation of invitations.filter(invitation => invitation.projectId === row.id)) invitations.splice(invitations.indexOf(invitation), 1);
           }
@@ -148,7 +155,8 @@ function controlledBackend() {
     };
   }
   return {
-    rows, authUsers, invitations, admin, clientFactory,
+    rows, authUsers, invitations, admin, clientFactory, queriedAuditSeqs,
+    failReads(table) { readFailureTable = table; },
     fetchImpl: async url => {
       assert.equal(new URL(url).hostname, `${U03_PREVIEW_REF}.supabase.co`);
       return new Response('', { status: 401 });
@@ -156,7 +164,7 @@ function controlledBackend() {
     counts: () => ({ users: authUsers.size, organizations: rows.organizations.length, projects: rows.projects.length,
       memberships: rows.project_members.length, auditEvents: rows.audit_events.length }),
     get currentId() { return currentId; },
-  };
+};
 }
 
 test('full fixture lifecycle creates A1/A2 in A and B1 in B, runs matrix, then returns owned state to zero', async () => {
@@ -264,4 +272,77 @@ test('I-5/I-8 and P-2 use both authentic owners, foreign IDs and no provider wri
     assert.equal(ledgerRows.filter(row => row.caseId.startsWith('p2-') && row.status === 'PASS').length, 2);
   } finally { assert.equal((await fixtures.cleanup()).ok, true); }
   assert.deepEqual(backend.counts(), { users: 0, organizations: 0, projects: 0, memberships: 0, auditEvents: 0 });
+});
+
+async function populatedI5Fixture({ failReads = null, ledger = async () => {} } = {}) {
+  const backend = controlledBackend();
+  const runId = randomUUID();
+  const fixtures = createDataApiFixtureRun({ runId, sha: 'd'.repeat(40), admin: backend.admin,
+    publicKey: 'fictional-public-key', clientFactory: backend.clientFactory, ledger });
+  await fixtures.createUsers();
+  const organizations = await fixtures.createOrganizations();
+  const projects = await fixtures.createProjects(organizations);
+  const auditSeqA = 31, auditSeqB = 47;
+  const resultIdA = randomUUID(), resultIdB = randomUUID();
+  const importIdA = randomUUID(), importIdB = randomUUID();
+  backend.rows.audit_events.push({ seq: auditSeqA, project_id: projects.a1 }, { seq: auditSeqB, project_id: projects.b1 });
+  backend.rows.provider_results.push({ id: resultIdA, project_id: projects.a1 }, { id: resultIdB, project_id: projects.b1 });
+  backend.rows.imports.push({ id: importIdA, project_id: projects.a1 }, { id: importIdB, project_id: projects.b1 });
+  if (failReads) backend.failReads(failReads);
+  return { backend, fixtures, args: { a1: projects.a1, b1: projects.b1, auditSeqA, auditSeqB,
+    resultIdA, resultIdB, importIdA, importIdB } };
+}
+
+test('I-5 populated verifier requires both owners positive and A↔B plus outsider reads empty on all surfaces', async () => {
+  const ledgerRows = [];
+  const { backend, fixtures, args } = await populatedI5Fixture({ ledger: async (caseId, status, detail = {}) => {
+    ledgerRows.push({ caseId, status, ...detail });
+  } });
+  try {
+    const result = await fixtures.verifyPopulatedCrossSurface(args);
+    assert.deepEqual(result, { passed: true, checks: ['audit_events', 'provider_results', 'imports'] });
+    const reads = ledgerRows.filter(row => row.stage && ['OWN_READ', 'CROSS_READ', 'OUTSIDER_READ'].includes(row.stage));
+    assert.equal(reads.filter(row => row.stage === 'OWN_READ' && row.status === 'PASS' && row.expectedCount === 1 && row.observedCount === 1).length, 6);
+    assert.equal(reads.filter(row => row.stage === 'CROSS_READ' && row.status === 'PASS' && row.expectedCount === 0 && row.observedCount === 0).length, 6);
+    assert.equal(reads.filter(row => row.stage === 'OUTSIDER_READ' && row.status === 'PASS' && row.expectedCount === 0 && row.observedCount === 0).length, 6);
+    assert.equal(ledgerRows.filter(row => row.status === 'ATTEMPTED').length, 24);
+    assert.equal(backend.rows.audit_events.length + backend.rows.provider_results.length + backend.rows.imports.length, 6);
+    assert.ok(backend.queriedAuditSeqs.includes(0), 'missing audit sentinel stays within PostgreSQL int4');
+    assert.ok(backend.queriedAuditSeqs.every(seq => seq <= 2_147_483_647), 'audit sequence reads do not overflow int4');
+  } finally { assert.equal((await fixtures.cleanup()).ok, true); }
+  assert.deepEqual(backend.counts(), { users: 0, organizations: 0, projects: 0, memberships: 0, auditEvents: 0 });
+});
+
+test('I-5 does not turn an absent populated owner row into zero or PASS', async () => {
+  const ledgerRows = [];
+  const { fixtures, args } = await populatedI5Fixture({ ledger: async (caseId, status, detail = {}) => ledgerRows.push({ caseId, status, ...detail }) });
+  try {
+    await assert.rejects(fixtures.verifyPopulatedCrossSurface({ ...args, auditSeqA: 999 }), { message: 'ROW_COUNT_MISMATCH' });
+    const blocked = ledgerRows.findLast(row => row.caseId === 'i5-populated-audit_events' && row.status === 'BLOCKED');
+    assert.equal(blocked?.stage, 'OWN_READ');
+    assert.equal(blocked?.expectedCount, 1);
+    assert.equal(blocked?.observedCount, 0);
+    assert.doesNotMatch(JSON.stringify(ledgerRows), /@ejemplo\.test|fictional-public-key/);
+  } finally { assert.equal((await fixtures.cleanup()).ok, true); }
+});
+
+test('I-5 categorizes an RLS query rejection and stops before writing a misleading PASS', async () => {
+  const ledgerRows = [];
+  const { fixtures, args } = await populatedI5Fixture({ failReads: 'audit_events',
+    ledger: async (caseId, status, detail = {}) => ledgerRows.push({ caseId, status, ...detail }) });
+  try {
+    await assert.rejects(fixtures.verifyPopulatedCrossSurface(args), { message: 'SQL_PRIVILEGE_DENIED' });
+    const blocked = ledgerRows.find(row => row.caseId === 'i5-populated-audit_events' && row.status === 'BLOCKED');
+    assert.equal(blocked?.code, 'SQL_PRIVILEGE_DENIED');
+    assert.equal(blocked?.sqlstate, '42501');
+    assert.equal(ledgerRows.some(row => row.caseId === 'i5-populated-audit_events' && row.category === 'CHECKS_COMPLETE'), false);
+  } finally { assert.equal((await fixtures.cleanup()).ok, true); }
+});
+
+test('I-5 aborts before query when its ATTEMPTED ledger write fails', async () => {
+  const { fixtures, args } = await populatedI5Fixture({ ledger: async (_caseId, status) => {
+    if (status === 'ATTEMPTED') throw new Error('must not escape into output');
+  } });
+  try { await assert.rejects(fixtures.verifyPopulatedCrossSurface(args), { message: 'I5_LEDGER_WRITE_FAILED' }); }
+  finally { assert.equal((await fixtures.cleanup()).ok, true); }
 });

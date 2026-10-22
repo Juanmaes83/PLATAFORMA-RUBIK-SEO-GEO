@@ -395,8 +395,109 @@ export function createDataApiFixtureRun({ runId, sha, admin, publicKey, ledger, 
     return { namespace, userIds: [...new Set(users)], organizationIds: [...new Set(organizations)], projectIds: [...new Set(projects)] };
   }
 
+  function actorAccess(actor) {
+    const account = accounts[actor];
+    if (!account) throw new Error('AUTH_FIXTURES_REQUIRED');
+    return { id: account.id, api: account.api, email: account.email };
+  }
+
+  async function actorBearer(actor) {
+    const account = accounts[actor];
+    if (!account) throw new Error('AUTH_FIXTURES_REQUIRED');
+    const { data, error } = await account.api.auth.getSession();
+    if (error || !data.session?.access_token || data.session.expires_at <= Date.now() / 1000)
+      throw new Error('AUTH_FIXTURE_SESSION_UNAVAILABLE');
+    return { id: account.id, accessToken: data.session.access_token };
+  }
+
+  async function verifyPopulatedCrossSurface({ a1, b1, auditSeqA, auditSeqB, resultIdA, resultIdB, importIdA, importIdB }) {
+    if (![a1, b1, auditSeqA, auditSeqB, resultIdA, resultIdB, importIdA, importIdB].every(Boolean) ||
+        !accounts.ownerA || !accounts.ownerB || !accounts.outsider)
+      throw new Error('POPULATED_CROSS_FIXTURES_INVALID');
+    const clients = { ownerA: accounts.ownerA.api, ownerB: accounts.ownerB.api, outsider: accounts.outsider.api };
+    const checks = [];
+    const safeStates = new Set(['42501','28P01','28000','57P01','0A000','42704','42710']);
+    const executeStage = async ({ caseId, table, stage, actor, expectedCount, id, query, key }) => {
+      const receiptState = table === 'imports' ? 'RESOLVED' : 'NOT_REQUIRED';
+      const base = { actor, stage, expectedCount, receiptState };
+      try { await ledger(caseId, 'ATTEMPTED', base); }
+      catch { throw new Error('I5_LEDGER_WRITE_FAILED'); }
+
+      let result;
+      let queryException = false;
+      try { result = await query(); } catch { queryException = true; }
+      const error = result?.error;
+      const rows = result?.data;
+      const observedCount = Array.isArray(rows) ? rows.length : null;
+      const valueMatch = expectedCount !== 1 || Array.isArray(rows) && rows.length === 1 &&
+        String(rows[0]?.[key]) === String(id);
+      let code;
+      let category;
+      let sqlstate;
+      if (queryException) { code = 'DATA_API_EXCEPTION'; category = 'QUERY_FAILED'; }
+      else if (error) {
+        sqlstate = typeof error.code === 'string' && safeStates.has(error.code) ? error.code : undefined;
+        code = sqlstate === '42501' ? 'SQL_PRIVILEGE_DENIED' : 'DATA_API_QUERY_FAILED';
+        category = 'QUERY_FAILED';
+      } else if (!Array.isArray(rows)) { code = 'DATA_API_RESULT_INCOMPLETE'; category = 'DIAGNOSTIC_INCOMPLETE'; }
+      else if (observedCount !== expectedCount) { code = 'ROW_COUNT_MISMATCH'; category = 'ASSERTION_MISMATCH'; }
+      else if (!valueMatch) { code = 'ROW_KEY_MISMATCH'; category = 'ASSERTION_MISMATCH'; }
+      const passed = !queryException && !error && Array.isArray(rows) && observedCount === expectedCount && valueMatch;
+      const detail = { ...base, category: passed ? 'EXPECTED_VISIBILITY' : category,
+        ...(passed ? {} : { code }), observedCount, ...(expectedCount === 1 ? { valueMatch } : {}),
+        ...(sqlstate ? { sqlstate } : {}) };
+      let ledgerFailed = false;
+      try { await ledger(caseId, passed ? 'PASS' : 'BLOCKED', detail); } catch { ledgerFailed = true; }
+      if (!passed) throw new Error(code ?? 'I5_ASSERTION_FAILED');
+      if (ledgerFailed) throw new Error('I5_LEDGER_WRITE_FAILED');
+    };
+    const surfaces = [
+      { table: 'audit_events', key: 'seq', idA: auditSeqA, idB: auditSeqB },
+      { table: 'provider_results', key: 'id', idA: resultIdA, idB: resultIdB },
+      { table: 'imports', key: 'id', idA: importIdA, idB: importIdB },
+    ];
+    const owners = [
+      { actor: 'ownerA', projectId: a1, idKey: 'idA' },
+      { actor: 'ownerB', projectId: b1, idKey: 'idB' },
+    ];
+    for (const surface of surfaces) {
+      const caseId = `i5-populated-${surface.table}`;
+      const query = (actor, projectId, value) => surface.table === 'audit_events'
+        ? clients[actor].from(surface.table).select('seq').eq('project_id', projectId).eq('seq', value)
+        : clients[actor].from(surface.table).select('id').eq('project_id', projectId).eq('id', value);
+      for (const owner of owners) {
+        const ownId = surface[owner.idKey];
+        await executeStage({ caseId, table: surface.table, stage: 'OWN_READ', actor: owner.actor,
+          expectedCount: 1, id: ownId, key: surface.key, query: () => query(owner.actor, owner.projectId, ownId) });
+      }
+      for (const owner of owners) {
+        const other = owners.find(candidate => candidate.actor !== owner.actor);
+        const foreignId = surface[other.idKey];
+        await executeStage({ caseId, table: surface.table, stage: 'CROSS_READ', actor: owner.actor,
+          expectedCount: 0, id: foreignId, key: surface.key, query: () => query(owner.actor, other.projectId, foreignId) });
+      }
+      for (const owner of owners) {
+        const foreignId = surface[owner.idKey];
+        await executeStage({ caseId, table: surface.table, stage: 'OUTSIDER_READ', actor: 'outsider',
+          expectedCount: 0, id: foreignId, key: surface.key, query: () => query('outsider', owner.projectId, foreignId) });
+      }
+      for (const owner of owners) {
+        // audit_events.seq is a positive int4 in N1; MAX_SAFE_INTEGER overflows Postgres int4.
+        const missingId = surface.table === 'audit_events' ? 0 : randomUUID();
+        await executeStage({ caseId, table: surface.table, stage: 'MISSING_READ', actor: owner.actor,
+          expectedCount: 0, id: missingId, key: surface.key, query: () => query(owner.actor, owner.projectId, missingId) });
+      }
+      try { await ledger(caseId, 'PASS', { actor: 'ownerA', stage: 'OWN_READ', category: 'CHECKS_COMPLETE',
+        count: 8, receiptState: surface.table === 'imports' ? 'RESOLVED' : 'NOT_REQUIRED' }); }
+      catch { throw new Error('I5_LEDGER_WRITE_FAILED'); }
+      checks.push(surface.table);
+    }
+    return { passed: true, checks };
+  }
+
   return { runId, ref, namespace, createUsers, createOrganizations, createProjects, createRevocationFixtures, createSessionFixtures,
-    runMatrix, runMembershipRevocation, runRolesInvitations, runCrossSurface, cleanup, verifyOwnedAbsent, browserInputs, snapshot };
+    runMatrix, runMembershipRevocation, runRolesInvitations, runCrossSurface, verifyPopulatedCrossSurface,
+    actorAccess, actorBearer, cleanup, verifyOwnedAbsent, browserInputs, snapshot };
 }
 
 async function main() {
