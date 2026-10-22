@@ -6,6 +6,12 @@ const chunks = [];
 process.stdin.on('data', chunk => chunks.push(chunk));
 process.stdin.on('end', () => {
   try {
+    if (process.argv.includes('--local-preflight-only')) {
+      if (process.env.RUBIK_RECOVERY_SCHEMA_ATTESTATION === 'pre-n2-through-20261015210000')
+        process.stdout.write(`U03_PREVIEW_WINDOW_LOCAL_PREFLIGHT PASS runId=${PASS_ID} deploymentId=dpl_Fictional123 sha=${process.env.U03_FUNCTIONAL_SHA}\n`);
+      else { process.stdout.write('U03_PREVIEW_WINDOW_LOCAL_PREFLIGHT BLOCKED; no database operation was attempted\n'); process.exitCode = 1; }
+      return;
+    }
     const input = JSON.parse(Buffer.concat(chunks).toString('utf8'));
     if (input.databasePassword !== FAKE_PASSWORD) process.exitCode = 41;
     else if (input.mode === 'run' && input.runId === PASS_ID) {

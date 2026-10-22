@@ -125,7 +125,8 @@ function Invoke-U03WindowRoleChild([string]$Mode, [string]$RunId, [string]$Passw
           'U03_PIN_DEPLOYMENT_HOST','U03_PIN_DEPLOYMENT_SHA','U03_PIN_DEPLOYMENT_BRANCH','U03_FUNCTIONAL_SHA',
           'U03_PREVIEW_WRITER_WINDOW','U03_PREVIEW_WRITER_WINDOW_REF',
           'U03_PREVIEW_WRITER_WINDOW_SHA','U03_PREVIEW_WRITER_WINDOW_RUN_ID','U03_PREVIEW_WRITER_WINDOW_SECRET',
-          'RUBIK_AUDIT_DATABASE_URL','PROVENANCE_SIGNING_KEYS','PROVENANCE_ACTIVE_KEY_ID','NODE_USE_ENV_PROXY',
+          'RUBIK_AUDIT_DATABASE_URL','PROVENANCE_SIGNING_KEYS','PROVENANCE_ACTIVE_KEY_ID',
+          'RUBIK_RECOVERY_SCHEMA_ATTESTATION','NODE_USE_ENV_PROXY',
           'NODE_USE_SYSTEM_CA','NODE_EXTRA_CA_CERTS','SSL_CERT_FILE','SSL_CERT_DIR','HTTP_PROXY','HTTPS_PROXY',
           'ALL_PROXY','NO_PROXY','http_proxy','https_proxy','all_proxy','no_proxy')) {
         $value = [Environment]::GetEnvironmentVariable($name)
@@ -481,6 +482,18 @@ try {
   }
   if ($WindowRoleTransportSelfTestOnly) {
     $testChild = Join-Path $PSScriptRoot 'u03-window-role-transport-child.mjs'
+    $priorSchemaAttestation = [Environment]::GetEnvironmentVariable('RUBIK_RECOVERY_SCHEMA_ATTESTATION')
+    try {
+      $env:RUBIK_RECOVERY_SCHEMA_ATTESTATION = 'pre-n2-through-20261015210000'
+      $localSchemaChild = Invoke-U03WindowRoleChild -Mode 'local' -RunId 'a8f2d946-07ab-4bb9-8901-35f7993f1266' -PasswordText '' -ChildPath $testChild
+      if (-not $localSchemaChild.Passed -or $localSchemaChild.SafeLine -notmatch '^U03_PREVIEW_WINDOW_LOCAL_PREFLIGHT PASS ') { Stop-B4 'WINDOW_SCHEMA_CHILD_TRANSPORT_TEST_FAILED' }
+      Remove-Item Env:RUBIK_RECOVERY_SCHEMA_ATTESTATION -ErrorAction SilentlyContinue
+      $missingSchemaChild = Invoke-U03WindowRoleChild -Mode 'local' -RunId 'a8f2d946-07ab-4bb9-8901-35f7993f1266' -PasswordText '' -ChildPath $testChild
+      if ($missingSchemaChild.Passed -or $missingSchemaChild.SafeLine -ne 'U03_PREVIEW_WINDOW_LOCAL_PREFLIGHT BLOCKED; no database operation was attempted') { Stop-B4 'WINDOW_SCHEMA_CHILD_MISSING_TEST_FAILED' }
+    } finally {
+      if ($null -eq $priorSchemaAttestation) { Remove-Item Env:RUBIK_RECOVERY_SCHEMA_ATTESTATION -ErrorAction SilentlyContinue }
+      else { $env:RUBIK_RECOVERY_SCHEMA_ATTESTATION = $priorSchemaAttestation }
+    }
     $fakePassword = 'Ficticia-' + [char]0x00f1 + '-' + [char]0x6771 + [char]0x4eac + '-' + [char]0xd83d + [char]0xdd10
     $successId = 'a8f2d946-07ab-4bb9-8901-35f7993f1266'
     $windowRoleRunId = 'f9c7f203-3f09-4eb2-bcc0-37db2cc6a782'
