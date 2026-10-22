@@ -77,8 +77,13 @@ export async function createWindowLedger(path, metadata, append = appendFile) {
     for (const [key, value] of Object.entries(detail)) {
       if (key === 'sqlstate' && SAFE_SQLSTATES.has(value)) { safe.sqlstate = value; continue; }
       if (!['code','category','httpStatus','cases','count','restoreCount','resultRowsErased','importsErased','receiptsProcessed',
-        'inventoryZero','outboxTotal','pendingOutbox','rolePresent','roleLocked','activeSessions'].includes(key)) continue;
-      if (typeof value === 'string' && SAFE.test(value) || typeof value === 'number' || typeof value === 'boolean' || value === null) safe[key] = value;
+        'inventoryZero','outboxTotal','pendingOutbox','rolePresent','roleLocked','activeSessions','stage','actor',
+        'expectedCount','observedCount','valueMatch','receiptState'].includes(key)) continue;
+      const safeAlias = key === 'actor' && ['ownerA','ownerB','outsider'].includes(value);
+      const safeStage = key === 'stage' && ['OWN_READ','CROSS_READ','OUTSIDER_READ','MISSING_READ','FIXTURE_INPUT'].includes(value);
+      const safeReceipt = key === 'receiptState' && ['NOT_REQUIRED','DEFERRED_TO_CLEANUP'].includes(value);
+      if (safeAlias || safeStage || safeReceipt || typeof value === 'string' && SAFE.test(value) ||
+          typeof value === 'number' && Number.isSafeInteger(value) || typeof value === 'boolean' || value === null) safe[key] = value;
     }
     for (const [key, value] of Object.entries(detail)) {
       if (!LEDGER_ID_KEYS.has(key)) continue;

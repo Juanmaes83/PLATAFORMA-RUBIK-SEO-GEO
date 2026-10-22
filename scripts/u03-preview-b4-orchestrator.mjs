@@ -106,7 +106,7 @@ const LEDGER_KEYS = new Set([
   'projectRef', 'deploymentId', 'sha', 'host', 'result', 'visualReview',
   'adminKeyFormat', 'publicKeyFormat',
   'pathname', 'errorCode', 'actionHttpStatus', 'sessionCookiePresent', 'routeEvents', 'capturePath',
-  'phase', 'diagnostics',
+  'phase', 'diagnostics', 'stage', 'expectedCount', 'observedCount', 'valueMatch', 'receiptState', 'httpStatus', 'sqlstate',
   'mode', 'evidenceRunId',
 ]);
 
@@ -136,7 +136,26 @@ export function safeLedgerDetail(input = {}) {
       continue;
     }
     if (key === 'category' && !['DNS', 'TCP', 'TLS', 'AUTHENTICATION', 'PERMISSION', 'CAPABILITY', 'IDENTITY',
-      'PRECONDITION', 'CONFIGURATION', 'READ_ONLY_ADMIN', 'DATABASE'].includes(value)) continue;
+      'PRECONDITION', 'CONFIGURATION', 'READ_ONLY_ADMIN', 'DATABASE', 'TRANSPORT_FAILURE', 'HTTP_FAILURE',
+      'RESPONSE_INVALID', 'FIXTURE_CREATED', 'EXPECTED_VISIBILITY', 'QUERY_FAILED', 'DIAGNOSTIC_INCOMPLETE',
+      'ASSERTION_MISMATCH', 'CHECKS_COMPLETE'].includes(value)) continue;
+    if (key === 'code' && !(new Set(['V4_CREDENTIAL_MISSING', 'SIGNING_UNAVAILABLE', 'UNCLASSIFIED',
+      'WINDOW_FIXTURE_TRANSPORT_FAILED', 'WINDOW_FIXTURE_ACTOR_AUTH_FAILED',
+      'WINDOW_FIXTURE_RESPONSE_INVALID', 'WINDOW_LEDGER_WRITE_FAILED', 'DATA_API_EXCEPTION', 'DATA_API_QUERY_FAILED',
+      'SQL_PRIVILEGE_DENIED', 'DATA_API_RESULT_INCOMPLETE', 'ROW_COUNT_MISMATCH', 'ROW_KEY_MISMATCH',
+      'I5_ASSERTION_FAILED', 'I5_LEDGER_WRITE_FAILED', 'SIGNATURE_INVALID', 'RECEIPT_PENDING', 'RECEIPT_RESOLVED',
+      'HTTP_STATUS_INVALID', 'DNS_RESOLUTION_FAILED', 'SESSION_POOLER_IPV4_UNAVAILABLE', 'TCP_CONNECTION_TIMEOUT',
+      'TCP_CONNECTION_REFUSED', 'TCP_CONNECTION_FAILED', 'TLS_CERTIFICATE_OR_HANDSHAKE_REJECTED',
+      'DATABASE_AUTHENTICATION_REJECTED', 'SQL_PERMISSION_DENIED', 'READ_ONLY_SQL_PERMISSION_DENIED',
+      'TLS_OR_DATABASE_HANDSHAKE_FAILED', 'READ_ONLY_DATABASE_CHECK_FAILED', 'PREVIEW_DATABASE_TARGET_REJECTED',
+      'PASSWORD_COMPARISON_INPUT_MISSING', 'URL_PASSWORD_BYTES_MISMATCH', 'URL_PASSWORD_BYTES_MATCH']).has(value) || /^HTTP_[45]\d\d$/.test(String(value)))) continue;
+    if (key === 'sqlstate' && !new Set(['42501', '28P01', '28000', '57P01', '0A000', '42704', '42710']).has(value)) continue;
+    if (key === 'actor' && !['ownerA', 'ownerB', 'outsider'].includes(value)) continue;
+    if (key === 'stage' && !['FIXTURE_INPUT', 'OWN_READ', 'CROSS_READ', 'OUTSIDER_READ', 'MISSING_READ'].includes(value)) continue;
+    if (key === 'receiptState' && !['NOT_REQUIRED', 'DEFERRED_TO_CLEANUP', 'RESOLVED'].includes(value)) continue;
+    if (['expectedCount', 'observedCount', 'httpStatus'].includes(key) && value !== null &&
+      (!Number.isSafeInteger(value) || value < 0)) continue;
+    if (key === 'valueMatch' && typeof value !== 'boolean') continue;
     if (key === 'phase' && !['login', 'login-B', 'login-revoked', '/panel-A', '/panel-B', '/A1', '/A2', '/B1', 'deny-B1', 'deny-A1-A2', 'logout-A', 'logout-B', 'revoked-access'].includes(value)) continue;
     if (key === 'mode' && !['full', 'playwright-only', 'membership-revocation', 'roles-invitations', 'cross-surface', 'session-providers', 'provider-egress', 'window-i2-i5'].includes(value)) continue;
     if (key === 'evidenceRunId' && ![PRIOR_DATA_API_RUN_ID, PRIOR_B4_RUN_ID].includes(value)) continue;
@@ -377,8 +396,18 @@ function u03WindowCapability(runId, expiresAt, env = process.env) {
   ].join('\n'), 'utf8').digest('hex');
 }
 
-async function invokeWindowFixture({ kind, tenantId, projectId, fixtures, runId, env, fetchImpl = fetch, ledger }) {
-  const bearer = await fixtures.actorBearer('ownerA');
+async function invokeWindowFixture({ kind, actor = 'ownerA', tenantId, projectId, fixtures, runId, env, fetchImpl = fetch, ledger }) {
+  const caseId = `window-fixture-${kind}`;
+  const stageDetail = { actor, stage: 'FIXTURE_INPUT' };
+  try { await ledger(caseId, 'ATTEMPTED', stageDetail); }
+  catch { throw new Error('WINDOW_LEDGER_WRITE_FAILED'); }
+  let bearer;
+  try { bearer = await fixtures.actorBearer(actor); }
+  catch {
+    try { await ledger(caseId, 'BLOCKED', { ...stageDetail, category: 'AUTH_FAILURE', code: 'WINDOW_FIXTURE_ACTOR_AUTH_FAILED' }); }
+    catch { throw new Error('WINDOW_LEDGER_WRITE_FAILED'); }
+    throw new Error('WINDOW_FIXTURE_ACTOR_AUTH_FAILED');
+  }
   const origin = `https://${PIN.host}`;
   const expiresAt = Date.now() + 10 * 60_000;
   const url = `${origin}/api/u03/window-fixtures/${encodeURIComponent(tenantId)}/${projectId}`;
@@ -390,7 +419,11 @@ async function invokeWindowFixture({ kind, tenantId, projectId, fixtures, runId,
   }, token, origin, runId);
   let response;
   try { response = await fetchImpl(url, { method: 'POST', headers, body: JSON.stringify({ kind, runId }), redirect: 'manual', signal: AbortSignal.timeout(20000) }); }
-  catch { throw new Error(`WINDOW_FIXTURE_TRANSPORT_FAILED_${kind.toUpperCase()}`); }
+  catch {
+    try { await ledger(caseId, 'BLOCKED', { ...stageDetail, category: 'TRANSPORT_FAILURE', code: 'WINDOW_FIXTURE_TRANSPORT_FAILED' }); }
+    catch { throw new Error('WINDOW_LEDGER_WRITE_FAILED'); }
+    throw new Error('WINDOW_FIXTURE_TRANSPORT_FAILED');
+  }
   if (response.status !== 200) {
     // The fixture endpoint keeps its public body closed and small. Read only the enumerated
     // 503 code; never forward arbitrary response text, details or SQL to the campaign ledger.
@@ -398,13 +431,25 @@ async function invokeWindowFixture({ kind, tenantId, projectId, fixtures, runId,
       const body = await response.json().catch(() => null);
       const safe503 = new Set(['SIGNING_UNAVAILABLE', 'RECEIPT_PENDING']);
       const code = body?.ok === false && safe503.has(body.code) ? body.code : 'UNCLASSIFIED';
+      try { await ledger(caseId, 'BLOCKED', { ...stageDetail, category: 'HTTP_FAILURE', httpStatus: 503, code }); }
+      catch { throw new Error('WINDOW_LEDGER_WRITE_FAILED'); }
       throw new Error(`WINDOW_FIXTURE_HTTP_${kind.toUpperCase()}_503_${code}`);
     }
-    throw new Error(`WINDOW_FIXTURE_HTTP_${kind.toUpperCase()}_${response.status}`);
+    const code = Number.isInteger(response.status) && response.status >= 400 && response.status <= 599
+      ? `HTTP_${response.status}` : 'HTTP_STATUS_INVALID';
+    try { await ledger(caseId, 'BLOCKED', { ...stageDetail, category: 'HTTP_FAILURE',
+      ...(Number.isInteger(response.status) ? { httpStatus: response.status } : {}), code }); }
+    catch { throw new Error('WINDOW_LEDGER_WRITE_FAILED'); }
+    throw new Error(`WINDOW_FIXTURE_HTTP_${kind.toUpperCase()}_${code}`);
   }
   const body = await response.json().catch(() => null);
-  if (body?.ok !== true || body.kind !== kind) throw new Error(`WINDOW_FIXTURE_RESPONSE_INVALID_${kind.toUpperCase()}`);
-  await ledger(`window-fixture-${kind}`, 'PASS', { namespace: fixtures.namespace, id: body.id ?? null, count: body.seq ?? null });
+  if (body?.ok !== true || body.kind !== kind || (kind === 'audit' ? !Number.isSafeInteger(body.seq) : typeof body.id !== 'string')) {
+    try { await ledger(caseId, 'BLOCKED', { ...stageDetail, category: 'RESPONSE_INVALID', code: 'WINDOW_FIXTURE_RESPONSE_INVALID' }); }
+    catch { throw new Error('WINDOW_LEDGER_WRITE_FAILED'); }
+    throw new Error(`WINDOW_FIXTURE_RESPONSE_INVALID_${kind.toUpperCase()}`);
+  }
+  try { await ledger(caseId, 'PASS', { ...stageDetail, category: 'FIXTURE_CREATED', count: kind === 'audit' ? body.seq : 1 }); }
+  catch { throw new Error('WINDOW_LEDGER_WRITE_FAILED'); }
   return body;
 }
 
@@ -444,23 +489,32 @@ export async function verifyProtectedWindowRuntime({ runId, env = process.env, f
   return { passed: true, status: response.status };
 }
 
-export async function runProtectedWindowSurfaces({ fixtures, a1, runId, env = process.env, fetchImpl = fetch, ledger,
+export async function runProtectedWindowSurfaces({ fixtures, a1, b1, runId, env = process.env, fetchImpl = fetch, ledger,
   i2RoutesFn = null }) {
-  if (!fixtures || !a1 || typeof ledger !== 'function') throw new Error('WINDOW_SURFACE_INPUT_INVALID');
-  const tenantId = fixtures.namespace + '-a';
-  const audit = await invokeWindowFixture({ kind: 'audit', tenantId, projectId: 'a1', fixtures, runId, env, fetchImpl, ledger });
-  const result = await invokeWindowFixture({ kind: 'result', tenantId, projectId: 'a1', fixtures, runId, env, fetchImpl, ledger });
-  const imported = await invokeWindowFixture({ kind: 'import', tenantId, projectId: 'a1', fixtures, runId, env, fetchImpl, ledger });
-  const cross = await fixtures.verifyPopulatedCrossSurface({ a1, auditSeq: audit.seq, resultId: result.id, importId: imported.id });
+  if (!fixtures || !a1 || !b1 || typeof ledger !== 'function') throw new Error('WINDOW_SURFACE_INPUT_INVALID');
+  const created = {};
+  for (const owner of [
+    { actor: 'ownerA', tenantId: `${fixtures.namespace}-a`, projectId: 'a1', id: a1, suffix: 'A' },
+    { actor: 'ownerB', tenantId: `${fixtures.namespace}-b`, projectId: 'b1', id: b1, suffix: 'B' },
+  ]) {
+    const audit = await invokeWindowFixture({ kind: 'audit', ...owner, fixtures, runId, env, fetchImpl, ledger });
+    const result = await invokeWindowFixture({ kind: 'result', ...owner, fixtures, runId, env, fetchImpl, ledger });
+    const imported = await invokeWindowFixture({ kind: 'import', ...owner, fixtures, runId, env, fetchImpl, ledger });
+    created[owner.suffix] = { auditSeq: audit.seq, resultId: result.id, importId: imported.id };
+  }
+  const cross = await fixtures.verifyPopulatedCrossSurface({ a1, b1,
+    auditSeqA: created.A.auditSeq, auditSeqB: created.B.auditSeq,
+    resultIdA: created.A.resultId, resultIdB: created.B.resultId,
+    importIdA: created.A.importId, importIdB: created.B.importId });
   if (cross?.passed !== true || cross.checks?.length !== 3) throw new Error('I5_POPULATED_CROSS_SURFACE_REJECTED');
   await ledger('i5-populated-signed-rows', 'PASS', { cases: cross.checks.length });
   const routeCheck = i2RoutesFn ?? (await import('./u03-preview-i2-routes.mjs')).runProtectedI2Routes;
-  const routes = await routeCheck({ fixtures, resultId: result.id, runId, env, ledger,
+  const routes = await routeCheck({ fixtures, resultId: created.A.resultId, runId, env, ledger,
     capabilityFor: expiresAt => u03WindowCapability(runId, expiresAt, env) });
   if (routes?.passed !== true || routes.positiveCount < 2 || routes.negativeCount < 5)
     throw new Error('I2_PROTECTED_ROUTES_REJECTED');
   await ledger('i2-protected-routes', 'PASS', { cases: routes.positiveCount + routes.negativeCount });
-  return { i2: true, i5: true, resultId: result.id };
+  return { i2: true, i5: true, resultId: created.A.resultId };
 }
 
 /** H1-A export/verification/restore is deliberately separate from the U03 matrix. */
@@ -653,7 +707,7 @@ export async function runHostedU03Campaign({
         throw new Error('WINDOW_CAPABILITY_ENVIRONMENT_MISMATCH');
       await ledger('data-api-matrix', 'SKIP_PRIOR_EVIDENCE', { cases: 12, evidenceRunId: PRIOR_DATA_API_RUN_ID });
       await ledger('browser-b4', 'SKIP_PRIOR_EVIDENCE', { evidenceRunId: PRIOR_B4_RUN_ID });
-      const surfaces = await windowSurfacesFn({ fixtures, a1: projects.a1, runId, env, ledger });
+      const surfaces = await windowSurfacesFn({ fixtures, a1: projects.a1, b1: projects.b1, runId, env, ledger });
       if (surfaces?.i2 !== true || surfaces?.i5 !== true) throw new Error('WINDOW_I2_I5_EVIDENCE_INCOMPLETE');
       windowSurfacesPassed = true;
       await ledger('window-i2-i5-populated-surfaces', 'PASS', { cases: 2, deploymentId: PIN.deploymentId, host: PIN.host, sha: PIN.sha });

@@ -470,3 +470,21 @@ La reproduccion local N1 identifico el flujo: storeProviderResult crea una fila 
 Prueba local del handler y cleanup en stack efimero exactamente 27 N1: firma verificada, retry idempotente, negativos, recibo de borrado procesado y reintentado, limpieza a cero y rol/politicas retirados. No es evidencia de Preview. I-2/I-5/U03 alojados siguen BLOCKED hasta positivos poblados y firmados, recibos resueltos y lectura final independiente; H1-A continua separado.
 
 Checks: handler N1 PASS; test:u03-b4 140/140; npm run verify 638 PASS / 1 SKIP, secret scan 774 archivos, lint/typecheck/build PASS.
+
+## Diagnóstico instrumentado de I-5 · run 3d27ccf9 · 22/10/2026
+
+El ledger alojado `test-results/u03-hosted-window/3d27ccf9-ff2d-406f-b701-576d5ae8073d.jsonl` permanece BLOCKED e intacto. Registra `window-fixture-audit`, `window-fixture-result` e `window-fixture-import` PASS, `i5-populated-audit-events` FAIL y limpieza `FAIL_CLEANED`, pero no contiene etapa, código, valores de aserción ni causa. La causa de ese run es **no reconstruible**; no se atribuye retrospectivamente al defecto hallado después. La lectura independiente posterior dejó Preview con inventario y outbox cero.
+
+La reproducción local encontró que la lectura de ID inexistente de `audit_events` consultaba `seq=Number.MAX_SAFE_INTEGER`, mientras N1 define `seq integer` positivo. Ese filtro excede int4 y produce error de consulta, no una lectura vacía. El centinela ahora es `0`, garantizado ausente por `seq >= 1` y válido para int4; una regresión verifica el rango y la ausencia de falso PASS.
+
+**PASS local, no alojado:** integración `495d0947-34fe-4997-a384-9ce184c0a23a`, stack desechable `rubik-u03-i5-20261022`, 27 migraciones hasta `20261015210000`, transporte PostgreSQL directo. Firmantes reales de auditoría/resultados y flujo de import; A/B con filas pobladas, lecturas propias positivas, negativas cruzadas/outsider/IDs ausentes en tres superficies, firma alterada rechazada, retry idempotente, recibos procesados/reintentados y cleanup independiente a cero. Stack retirado. No acredita Session pooler ni Preview.
+
+| Gate | Estado | Límite |
+|---|---|---|
+| Diagnóstico original 3d27 | No reconstruible | Ledger sin etapa/código; intacto. |
+| I-5 | PASS local / BLOCKED alojado | Falta positivo firmado en Preview. |
+| I-2 | BLOCKED alojado | Requiere sus pruebas de rutas reales; no se infiere de I-5 local. |
+| U03 | BLOCKED | Faltan positivos alojados I-2/I-5 y limpieza independiente. |
+| H1-A | Separado / pendiente | No condiciona U03. |
+
+No hubo ventana ni fixtures alojados en este diagnóstico.

@@ -721,25 +721,30 @@ test('directed window campaign proves runtime before fixtures and never repeats 
 test('I-2/I-5 surface proof never invokes export or restore', async () => {
   const seen = [];
   const fixtureId = '94e1bcf1-f329-46e2-a312-79741809c8ae';
-  const fixtures = { namespace: 'u03-c14f4c11570f', actorBearer: async () => ({ accessToken: 'fictional' }),
-    verifyPopulatedCrossSurface: async ({ resultId, importId, auditSeq }) => {
-      assert.equal(resultId, fixtureId); assert.equal(importId, fixtureId); assert.equal(auditSeq, 7);
+  const fixtures = { namespace: 'u03-c14f4c11570f', actorBearer: async actor => ({ accessToken: `fictional-${actor}` }),
+    verifyPopulatedCrossSurface: async ({ a1, b1, resultIdA, importIdA, auditSeqA, resultIdB, importIdB, auditSeqB }) => {
+      assert.equal(a1, 'project-a'); assert.equal(b1, 'project-b');
+      assert.equal(resultIdA, fixtureId); assert.equal(importIdA, fixtureId); assert.equal(auditSeqA, 7);
+      assert.equal(resultIdB, '94e1bcf1-f329-46e2-a312-79741809c8ad');
+      assert.equal(importIdB, '94e1bcf1-f329-46e2-a312-79741809c8ad'); assert.equal(auditSeqB, 8);
       return { passed: true, checks: ['audit_events', 'provider_results', 'imports'] };
     } };
-  const proof = await runProtectedWindowSurfaces({ fixtures, a1: fixtureId,
+  const proof = await runProtectedWindowSurfaces({ fixtures, a1: 'project-a', b1: 'project-b',
     runId: 'c14f4c11-570f-4e03-a3a1-33a702b85baa',
     env: { VERCEL_OIDC_TOKEN: 'fictional-oidc', U03_PREVIEW_WRITER_WINDOW_SECRET: 'fictional-window-secret' },
     fetchImpl: async (url, options) => {
-      assert.match(url, /\/api\/u03\/window-fixtures\//);
+      assert.match(url, /\/api\/u03\/window-fixtures\/u03-c14f4c11570f-(?:a|b)\/(?:a1|b1)$/);
       const kind = JSON.parse(options.body).kind;
-      seen.push(kind);
-      return { status: 200, json: async () => ({ ok: true, kind, id: fixtureId, seq: 7 }) };
+      const actor = options.headers.authorization.includes('ownerB') ? 'ownerB' : 'ownerA';
+      seen.push(`${actor}:${kind}`);
+      const id = actor === 'ownerA' ? fixtureId : '94e1bcf1-f329-46e2-a312-79741809c8ad';
+      return { status: 200, json: async () => ({ ok: true, kind, id, seq: actor === 'ownerA' ? 7 : 8 }) };
     },
     i2RoutesFn: async ({ resultId }) => { assert.equal(resultId, fixtureId); seen.push('i2-routes');
       return { passed: true, positiveCount: 2, negativeCount: 5 }; },
     ledger: async () => {},
   });
-  assert.deepEqual(seen, ['audit', 'result', 'import', 'i2-routes']);
+  assert.deepEqual(seen, ['ownerA:audit', 'ownerA:result', 'ownerA:import', 'ownerB:audit', 'ownerB:result', 'ownerB:import', 'i2-routes']);
   assert.equal(proof.i2, true);
   assert.equal(proof.i5, true);
 });
@@ -749,7 +754,7 @@ test('window fixture 503 records only its enumerated server code', async () => {
   const seen = [];
   const fixtures = { namespace: 'u03-c14f4c11570f', actorBearer: async () => ({ accessToken: 'fictional' }) };
   const env = { VERCEL_OIDC_TOKEN: 'fictional-oidc', U03_PREVIEW_WRITER_WINDOW_SECRET: 'fictional-window-secret' };
-  await assert.rejects(runProtectedWindowSurfaces({ fixtures, a1: fixtureId,
+  await assert.rejects(runProtectedWindowSurfaces({ fixtures, a1: fixtureId, b1: 'project-b',
     runId: 'c14f4c11-570f-4e03-a3a1-33a702b85baa', env,
     fetchImpl: async (_url, options) => {
       const kind = JSON.parse(options.body).kind;
@@ -769,7 +774,7 @@ test('window fixture 503 records only its enumerated server code', async () => {
 test('window fixture 503 with an unknown body code remains safely unclassified', async () => {
   const fixtureId = '94e1bcf1-f329-46e2-a312-79741809c8ae';
   const fixtures = { namespace: 'u03-c14f4c11570f', actorBearer: async () => ({ accessToken: 'fictional' }) };
-  await assert.rejects(runProtectedWindowSurfaces({ fixtures, a1: fixtureId,
+  await assert.rejects(runProtectedWindowSurfaces({ fixtures, a1: fixtureId, b1: 'project-b',
     runId: 'c14f4c11-570f-4e03-a3a1-33a702b85baa',
     env: { VERCEL_OIDC_TOKEN: 'fictional-oidc', U03_PREVIEW_WRITER_WINDOW_SECRET: 'fictional-window-secret' },
     fetchImpl: async (_url, options) => JSON.parse(options.body).kind === 'audit'
@@ -782,7 +787,7 @@ test('window fixture 503 with an unknown body code remains safely unclassified',
 test('window fixture 503 distinguishes signing setup from unresolved receipt without exposing body details', async () => {
   const fixtureId = '94e1bcf1-f329-46e2-a312-79741809c8ae';
   const fixtures = { namespace: 'u03-c14f4c11570f', actorBearer: async () => ({ accessToken: 'fictional' }) };
-  await assert.rejects(runProtectedWindowSurfaces({ fixtures, a1: fixtureId,
+  await assert.rejects(runProtectedWindowSurfaces({ fixtures, a1: fixtureId, b1: 'project-b',
     runId: 'c14f4c11-570f-4e03-a3a1-33a702b85baa',
     env: { VERCEL_OIDC_TOKEN: 'fictional-oidc', U03_PREVIEW_WRITER_WINDOW_SECRET: 'fictional-window-secret' },
     fetchImpl: async (_url, options) => JSON.parse(options.body).kind === 'audit'

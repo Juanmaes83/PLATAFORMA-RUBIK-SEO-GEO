@@ -5,13 +5,13 @@ import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, rea
 import { join, resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dirname, "..");
-const WORKDIR = join(ROOT, "test-results", "u03-window-local-stack");
+const WORKDIR = join(ROOT, "test-results", "u03-i5-local-stack");
 const SUPABASE_DIR = join(WORKDIR, "supabase");
-const PROJECT = "rubik-u03-window-20261020";
+const PROJECT = "rubik-u03-i5-20261022";
 const CUT = 20261015210000;
 const EXCLUDE = "studio,realtime,storage-api,imgproxy,mailpit,postgres-meta,edge-runtime,logflare,vector";
-const PORTS = new Map([[54320, 63420], [54321, 63421], [54322, 63422], [54323, 63423],
-  [54324, 63424], [54327, 63427], [54329, 63429], [8083, 8103]]);
+const PORTS = new Map([[54320, 64520], [54321, 64521], [54322, 64522], [54323, 64523],
+  [54324, 64524], [54327, 64527], [54329, 64529], [8083, 8203]]);
 const MARKER = join(WORKDIR, ".u03-owned-stack.json");
 
 function run(command, args, options = {}) {
@@ -48,7 +48,7 @@ function createInput() {
     if (marker.project !== PROJECT || marker.migrations !== 27 ||
         !existingConfig.includes(`project_id = "${PROJECT}"`) || existingMigrations.length !== 27)
       throw new Error("U03_LOCAL_STACK_OWNERSHIP_CHECK_FAILED");
-    existingConfig = existingConfig.replace(/^(\s*[a-z_]*port\s*=\s*)643(2\d)(.*)$/gim, "$1634$2$3");
+    existingConfig = existingConfig.replace(/^(\s*[a-z_]*port\s*=\s*)644(2\d)(.*)$/gim, "$1645$2$3");
     writeFileSync(join(SUPABASE_DIR, "config.toml"), existingConfig);
     const templates = join(SUPABASE_DIR, "templates");
     if (!existsSync(templates)) cpSync(join(ROOT, "supabase", "templates"), templates, { recursive: true });
@@ -82,7 +82,7 @@ if (command === "start") {
   cli(["start", "--exclude", EXCLUDE, "--yes"]);
   const names = dockerNames();
   if (!names.some(name => name === `supabase_db_${PROJECT}`)) throw new Error("U03_LOCAL_DATABASE_CONTAINER_MISSING");
-  process.stdout.write("U03_LOCAL_STACK_STARTED project=rubik-u03-window-20261020 ports=63420-63429 migrations=27 pooler=session\n");
+  process.stdout.write("U03_LOCAL_STACK_STARTED project=rubik-u03-i5-20261022 ports=64520-64529 migrations=27 pooler=session\n");
 } else if (command === "inspect") {
   const marker = JSON.parse(readFileSync(MARKER, "utf8"));
   if (marker.project !== PROJECT || marker.migrations !== 27 || dockerNames().length === 0)
@@ -90,13 +90,13 @@ if (command === "start") {
   const result = run("docker", ["exec", `supabase_db_${PROJECT}`, "psql", "-U", "postgres", "-d", "postgres", "-Atqc",
     "select count(*)::text || '|' || max(version)::text from supabase_migrations.schema_migrations"]);
   if (result.trim() !== `27|${CUT}`) throw new Error("U03_LOCAL_MIGRATION_PREFLIGHT_FAILED");
-  process.stdout.write(`U03_LOCAL_STACK_VERIFIED migrations=27 last=${CUT} poolerMode=session\n`);
+  process.stdout.write(`U03_LOCAL_STACK_VERIFIED migrations=27 last=${CUT} poolerMode=session transport=postgres-direct\n`);
 } else if (command === "stop") {
   const marker = JSON.parse(readFileSync(MARKER, "utf8"));
   const resolved = resolve(WORKDIR);
   const allowed = resolve(ROOT, "test-results") + (process.platform === "win32" ? "\\" : "/");
   if (marker.project !== PROJECT || !resolved.startsWith(allowed)) throw new Error("U03_LOCAL_STACK_CLEANUP_REFUSED");
-  cli(["stop"]);
+  cli(["stop", "--no-backup"]);
   if (dockerNames().length) throw new Error("U03_LOCAL_STACK_CONTAINERS_REMAIN");
   rmSync(WORKDIR, { recursive: true, force: false });
   process.stdout.write("U03_LOCAL_STACK_RETIRED containers=0 workdir=removed\n");

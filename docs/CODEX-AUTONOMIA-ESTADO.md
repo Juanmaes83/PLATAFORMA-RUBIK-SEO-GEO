@@ -361,3 +361,11 @@ La reproduccion del handler en N1 local (27 migraciones) comprobo que storeProvi
 La prueba local cubrio positivo, verificacion criptografica, retry, negativos, recibo de borrado/retry idempotente y limpieza; el rol y las politicas se retiraron y el stack propio se retiro. No es evidencia del Session pooler de Preview. No hubo campana alojada ni se repitieron PASS previos. I-2/I-5 y U03 siguen abiertos hasta los positivos alojados; H1-A no se ejecuto.
 
 Checks: test:u03-window-fixture-result PASS N1 27/27; test:u03-b4 140/140; verify 638 PASS / 1 SKIP; secret scan 774; lint/typecheck/build PASS. Actions sigue bloqueada por facturacion.
+
+## Diagnóstico local del I-5 poblado · 22/10/2026
+
+El run Preview `3d27ccf9-ff2d-406f-b701-576d5ae8073d` permanece BLOCKED/FAIL_CLEANED, con ledger original intacto. Guarda el FAIL del caso poblado, sin etapa/código/assertion; causa histórica **no reconstruible**. La reproducción posterior encontró localmente que el verificador consultaba `audit_events.seq=Number.MAX_SAFE_INTEGER`, excediendo el int4 de N1. Se cambió el centinela ausente a `0` y se agregó regresión de límites.
+
+Integración local completa PASS: run `495d0947-34fe-4997-a384-9ce184c0a23a`, 27 migraciones N1, firmantes y flujo de import reales, lecturas propias A/B y negativas cruzadas/outsider/IDs ausentes en tres superficies, firmas/alteraciones, idempotencia y recibos, cleanup y lectura final independientes en cero. Transporte PostgreSQL directo; stack desechable retirado. No equivale a Session pooler ni Preview.
+
+Estado: I-5 local PASS / Preview BLOCKED; I-2 alojado BLOCKED; U03 global BLOCKED. H1-A separado y no ejecutado. No hubo ventana alojada. Los ledgers locales fallidos previos se conservan. Siguiente gate: publicar el SHA final y, con deployment y lote de ventana válidos, ejecutar una única ventana I-2/I-5; no repetir Data API, B-4, V-4, S-5 ni P-1.
