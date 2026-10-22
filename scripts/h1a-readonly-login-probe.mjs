@@ -16,6 +16,7 @@ try {
   let phase = 'initial';
   let firstMissingStatic = null;
   const pinCategories = { initial:{}, rejectedAction:{} };
+  const staticFamilies = { initial:{}, rejectedAction:{} };
   page.on('response', response => {
     try {
       const url = new URL(response.url());
@@ -23,6 +24,11 @@ try {
       const pin = url.searchParams.get('dpl');
       const category = !pin ? 'ABSENT' : pin === PIN.deploymentId ? 'CURRENT' : 'OTHER';
       pinCategories[phase][category] = (pinCategories[phase][category] ?? 0) + 1;
+      const family = url.pathname.startsWith('/_next/static/immutable/') ? 'IMMUTABLE' :
+        url.pathname.startsWith('/_next/static/chunks/') ? 'CHUNKS' :
+        url.pathname.startsWith('/_next/static/media/') ? 'MEDIA' : 'OTHER';
+      const familyKey = `${response.status()}:${family}`;
+      staticFamilies[phase][familyKey] = (staticFamilies[phase][familyKey] ?? 0) + 1;
       if (response.status() === 200) staticByPhase[phase].ok.add(url.pathname);
       if (response.status() === 404) {
         staticByPhase[phase].missing.add(url.pathname);
@@ -101,7 +107,7 @@ try {
     staticComparison:{ initialOk:initialOk.size, laterMissing:laterMissing.size,
       laterMissingPreviouslyOk:[...laterMissing].filter(path => initialOk.has(path)).length,
       independentStaticStatus, independentStaticResponseClass,
-      queryPinnedStaticStatus, headerPinnedStaticStatus, pinCategories } })}\n`);
+      queryPinnedStaticStatus, headerPinnedStaticStatus, pinCategories, staticFamilies } })}\n`);
   if (!arrived || !rejectedWithoutSession || !complete || consoleErrors || pageErrors) process.exitCode = 1;
   diagnostics.dispose();
   await context.close();

@@ -8,6 +8,10 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   // No dev overlay badge: keeps local screenshots faithful to what users see.
   devIndicators: false,
+  // Vercel's adapter currently serves the first page but returns 404 for additional
+  // immutable chunks referenced after a Server Action in protected Preview.
+  // Keep static assets scoped to this deployment until that adapter path is fixed.
+  supportsImmutableAssets: false,
 };
 
 export default nextConfig;
