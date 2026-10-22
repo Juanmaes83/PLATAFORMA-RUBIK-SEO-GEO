@@ -2,7 +2,7 @@
 
 ## H1-A · correccion de login en revision · 23/10/2026
 
-U03 conserva el PASS alojado `330c6e4b-14ad-439a-a8cf-43d92c73fadb`. H1-A sigue **BLOCKED**: el run `d3bb7af4-fa3c-49f0-98af-742158444963` se detuvo tras login y se limpio. Una sonda protegida posterior reprodujo 404 de assets inmutables despues del clic de Server Action; el envio nativo del mismo formulario devolvio 303 sin esos errores. El Route Handler de login conserva Auth y origen exacto. El recorrido local completo `d1a93948-00dc-4e8b-ad3b-83b8b16504ae` paso con 303, cuatro vistas sin errores, export/verificacion/restauracion y limpieza de dos stacks. Falta acreditar el SHA corregido en Vercel, la campana integral alojada y la aceptacion visual humana. [Diagnostico detallado](H1A-DIAGNOSTICO-D3BB-20261022.md).
+U03 conserva el PASS alojado `330c6e4b-14ad-439a-a8cf-43d92c73fadb`. H1-A sigue **BLOCKED**: el run `d3bb7af4-fa3c-49f0-98af-742158444963` se detuvo tras login y se limpio. Una sonda protegida posterior reprodujo 404 de assets inmutables despues del clic de Server Action; el envio nativo del mismo formulario devolvio 303 sin esos errores. El Route Handler de login conserva Auth y origen exacto. El recorrido local completo `d1a93948-00dc-4e8b-ad3b-83b8b16504ae` paso con 303, cuatro vistas sin errores, export/verificacion/restauracion y limpieza de dos stacks. La sonda protegida del SHA funcional `029db301498b8134a70eb6f0ed6aa5a3d07a3388` en `dpl_HnUY7E1B8rLGzLZtUtvfwHEZvkbM` paso con POST 303 y cero 404/errores, sin fixtures ni sesion. Faltan la campana integral alojada y la aceptacion visual humana. [Diagnostico detallado](H1A-DIAGNOSTICO-D3BB-20261022.md).
 
 ## Estado H1-A tras d3bb7af4 · 22/10/2026
 

@@ -6,7 +6,7 @@ El run alojado `d3bb7af4-fa3c-49f0-98af-742158444963` se bloqueo en el intervalo
 
 ## H1-A · login normal y nueva prueba local · 23/10/2026
 
-El run alojado `d3bb7af4-fa3c-49f0-98af-742158444963` conserva BLOCKED y su limpieza acreditada. El defecto actual se reprodujo de forma segura sin fixtures: clic con Server Action seguido de 404 de assets inmutables; envio nativo del mismo formulario con HTTP 303 y cero errores. El login se cambio a POST de documento con Auth del servidor, comprobacion de origen y redireccion relativa. El run local `d1a93948-00dc-4e8b-ad3b-83b8b16504ae` paso el recorrido completo con dos stacks desechables y limpieza. Falta la sonda protegida sobre el SHA nuevo, una unica campana integral alojada y revision visual humana. H1-A sigue BLOCKED; H1-B/U04 con Sarah, R1, H1 global y H2 permanecen abiertos.
+El run alojado `d3bb7af4-fa3c-49f0-98af-742158444963` conserva BLOCKED y su limpieza acreditada. El defecto actual se reprodujo de forma segura sin fixtures: clic con Server Action seguido de 404 de assets inmutables; envio nativo del mismo formulario con HTTP 303 y cero errores. El login se cambio a POST de documento con Auth del servidor, comprobacion de origen y redireccion relativa. El run local `d1a93948-00dc-4e8b-ad3b-83b8b16504ae` paso el recorrido completo con dos stacks desechables y limpieza. La sonda protegida sin fixtures en `dpl_HnUY7E1B8rLGzLZtUtvfwHEZvkbM` / SHA `029db301498b8134a70eb6f0ed6aa5a3d07a3388` paso el login negativo con 303, cero 404 y cero errores. Falta una unica campana integral alojada y revision visual humana. H1-A sigue BLOCKED; H1-B/U04 con Sarah, R1, H1 global y H2 permanecen abiertos.
 
 ## H1-A · snapshots acumulativos locales · 22/10/2026
 
