@@ -1,5 +1,9 @@
 # U03 · matriz alojada de Preview · 18/10/2026
 
+## Estado H1-A tras d3bb7af4 · 22/10/2026
+
+U03 sigue PASS por `330c6e4b-14ad-439a-a8cf-43d92c73fadb`, sin repeticion. H1-A sigue BLOCKED: el run alojado `d3bb7af4-fa3c-49f0-98af-742158444963` llego a fixtures firmados, aislamiento y recibo, pero se detuvo en `after-login` antes de la primera vista. La limpieza independiente de Preview dio inventario/outbox y capacidades temporales cero. El ensayo local posterior paso con interceptacion CDP, export HTTP y doble restauracion, sin equivaler al deployment protegido. Diagnostico y limites: [expediente d3bb7af4](H1A-DIAGNOSTICO-D3BB-20261022.md). H1-B/Sarah, R1, H1 global y H2 permanecen abiertos.
+
 ## Nota de vigencia · H1-A separado · 22/10/2026
 
 I-2, I-5 y U03 global conservan el PASS alojado del run `330c6e4b-14ad-439a-a8cf-43d92c73fadb`; no se repitieron. El ledger de ese run indica H1-A `NOT_RUN`. La prueba local posterior `d6bc8e22-a761-4d68-823a-d7827b2acc6f` solo verifica el flujo local HTTP/exportación/restauración y no altera el estado alojado de U03. H1-A, U04/H1-B, R1, H1 y H2 continúan abiertos.

@@ -1,0 +1,13 @@
+# H1-A: diagnostico del run d3bb7af4
+
+Run `d3bb7af4-fa3c-49f0-98af-742158444963`, Preview `rhnnplewqsekrnaousyl`, deployment `dpl_AoEQ1Hd4PXPJNV3ZC1ycGjCyUmuG`, SHA funcional `7ae746b91b8085a6629ae7cc98bf4bacc01b8673`.
+
+El ledger original acredita rol temporal, Session pooler, contencion, fixtures, auditoria y resultado firmados, import, aislamiento poblado y retirada de permisos con recibo. Se bloqueo en el intervalo `after-login`, antes de la primera vista: `error:preview=132`, `404:preview=132`, `requestFailures.preview=134`, `pinned-origin-request-failed=2`. Los agregados no relacionan cada error con un 404 ni registran la clase de recurso de los dos fallos CDP. El deployment antiguo fue retirado. No se puede reconstruir la causa concreta de sus 132 errores a partir de ese ledger. Los dos JSONL originales se conservan sin cambios: SHA-256 del ledger de ventana `F9B2FE4C6CB254F18C46F1E7FFA9AFDA8B299B3DFD1DE69AE75A29A31FB5F46D`; SHA-256 del ledger de contencion `2F22589F7F67569560E1AAB85B61CECCC88D70D8A8BE8B22AF7820B79CCAEDB9`.
+
+La lectura SQL independiente posterior en el ref exacto encontro cero usuarios, organizaciones, membresias, proyectos, eventos, resultados, imports, idempotencia, outbox total/pending, rol, politicas y sesiones temporales; `rubik_audit_writer` sigue `NOLOGIN`. El run permanece `BLOCKED`.
+
+El arnes ahora registra clases cerradas de ruta y recurso para cada respuesta HTTP fallida, peticion fallida y error de consola, y etapa `request`/`response` de los fallos CDP. Solo se guardan categorias y conteos; se bloquea si se supera el limite de cardinalidad. Una sonda de solo lectura puede cargar `/acceso` en un deployment protegido y fijado antes de abrir una ventana, pero su PASS no atribuye los eventos del login autenticado ni sustituye una campana integral.
+
+Ensayo local final `64fe1b34-57c4-4467-86e8-35aba5ac2ead`: dos stacks N1 aislados; Chromium con la interceptacion CDP del operador; 18 limites de diagnostico, cuatro vistas desktop/movil sin errores de consola o pagina; export HTTP firmado, verificacion offline, copia alterada rechazada, doble restauracion idempotente y ambos stacks retirados. No reproduce Vercel Authentication ni el paquete exacto del deployment fallido. El run local previo `8c1ede3b-ab37-4d1d-baca-186a78359407` tambien paso y se conserva.
+
+Estado: U03 PASS anterior; H1-A BLOCKED hasta una campana alojada completa, lectura final independiente y aceptacion visual humana. H1-B/Sarah, R1, H1 global y H2 conservan sus gates propios.

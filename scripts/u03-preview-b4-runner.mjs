@@ -91,6 +91,24 @@ export function classifyBlockedExternalRequest({ resourceType, mainFrame = false
   return redirect ? "BLOCKED_EXTERNAL_MAIN_FRAME_REDIRECT" : "BLOCKED_EXTERNAL_MAIN_FRAME_NAVIGATION";
 }
 
+// Only fixed classes cross the evidence boundary. Never retain a path, query, or CDP error.
+export function classifyDiagnosticResource(url, resourceType) {
+  let route = 'other';
+  try {
+    const path = new URL(url).pathname;
+    if (path.startsWith('/_next/static/')) route = 'next-static';
+    else if (path === '/_next/image') route = 'next-image';
+    else if (path === '/acceso') route = 'access';
+    else if (path === '/panel') route = 'panel';
+    else if (path.startsWith('/api/')) route = 'api';
+    else if (path.startsWith('/proyectos/')) route = 'project';
+    else if (path === '/') route = 'root';
+  } catch { route = 'unknown'; }
+  const rawType = String(resourceType ?? '').toLowerCase();
+  const type = ({ document:'document', script:'script', stylesheet:'stylesheet', image:'image', fetch:'fetch', xhr:'xhr', font:'font' })[rawType] ?? 'other';
+  return `${route}-${type}`;
+}
+
 export async function installScopedRoutes(context, page, token, allowedOrigin = ORIGIN, onEvent = () => {}, onRouteEvent = () => {}, runId = null, onNavigationDiagnostic = () => {}) {
   // Playwright routes are called once for a redirect chain. CDP Fetch pauses each
   // Chromium request, including the GET produced by an action's 303 response.
@@ -120,6 +138,7 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
     }
   };
   session.on("Fetch.requestPaused", (paused) => {
+    const stage = paused.responseStatusCode || paused.responseErrorReason ? 'response' : 'request';
     void (async () => {
       const url = paused.request.url;
       let parsed;
@@ -160,6 +179,8 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
         headers: Object.entries(headers).map(([name, value]) => ({ name, value: String(value) })),
       });
     })().catch(async () => {
+      const resource = classifyDiagnosticResource(paused.request?.url, paused.resourceType);
+      onRouteEvent(`cdp-failure-${stage}-${resource}`);
       const diagnostic = { event: "pinned-origin-request-failed", disposition: "PINNED_REQUEST_BLOCKED",
         requestClass: "UNKNOWN", destinationClass: "UNKNOWN", responseClass: "UNKNOWN", httpStatus: null };
       onNavigationDiagnostic(diagnostic);
@@ -266,6 +287,12 @@ function diagnosticOrigin(value, allowedOrigin = ORIGIN) {
 
 export function createPageDiagnostics(page, { allowedOrigin = ORIGIN } = {}) {
   let bucket = emptyDiagnosticBucket();
+  let routeEvents = {};
+  const addRouteEvent = event => {
+    if (!ALLOWED_ROUTE_EVENT.test(event)) return;
+    if (!(event in routeEvents) && Object.keys(routeEvents).length >= 99) event = 'diagnostic-cardinality-exceeded';
+    routeEvents[event] = (routeEvents[event] ?? 0) + 1;
+  };
   const consoleListener = message => {
     const rawType = message.type();
     const type = new Set(["error", "warning", "log", "info", "debug", "dir", "assert", "trace"]).has(rawType) ? rawType : "other";
@@ -273,26 +300,32 @@ export function createPageDiagnostics(page, { allowedOrigin = ORIGIN } = {}) {
     try { origin = diagnosticOrigin(message.location()?.url ?? "", allowedOrigin); } catch { /* classify only */ }
     const key = `${type}:${origin}`;
     bucket.console[key] = (bucket.console[key] ?? 0) + 1;
+    if (type === 'error') {
+      let location = '';
+      try { location = message.location()?.url ?? ''; } catch { /* unknown class */ }
+      addRouteEvent(`console-error-${classifyDiagnosticResource(location, 'Other')}`);
+    }
   };
   const responseListener = response => {
     const status = response.status();
+    const request = response.request();
     let origin = "unknown";
     try { origin = diagnosticOrigin(response.url(), allowedOrigin); } catch { /* classify only */ }
     const key = `${status}:${origin}`;
     bucket.http[key] = (bucket.http[key] ?? 0) + 1;
+    if (status >= 400) addRouteEvent(`http-${status}-${classifyDiagnosticResource(response.url(), request.resourceType())}`);
   };
   const failedListener = request => {
     let origin = "unknown";
     try { origin = diagnosticOrigin(request.url(), allowedOrigin); } catch { /* classify only */ }
     bucket.requestFailures[origin] = (bucket.requestFailures[origin] ?? 0) + 1;
+    addRouteEvent(`request-failed-${classifyDiagnosticResource(request.url(), request.resourceType())}`);
   };
   page.on("console", consoleListener);
   page.on("response", responseListener);
   page.on("requestfailed", failedListener);
-  let routeEvents = {};
-  const allowedRouteEvents = new Set(["auth-action-post", "pinned-navigation", "pinned-request", "external-navigation-blocked", "external-redirect-blocked", "pinned-origin-request-failed"]);
   return {
-    addRouteEvent(event) { if (allowedRouteEvents.has(event) || /^auth-action-http-[1-5]\d\d$/.test(event)) routeEvents[event] = (routeEvents[event] ?? 0) + 1; },
+    addRouteEvent,
     // Read-only observation for attribution. It never resets counters; only take() consumes
     // a phase, and auditAndCapture calls take() exactly at the strict visual gate.
     snapshot() { return structuredClone({ ...bucket, routeEvents }); },
@@ -312,6 +345,10 @@ export function createPageDiagnostics(page, { allowedOrigin = ORIGIN } = {}) {
 
 function emptyDiagnosticBucket() { return { console: {}, http: {}, requestFailures: {} }; }
 
+const DIAGNOSTIC_RESOURCE = '(?:next-static|next-image|access|panel|api|project|root|other|unknown)-(?:document|script|stylesheet|image|fetch|xhr|font|other)';
+const ROUTE_EVENT_PATTERN = `(?:auth-action-post|auth-action-http-[1-5]\\d\\d|pinned-navigation|pinned-request|external-navigation-blocked|external-redirect-blocked|pinned-origin-request-failed|blocked-external-subresource|blocked-external-subresource-redirect|diagnostic-cardinality-exceeded|(?:console-error|request-failed|cdp-failure-(?:request|response))-${DIAGNOSTIC_RESOURCE}|http-[45]\\d\\d-${DIAGNOSTIC_RESOURCE})`;
+export const ALLOWED_ROUTE_EVENT = new RegExp(`^${ROUTE_EVENT_PATTERN}$`);
+
 const DIAGNOSTIC_ORIGIN_PATTERN = /^(?:preview|preview-supabase|external|inline|unknown)$/;
 const DIAGNOSTIC_INTERVAL_BOUNDARIES = new Set([
   "before-login", "after-login", "before-navigation", "after-navigation", "before-measurement", "after-measurement",
@@ -320,7 +357,7 @@ const DIAGNOSTIC_MAP_PATTERNS = Object.freeze({
   console: /^(?:error|warning|log|info|debug|dir|assert|trace|other):(?:preview|preview-supabase|external|inline|unknown)$/,
   http: /^[1-5]\d\d:(?:preview|preview-supabase|external|inline|unknown)$/,
   requestFailures: DIAGNOSTIC_ORIGIN_PATTERN,
-  routeEvents: /^(?:auth-action-post|auth-action-http-[1-5]\d\d|pinned-navigation|pinned-request|external-navigation-blocked|external-redirect-blocked|pinned-origin-request-failed)$/,
+  routeEvents: ALLOWED_ROUTE_EVENT,
 });
 
 function strictDiagnosticSnapshot(value) {
@@ -443,6 +480,8 @@ export function summarizeDiagnosticInterval(row) {
   try { delta = strictDiagnosticSnapshot(row.diagnosticsDelta); }
   catch { throw new GateError("DIAGNOSTIC_SNAPSHOT_INVALID"); }
   const consoleErrorCount = totalConsoleErrors(delta);
+  if (delta.routeEvents['diagnostic-cardinality-exceeded'])
+    return { consoleErrorCount, status: 'BLOCKED', code: 'DIAGNOSTIC_SNAPSHOT_INVALID' };
   return { consoleErrorCount, status: consoleErrorCount > 0 ? "BLOCKED" : "PASS",
     ...(consoleErrorCount > 0 ? { code: "H1A_PHASE_CONSOLE_ERRORS" } : {}) };
 }

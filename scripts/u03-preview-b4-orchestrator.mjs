@@ -11,7 +11,7 @@ import { chromium } from 'playwright';
 import { createPreviewAdminClient } from './u03-preview-api-key.mjs';
 import { createDataApiFixtureRun, U03_PREVIEW_REF } from './u03-preview-data-api.mjs';
 import { PIN, networkEnvironment, preflight, runB4, scopedHeaders, chromiumEnvironment,
-  installScopedRoutes, login, createPageDiagnostics, createDiagnosticIntervalTracker, summarizeDiagnosticInterval, auditAndCapture } from './u03-preview-b4-runner.mjs';
+  installScopedRoutes, login, createPageDiagnostics, createDiagnosticIntervalTracker, summarizeDiagnosticInterval, auditAndCapture, ALLOWED_ROUTE_EVENT } from './u03-preview-b4-runner.mjs';
 import { isV4SecurityDefinerAllowlistOnly, openPreviewReceiptProcessor } from './u03-preview-v4-receipt.mjs';
 import { runSessionProviders } from './u03-preview-session-providers.mjs';
 import { runProviderEgressOnly } from './u03-preview-provider-egress.mjs';
@@ -134,7 +134,7 @@ export function safeLedgerDetail(input = {}) {
         console: safeCounterMap(value.console, new RegExp(`^(?:error|warning|log|info|debug|dir|assert|trace|other):${ORIGIN_CLASSES}$`)),
         http: safeCounterMap(value.http, new RegExp(`^[1-5]\\d\\d:${ORIGIN_CLASSES}$`)),
         requestFailures: safeCounterMap(value.requestFailures, new RegExp(`^${ORIGIN_CLASSES}$`)),
-        routeEvents: safeCounterMap(value.routeEvents, /^(?:auth-action-post|auth-action-http-[1-5]\d\d|pinned-navigation|pinned-request|external-navigation-blocked|external-redirect-blocked|pinned-origin-request-failed|blocked-external-subresource|blocked-external-subresource-redirect)$/),
+        routeEvents: safeCounterMap(value.routeEvents, ALLOWED_ROUTE_EVENT),
       };
       continue;
     }

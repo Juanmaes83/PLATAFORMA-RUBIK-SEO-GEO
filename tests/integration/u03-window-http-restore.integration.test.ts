@@ -20,7 +20,7 @@ import { processAuditOutbox } from '@/lib/provenance/outbox';
 import { providers } from '@/lib/core';
 import { loadKeyring } from '@/lib/provenance/keyring';
 import { verifyProjectExport } from '@/lib/recovery/verify-export';
-import { auditAndCapture, createDiagnosticIntervalTracker, createPageDiagnostics, summarizeDiagnosticInterval } from '../../scripts/u03-preview-b4-runner.mjs';
+import { ALLOWED_ROUTE_EVENT, auditAndCapture, createDiagnosticIntervalTracker, createPageDiagnostics, installScopedRoutes, summarizeDiagnosticInterval } from '../../scripts/u03-preview-b4-runner.mjs';
 import { verifyH1ADiagnosticIntervals } from '../../scripts/u03-preview-window-run.mjs';
 import { planRestore } from '@/lib/restore/plan';
 import { createConfirmedUser, deleteOrganizations, deleteUsers, email, env, signedIn, TEST_PASSPHRASE } from './support';
@@ -76,7 +76,7 @@ function record(phase: string, result: 'PASS'|'FAIL'|'BLOCKED'|'ATTEMPTED', deta
       console: map(input.console,/^(?:error|warning|log|info|debug|dir|assert|trace|other):(?:preview|preview-supabase|external|inline|unknown)$/),
       http: map(input.http,/^[1-5]\d\d:(?:preview|preview-supabase|external|inline|unknown)$/),
       requestFailures: map(input.requestFailures,/^(?:preview|preview-supabase|external|inline|unknown)$/),
-      routeEvents: map(input.routeEvents,/^(?:auth-action-post|auth-action-http-[1-5]\d\d|pinned-navigation|pinned-request|external-navigation-blocked|external-redirect-blocked|pinned-origin-request-failed|blocked-external-subresource|blocked-external-subresource-redirect)$/),
+      routeEvents: map(input.routeEvents,ALLOWED_ROUTE_EVENT),
     };
   }
   mkdirSync(`${ROOT}/test-results`,{recursive:true});
@@ -238,6 +238,9 @@ it('exports over a loopback HTTP socket and restores the verified signed manifes
     const page=await context.newPage();
     browserPage=page;
     const diagnostics=createPageDiagnostics(page,{allowedOrigin:origin});
+    await installScopedRoutes(context,page,null,origin,()=>{},(...args:unknown[])=>{
+      if(typeof args[0]==='string') diagnostics.addRouteEvent(args[0]);
+    });
     const diagnosticIntervals=createDiagnosticIntervalTracker(diagnostics);
     const pageErrors={count:0};
     page.on('pageerror',()=>{ pageErrors.count+=1; });

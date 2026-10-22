@@ -3,7 +3,57 @@ import { createServer } from 'node:http';
 import { once } from 'node:events';
 import test from 'node:test';
 import { chromium } from 'playwright';
-import { installScopedRoutes, classifyBlockedExternalRequest } from './u03-preview-b4-runner.mjs';
+import { installScopedRoutes, classifyBlockedExternalRequest, classifyDiagnosticResource, createPageDiagnostics, summarizeDiagnosticInterval } from './u03-preview-b4-runner.mjs';
+
+test('diagnostic cardinality overflow blocks instead of silently dropping a route class', () => {
+  const diagnostics = createPageDiagnostics({ on() {}, off() {} });
+  for (let status = 400; status < 500; status++) diagnostics.addRouteEvent(`http-${status}-next-static-script`);
+  const snapshot = diagnostics.snapshot();
+  assert.ok(snapshot.routeEvents['diagnostic-cardinality-exceeded'] > 0);
+  const summary = summarizeDiagnosticInterval({ diagnosticsDelta:snapshot });
+  assert.equal(summary.status, 'BLOCKED');
+  assert.equal(summary.code, 'DIAGNOSTIC_SNAPSHOT_INVALID');
+});
+
+test('login resource failures retain bounded route and type categories without free paths', async () => {
+  const server = createServer((request, response) => {
+    if (request.url === '/acceso') return response.writeHead(200, { 'content-type':'text/html' })
+      .end('<script src="/_next/static/secret-file.js?token=fictional-secret"></script>');
+    response.writeHead(404, { 'content-type':'text/plain' }).end('fictional secret body');
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  let browser;
+  try {
+    browser = await chromium.launch({ headless:true });
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    const diagnostics = createPageDiagnostics(page, { allowedOrigin:origin });
+    await installScopedRoutes(context, page, null, origin, () => {}, event => diagnostics.addRouteEvent(event));
+    await page.goto(`${origin}/acceso`, { waitUntil:'networkidle' });
+    const snapshot = diagnostics.snapshot();
+    assert.equal(snapshot.http['404:preview'], 1);
+    assert.equal(snapshot.routeEvents['http-404-next-static-script'], 1);
+    assert.equal(snapshot.console['error:preview'], 1);
+    assert.equal(snapshot.routeEvents['request-failed-next-static-script'], snapshot.requestFailures.preview);
+    const serialized = JSON.stringify(snapshot);
+    assert.equal(serialized.includes('secret-file'), false);
+    assert.equal(serialized.includes('fictional-secret'), false);
+    assert.equal(serialized.includes('fictional secret body'), false);
+    diagnostics.dispose();
+  } finally {
+    await browser?.close();
+    server.close();
+    await once(server, 'close');
+  }
+});
+
+test('diagnostic resource classifier uses only fixed classes', () => {
+  assert.equal(classifyDiagnosticResource('https://preview.invalid/_next/static/SECRET.js?token=secret', 'Script'), 'next-static-script');
+  assert.equal(classifyDiagnosticResource('https://preview.invalid/acceso?secret=one', 'Document'), 'access-document');
+  assert.equal(classifyDiagnosticResource('not a URL containing a secret', 'Untrusted'), 'unknown-other');
+});
 
 test('external subresource redirects stay blocked but are not mislabeled as top-level navigation failures', async () => {
   const server = createServer((request, response) => {

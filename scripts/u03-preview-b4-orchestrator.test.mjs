@@ -34,7 +34,9 @@ test('ledger retains only categorized browser diagnostics and discards unsafe st
       console: { 'error:preview': 7, 'warning:external': 2, 'error:https://evil.test/?token=leak': 99 },
       http: { '403:preview': 1, '500:external': 3, '200:https://host.test/?key=leak': 9 },
       requestFailures: { external: 4, 'evil.test?token=leak': 5 },
-      routeEvents: { 'pinned-origin-request-failed': 1, 'auth-action-http-403': 1, 'https://evil.test/?token=leak': 6 },
+      routeEvents: { 'pinned-origin-request-failed': 1, 'auth-action-http-403': 1,
+        'http-404-next-static-script': 132, 'request-failed-next-static-script': 132,
+        'cdp-failure-response-panel-document': 2, 'https://evil.test/?token=leak': 6 },
       freeText: 'secret-value',
     },
     consoleText: 'secret-value',
@@ -45,7 +47,9 @@ test('ledger retains only categorized browser diagnostics and discards unsafe st
       console: { 'error:preview': 7, 'warning:external': 2 },
       http: { '403:preview': 1, '500:external': 3 },
       requestFailures: { external: 4 },
-      routeEvents: { 'pinned-origin-request-failed': 1, 'auth-action-http-403': 1 },
+      routeEvents: { 'pinned-origin-request-failed': 1, 'auth-action-http-403': 1,
+        'http-404-next-static-script': 132, 'request-failed-next-static-script': 132,
+        'cdp-failure-response-panel-document': 2 },
     },
   });
   assert.equal(JSON.stringify(safe).includes('leak'), false);

@@ -1,5 +1,9 @@
 # Gate de aceptación integral · H1 y H2
 
+## Estado vigente de H1-A tras d3bb7af4
+
+El run alojado `d3bb7af4-fa3c-49f0-98af-742158444963` se bloqueo en el intervalo `after-login`, antes de completar vistas, exportacion y restauracion. La limpieza independiente de Preview termino a cero. Los 132 errores de consola y 132 respuestas 404 originales carecen de clasificacion de recurso; la causa exacta sigue sin atribuir. El ensayo local completo con CDP y dos stacks paso, pero H1-A sigue BLOCKED hasta una campana alojada completa y aceptacion visual humana. [Diagnostico y evidencia](H1A-DIAGNOSTICO-D3BB-20261022.md). U03 conserva su PASS; R1, U04/H1-B, H1 global y H2 permanecen abiertos.
+
 ## H1-A · snapshots acumulativos locales · 22/10/2026
 
 El run local `1c37450a-5cbb-4bad-8c91-6a92d9a24491` registra snapshots acumulativos no consumibles antes y después de login, navegación y medición. El verificador comprueba los 18 límites esperados entre cuatro gates visuales (desktop/móvil, medición/informe), valida mapas cerrados, continuidad before/after, deltas recalculados y suma exacta contra cada contador del gate. Un límite ausente, una discrepancia o cualquier dato fuera del esquema bloquea la evidencia. Los cuatro gates visuales locales reportaron cero errores de consola/página; exportación HTTP loopback, verificación offline, rechazo de manipulación, restauración doble e idempotente y limpieza de ambos stacks pasaron. La prueba de integración vuelve a leer y validar el ledger persistido.

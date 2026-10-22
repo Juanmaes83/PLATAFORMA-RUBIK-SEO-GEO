@@ -2,7 +2,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { appendFile, mkdir, readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { preflight } from './u03-preview-b4-runner.mjs';
+import { preflight, ALLOWED_ROUTE_EVENT } from './u03-preview-b4-runner.mjs';
 import { verifyPreviewWindowAttestationProof, previewWindowAttestationContext } from '../src/lib/provenance/keyring.ts';
 import { assertPreviewKeyFormats, runHostedU03Campaign, verifyInitialPreviewState, verifyProtectedWindowRuntime } from './u03-preview-b4-orchestrator.mjs';
 import { PIN } from './u03-preview-b4-runner.mjs';
@@ -68,7 +68,7 @@ const H1A_DIAGNOSTIC_MAP_PATTERNS = Object.freeze({
   console: /^(?:error|warning|log|info|debug|dir|assert|trace|other):(?:preview|preview-supabase|external|inline|unknown)$/,
   http: /^[1-5]\d\d:(?:preview|preview-supabase|external|inline|unknown)$/,
   requestFailures: /^(?:preview|preview-supabase|external|inline|unknown)$/,
-  routeEvents: /^(?:auth-action-post|auth-action-http-[1-5]\d\d|pinned-navigation|pinned-request|external-navigation-blocked|external-redirect-blocked|pinned-origin-request-failed|blocked-external-subresource|blocked-external-subresource-redirect)$/,
+  routeEvents: ALLOWED_ROUTE_EVENT,
 });
 
 function strictLedgerDiagnostics(value) {
@@ -217,8 +217,7 @@ function safeWindowDiagnostics(value) {
     console: safeWindowDiagnosticMap(value.console, new RegExp(`^(?:error|warning|log|info|debug|dir|assert|trace|other):${origin}$`)),
     http: safeWindowDiagnosticMap(value.http, new RegExp(`^[1-5]\\d\\d:${origin}$`)),
     requestFailures: safeWindowDiagnosticMap(value.requestFailures, new RegExp(`^${origin}$`)),
-    routeEvents: safeWindowDiagnosticMap(value.routeEvents,
-      /^(?:auth-action-post|auth-action-http-[1-5]\\d\\d|pinned-navigation|pinned-request|external-navigation-blocked|external-redirect-blocked|pinned-origin-request-failed|blocked-external-subresource|blocked-external-subresource-redirect)$/),
+    routeEvents: safeWindowDiagnosticMap(value.routeEvents, ALLOWED_ROUTE_EVENT),
   };
 }
 
