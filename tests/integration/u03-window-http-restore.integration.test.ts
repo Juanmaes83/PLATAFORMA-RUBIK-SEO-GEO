@@ -1,4 +1,4 @@
-import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import { createServer } from 'node:net';
 import { execFileSync } from 'node:child_process';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
@@ -28,6 +28,7 @@ import { createConfirmedUser, deleteOrganizations, deleteUsers, email, env, sign
 import { localDatabaseContainer } from '../../scripts/supabase-test-env.mjs';
 import { selectedStack } from '../../scripts/test-stacks.mjs';
 import { ROLE, buildMinimalInstallSql, buildMinimalRollbackSql } from '../../scripts/u03-window-minimal-principal.mjs';
+import { restorePreviewDocumentLocally } from '../../scripts/u03-preview-b4-orchestrator.mjs';
 
 const RUN = randomUUID();
 const ROOT = process.cwd();
@@ -400,20 +401,14 @@ it('exports over a loopback HTTP socket and restores the verified signed manifes
   expect(inventory(DEST_DB,project.projectId,project.organizationId)).toBe('0|0|0|0|0|0|0');
 },180_000);
 
-it('restores the real signed HTTP export through the same child process used by the hosted operator',()=>{
+it('restores the real signed HTTP export through the hosted parent and child transport',async()=>{
   expect(signedExportForChild).toBeDefined();
   const childRunId=process.env.U03_RESTORE_DESTINATION_RUN_ID!;
   expect(sql(DEST_DB,'select (select count(*) from auth.users)::text||\'|\'||(select count(*) from private.audit_outbox)::text')).toBe('0|0');
   execFileSync(process.execPath,['scripts/u03-window-local-destination.mjs','stop'],{
     cwd:ROOT,env:{...process.env,U03_RESTORE_DESTINATION_RUN_ID:childRunId},stdio:'pipe',timeout:120_000,
   });
-  const result=spawnSync(process.execPath,['scripts/u03-preview-restore-local.mjs'],{
-    cwd:ROOT,encoding:'utf8',timeout:240_000,
-    input:JSON.stringify({runId:childRunId,document:signedExportForChild}),
-    env:{...process.env,PROVENANCE_SIGNING_KEYS:`u03-http:${KEY}`,PROVENANCE_ACTIVE_KEY_ID:'u03-http'},
-  });
-  const closedChildCode=/^U03_PREVIEW_TO_LOCAL_RESTORE BLOCKED code=([A-Z0-9_]{3,80})\r?$/m.exec(result.stderr)?.[1] ?? 'NONE';
-  expect(result.status,closedChildCode).toBe(0);
-  expect(result.stdout).toMatch(/^U03_PREVIEW_TO_LOCAL_RESTORE PASS restoreCount=2 contentVerified=true signaturesPreserved=true\r?\n$/);
+  expect(await restorePreviewDocumentLocally(signedExportForChild,
+    {PROVENANCE_SIGNING_KEYS:`u03-http:${KEY}`,PROVENANCE_ACTIVE_KEY_ID:'u03-http'},childRunId)).toBe(true);
   expect(execFileSync('docker',['ps','-a','--filter',`label=com.supabase.cli.project=${RESTORE_PROJECT}`,'--format','{{.Names}}'],{encoding:'utf8'}).trim()).toBe('');
 },240_000);

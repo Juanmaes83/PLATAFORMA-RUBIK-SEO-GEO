@@ -530,3 +530,7 @@ La campaña dirigida del run `330c6e4b-14ad-439a-a8cf-43d92c73fadb` terminó con
 | H1-A | **NO EJECUTADO; independiente** | `h1a-result NOT_RUN`. No condiciona el cierre de U03. H1/H2 y U04/Sarah permanecen abiertos según sus propios gates. |
 
 Deployment usado: `dpl_56PEz8SoynyU8UD1ufRenAesQyx5`, host `plataforma-rubik-seo-9u4p45110-juanma-espinosas-projects.vercel.app`, SHA funcional `ed0bbee9006feabae546fa376e4eaf7beffafc42`, Preview `rhnnplewqsekrnaousyl`. El run de campaña finalizó PASS; no repetirlo. El ledger registra `run-artifacts NONE`; la salida saneada y el ledger original quedan conservados localmente por Juanma, sin incorporarlos al repositorio.
+
+## H1-A · transporte restaurador y revisión visual · 23/10/2026
+
+U03/I-2/I-5 conservan PASS/CERRADO sin nueva campaña. H1-A run 10d6561e conserva BLOCKED en h1a-local-double-restore; export HTTP, verificación y manipulación pasaron, mientras restauración doble, idempotencia y logout quedaron NOT_RUN. Limpieza alojada: ledger PASS y lectura independiente anterior a cero. El SHA bc5bac2 pasó CI Node 22/24, E2E y Vercel; el ensayo local nuevo con padre+hijo reales y dos stacks N1 pasó y se retiró. Las cuatro capturas del run anterior fueron revisadas sin errores de render evidentes, pero la aceptación visual humana final y la navegación real no están acreditadas. Observaciones de producto registradas en H1A-RESTORE-10D-20261023.md. H1-A, H1-B/U04, R1, H1 global y H2 siguen abiertos.

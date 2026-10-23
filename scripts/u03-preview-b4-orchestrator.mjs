@@ -840,7 +840,7 @@ export async function runProtectedWindowCleanup({ fixtures, runId, env = process
   return true;
 }
 
-export async function restorePreviewDocumentLocally(document, env, runId, script = 'scripts/u03-preview-restore-local.mjs') {
+export async function restorePreviewDocumentLocally(document, env, runId, script = 'scripts/u03-preview-restore-local.mjs', timeoutMs = 300_000) {
   return await new Promise((resolve, reject) => {
     let child;
     try { child = spawn(process.execPath, [script], { cwd: process.cwd(), windowsHide: true,
@@ -853,7 +853,8 @@ export async function restorePreviewDocumentLocally(document, env, runId, script
     let settled = false;
     let spawned = false;
     let exited = false;
-    const finish = (error) => { if (settled) return; settled = true; if (error) reject(error); else resolve(true); };
+    const timer = setTimeout(() => { finish(new Error('LOCAL_RESTORE_PROCESS_TIMEOUT')); child.kill(); }, timeoutMs);
+    const finish = (error) => { if (settled) return; settled = true; clearTimeout(timer); if (error) reject(error); else resolve(true); };
     child.stdout.setEncoding('utf8');
     child.stdout.on('data', chunk => { output = (output + chunk).slice(-1000); });
     child.stderr.setEncoding('utf8');

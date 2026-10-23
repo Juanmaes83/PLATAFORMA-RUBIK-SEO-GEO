@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -22,6 +23,9 @@ test('local restore child exposes only a closed failure code to the campaign', (
 });
 
 test('Windows child transport reaches real restore input and classifies early boundaries', async () => {
+  const legacy = spawn(process.execPath, ['-e','process.exit(0)'], { stdio:['pipe','pipe','ignore'] });
+  assert.equal(legacy.stderr, null); // The old parent dereferenced this value before writing stdin.
+  await new Promise(resolve => legacy.on('close', resolve));
   const dir = await mkdtemp(join(tmpdir(), 'rubik-restore-transport-'));
   const env = { PROVENANCE_SIGNING_KEYS:'fictional', PROVENANCE_ACTIVE_KEY_ID:'fictional' };
   try {
@@ -31,15 +35,19 @@ test('Windows child transport reaches real restore input and classifies early bo
     const early = join(dir, 'early.mjs');
     const protocol = join(dir, 'protocol.mjs');
     const explicit = join(dir, 'explicit.mjs');
+    const hung = join(dir, 'hung.mjs');
     await writeFile(early, 'process.exit(7)\n');
     await writeFile(protocol, 'process.stdin.resume(); process.stdin.on("end", () => process.stdout.write("unexpected\\n"))\n');
     await writeFile(explicit, 'process.stdin.resume(); process.stdin.on("end", () => { process.stderr.write("U03_PREVIEW_TO_LOCAL_RESTORE BLOCKED code=LOCAL_RESTORE_DESTINATION_NOT_FRESH\\n"); process.exitCode=1 })\n');
+    await writeFile(hung, 'process.stdin.resume(); process.stdin.on("end", () => setInterval(() => {}, 1000))\n');
     await assert.rejects(restorePreviewDocumentLocally({}, env, 'invalid-run', early),
       { message:'LOCAL_RESTORE_PROCESS_CLOSED_EARLY' });
     await assert.rejects(restorePreviewDocumentLocally({}, env, 'invalid-run', protocol),
       { message:'LOCAL_RESTORE_PROTOCOL_INVALID' });
     await assert.rejects(restorePreviewDocumentLocally({}, env, 'invalid-run', explicit),
       { message:'LOCAL_RESTORE_DESTINATION_NOT_FRESH' });
+    await assert.rejects(restorePreviewDocumentLocally({}, env, 'invalid-run', hung, 300),
+      { message:'LOCAL_RESTORE_PROCESS_TIMEOUT' });
   } finally { await rm(dir, { recursive:true, force:true }); }
 });
 
