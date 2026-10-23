@@ -13,8 +13,9 @@ export async function POST(request: NextRequest) {
   try { origin = new URL(request.headers.get("origin") ?? ""); }
   catch { return new Response(null, { status: 403 }); }
   const host = request.headers.get("host");
+  const isLoopback = ["localhost", "127.0.0.1", "[::1]"].includes(origin.hostname);
   if (!host || origin.host !== host ||
-      (origin.protocol !== "https:" && !(origin.protocol === "http:" && origin.hostname === "127.0.0.1")))
+      (origin.protocol !== "https:" && !(origin.protocol === "http:" && isLoopback)))
     return new Response(null, { status: 403 });
   if (!request.headers.get("content-type")?.startsWith("application/x-www-form-urlencoded"))
     return new Response(null, { status: 415 });
