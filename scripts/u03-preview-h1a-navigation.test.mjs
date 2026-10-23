@@ -4,7 +4,7 @@ import { once } from 'node:events';
 import { EventEmitter } from 'node:events';
 import test from 'node:test';
 import { chromium } from 'playwright';
-import { installScopedRoutes, classifyBlockedExternalRequest, classifyDiagnosticResource, createPageDiagnostics, summarizeDiagnosticInterval } from './u03-preview-b4-runner.mjs';
+import { installScopedRoutes, classifyBlockedExternalRequest, classifyDiagnosticResource, classifyCdpInterceptionFailure, createPageDiagnostics, summarizeDiagnosticInterval } from './u03-preview-b4-runner.mjs';
 
 async function injectPausedRequest({ url, headers = {}, rejectHeaderOverride = false, rejectContinue = false,
   rejectResponse = false, rejectFail = false, resourceType = 'XHR', responseStatusCode = null }) {
@@ -45,7 +45,22 @@ test('injected request-stage XHR CDP failure records operation and stays fatal',
   assert.equal(failure.diagnostics[0]?.interceptionOperation, 'CONTINUE_REQUEST');
   assert.equal(failure.diagnostics[0]?.destinationClass, 'EXTERNAL');
   assert.equal(failure.diagnostics[0]?.requestClass, 'SUBRESOURCE');
+  assert.equal(failure.diagnostics[0]?.failureCategory, 'CDP_OPERATION_REJECTED');
+  assert.equal(failure.diagnostics[0]?.resourceClass, 'other-xhr');
   assert.doesNotMatch(JSON.stringify(failure.diagnostics), /fictional-secret|fictional CDP/);
+});
+
+test('CDP failure classes are closed and never retain protocol text', () => {
+  for (const [message, expected] of [
+    ['Invalid InterceptionId', 'REQUEST_NOT_ACTIVE'],
+    ['Session closed', 'CDP_SESSION_CLOSED'],
+    ['Invalid request header', 'HEADER_REJECTED'],
+    ['fictional secret from CDP', 'CDP_OPERATION_REJECTED'],
+  ]) {
+    const category = classifyCdpInterceptionFailure(new Error(message));
+    assert.equal(category, expected);
+    assert.doesNotMatch(category, /secret|Intercept|Session closed/i);
+  }
 });
 
 test('external scoped headers are stripped; failed blocking command is still a fatal diagnostic', async () => {
@@ -113,6 +128,45 @@ test('real Chromium handles a 303 login followed by an external XHR 204 without 
     await browser?.close();
     pinned.close(); external.close();
     await Promise.all([once(pinned, 'close'), once(external, 'close')]);
+  }
+});
+
+test('real Chromium continues three pinned XHR subresources after a 303 login', async () => {
+  const server = createServer((request, response) => {
+    if (request.method === 'POST' && request.url === '/acceso') return response.writeHead(303, { location:'/panel' }).end();
+    if (request.url === '/acceso') return response.writeHead(200, { 'content-type':'text/html' })
+      .end('<form method="POST"><button>Entrar</button></form>');
+    if (request.url === '/panel') return response.writeHead(200, { 'content-type':'text/html' })
+      .end(`<main>Panel</main><script>
+        window.xhrSettled = 0;
+        for (let i = 0; i < 3; i++) {
+          const xhr = new XMLHttpRequest(); xhr.open('GET', '/signal-' + i);
+          xhr.onload = xhr.onerror = () => { window.xhrSettled++; }; xhr.send();
+        }
+      </script>`);
+    if (/^\/signal-[0-2]$/.test(request.url ?? '')) return response.writeHead(204).end();
+    response.writeHead(404).end();
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  let browser;
+  try {
+    browser = await chromium.launch({ headless:true });
+    const context = await browser.newContext({ serviceWorkers:'block' });
+    const page = await context.newPage();
+    const diagnostics = [];
+    await installScopedRoutes(context, page, 'fictional-oidc', origin,
+      () => {}, () => {}, null, detail => diagnostics.push(detail));
+    await page.goto(`${origin}/acceso`);
+    await page.getByRole('button', { name:'Entrar' }).click();
+    await page.waitForFunction(() => window.xhrSettled === 3);
+    assert.equal(new URL(page.url()).pathname, '/panel');
+    assert.equal(diagnostics.some(row => row.disposition === 'PINNED_REQUEST_BLOCKED'), false);
+  } finally {
+    await browser?.close();
+    server.close();
+    await once(server, 'close');
   }
 });
 

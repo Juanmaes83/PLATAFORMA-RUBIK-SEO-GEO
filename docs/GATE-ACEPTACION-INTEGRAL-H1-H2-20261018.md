@@ -1,5 +1,9 @@
 # Gate de aceptación integral · H1 y H2
 
+## Corte vigente H1-A tras 9570e8d0 · 23/10/2026
+
+El run alojado `9570e8d0-0c45-432a-b300-2c51d0c3ef58` conserva **BLOCKED** en `H1A_AUTH_LOGIN`: tres subrecursos del origen fijado fallaron en `Fetch.continueRequest`; otros tres registros corresponden al intento posterior de bloqueo. El ledger no conserva la clase del rechazo CDP y el snapshot `after-login` no demuestra login completo. Una lectura independiente **nueva** confirmó inventario/outbox/capacidades temporales a cero, guarda restaurada y escritor general NOLOGIN; las variables, deployment y vault ya no están. [Expediente y hashes](H1A-CDP-9570-20261023.md). La instrumentación añadida conserva categorías cerradas para un fallo futuro, pero no constituye una corrección funcional ni PASS alojado. U03 permanece cerrado; H1-A, R1, H1-B/U04, H1 global y H2 siguen abiertos.
+
 ## Corte H1-A tras e4296f43 · 23/10/2026
 
 El run alojado `e4296f43-338a-4ca2-9f8f-340ac7f0c50a` conserva resultado **BLOCKED** en login por `H1A_PINNED_REQUEST_INTERCEPTION_FAILED`, antes de exportación HTTP. La lectura final independiente confirmó Preview e inventario/outbox a cero y principal temporal retirado. La operación CDP concreta no quedó en el ledger original; [el expediente acotado](H1A-CDP-E429-20261023.md) distingue lo acreditado de la reproducción local y documenta la corrección de categorías del ledger y del teardown. H1-A sigue abierto y la aceptación visual humana no se infiere de capturas anteriores.

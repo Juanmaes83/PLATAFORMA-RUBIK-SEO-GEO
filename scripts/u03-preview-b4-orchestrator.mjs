@@ -109,7 +109,7 @@ const LEDGER_KEYS = new Set([
   'adminKeyFormat', 'publicKeyFormat',
   'pathname', 'errorCode', 'actionHttpStatus', 'sessionCookiePresent', 'routeEvents', 'capturePath',
   'phase', 'diagnostics', 'diagnosticsBefore', 'diagnosticsAfter', 'diagnosticsDelta', 'diagnosticInterval', 'stage', 'expectedCount', 'observedCount', 'valueMatch', 'receiptState', 'httpStatus', 'sqlstate',
-  'expectedDestinationClass', 'observedDestinationClass', 'authResult', 'requestClass', 'destinationClass', 'responseClass', 'disposition', 'interceptionOperation',
+  'expectedDestinationClass', 'observedDestinationClass', 'authResult', 'requestClass', 'destinationClass', 'responseClass', 'disposition', 'interceptionOperation', 'failureCategory', 'resourceClass',
   'mode', 'evidenceRunId',
 ]);
 
@@ -172,6 +172,8 @@ export function safeLedgerDetail(input = {}) {
     if (key === 'destinationClass' && !['PINNED_ORIGIN', 'EXTERNAL', 'UNKNOWN'].includes(value)) continue;
     if (key === 'interceptionOperation' && !['CLASSIFY_URL', 'CLASSIFY_ORIGIN', 'CLASSIFY_REDIRECT',
       'CONSTRUCT_HEADERS', 'CONTINUE_REQUEST', 'CONTINUE_RESPONSE', 'FAIL_REQUEST'].includes(value)) continue;
+    if (key === 'failureCategory' && !['REQUEST_NOT_ACTIVE', 'CDP_SESSION_CLOSED', 'HEADER_REJECTED', 'CDP_OPERATION_REJECTED'].includes(value)) continue;
+    if (key === 'resourceClass' && !/^(?:next-static|next-image|access|panel|api|project|root|other|unknown)-(?:document|script|stylesheet|image|fetch|xhr|font|other)$/.test(String(value))) continue;
     if (key === 'responseClass' && !['DIRECT', 'REDIRECT', 'UNKNOWN'].includes(value)) continue;
     if (key === 'requestClass' && !['MAIN_DOCUMENT', 'FRAME_DOCUMENT', 'SUBRESOURCE', 'UNKNOWN'].includes(value)) continue;
     if (key === 'disposition' && !['BLOCKED_EXTERNAL_SUBRESOURCE', 'BLOCKED_EXTERNAL_SUBRESOURCE_REDIRECT', 'BLOCKED_EXTERNAL_MAIN_FRAME_REDIRECT', 'BLOCKED_EXTERNAL_MAIN_FRAME_NAVIGATION', 'PINNED_REQUEST_BLOCKED'].includes(value)) continue;
@@ -610,7 +612,8 @@ export async function writeH1ANavigationDiagnostics(ledger, events, start = 0) {
     await ledger('h1a-navigation-intercept', event.disposition === 'PINNED_REQUEST_BLOCKED' ? 'BLOCKED' : 'PASS', {
       phase: event.phase, disposition: event.disposition, requestClass: event.requestClass,
       destinationClass: event.destinationClass, responseClass: event.responseClass,
-      interceptionOperation: event.interceptionOperation, httpStatus: event.httpStatus,
+      interceptionOperation: event.interceptionOperation, failureCategory: event.failureCategory,
+      resourceClass: event.resourceClass, httpStatus: event.httpStatus,
     });
   }
   return events.length;
@@ -666,7 +669,8 @@ async function runH1AProtectedViews({ fixtures, runId, env, ledger, captureRoot,
     const diagnostic = { phase: event.phase, expectedDestinationClass,
       observedDestinationClass: event.destinationClass === 'EXTERNAL' ? 'EXTERNAL' : 'UNKNOWN', authResult: 'UNKNOWN',
       requestClass: event.requestClass, responseClass: event.responseClass,
-      interceptionOperation: event.interceptionOperation, httpStatus: event.httpStatus };
+      interceptionOperation: event.interceptionOperation, failureCategory: event.failureCategory,
+      resourceClass: event.resourceClass, httpStatus: event.httpStatus };
     await ledger('h1a-navigation-step', 'BLOCKED', diagnostic);
     const error = new Error(event.disposition === 'PINNED_REQUEST_BLOCKED'
       ? 'H1A_PINNED_REQUEST_INTERCEPTION_FAILED' : 'H1A_EXTERNAL_NAVIGATION_BLOCKED');
@@ -1040,6 +1044,7 @@ export async function runHostedU03Campaign({
           observedDestinationClass: diagnostic.observedDestinationClass, authResult: diagnostic.authResult,
           requestClass: diagnostic.requestClass, responseClass: diagnostic.responseClass,
           interceptionOperation: diagnostic.interceptionOperation,
+          failureCategory: diagnostic.failureCategory, resourceClass: diagnostic.resourceClass,
           httpStatus: diagnostic.httpStatus } : {}), ...keyFormats });
     } catch { /* cleanup still proceeds */ }
   } finally {

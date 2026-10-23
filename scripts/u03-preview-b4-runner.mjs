@@ -109,6 +109,18 @@ export function classifyDiagnosticResource(url, resourceType) {
   return `${route}-${type}`;
 }
 
+// CDP messages stay inside this process. Only these fixed classes cross the ledger boundary.
+export function classifyCdpInterceptionFailure(error) {
+  const message = typeof error?.message === 'string' ? error.message : '';
+  if (/Invalid InterceptionId|Invalid request(?:Id| id)|No resource with given identifier/i.test(message))
+    return 'REQUEST_NOT_ACTIVE';
+  if (/Session closed|Target closed|Session with given id not found/i.test(message))
+    return 'CDP_SESSION_CLOSED';
+  if (/invalid (?:request )?header|header.*invalid/i.test(message))
+    return 'HEADER_REJECTED';
+  return 'CDP_OPERATION_REJECTED';
+}
+
 export async function installScopedRoutes(context, page, token, allowedOrigin = ORIGIN, onEvent = () => {}, onRouteEvent = () => {}, runId = null, onNavigationDiagnostic = () => {}) {
   // Playwright routes are called once for a redirect chain. CDP Fetch pauses each
   // Chromium request, including the GET produced by an action's 303 response.
@@ -189,13 +201,14 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
         requestId: paused.requestId,
         headers: Object.entries(headers).map(([name, value]) => ({ name, value: String(value) })),
       });
-    })().catch(async () => {
+    })().catch(async (error) => {
       const resource = classifyDiagnosticResource(paused.request?.url, paused.resourceType);
       onRouteEvent(`cdp-failure-${stage}-${resource}`);
       const diagnostic = { event: "pinned-origin-request-failed", disposition: "PINNED_REQUEST_BLOCKED",
         requestClass, destinationClass, responseClass: stage === 'response'
           ? (paused.responseStatusCode >= 300 && paused.responseStatusCode < 400 ? 'REDIRECT' : 'DIRECT') : 'UNKNOWN',
-        interceptionOperation: operation, httpStatus: Number.isInteger(paused.responseStatusCode) ? paused.responseStatusCode : null };
+        interceptionOperation: operation, failureCategory: classifyCdpInterceptionFailure(error),
+        resourceClass: resource, httpStatus: Number.isInteger(paused.responseStatusCode) ? paused.responseStatusCode : null };
       onNavigationDiagnostic(diagnostic);
       onEvent("pinned-origin-request-failed", diagnostic);
       onRouteEvent("pinned-origin-request-failed");

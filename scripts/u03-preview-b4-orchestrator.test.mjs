@@ -56,11 +56,14 @@ test('failed CDP interception is BLOCKED in the navigation ledger and retains on
   const ledger = async (caseId, status, detail) => rows.push({ caseId, status, ...safeLedgerDetail(detail) });
   const events = [{ phase:'H1A_AUTH_LOGIN', disposition:'PINNED_REQUEST_BLOCKED',
     requestClass:'SUBRESOURCE', destinationClass:'UNKNOWN', responseClass:'UNKNOWN',
-    interceptionOperation:'CONTINUE_REQUEST', httpStatus:null, message:'fictional CDP secret' }];
+    interceptionOperation:'CONTINUE_REQUEST', failureCategory:'REQUEST_NOT_ACTIVE',
+    resourceClass:'other-xhr', httpStatus:null, message:'fictional CDP secret' }];
   assert.equal(await writeH1ANavigationDiagnostics(ledger, events), 1);
   assert.deepEqual(rows, [{ caseId:'h1a-navigation-intercept', status:'BLOCKED',
     phase:'H1A_AUTH_LOGIN', disposition:'PINNED_REQUEST_BLOCKED', requestClass:'SUBRESOURCE',
-    destinationClass:'UNKNOWN', responseClass:'UNKNOWN', interceptionOperation:'CONTINUE_REQUEST', httpStatus:null }]);
+    destinationClass:'UNKNOWN', responseClass:'UNKNOWN', interceptionOperation:'CONTINUE_REQUEST',
+    failureCategory:'REQUEST_NOT_ACTIVE', resourceClass:'other-xhr', httpStatus:null }]);
+  assert.deepEqual(safeLedgerDetail({ failureCategory:'secret-token', resourceClass:'https://evil.invalid/private' }), {});
 });
 
 test('H1-A export classifies only closed 503 gates and rejects an external origin first', async () => {
