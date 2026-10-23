@@ -1,5 +1,9 @@
 # U03 · matriz alojada de Preview · 18/10/2026
 
+## H1-A · origen del E2E local · 23/10/2026
+
+U03 sigue PASS sin repetir campañas. El CI del SHA `7c50cd0` falló en navegador: Playwright usaba `localhost` y el login HTTP local solo permite `127.0.0.1`. Se corrigió el origen del arnés y se probó el rechazo/admisión de la ruta, el caso Playwright dirigido y el recorrido H1-A local con restauración doble. CI del nuevo SHA está pendiente; H1-A alojado continúa BLOCKED. La ventana `eb6f4b69…` fue solo preparada, sin rol ni fixtures, y sus variables/deployment/vault se retiraron al cambiar el SHA. [Expediente](H1A-CI-LOGIN-20261023.md).
+
 ## H1-A · run f31e8ca6 · restore local bloqueado · 23/10/2026
 
 U03 conserva **PASS/CERRADO** por el run `330c6e4b-14ad-439a-a8cf-43d92c73fadb`; no se repitió. En H1-A `f31e8ca6-7349-4c6a-8d16-409ad7f4e1b6` pasaron principal/Session pooler, firma, recibos, aislamiento, login, cuatro vistas/capturas, exportación HTTP 200, verificación offline y rechazo de manipulación. El último PASS fue `h1a-tamper-rejection`; el primer FAIL fue `campaign-error / PREVIEW_EXPORT_LOCAL_RESTORE_FAILED`. La restauración doble, su idempotencia y el logout no quedaron acreditados. Cleanup y contención PASS; lectura independiente de Preview: inventario/outbox y rol/políticas/sesiones temporales cero, guarda original y escritor general NOLOGIN; variables, deployment y vault retirados. El fallo interno del hijo no consta en el ledger histórico. La reproducción local con manifiesto firmado mostró dos defectos del adaptador, corregidos en SHA funcional `4df694a`: stdin de `psql` ignorado y comparación de columnas no equivalentes. El mismo proceso hijo pasó después en el ensayo local integral con destino aislado; **no equivale a PASS alojado**. H1-A sigue BLOCKED y la aceptación visual humana sigue pendiente. [Expediente](H1A-RESTORE-F31-20261023.md).

@@ -8,11 +8,11 @@ vi.mock("@/lib/supabase/server", () => ({ createClient: auth.client }));
 
 import { POST } from "@/app/api/auth/login/route";
 
-function request(fields: Record<string, string>, origin = "https://preview.example.test") {
+function request(fields: Record<string, string>, origin = "https://preview.example.test", host = "preview.example.test") {
   const body = new URLSearchParams(fields).toString();
   return new NextRequest("https://preview.example.test/api/auth/login", {
     method: "POST", body,
-    headers: { origin, host: "preview.example.test", "content-type": "application/x-www-form-urlencoded", "content-length": String(Buffer.byteLength(body)) },
+    headers: { origin, host, "content-type": "application/x-www-form-urlencoded", "content-length": String(Buffer.byteLength(body)) },
   });
 }
 
@@ -25,6 +25,16 @@ describe("native login POST", () => {
   it("rejects a foreign origin before calling Auth", async () => {
     expect((await POST(request({ email: "a@example.test", password: "secret" }, "https://other.example.test"))).status).toBe(403);
     expect(auth.client).not.toHaveBeenCalled();
+  });
+
+  it("accepts the loopback origin used by Playwright and rejects a different local hostname", async () => {
+    const fields = { email: "a@example.test", password: "secret" };
+    expect((await POST(request(fields, "http://localhost:3217", "localhost:3217"))).status).toBe(403);
+    expect(auth.signIn).not.toHaveBeenCalled();
+    const response = await POST(request(fields, "http://127.0.0.1:3217", "127.0.0.1:3217"));
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe("http://127.0.0.1:3217/panel");
+    expect(auth.signIn).toHaveBeenCalledOnce();
   });
 
   it("rejects an oversized body before calling Auth", async () => {

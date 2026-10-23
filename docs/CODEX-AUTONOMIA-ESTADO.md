@@ -1,5 +1,9 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
+## #145 · E2E local y ventana H1-A retirada · 23/10/2026
+
+En el CI de `7c50cd0`, verify Node 22/24 pasó y e2e falló. Causa concreta del login: origen Playwright `localhost` rechazado por la guarda HTTP local que exige `127.0.0.1`. Corrección en el arnés, regresión de la ruta 7 PASS, Playwright dirigido con login 1 PASS, H1-A local HTTP/restauración 2 PASS y `npm run verify` 648 PASS/1 SKIP. El teardown del Playwright dirigido encontró un stack compartido histórico sin `private.audit_outbox`; sus dos runs se reconciliaron por IDs y una lectura independiente dio cero recursos propios. No se atribuye ese stack a Preview ni se declara CI del nuevo SHA verde antes de ejecutarse. La ventana preparada `eb6f4b69…` tuvo solo preflight/atestación PASS, ninguna instalación o fixture; sus nueve variables, deployment y vault se retiraron. Preview sigue con inventario/outbox y capacidades temporales cero, escritor general NOLOGIN. H1-A alojado sigue BLOCKED; H1-B/U04, R1, H1 global y H2 abiertos. [Detalle](H1A-CI-LOGIN-20261023.md).
+
 ## #145 · H1-A f31e8ca6 · 23/10/2026
 
 PR #145 sigue OPEN/Draft. El run alojado `f31e8ca6-7349-4c6a-8d16-409ad7f4e1b6` pasó login, cuatro vistas, firma y recibos, export HTTP 200, verificación offline y rechazo de manipulación; se detuvo en `campaign-error / PREVIEW_EXPORT_LOCAL_RESTORE_FAILED`. Restauración doble, idempotencia y logout no acreditados. Ledgers originales intactos; hashes, secuencia y límites en [expediente H1-A f31](H1A-RESTORE-F31-20261023.md). Contención y limpieza del ledger PASS; lectura independiente de Preview confirmó inventario/outbox, rol/políticas/sesiones cero, guarda original y escritor general NOLOGIN. Variables de rama, deployment y vault ausentes.
