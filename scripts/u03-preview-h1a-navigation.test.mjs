@@ -72,6 +72,50 @@ test('interception classifier distinguishes URL, header and response operations 
   }
 });
 
+test('real Chromium handles a 303 login followed by an external XHR 204 without an interception failure', async () => {
+  const external = createServer((_request, response) => {
+    response.writeHead(204, { 'access-control-allow-origin':'*' }).end();
+  });
+  external.listen(0, '127.0.0.1');
+  await once(external, 'listening');
+  const externalOrigin = `http://127.0.0.1:${external.address().port}`;
+  const pinned = createServer((request, response) => {
+    if (request.method === 'POST' && request.url === '/acceso')
+      return response.writeHead(303, { location:'/panel' }).end();
+    if (request.url === '/acceso')
+      return response.writeHead(200, { 'content-type':'text/html' }).end('<form method="POST"><button>Entrar</button></form>');
+    if (request.url === '/panel')
+      return response.writeHead(200, { 'content-type':'text/html' }).end(`<main>Panel ficticio</main><script>
+        const xhr = new XMLHttpRequest(); xhr.open('GET', '${externalOrigin}/signal');
+        xhr.onload = xhr.onerror = () => { window.xhrSettled = true; }; xhr.send();
+      </script>`);
+    response.writeHead(404).end();
+  });
+  pinned.listen(0, '127.0.0.1');
+  await once(pinned, 'listening');
+  const origin = `http://127.0.0.1:${pinned.address().port}`;
+  let browser;
+  try {
+    browser = await chromium.launch({ headless:true });
+    const context = await browser.newContext({ serviceWorkers:'block' });
+    const page = await context.newPage();
+    const security = [];
+    const diagnostics = [];
+    await installScopedRoutes(context, page, 'fictional-oidc', origin,
+      (event, detail) => security.push({ event, detail }), () => {}, null, detail => diagnostics.push(detail));
+    await page.goto(`${origin}/acceso`);
+    await page.getByRole('button', { name:'Entrar' }).click();
+    await page.waitForFunction(() => window.xhrSettled === true);
+    assert.equal(new URL(page.url()).pathname, '/panel');
+    assert.equal(security.length, 0);
+    assert.equal(diagnostics.some(row => row.disposition === 'PINNED_REQUEST_BLOCKED'), false);
+  } finally {
+    await browser?.close();
+    pinned.close(); external.close();
+    await Promise.all([once(pinned, 'close'), once(external, 'close')]);
+  }
+});
+
 test('diagnostic cardinality overflow blocks instead of silently dropping a route class', () => {
   const diagnostics = createPageDiagnostics({ on() {}, off() {} });
   for (let status = 400; status < 500; status++) diagnostics.addRouteEvent(`http-${status}-next-static-script`);
