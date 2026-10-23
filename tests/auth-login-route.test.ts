@@ -8,11 +8,16 @@ vi.mock("@/lib/supabase/server", () => ({ createClient: auth.client }));
 
 import { POST } from "@/app/api/auth/login/route";
 
-function request(fields: Record<string, string>, origin = "https://preview.example.test") {
+function request(
+  fields: Record<string, string>,
+  target = "https://preview.example.test",
+  origin = target,
+) {
   const body = new URLSearchParams(fields).toString();
-  return new NextRequest("https://preview.example.test/api/auth/login", {
+  const destination = new URL(target);
+  return new NextRequest(new URL("/api/auth/login", destination), {
     method: "POST", body,
-    headers: { origin, host: "preview.example.test", "content-type": "application/x-www-form-urlencoded", "content-length": String(Buffer.byteLength(body)) },
+    headers: { origin, host: destination.host, "content-type": "application/x-www-form-urlencoded", "content-length": String(Buffer.byteLength(body)) },
   });
 }
 
@@ -23,7 +28,19 @@ describe("native login POST", () => {
   });
 
   it("rejects a foreign origin before calling Auth", async () => {
-    expect((await POST(request({ email: "a@example.test", password: "secret" }, "https://other.example.test"))).status).toBe(403);
+    expect((await POST(request({ email: "a@example.test", password: "secret" }, "https://preview.example.test", "https://other.example.test"))).status).toBe(403);
+    expect(auth.client).not.toHaveBeenCalled();
+  });
+
+  it("allows localhost HTTP for the local browser suite", async () => {
+    const response = await POST(request({ email: "a@example.test", password: "secret", next: "/panel" }, "http://localhost:3217"));
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe("http://localhost:3217/panel");
+    expect(auth.signIn).toHaveBeenCalledWith({ email: "a@example.test", password: "secret" });
+  });
+
+  it("rejects HTTP on non-loopback hosts before calling Auth", async () => {
+    expect((await POST(request({ email: "a@example.test", password: "secret" }, "http://example.test"))).status).toBe(403);
     expect(auth.client).not.toHaveBeenCalled();
   });
 
