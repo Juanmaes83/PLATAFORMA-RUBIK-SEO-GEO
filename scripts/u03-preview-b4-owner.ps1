@@ -49,7 +49,26 @@ Import-Module -Name $windowConfigurationModule -Force -ErrorAction Stop
 $h1aBatchCompareModule = Join-Path $PSScriptRoot 'u03-preview-h1a-batch-compare.psm1'
 Import-Module -Name $h1aBatchCompareModule -Force -ErrorAction Stop
 
-function Stop-B4([string]$Code) { throw "U03 B-4 BLOCKED: $Code. No fixtures will be created unless every preflight passes." }
+function Stop-B4([string]$Code) { throw "U03 B-4 BLOCKED: $Code." }
+function Get-U03WindowFirstFailure([string]$LedgerPath) {
+  if (-not (Test-Path -LiteralPath $LedgerPath -PathType Leaf) -or
+      (Get-Item -LiteralPath $LedgerPath).Length -gt 1048576) {
+    return [pscustomobject]@{ Phase='UNKNOWN'; Code='LEDGER_UNAVAILABLE'; FixturesCreated=$false }
+  }
+  $created = $false
+  try {
+    foreach ($line in (Get-Content -LiteralPath $LedgerPath -ErrorAction Stop)) {
+      $row = $line | ConvertFrom-Json -ErrorAction Stop
+      if ($row.caseId -like 'fixture-*' -and $row.status -ceq 'CREATED') { $created = $true }
+      if ($row.status -cin @('FAIL','BLOCKED')) {
+        $phase = if ([string]$row.caseId -cmatch '^[a-z0-9-]{1,80}$') { [string]$row.caseId } else { 'UNKNOWN' }
+        $code = if ([string]$row.code -cmatch '^[A-Z0-9_]{3,80}$') { [string]$row.code } else { 'NONE' }
+        return [pscustomobject]@{ Phase=$phase; Code=$code; FixturesCreated=$created }
+      }
+    }
+  } catch { return [pscustomobject]@{ Phase='UNKNOWN'; Code='LEDGER_INCOMPLETE'; FixturesCreated=$created } }
+  return [pscustomobject]@{ Phase='UNKNOWN'; Code='LEDGER_NO_FAILURE_ROW'; FixturesCreated=$created }
+}
 
 function Write-U03WindowGlobalResult([string]$RunId, [string]$Status, [string]$CaseId = 'u03-global-result') {
   if ($RunId -cnotmatch '^[0-9a-fA-F-]{36}$' -or $Status -notin @('PASS','BLOCKED')) { return $false }
@@ -180,9 +199,11 @@ function Invoke-U03WindowRoleChild([string]$Mode, [string]$RunId, [string]$Passw
     $combinedOutput = $stdout + "`n" + $stderr
     $safeLine = @($combinedOutput -split "`r?`n" | Where-Object { $_ -cmatch $pattern } | Select-Object -Last 1)
     if ($safeLine.Count -eq 0) {
-      $missingCode = if ($Mode -eq 'attest' -and $stderr -match 'This module cannot be imported from a Client Component module') { 'SERVER_ONLY_IMPORT_REJECTED' }
+      $missingCode = if ($ChildPath -eq (Join-Path $PSScriptRoot 'u03-window-role-transport-child.mjs') -and $stderr -match 'U03_WINDOW_ROLE_SELFTEST_INPUT_PARSE_FAILED') { 'SELFTEST_INPUT_PARSE_FAILED' }
+        elseif ($ChildPath -eq (Join-Path $PSScriptRoot 'u03-window-role-transport-child.mjs') -and $stderr -match 'U03_WINDOW_ROLE_SELFTEST_UNEXPECTED_FAILURE') { 'SELFTEST_UNEXPECTED_FAILURE' }
+        elseif ($Mode -eq 'attest' -and $stderr -match 'This module cannot be imported from a Client Component module') { 'SERVER_ONLY_IMPORT_REJECTED' }
         elseif (-not [string]::IsNullOrWhiteSpace($stderr)) { 'SAFE_CHILD_STDERR_NONEMPTY' } else { 'SAFE_CHILD_RESULT_MISSING' }
-      return [pscustomobject]@{ Passed = $false; SafeLine = $null; Code = $missingCode }
+      return [pscustomobject]@{ Passed = $false; SafeLine = $null; Code = $missingCode; ExitCode = $process.ExitCode }
     }
     $lineText = [string]$safeLine[0]
     $keyBlocked = if ($Mode -eq 'keys') { [regex]::Match($lineText,'BLOCKED code=(SEQUENCE_PREVIEW_KEYS_REQUIRED|SEQUENCE_PREVIEW_KEYS_FORMAT_INVALID); no database password was requested') } else { $null }
@@ -496,7 +517,10 @@ try {
     $successId = 'a8f2d946-07ab-4bb9-8901-35f7993f1266'
     $windowRoleRunId = 'f9c7f203-3f09-4eb2-bcc0-37db2cc6a782'
     $successChild = Invoke-U03WindowRoleChild -Mode 'run' -RunId $successId -PasswordText $fakePassword -ChildPath $testChild
-    if (-not $successChild.Passed -or $successChild.SafeLine -notmatch '^U03_WINDOW_ROLE_RESULT PASS ') { Stop-B4 'WINDOW_ROLE_UTF8_TRANSPORT_TEST_FAILED' }
+    if (-not $successChild.Passed -or $successChild.SafeLine -notmatch '^U03_WINDOW_ROLE_RESULT PASS ') {
+      Write-Output "WINDOW_ROLE_UTF8_SELFTEST_CHILD code=$($successChild.Code) exitCode=$($successChild.ExitCode)"
+      Stop-B4 'WINDOW_ROLE_UTF8_TRANSPORT_TEST_FAILED'
+    }
     $windowRolePlainPassword = $fakePassword
     $windowRoleChildOverride = $testChild
     $failedChild = Invoke-U03WindowRoleChild -Mode 'run' -RunId $windowRoleRunId -PasswordText $fakePassword -ChildPath $testChild
@@ -573,6 +597,24 @@ try {
     $fakeBatch=[pscustomobject]@{Branch='codex/h1a-integral-20261022';SupabaseRef='rhnnplewqsekrnaousyl';Sha=('a'*40);RunId=$windowRoleRunId;Values=$fakeBatchValues}
     $rotationResult=Invoke-U03WindowRotation -Batch $fakeBatch -Cli $rotationCli -Names $rotationNames
     if (-not $rotationResult.Passed -or @($rotationState.Rows).Count -ne $rotationNames.Count -or $rotationState.Operations[-2][0] -ne 'add' -or $rotationState.Operations[-2][1] -ne $rotationNames[0]) { Stop-B4 'WINDOW_PARTIAL_ROTATION_RECOVERY_TEST_FAILED' }
+    $fakeLedger = Join-Path $env:TEMP ('u03-window-failure-' + [guid]::NewGuid().ToString('N') + '.jsonl')
+    try {
+      $rows = @(
+        @{ caseId='deployment-preflight'; status='PASS' },
+        @{ caseId='fixture-user-ownera'; status='CREATED' },
+        @{ caseId='h1a-local-double-restore'; status='BLOCKED'; code='LOCAL_RESTORE_CONTENT_MISMATCH' },
+        @{ caseId='campaign-error'; status='FAIL'; code='PREVIEW_EXPORT_LOCAL_RESTORE_FAILED' }
+      ) | ForEach-Object { ConvertTo-Json -InputObject $_ -Compress }
+      [IO.File]::WriteAllText($fakeLedger,($rows -join "`n"),[Text.UTF8Encoding]::new($false))
+      $first = Get-U03WindowFirstFailure $fakeLedger
+      if ($first.Phase -cne 'h1a-local-double-restore' -or $first.Code -cne 'LOCAL_RESTORE_CONTENT_MISMATCH' -or -not $first.FixturesCreated) { Stop-B4 'WINDOW_FIRST_FAILURE_AFTER_FIXTURES_TEST_FAILED' }
+      [IO.File]::WriteAllText($fakeLedger,'{"caseId":"deployment-preflight","status":"BLOCKED","code":"PREFLIGHT_FAILED"}',[Text.UTF8Encoding]::new($false))
+      $preflight = Get-U03WindowFirstFailure $fakeLedger
+      if ($preflight.Phase -cne 'deployment-preflight' -or $preflight.FixturesCreated) { Stop-B4 'WINDOW_FIRST_FAILURE_BEFORE_FIXTURES_TEST_FAILED' }
+      [IO.File]::WriteAllText($fakeLedger,'{"caseId":"bad secret text","status":"FAIL","code":"bad secret text"}',[Text.UTF8Encoding]::new($false))
+      $invalid = Get-U03WindowFirstFailure $fakeLedger
+      if ($invalid.Phase -cne 'UNKNOWN' -or $invalid.Code -cne 'NONE') { Stop-B4 'WINDOW_FIRST_FAILURE_SANITIZATION_TEST_FAILED' }
+    } finally { Remove-Item -LiteralPath $fakeLedger -Force -ErrorAction SilentlyContinue }
     $windowRoleTransportSelfTestPassed = $true
   } else {
   # Preserve the machine's authorized proxy route for Node fetch and CLI reads.
@@ -837,7 +879,12 @@ try {
       if ($runResult.SafeLine) { Write-Output $runResult.SafeLine }
       if (-not $runResult.Passed) {
         if ($WindowRoleReadOnlyDiagnosticOnly) { Stop-B4 'WINDOW_ROLE_READONLY_DIAGNOSTIC_BLOCKED_NO_WRITES' }
-        Stop-B4 'WINDOW_ROLE_PREFLIGHT_BLOCKED_NO_FIXTURES'
+        if ($WindowH1A -or $WindowI2I5H1A) {
+          $failureRow = Get-U03WindowFirstFailure (Join-Path $repo "test-results\u03-hosted-window\$windowRoleRunId.jsonl")
+          Write-Output "U03_WINDOW_SEQUENCE_FIRST_FAILURE phase=$($failureRow.Phase) code=$($failureRow.Code) fixturesCreated=$($failureRow.FixturesCreated.ToString().ToLowerInvariant())"
+          Stop-B4 'WINDOW_SEQUENCE_BLOCKED'
+        }
+        Stop-B4 'WINDOW_ROLE_PREFLIGHT_BLOCKED'
       }
       if ($WindowI2I5H1A -or $WindowH1A) { $windowSequencePassed = $true }
     } finally {

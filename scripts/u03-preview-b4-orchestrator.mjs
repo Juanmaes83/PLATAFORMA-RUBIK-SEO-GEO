@@ -585,7 +585,16 @@ export async function runProtectedWindowH1Export({ fixtures, runId, env = proces
     throw new Error('TAMPERED_RESTORE_PLAN_ACCEPTED');
   await ledger('h1a-tamper-rejection', 'PASS', { tamperRejected: true });
   const restoreStarted = performance.now();
-  const restore = await restorePreviewDocumentLocally(document, env, runId);
+  await ledger('h1a-local-double-restore', 'ATTEMPTED');
+  let restore;
+  try { restore = await restorePreviewDocumentLocally(document, env, runId); }
+  catch (error) {
+    const code = /^LOCAL_RESTORE_[A-Z0-9_]{3,60}$/.test(error?.message ?? '')
+      ? error.message : 'PREVIEW_EXPORT_LOCAL_RESTORE_FAILED';
+    try { await ledger('h1a-local-double-restore', 'BLOCKED', { code,
+      durationMs: Math.round(performance.now() - restoreStarted) }); } catch { /* preserve the restore failure */ }
+    throw new Error(code);
+  }
   await ledger('h1a-local-double-restore', restore ? 'PASS' : 'BLOCKED', { restoreCount: restore ? 2 : 0,
     contentVerified: restore === true, signaturesPreserved: restore === true, durationMs: Math.round(performance.now() - restoreStarted) });
   if (!restore) throw new Error('PREVIEW_EXPORT_LOCAL_RESTORE_FAILED');
@@ -837,17 +846,30 @@ async function restorePreviewDocumentLocally(document, env, runId) {
       env: { ...process.env, PROVENANCE_SIGNING_KEYS: env.PROVENANCE_SIGNING_KEYS,
         PROVENANCE_ACTIVE_KEY_ID: env.PROVENANCE_ACTIVE_KEY_ID, U03_RESTORE_DESTINATION_RUN_ID: runId }, stdio: ['pipe', 'pipe', 'ignore'] });
     let output = '';
+    let safeChildError = 'PREVIEW_EXPORT_LOCAL_RESTORE_FAILED';
+    let stderrPrefix = '';
     child.stdout.setEncoding('utf8');
     child.stdout.on('data', chunk => { output = (output + chunk).slice(-1000); });
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', chunk => {
+      stderrPrefix = (stderrPrefix + chunk).slice(0, 512);
+      safeChildError = classifyLocalRestoreChildFailure(stderrPrefix);
+    });
     child.on('error', () => reject(new Error('LOCAL_RESTORE_PROCESS_START_FAILED')));
     child.on('close', code => {
       const match = output.match(/^U03_PREVIEW_TO_LOCAL_RESTORE PASS restoreCount=2 contentVerified=true signaturesPreserved=true$/m);
       if (code === 0 && match) resolve(true);
-      else reject(new Error('PREVIEW_EXPORT_LOCAL_RESTORE_FAILED'));
+      else reject(new Error(safeChildError));
     });
     child.stdin.on('error', () => {});
     child.stdin.end(JSON.stringify({ runId, document }));
   });
+}
+
+export function classifyLocalRestoreChildFailure(output) {
+  if (typeof output !== 'string') return 'PREVIEW_EXPORT_LOCAL_RESTORE_FAILED';
+  const match = /^U03_PREVIEW_TO_LOCAL_RESTORE BLOCKED code=(LOCAL_RESTORE_[A-Z0-9_]{3,60})\r?$/m.exec(output.slice(0, 512));
+  return match ? match[1] : 'PREVIEW_EXPORT_LOCAL_RESTORE_FAILED';
 }
 
 export async function runHostedU03Campaign({

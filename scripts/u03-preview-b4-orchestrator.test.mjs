@@ -4,11 +4,22 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { chromiumEnvironment, networkEnvironment, PIN } from './u03-preview-b4-runner.mjs';
-import { PREFLIGHT_RESULT_FIELDS, PREFLIGHT_SQL, PRIOR_DATA_API_RUN_ID, parseCliJson, readPreviewAuthSettings, runHostedU03Campaign, runProtectedWindowH1Export, runProtectedWindowSurfaces, runPreviewReadOnlySql, runReadOnlyPreflight, safeLedgerDetail, verifyFinalPreviewState, verifyInitialPreviewState, verifyProtectedWindowRuntime, verifyReadOnlyPreviewState, writeH1ANavigationDiagnostics } from './u03-preview-b4-orchestrator.mjs';
+import { PREFLIGHT_RESULT_FIELDS, PREFLIGHT_SQL, PRIOR_DATA_API_RUN_ID, classifyLocalRestoreChildFailure, parseCliJson, readPreviewAuthSettings, runHostedU03Campaign, runProtectedWindowH1Export, runProtectedWindowSurfaces, runPreviewReadOnlySql, runReadOnlyPreflight, safeLedgerDetail, verifyFinalPreviewState, verifyInitialPreviewState, verifyProtectedWindowRuntime, verifyReadOnlyPreviewState, writeH1ANavigationDiagnostics } from './u03-preview-b4-orchestrator.mjs';
 import { V4_SECURITY_DEFINER_ALLOWLIST } from './u03-preview-v4-receipt.mjs';
 
 const runId = 'u03-orchestrator-test-run';
 const sha = 'a'.repeat(40);
+
+test('local restore child exposes only a closed failure code to the campaign', () => {
+  assert.equal(classifyLocalRestoreChildFailure('U03_PREVIEW_TO_LOCAL_RESTORE BLOCKED code=LOCAL_RESTORE_CONTENT_OR_SIGNATURE_MISMATCH\n'),
+    'LOCAL_RESTORE_CONTENT_OR_SIGNATURE_MISMATCH');
+  assert.equal(classifyLocalRestoreChildFailure('U03_PREVIEW_TO_LOCAL_RESTORE BLOCKED code=LOCAL_RESTORE_DESTINATION_NOT_EMPTY\r\n'),
+    'LOCAL_RESTORE_DESTINATION_NOT_EMPTY');
+  assert.equal(classifyLocalRestoreChildFailure('U03_PREVIEW_TO_LOCAL_RESTORE BLOCKED code=secret-token\n'),
+    'PREVIEW_EXPORT_LOCAL_RESTORE_FAILED');
+  assert.equal(classifyLocalRestoreChildFailure('postgres error with password=fictional'),
+    'PREVIEW_EXPORT_LOCAL_RESTORE_FAILED');
+});
 
 test('failed CDP interception is BLOCKED in the navigation ledger and retains only closed fields', async () => {
   const rows = [];

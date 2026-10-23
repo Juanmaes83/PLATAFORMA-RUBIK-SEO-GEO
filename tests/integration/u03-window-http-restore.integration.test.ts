@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { createServer } from 'node:net';
 import { execFileSync } from 'node:child_process';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
@@ -57,6 +57,7 @@ let roleInstalled = false;
 let targetRowsCreated = false;
 let destinationActorIds: string[] = [];
 type HttpExport = Omit<ProjectExport,'format'> & {format:string;manifest:unknown;operations?:unknown};
+let signedExportForChild: HttpExport | undefined;
 const keyring = loadKeyring({ PROVENANCE_SIGNING_KEYS: `u03-http:${KEY}`, PROVENANCE_ACTIVE_KEY_ID: 'u03-http' });
 if (!keyring.ok) throw new Error('LOCAL_KEYRING_INVALID');
 
@@ -232,7 +233,8 @@ afterAll(async()=>{
   }
   const sourceTemporary=sql(SOURCE_DB,`select (select count(*) from pg_roles where rolname='${ROLE}')::text||'|'||(select count(*) from pg_policy where polname like 'u03_preview_writer_%')::text||'|'||(select (not rolcanlogin)::text from pg_roles where rolname='rubik_audit_writer')`);
   expect(sourceTemporary).toBe('0|0|true');
-  const destGlobal=sql(DEST_DB,`select (select count(*) from auth.users)::text||'|'||(select count(*) from public.organizations)::text||'|'||(select count(*) from public.projects)::text||'|'||(select count(*) from public.audit_events)::text||'|'||(select count(*) from public.provider_results)::text||'|'||(select count(*) from public.imports)::text||'|'||(select count(*) from private.audit_outbox)::text||'|'||(select count(*) from private.audit_outbox where state='pending')::text`);
+  const destinationPresent=execFileSync('docker',['ps','-a','--filter',`label=com.supabase.cli.project=${RESTORE_PROJECT}`,'--format','{{.Names}}'],{encoding:'utf8'}).trim()!=='';
+  const destGlobal=destinationPresent?sql(DEST_DB,`select (select count(*) from auth.users)::text||'|'||(select count(*) from public.organizations)::text||'|'||(select count(*) from public.projects)::text||'|'||(select count(*) from public.audit_events)::text||'|'||(select count(*) from public.provider_results)::text||'|'||(select count(*) from public.imports)::text||'|'||(select count(*) from private.audit_outbox)::text||'|'||(select count(*) from private.audit_outbox where state='pending')::text`):'0|0|0|0|0|0|0|0';
   expect(sourceGlobal).toBe('0|0|0|0|0|0|0|0');
   expect(destGlobal).toBe('0|0|0|0|0|0|0|0');
   record('source-cleanup','PASS');
@@ -324,6 +326,7 @@ it('exports over a loopback HTTP socket and restores the verified signed manifes
   const response=await fetch(`${process.env.U03_LOCAL_HTTP_BASE}/proyectos/${TENANT}/a1/exportar`,{headers:{cookie:ownerCookie},redirect:'manual'});
   expect(response.status).toBe(200);
   const document=await response.json() as HttpExport;
+  signedExportForChild=document;
   record('http-export','PASS');
   expect(verifyProjectExport(document,keyring.keyring)).toMatchObject({ok:true,completeness:{status:'COMPLETE'}});
   expect(document.results).toHaveLength(1);
@@ -396,3 +399,21 @@ it('exports over a loopback HTTP socket and restores the verified signed manifes
   expect(inventory(SOURCE_DB,project.projectId,project.organizationId)).toBe('0|0|0|0|0|0|0');
   expect(inventory(DEST_DB,project.projectId,project.organizationId)).toBe('0|0|0|0|0|0|0');
 },180_000);
+
+it('restores the real signed HTTP export through the same child process used by the hosted operator',()=>{
+  expect(signedExportForChild).toBeDefined();
+  const childRunId=process.env.U03_RESTORE_DESTINATION_RUN_ID!;
+  expect(sql(DEST_DB,'select (select count(*) from auth.users)::text||\'|\'||(select count(*) from private.audit_outbox)::text')).toBe('0|0');
+  execFileSync(process.execPath,['scripts/u03-window-local-destination.mjs','stop'],{
+    cwd:ROOT,env:{...process.env,U03_RESTORE_DESTINATION_RUN_ID:childRunId},stdio:'pipe',timeout:120_000,
+  });
+  const result=spawnSync(process.execPath,['scripts/u03-preview-restore-local.mjs'],{
+    cwd:ROOT,encoding:'utf8',timeout:240_000,
+    input:JSON.stringify({runId:childRunId,document:signedExportForChild}),
+    env:{...process.env,PROVENANCE_SIGNING_KEYS:`u03-http:${KEY}`,PROVENANCE_ACTIVE_KEY_ID:'u03-http'},
+  });
+  const closedChildCode=/^U03_PREVIEW_TO_LOCAL_RESTORE BLOCKED code=([A-Z0-9_]{3,80})\r?$/m.exec(result.stderr)?.[1] ?? 'NONE';
+  expect(result.status,closedChildCode).toBe(0);
+  expect(result.stdout).toMatch(/^U03_PREVIEW_TO_LOCAL_RESTORE PASS restoreCount=2 contentVerified=true signaturesPreserved=true\r?\n$/);
+  expect(execFileSync('docker',['ps','-a','--filter',`label=com.supabase.cli.project=${RESTORE_PROJECT}`,'--format','{{.Names}}'],{encoding:'utf8'}).trim()).toBe('');
+},240_000);

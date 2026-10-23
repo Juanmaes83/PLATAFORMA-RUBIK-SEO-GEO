@@ -31,7 +31,6 @@ function ownedContainers(project) {
 }
 if(ownedContainers(sourceProject).length||ownedContainers(destinationProject).length||existsSync(sourceMarker)||existsSync(destinationMarker))
   throw new Error('LOCAL_HTTP_RESTORE_REFUSES_PREEXISTING_STACK');
-let sourceStarted=false,destinationStarted=false;
 const node=process.execPath;
 const call=(script,action,extraEnv={})=>safeRun(node,[resolve(ROOT,'scripts',script),action],{env:{...process.env,...extraEnv}});
 function h1aTestEnv() {
@@ -42,10 +41,10 @@ function h1aTestEnv() {
 }
 try {
   const localEnv={U03_RESTORE_DESTINATION_RUN_ID:runId};
-  call('h1a-local-source-stack.mjs','start',localEnv); sourceStarted=true;
+  call('h1a-local-source-stack.mjs','start',localEnv);
   call('h1a-local-source-stack.mjs','inspect',localEnv);
   const destinationEnv={U03_RESTORE_DESTINATION_RUN_ID:runId};
-  call('u03-window-local-destination.mjs','start',destinationEnv); destinationStarted=true;
+  call('u03-window-local-destination.mjs','start',destinationEnv);
   call('u03-window-local-destination.mjs','inspect',destinationEnv);
   const vitest=process.platform==='win32'
     ? safeRun('cmd.exe',['/d','/s','/c','node_modules\\.bin\\vitest.cmd run --config vitest.integration.config.mts tests/integration/u03-window-http-restore.integration.test.ts'],{
@@ -56,11 +55,11 @@ try {
   process.stdout.write('LOCAL_HTTP_RESTORE_RESULT PASS loopback_http=real restore_destination=separate_local_stack migrations=27\n');
 } finally {
   let cleanupFailed=false;
-  for(const [script,marker,project,started] of [
-    ['u03-window-local-destination.mjs',destinationMarker,destinationProject,destinationStarted],
-    ['h1a-local-source-stack.mjs',sourceMarker,sourceProject,sourceStarted],
+  for(const [script,marker,project] of [
+    ['u03-window-local-destination.mjs',destinationMarker,destinationProject],
+    ['h1a-local-source-stack.mjs',sourceMarker,sourceProject],
   ]) {
-    if(started||existsSync(marker)||ownedContainers(project).length) {
+    if(existsSync(marker)||ownedContainers(project).length) {
       const result=run(node,[resolve(ROOT,'scripts',script),'stop'],{env:{...process.env,U03_RESTORE_DESTINATION_RUN_ID:runId}});
       if(result.status!==0) cleanupFailed=true;
       else process.stdout.write(result.stdout);
