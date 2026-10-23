@@ -74,6 +74,35 @@ test('H1-A window ledger persists interval maps and strips free text', async () 
     assert.doesNotMatch(text, /must-not-persist|private\.invalid|token=secret/);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
+
+test('window ledger preserves only closed navigation interception classes and stage', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'h1a-navigation-ledger-'));
+  try {
+    const path = join(dir, 'run.jsonl');
+    const ledger = await createWindowLedger(path, { runId:RUN, functionalSha:PIN.sha,
+      deploymentId:PIN.deploymentId, host:PIN.host, ref:'rhnnplewqsekrnaousyl' });
+    await ledger('h1a-navigation-intercept', 'PASS', {
+      phase:'H1A_AUTH_LOGIN', disposition:'PINNED_REQUEST_BLOCKED', requestClass:'SUBRESOURCE',
+      destinationClass:'EXTERNAL', responseClass:'UNKNOWN', interceptionOperation:'CONTINUE_REQUEST',
+      httpStatus:null, message:'fictional CDP secret', url:'https://external.invalid/?token=secret',
+    });
+    const text = await readFile(path, 'utf8');
+    const row = JSON.parse(text.trim());
+    assert.equal(row.phase, 'H1A_AUTH_LOGIN');
+    assert.equal(row.destinationClass, 'EXTERNAL');
+    assert.equal(row.interceptionOperation, 'CONTINUE_REQUEST');
+    assert.equal(row.httpStatus, null);
+    assert.doesNotMatch(text, /fictional CDP|token=secret|external\.invalid/);
+    await ledger('h1a-navigation-intercept', 'BLOCKED', {
+      phase:'H1A_AUTH_LOGIN private', interceptionOperation:'secret-operation',
+      destinationClass:'https://external.invalid/?token=secret',
+    });
+    const rows = (await readFile(path, 'utf8')).trim().split(/\r?\n/).map(JSON.parse);
+    assert.equal(rows[1].phase, undefined);
+    assert.equal(rows[1].interceptionOperation, undefined);
+    assert.equal(rows[1].destinationClass, undefined);
+  } finally { await rm(dir, { recursive:true, force:true }); }
+});
 const ROLE = { runId: RUN, pooler: { clientTlsVerified: true, sessionUser: 'rubik_preview_u03_writer',
   currentUser: 'rubik_preview_u03_writer', denyPoliciesVerified: true } };
 const CLEAN = { rolePresent: false, policies: 0, activeSessions: 0, inventoryZero: true, outboxTotal: 0, pendingOutbox: 0 };

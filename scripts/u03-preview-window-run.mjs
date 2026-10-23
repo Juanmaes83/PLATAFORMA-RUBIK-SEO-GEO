@@ -244,6 +244,8 @@ export async function createWindowLedger(path, metadata, append = appendFile) {
         'inventoryZero','outboxTotal','pendingOutbox','rolePresent','roleLocked','activeSessions','stage','actor',
         'expectedCount','observedCount','valueMatch','receiptState','path','viewport','viewportWidth','documentWidth','bodyWidth',
         'visibleErrorCount','consoleErrorCount','pageErrorCount','durationMs','fixtureWritesConcurrent','contentVerified',
+        'phase','expectedDestinationClass','observedDestinationClass','authResult','requestClass','destinationClass',
+        'responseClass','disposition','interceptionOperation',
         'signaturesPreserved','offlineVerified','tamperRejected'].includes(key)) continue;
       const safeAlias = key === 'actor' && ['ownerA','ownerB','outsider'].includes(value);
       const safeStage = key === 'stage' && ['OWN_READ','CROSS_READ','OUTSIDER_READ','MISSING_READ','FIXTURE_INPUT'].includes(value);
@@ -253,6 +255,21 @@ export async function createWindowLedger(path, metadata, append = appendFile) {
       const safeMetric = ['viewportWidth','documentWidth','bodyWidth','visibleErrorCount','consoleErrorCount','pageErrorCount'].includes(key) && Number.isSafeInteger(value) && value >= 0;
       const safeDuration = key === 'durationMs' && Number.isSafeInteger(value) && value >= 0 && value <= 3_600_000;
       const safeConcurrentWrites = key === 'fixtureWritesConcurrent' && value === 0;
+      const navigationAllowed = {
+        phase: ['H1A_AUTH_LOGIN','H1A_VIEW_DESKTOP_MEASUREMENT','H1A_VIEW_DESKTOP_REPORT','H1A_VIEW_MOBILE_MEASUREMENT','H1A_VIEW_MOBILE_REPORT','H1A_LOGOUT','H1A_POST_LOGOUT_DENIAL'],
+        expectedDestinationClass: ['PINNED_ORIGIN_AUTH','PINNED_ORIGIN_VIEW','PINNED_ORIGIN_LOGOUT','PINNED_ORIGIN_PROTECTED_ROUTE'],
+        observedDestinationClass: ['PINNED_ORIGIN','ACCESS_ROUTE','EXTERNAL','UNKNOWN'],
+        authResult: ['SIGNED_OUT','AUTHENTICATED','AUTH_REQUIRED','UNKNOWN'],
+        requestClass: ['MAIN_DOCUMENT','FRAME_DOCUMENT','SUBRESOURCE','UNKNOWN'],
+        destinationClass: ['PINNED_ORIGIN','EXTERNAL','UNKNOWN'],
+        responseClass: ['DIRECT','REDIRECT','UNKNOWN'],
+        disposition: ['BLOCKED_EXTERNAL_SUBRESOURCE','BLOCKED_EXTERNAL_SUBRESOURCE_REDIRECT','BLOCKED_EXTERNAL_MAIN_FRAME_REDIRECT','BLOCKED_EXTERNAL_MAIN_FRAME_NAVIGATION','PINNED_REQUEST_BLOCKED'],
+        interceptionOperation: ['CLASSIFY_URL','CLASSIFY_ORIGIN','CLASSIFY_REDIRECT','CONSTRUCT_HEADERS','CONTINUE_REQUEST','CONTINUE_RESPONSE','FAIL_REQUEST'],
+      };
+      if (Object.hasOwn(navigationAllowed, key)) {
+        if (navigationAllowed[key].includes(value)) safe[key] = value;
+        continue;
+      }
       if (safeAlias || safeStage || safeReceipt || safeCapturePath || safeViewport || safeMetric || typeof value === 'string' && SAFE.test(value) ||
           safeDuration || safeConcurrentWrites || ['contentVerified','signaturesPreserved','offlineVerified','tamperRejected'].includes(key) && typeof value === 'boolean' ||
           typeof value === 'number' && Number.isSafeInteger(value) || typeof value === 'boolean' || value === null) safe[key] = value;

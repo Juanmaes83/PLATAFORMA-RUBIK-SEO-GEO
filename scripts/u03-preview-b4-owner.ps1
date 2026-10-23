@@ -81,9 +81,7 @@ function Write-H1ARecoveryEvent([string]$CaseId, [string]$Status, [string]$Code 
 
 function Remove-U03WindowDeploymentConfiguration([string]$DeploymentId) {
   if ($DeploymentId -cnotmatch '^dpl_[A-Za-z0-9]+$') { return $false }
-  $names = @('U03_PREVIEW_WRITER_WINDOW','U03_PREVIEW_WRITER_WINDOW_REF','U03_PREVIEW_WRITER_WINDOW_SHA',
-    'U03_PREVIEW_WRITER_WINDOW_RUN_ID','U03_PREVIEW_WRITER_WINDOW_SECRET','RUBIK_AUDIT_DATABASE_URL',
-    'PROVENANCE_SIGNING_KEYS','PROVENANCE_ACTIVE_KEY_ID')
+  $names = Get-U03WindowVariableNames
   $cli = { param($Arguments,$InputText) Invoke-U03WindowVercelCli -Arguments $Arguments -InputText $InputText }
   $removeDeployment = { param($Id) Invoke-U03WindowVercelCli -Arguments @('remove',$Id,'--yes') -InputText '' }
   $result = Remove-U03WindowDeploymentConfigurationSafe -DeploymentId $DeploymentId -Cli $cli -RemoveDeployment $removeDeployment -Names $names
@@ -529,7 +527,8 @@ try {
       Remove-Item -LiteralPath $fakeCli -Force -ErrorAction SilentlyContinue
     }
     $cleanupState = @{ Names=@('U03_PREVIEW_WRITER_WINDOW_REF','U03_PREVIEW_WRITER_WINDOW_SHA','U03_PREVIEW_WRITER_WINDOW_RUN_ID',
-      'U03_PREVIEW_WRITER_WINDOW_SECRET','RUBIK_AUDIT_DATABASE_URL','PROVENANCE_SIGNING_KEYS','PROVENANCE_ACTIVE_KEY_ID'); Removed=$false }
+      'U03_PREVIEW_WRITER_WINDOW_SECRET','RUBIK_AUDIT_DATABASE_URL','PROVENANCE_SIGNING_KEYS','PROVENANCE_ACTIVE_KEY_ID',
+      'RUBIK_RECOVERY_SCHEMA_ATTESTATION'); Removed=$false }
     $cleanupCli = {
       param($Arguments,$InputText)
       if ($Arguments[1] -eq 'ls') {

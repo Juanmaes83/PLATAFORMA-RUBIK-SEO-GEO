@@ -109,7 +109,7 @@ const LEDGER_KEYS = new Set([
   'adminKeyFormat', 'publicKeyFormat',
   'pathname', 'errorCode', 'actionHttpStatus', 'sessionCookiePresent', 'routeEvents', 'capturePath',
   'phase', 'diagnostics', 'diagnosticsBefore', 'diagnosticsAfter', 'diagnosticsDelta', 'diagnosticInterval', 'stage', 'expectedCount', 'observedCount', 'valueMatch', 'receiptState', 'httpStatus', 'sqlstate',
-  'expectedDestinationClass', 'observedDestinationClass', 'authResult', 'requestClass', 'destinationClass', 'responseClass', 'disposition',
+  'expectedDestinationClass', 'observedDestinationClass', 'authResult', 'requestClass', 'destinationClass', 'responseClass', 'disposition', 'interceptionOperation',
   'mode', 'evidenceRunId',
 ]);
 
@@ -169,7 +169,9 @@ export function safeLedgerDetail(input = {}) {
     if (key === 'expectedDestinationClass' && !['PINNED_ORIGIN_AUTH', 'PINNED_ORIGIN_VIEW', 'PINNED_ORIGIN_LOGOUT', 'PINNED_ORIGIN_PROTECTED_ROUTE'].includes(value)) continue;
     if (key === 'observedDestinationClass' && !['PINNED_ORIGIN', 'ACCESS_ROUTE', 'EXTERNAL', 'UNKNOWN'].includes(value)) continue;
     if (key === 'authResult' && !['SIGNED_OUT', 'AUTHENTICATED', 'AUTH_REQUIRED', 'UNKNOWN'].includes(value)) continue;
-    if (key === 'destinationClass' && !['EXTERNAL', 'UNKNOWN'].includes(value)) continue;
+    if (key === 'destinationClass' && !['PINNED_ORIGIN', 'EXTERNAL', 'UNKNOWN'].includes(value)) continue;
+    if (key === 'interceptionOperation' && !['CLASSIFY_URL', 'CLASSIFY_ORIGIN', 'CLASSIFY_REDIRECT',
+      'CONSTRUCT_HEADERS', 'CONTINUE_REQUEST', 'CONTINUE_RESPONSE', 'FAIL_REQUEST'].includes(value)) continue;
     if (key === 'responseClass' && !['DIRECT', 'REDIRECT', 'UNKNOWN'].includes(value)) continue;
     if (key === 'requestClass' && !['MAIN_DOCUMENT', 'FRAME_DOCUMENT', 'SUBRESOURCE', 'UNKNOWN'].includes(value)) continue;
     if (key === 'disposition' && !['BLOCKED_EXTERNAL_SUBRESOURCE', 'BLOCKED_EXTERNAL_SUBRESOURCE_REDIRECT', 'BLOCKED_EXTERNAL_MAIN_FRAME_REDIRECT', 'BLOCKED_EXTERNAL_MAIN_FRAME_NAVIGATION', 'PINNED_REQUEST_BLOCKED'].includes(value)) continue;
@@ -593,6 +595,18 @@ export async function runProtectedWindowH1Export({ fixtures, runId, env = proces
   return { ref, runId, deploymentId: PIN.deploymentId, host: PIN.host, sha: PIN.sha, restoreStatus: 'PASS', restoreCount: 2 };
 }
 
+export async function writeH1ANavigationDiagnostics(ledger, events, start = 0) {
+  for (let index = start; index < events.length; index++) {
+    const event = events[index];
+    await ledger('h1a-navigation-intercept', event.disposition === 'PINNED_REQUEST_BLOCKED' ? 'BLOCKED' : 'PASS', {
+      phase: event.phase, disposition: event.disposition, requestClass: event.requestClass,
+      destinationClass: event.destinationClass, responseClass: event.responseClass,
+      interceptionOperation: event.interceptionOperation, httpStatus: event.httpStatus,
+    });
+  }
+  return events.length;
+}
+
 async function verifyH1APopulatedIsolation({ fixtures, a1, auditSeq, resultId, importId, ledger }) {
   const actorChecks = [
     { table: 'audit_events', field: 'seq', value: auditSeq },
@@ -630,13 +644,7 @@ async function runH1AProtectedViews({ fixtures, runId, env, ledger, captureRoot,
     } catch { return 'UNKNOWN'; }
   };
   const writeNavigationDiagnostics = async () => {
-    for (; diagnosticsWritten < navigationDiagnostics.length; diagnosticsWritten++) {
-      const event = navigationDiagnostics[diagnosticsWritten];
-      await ledger('h1a-navigation-intercept', 'PASS', {
-        phase: event.phase, disposition: event.disposition, requestClass: event.requestClass,
-        destinationClass: event.destinationClass, responseClass: event.responseClass, httpStatus: event.httpStatus,
-      });
-    }
+    diagnosticsWritten = await writeH1ANavigationDiagnostics(ledger, navigationDiagnostics, diagnosticsWritten);
   };
   const writeNavigationStep = (status, phase, expectedDestinationClass, observedDestinationClass, authResult, httpStatus = null) =>
     ledger('h1a-navigation-step', status, { phase, expectedDestinationClass, observedDestinationClass, authResult, httpStatus });
@@ -648,7 +656,8 @@ async function runH1AProtectedViews({ fixtures, runId, env, ledger, captureRoot,
         : event.phase === 'H1A_POST_LOGOUT_DENIAL' ? 'PINNED_ORIGIN_PROTECTED_ROUTE' : 'PINNED_ORIGIN_VIEW';
     const diagnostic = { phase: event.phase, expectedDestinationClass,
       observedDestinationClass: event.destinationClass === 'EXTERNAL' ? 'EXTERNAL' : 'UNKNOWN', authResult: 'UNKNOWN',
-      requestClass: event.requestClass, responseClass: event.responseClass, httpStatus: event.httpStatus };
+      requestClass: event.requestClass, responseClass: event.responseClass,
+      interceptionOperation: event.interceptionOperation, httpStatus: event.httpStatus };
     await ledger('h1a-navigation-step', 'BLOCKED', diagnostic);
     const error = new Error(event.disposition === 'PINNED_REQUEST_BLOCKED'
       ? 'H1A_PINNED_REQUEST_INTERCEPTION_FAILED' : 'H1A_EXTERNAL_NAVIGATION_BLOCKED');
@@ -995,6 +1004,7 @@ export async function runHostedU03Campaign({
         ...(diagnostic ? { phase: diagnostic.phase, expectedDestinationClass: diagnostic.expectedDestinationClass,
           observedDestinationClass: diagnostic.observedDestinationClass, authResult: diagnostic.authResult,
           requestClass: diagnostic.requestClass, responseClass: diagnostic.responseClass,
+          interceptionOperation: diagnostic.interceptionOperation,
           httpStatus: diagnostic.httpStatus } : {}), ...keyFormats });
     } catch { /* cleanup still proceeds */ }
   } finally {

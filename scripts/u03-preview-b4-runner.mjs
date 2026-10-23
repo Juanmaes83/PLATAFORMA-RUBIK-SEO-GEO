@@ -139,23 +139,30 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
   };
   session.on("Fetch.requestPaused", (paused) => {
     const stage = paused.responseStatusCode || paused.responseErrorReason ? 'response' : 'request';
+    let operation = 'CLASSIFY_URL';
+    let destinationClass = 'UNKNOWN';
+    const requestClass = paused.resourceType === 'Document'
+      ? (!mainFrameId || paused.frameId === mainFrameId ? 'MAIN_DOCUMENT' : 'FRAME_DOCUMENT') : 'SUBRESOURCE';
     void (async () => {
       const url = paused.request.url;
-      let parsed;
-      try { parsed = new URL(url); }
-      catch { await session.send("Fetch.failRequest", { requestId: paused.requestId, errorReason: "BlockedByClient" }); return; }
+      const parsed = new URL(url);
+      operation = 'CLASSIFY_ORIGIN';
       const origin = parsed.origin;
+      destinationClass = origin === allowedOrigin ? 'PINNED_ORIGIN' : 'EXTERNAL';
       if (paused.responseStatusCode || paused.responseErrorReason) {
+        operation = 'CLASSIFY_REDIRECT';
         const location = paused.responseHeaders?.find(header => header.name.toLowerCase() === "location")?.value;
         if (paused.responseStatusCode >= 300 && paused.responseStatusCode < 400 && location) {
           let destination;
           try { destination = new URL(location, url); } catch { destination = null; }
           if (!destination || (origin === allowedOrigin && destination.origin !== allowedOrigin)) {
             blocked("external-redirect-blocked", paused, true, paused.responseStatusCode);
+            operation = 'FAIL_REQUEST';
             await session.send("Fetch.failRequest", { requestId: paused.requestId, errorReason: "BlockedByClient" });
             return;
           }
         }
+        operation = 'CONTINUE_RESPONSE';
         await session.send("Fetch.continueResponse", { requestId: paused.requestId });
         return;
       }
@@ -165,9 +172,11 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
       if (origin !== allowedOrigin && (navigation || redirectedFromAllowed)) {
         const event = redirectedFromAllowed ? "external-redirect-blocked" : "external-navigation-blocked";
         blocked(event, paused, redirectedFromAllowed);
+        operation = 'FAIL_REQUEST';
         await session.send("Fetch.failRequest", { requestId: paused.requestId, errorReason: "BlockedByClient" });
         return;
       }
+      operation = 'CONSTRUCT_HEADERS';
       const inputHeaders = paused.request.headers ?? {};
       const loginPost = parsed.pathname === "/acceso" || parsed.pathname === "/api/auth/login";
       const authAction = origin === allowedOrigin && paused.request.method === "POST" &&
@@ -175,6 +184,7 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
       if (authAction) onRouteEvent("auth-action-post");
       else if (origin === allowedOrigin) onRouteEvent(navigation ? "pinned-navigation" : "pinned-request");
       const headers = scopedHeaders(url, inputHeaders, token, allowedOrigin, runId);
+      operation = 'CONTINUE_REQUEST';
       await session.send("Fetch.continueRequest", {
         requestId: paused.requestId,
         headers: Object.entries(headers).map(([name, value]) => ({ name, value: String(value) })),
@@ -183,11 +193,15 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
       const resource = classifyDiagnosticResource(paused.request?.url, paused.resourceType);
       onRouteEvent(`cdp-failure-${stage}-${resource}`);
       const diagnostic = { event: "pinned-origin-request-failed", disposition: "PINNED_REQUEST_BLOCKED",
-        requestClass: "UNKNOWN", destinationClass: "UNKNOWN", responseClass: "UNKNOWN", httpStatus: null };
+        requestClass, destinationClass, responseClass: stage === 'response'
+          ? (paused.responseStatusCode >= 300 && paused.responseStatusCode < 400 ? 'REDIRECT' : 'DIRECT') : 'UNKNOWN',
+        interceptionOperation: operation, httpStatus: Number.isInteger(paused.responseStatusCode) ? paused.responseStatusCode : null };
       onNavigationDiagnostic(diagnostic);
       onEvent("pinned-origin-request-failed", diagnostic);
       onRouteEvent("pinned-origin-request-failed");
-      await session.send("Fetch.failRequest", { requestId: paused.requestId, errorReason: "BlockedByClient" }).catch(() => {});
+      await session.send("Fetch.failRequest", { requestId: paused.requestId, errorReason: "BlockedByClient" }).catch(() => {
+        onNavigationDiagnostic({ ...diagnostic, interceptionOperation: 'FAIL_REQUEST' });
+      });
     });
   });
   page.on("response", (response) => {

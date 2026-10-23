@@ -1,9 +1,76 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
+import { EventEmitter } from 'node:events';
 import test from 'node:test';
 import { chromium } from 'playwright';
 import { installScopedRoutes, classifyBlockedExternalRequest, classifyDiagnosticResource, createPageDiagnostics, summarizeDiagnosticInterval } from './u03-preview-b4-runner.mjs';
+
+async function injectPausedRequest({ url, headers = {}, rejectHeaderOverride = false, rejectContinue = false,
+  rejectResponse = false, rejectFail = false, resourceType = 'XHR', responseStatusCode = null }) {
+  const session = new EventEmitter();
+  const calls = [];
+  let complete;
+  const finished = new Promise(resolve => { complete = resolve; });
+  session.send = async (method, params = {}) => {
+    calls.push({ method, params });
+    if (method === 'Page.getFrameTree') return { frameTree: { frame: { id: 'main-frame' } } };
+    if (method === 'Fetch.continueRequest' && (rejectContinue || (rejectHeaderOverride && Object.hasOwn(params, 'headers'))))
+      throw new Error('fictional CDP message containing a secret');
+    if (method === 'Fetch.continueResponse' && rejectResponse)
+      throw new Error('fictional CDP message containing a secret');
+    if (method === 'Fetch.failRequest' && rejectFail) {
+      queueMicrotask(complete);
+      throw new Error('fictional CDP message containing a secret');
+    }
+    if (method === 'Fetch.continueRequest' || method === 'Fetch.continueResponse' || method === 'Fetch.failRequest') queueMicrotask(complete);
+    return {};
+  };
+  const events = [];
+  const diagnostics = [];
+  await installScopedRoutes({ newCDPSession: async () => session }, { on() {} }, 'fictional-oidc', 'https://pinned.invalid',
+    (event, detail) => events.push({ event, detail }), () => {}, null, detail => diagnostics.push(detail));
+  session.emit('Fetch.requestPaused', { requestId:'fictional-request', frameId:'main-frame',
+    request:{ url, method:'GET', headers }, resourceType, ...(responseStatusCode ? { responseStatusCode } : {}) });
+  await finished;
+  await new Promise(resolve => setImmediate(resolve));
+  return { calls, events, diagnostics };
+}
+
+test('injected request-stage XHR CDP failure records operation and stays fatal', async () => {
+  const url = 'https://external.invalid/fake-resource?token=fictional-secret';
+  const failure = await injectPausedRequest({ url, rejectHeaderOverride:true });
+  assert.ok(failure.calls.find(call => call.method === 'Fetch.continueRequest')?.params?.headers);
+  assert.equal(failure.events[0]?.event, 'pinned-origin-request-failed');
+  assert.equal(failure.diagnostics[0]?.interceptionOperation, 'CONTINUE_REQUEST');
+  assert.equal(failure.diagnostics[0]?.destinationClass, 'EXTERNAL');
+  assert.equal(failure.diagnostics[0]?.requestClass, 'SUBRESOURCE');
+  assert.doesNotMatch(JSON.stringify(failure.diagnostics), /fictional-secret|fictional CDP/);
+});
+
+test('external scoped headers are stripped; failed blocking command is still a fatal diagnostic', async () => {
+  const sensitive = await injectPausedRequest({ url:'https://external.invalid/fake-resource',
+    headers:{ 'x-vercel-trusted-oidc-idp-token':'fictional-oidc', 'x-rubik-u03-run-id':'fictional-run' } });
+  const forwarded = sensitive.calls.find(call => call.method === 'Fetch.continueRequest')?.params?.headers;
+  assert.deepEqual(forwarded, []);
+  const blocked = await injectPausedRequest({ url:'https://external.invalid/page', resourceType:'Document', rejectFail:true });
+  assert.equal(blocked.events[0]?.event, 'external-navigation-blocked');
+  assert.ok(blocked.diagnostics.some(item => item.interceptionOperation === 'FAIL_REQUEST'));
+});
+
+test('interception classifier distinguishes URL, header and response operations without CDP text', async () => {
+  const malformed = await injectPausedRequest({ url:'not a URL?token=fictional-secret' });
+  assert.equal(malformed.diagnostics[0]?.interceptionOperation, 'CLASSIFY_URL');
+  const headers = new Proxy({}, { ownKeys() { throw new Error('fictional secret header'); } });
+  const headerFailure = await injectPausedRequest({ url:'https://pinned.invalid/panel', headers });
+  assert.equal(headerFailure.diagnostics[0]?.interceptionOperation, 'CONSTRUCT_HEADERS');
+  const responseFailure = await injectPausedRequest({ url:'https://pinned.invalid/panel', responseStatusCode:204, rejectResponse:true });
+  assert.equal(responseFailure.diagnostics[0]?.interceptionOperation, 'CONTINUE_RESPONSE');
+  for (const result of [malformed, headerFailure, responseFailure]) {
+    assert.equal(result.events[0]?.event, 'pinned-origin-request-failed');
+    assert.doesNotMatch(JSON.stringify(result.diagnostics), /fictional.secret|token=/);
+  }
+});
 
 test('diagnostic cardinality overflow blocks instead of silently dropping a route class', () => {
   const diagnostics = createPageDiagnostics({ on() {}, off() {} });

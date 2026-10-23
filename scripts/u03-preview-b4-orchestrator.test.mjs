@@ -4,11 +4,23 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { chromiumEnvironment, networkEnvironment, PIN } from './u03-preview-b4-runner.mjs';
-import { PREFLIGHT_RESULT_FIELDS, PREFLIGHT_SQL, PRIOR_DATA_API_RUN_ID, parseCliJson, readPreviewAuthSettings, runHostedU03Campaign, runProtectedWindowH1Export, runProtectedWindowSurfaces, runPreviewReadOnlySql, runReadOnlyPreflight, safeLedgerDetail, verifyFinalPreviewState, verifyInitialPreviewState, verifyProtectedWindowRuntime, verifyReadOnlyPreviewState } from './u03-preview-b4-orchestrator.mjs';
+import { PREFLIGHT_RESULT_FIELDS, PREFLIGHT_SQL, PRIOR_DATA_API_RUN_ID, parseCliJson, readPreviewAuthSettings, runHostedU03Campaign, runProtectedWindowH1Export, runProtectedWindowSurfaces, runPreviewReadOnlySql, runReadOnlyPreflight, safeLedgerDetail, verifyFinalPreviewState, verifyInitialPreviewState, verifyProtectedWindowRuntime, verifyReadOnlyPreviewState, writeH1ANavigationDiagnostics } from './u03-preview-b4-orchestrator.mjs';
 import { V4_SECURITY_DEFINER_ALLOWLIST } from './u03-preview-v4-receipt.mjs';
 
 const runId = 'u03-orchestrator-test-run';
 const sha = 'a'.repeat(40);
+
+test('failed CDP interception is BLOCKED in the navigation ledger and retains only closed fields', async () => {
+  const rows = [];
+  const ledger = async (caseId, status, detail) => rows.push({ caseId, status, ...safeLedgerDetail(detail) });
+  const events = [{ phase:'H1A_AUTH_LOGIN', disposition:'PINNED_REQUEST_BLOCKED',
+    requestClass:'SUBRESOURCE', destinationClass:'UNKNOWN', responseClass:'UNKNOWN',
+    interceptionOperation:'CONTINUE_REQUEST', httpStatus:null, message:'fictional CDP secret' }];
+  assert.equal(await writeH1ANavigationDiagnostics(ledger, events), 1);
+  assert.deepEqual(rows, [{ caseId:'h1a-navigation-intercept', status:'BLOCKED',
+    phase:'H1A_AUTH_LOGIN', disposition:'PINNED_REQUEST_BLOCKED', requestClass:'SUBRESOURCE',
+    destinationClass:'UNKNOWN', responseClass:'UNKNOWN', interceptionOperation:'CONTINUE_REQUEST', httpStatus:null }]);
+});
 
 test('H1-A export classifies only closed 503 gates and rejects an external origin first', async () => {
   const env = { U03_PREVIEW_WRITER_WINDOW_SECRET: 'fictional-only-secret', VERCEL_OIDC_TOKEN: 'fictional-oidc-token' };

@@ -1,6 +1,10 @@
 # Gate de aceptación integral · H1 y H2
 
-## Estado vigente de H1-A tras c594d41d
+## Corte H1-A tras e4296f43 · 23/10/2026
+
+El run alojado `e4296f43-338a-4ca2-9f8f-340ac7f0c50a` conserva resultado **BLOCKED** en login por `H1A_PINNED_REQUEST_INTERCEPTION_FAILED`, antes de exportación HTTP. La lectura final independiente confirmó Preview e inventario/outbox a cero y principal temporal retirado. La operación CDP concreta no quedó en el ledger original; [el expediente acotado](H1A-CDP-E429-20261023.md) distingue lo acreditado de la reproducción local y documenta la corrección de categorías del ledger y del teardown. H1-A sigue abierto y la aceptación visual humana no se infiere de capturas anteriores.
+
+## Estado histórico de H1-A tras c594d41d
 
 H1-A continúa **BLOCKED**: el run alojado `c594d41d-dc26-4870-a4b4-3ec9fc2256ae` pasó login, permisos, datos firmados, aislamiento y cuatro vistas/capturas, pero export HTTP respondió 503; verificación y restauración no se ejecutaron. La limpieza y la lectura independiente dieron inventario/outbox/capacidades temporales cero. Una condición necesaria faltó en la ventana: la atestación del corte N1 para exportar v2. El código ahora la exige en el lote y en la atestación protegida y clasifica un 503 posterior con categoría cerrada. El ensayo local `aa8602bd-6957-4f81-9d88-56bfe151d255` pasó export HTTP, verificación, rechazo de manipulación, restauración doble y limpieza; no cierra H1-A alojado. U03 permanece PASS; R1, H1-B/U04, H1 global y H2 siguen abiertos. [Expediente](H1A-EXPORT-503-C594-20261023.md).
 
