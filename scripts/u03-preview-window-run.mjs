@@ -245,7 +245,7 @@ export async function createWindowLedger(path, metadata, append = appendFile) {
         'expectedCount','observedCount','valueMatch','receiptState','path','viewport','viewportWidth','documentWidth','bodyWidth',
         'visibleErrorCount','consoleErrorCount','pageErrorCount','durationMs','fixtureWritesConcurrent','contentVerified',
         'phase','expectedDestinationClass','observedDestinationClass','authResult','requestClass','destinationClass',
-        'responseClass','disposition','interceptionOperation',
+        'responseClass','disposition','interceptionOperation','failureCategory','resourceClass',
         'signaturesPreserved','offlineVerified','tamperRejected'].includes(key)) continue;
       const safeAlias = key === 'actor' && ['ownerA','ownerB','outsider'].includes(value);
       const safeStage = key === 'stage' && ['OWN_READ','CROSS_READ','OUTSIDER_READ','MISSING_READ','FIXTURE_INPUT'].includes(value);
@@ -265,7 +265,12 @@ export async function createWindowLedger(path, metadata, append = appendFile) {
         responseClass: ['DIRECT','REDIRECT','UNKNOWN'],
         disposition: ['BLOCKED_EXTERNAL_SUBRESOURCE','BLOCKED_EXTERNAL_SUBRESOURCE_REDIRECT','BLOCKED_EXTERNAL_MAIN_FRAME_REDIRECT','BLOCKED_EXTERNAL_MAIN_FRAME_NAVIGATION','PINNED_REQUEST_BLOCKED'],
         interceptionOperation: ['CLASSIFY_URL','CLASSIFY_ORIGIN','CLASSIFY_REDIRECT','CONSTRUCT_HEADERS','CONTINUE_REQUEST','CONTINUE_RESPONSE','FAIL_REQUEST'],
+        failureCategory: ['REQUEST_NOT_ACTIVE','CDP_SESSION_CLOSED','HEADER_REJECTED','CDP_OPERATION_REJECTED'],
       };
+      if (key === 'resourceClass') {
+        if (typeof value === 'string' && /^(?:next-static|next-image|access|panel|api|project|root|other|unknown)-(?:document|script|stylesheet|image|fetch|xhr|font|other)$/.test(value)) safe.resourceClass = value;
+        continue;
+      }
       if (Object.hasOwn(navigationAllowed, key)) {
         if (navigationAllowed[key].includes(value)) safe[key] = value;
         continue;

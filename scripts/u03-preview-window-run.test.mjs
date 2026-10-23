@@ -84,6 +84,7 @@ test('window ledger preserves only closed navigation interception classes and st
     await ledger('h1a-navigation-intercept', 'PASS', {
       phase:'H1A_AUTH_LOGIN', disposition:'PINNED_REQUEST_BLOCKED', requestClass:'SUBRESOURCE',
       destinationClass:'EXTERNAL', responseClass:'UNKNOWN', interceptionOperation:'CONTINUE_REQUEST',
+      failureCategory:'REQUEST_NOT_ACTIVE', resourceClass:'other-xhr',
       httpStatus:null, message:'fictional CDP secret', url:'https://external.invalid/?token=secret',
     });
     const text = await readFile(path, 'utf8');
@@ -91,15 +92,20 @@ test('window ledger preserves only closed navigation interception classes and st
     assert.equal(row.phase, 'H1A_AUTH_LOGIN');
     assert.equal(row.destinationClass, 'EXTERNAL');
     assert.equal(row.interceptionOperation, 'CONTINUE_REQUEST');
+    assert.equal(row.failureCategory, 'REQUEST_NOT_ACTIVE');
+    assert.equal(row.resourceClass, 'other-xhr');
     assert.equal(row.httpStatus, null);
     assert.doesNotMatch(text, /fictional CDP|token=secret|external\.invalid/);
     await ledger('h1a-navigation-intercept', 'BLOCKED', {
       phase:'H1A_AUTH_LOGIN private', interceptionOperation:'secret-operation',
+      failureCategory:'secret-category', resourceClass:'https://external.invalid/private',
       destinationClass:'https://external.invalid/?token=secret',
     });
     const rows = (await readFile(path, 'utf8')).trim().split(/\r?\n/).map(JSON.parse);
     assert.equal(rows[1].phase, undefined);
     assert.equal(rows[1].interceptionOperation, undefined);
+    assert.equal(rows[1].failureCategory, undefined);
+    assert.equal(rows[1].resourceClass, undefined);
     assert.equal(rows[1].destinationClass, undefined);
   } finally { await rm(dir, { recursive:true, force:true }); }
 });
