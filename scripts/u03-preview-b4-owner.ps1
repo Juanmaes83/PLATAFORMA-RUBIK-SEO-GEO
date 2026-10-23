@@ -260,7 +260,9 @@ function Invoke-U03WindowVercelCli([string[]]$Arguments, [string]$InputText = ''
 
 function Invoke-U03WindowBatchProvision {
   $head = (& git -C $repo rev-parse HEAD 2>$null).Trim()
-  $dirty = (& git -C $repo status --porcelain 2>$null | Out-String).Trim()
+  # Git deployments use committed content. Preserve unrelated untracked files;
+  # reject tracked/staged changes that would make the deployed HEAD differ locally.
+  $dirty = (& git -C $repo status --porcelain --untracked-files=no 2>$null | Out-String).Trim()
   if ($branch -cne 'codex/h1a-integral-20261022' -or $head -cnotmatch '^[0-9a-f]{40}$' -or $dirty) { Stop-B4 'WINDOW_PROVISION_GIT_PIN_REJECTED' }
   $vaultPath = Get-U03WindowVaultPath
   if (Test-Path -LiteralPath $vaultPath -PathType Leaf) {
