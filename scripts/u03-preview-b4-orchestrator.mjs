@@ -840,14 +840,20 @@ export async function runProtectedWindowCleanup({ fixtures, runId, env = process
   return true;
 }
 
-async function restorePreviewDocumentLocally(document, env, runId) {
+export async function restorePreviewDocumentLocally(document, env, runId, script = 'scripts/u03-preview-restore-local.mjs') {
   return await new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, ['scripts/u03-preview-restore-local.mjs'], { cwd: process.cwd(), windowsHide: true,
+    let child;
+    try { child = spawn(process.execPath, [script], { cwd: process.cwd(), windowsHide: true,
       env: { ...process.env, PROVENANCE_SIGNING_KEYS: env.PROVENANCE_SIGNING_KEYS,
-        PROVENANCE_ACTIVE_KEY_ID: env.PROVENANCE_ACTIVE_KEY_ID, U03_RESTORE_DESTINATION_RUN_ID: runId }, stdio: ['pipe', 'pipe', 'ignore'] });
+        PROVENANCE_ACTIVE_KEY_ID: env.PROVENANCE_ACTIVE_KEY_ID, U03_RESTORE_DESTINATION_RUN_ID: runId }, stdio: ['pipe', 'pipe', 'pipe'] }); }
+    catch { reject(new Error('LOCAL_RESTORE_PROCESS_START_FAILED')); return; }
     let output = '';
-    let safeChildError = 'PREVIEW_EXPORT_LOCAL_RESTORE_FAILED';
+    let safeChildError = 'LOCAL_RESTORE_PROTOCOL_INVALID';
     let stderrPrefix = '';
+    let settled = false;
+    let spawned = false;
+    let exited = false;
+    const finish = (error) => { if (settled) return; settled = true; if (error) reject(error); else resolve(true); };
     child.stdout.setEncoding('utf8');
     child.stdout.on('data', chunk => { output = (output + chunk).slice(-1000); });
     child.stderr.setEncoding('utf8');
@@ -855,14 +861,20 @@ async function restorePreviewDocumentLocally(document, env, runId) {
       stderrPrefix = (stderrPrefix + chunk).slice(0, 512);
       safeChildError = classifyLocalRestoreChildFailure(stderrPrefix);
     });
-    child.on('error', () => reject(new Error('LOCAL_RESTORE_PROCESS_START_FAILED')));
-    child.on('close', code => {
+    child.on('error', () => finish(new Error('LOCAL_RESTORE_PROCESS_START_FAILED')));
+    child.on('spawn', () => { spawned = true; });
+    child.on('exit', () => { exited = true; });
+    child.on('close', (code, signal) => {
       const match = output.match(/^U03_PREVIEW_TO_LOCAL_RESTORE PASS restoreCount=2 contentVerified=true signaturesPreserved=true$/m);
-      if (code === 0 && match) resolve(true);
-      else reject(new Error(safeChildError));
+      if (code === 0 && match) finish();
+      else finish(new Error(!spawned ? 'LOCAL_RESTORE_PROCESS_START_FAILED' :
+        signal ? 'LOCAL_RESTORE_PROCESS_SIGNALLED' :
+        !exited || (code !== 0 && safeChildError === 'LOCAL_RESTORE_PROTOCOL_INVALID')
+          ? 'LOCAL_RESTORE_PROCESS_CLOSED_EARLY' : safeChildError));
     });
-    child.stdin.on('error', () => {});
-    child.stdin.end(JSON.stringify({ runId, document }));
+    child.stdin.on('error', () => finish(new Error('LOCAL_RESTORE_STDIN_WRITE_FAILED')));
+    try { child.stdin.end(JSON.stringify({ runId, document }), 'utf8'); }
+    catch { finish(new Error('LOCAL_RESTORE_STDIN_WRITE_FAILED')); }
   });
 }
 

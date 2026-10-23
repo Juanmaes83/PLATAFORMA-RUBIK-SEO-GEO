@@ -85,3 +85,7 @@ El acta guarda: tareas completas/incompletas, incidencias y severidad, tiempo po
 - **Sarah:** validar utilidad y comprensión del piloto en la pasada B.
 
 El expediente final separa **PASS, FAIL, SKIP y NO EJECUTADO**. H1 solo puede marcarse CERRADO cuando la pasada A cubra exportación HTTP firmada y restauración/idempotencia, la pasada B sea aceptada y no queden incidencias bloqueantes. H2 solo puede marcarse CERRADO después de H1, U02/U03 y N1-07/08 aceptados. GitHub Actions bloqueado por facturación requiere resolución o excepción de release explícita del propietario; nunca se denomina CI verde.
+
+## Regla permanente de informe por run H1-A
+
+Antes de proponer otro paso, para cada run alojado, local, de CI o preparado, informar: (1) último gate PASS, caseId y evidencia; (2) primer FAIL/BLOCKED con fase, código y categoría, separado de cascadas; (3) gates NOT_RUN separados de FAIL; (4) efectos y limpieza de fixtures, recibos, outbox, rol, políticas, sesiones, guarda, variables, deployment y vault. Un entorno alojado exige lectura independiente además del ledger; un stack local exige verificar su retirada. (5) Separar causa demostrada de hipótesis y nunca reconstruir campos ausentes. (6) Corrección y prueba que fallaba antes y pasa después, o impedimento exacto y acción mínima. Identificar para cada afirmación si procede del ledger original, de una lectura independiente anterior o de una comprobación nueva. La regla se aplica aunque no se ejecute un nuevo run.

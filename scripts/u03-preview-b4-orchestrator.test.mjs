@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, readdir, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { chromiumEnvironment, networkEnvironment, PIN } from './u03-preview-b4-runner.mjs';
-import { PREFLIGHT_RESULT_FIELDS, PREFLIGHT_SQL, PRIOR_DATA_API_RUN_ID, classifyLocalRestoreChildFailure, parseCliJson, readPreviewAuthSettings, runHostedU03Campaign, runProtectedWindowH1Export, runProtectedWindowSurfaces, runPreviewReadOnlySql, runReadOnlyPreflight, safeLedgerDetail, verifyFinalPreviewState, verifyInitialPreviewState, verifyProtectedWindowRuntime, verifyReadOnlyPreviewState, writeH1ANavigationDiagnostics } from './u03-preview-b4-orchestrator.mjs';
+import { PREFLIGHT_RESULT_FIELDS, PREFLIGHT_SQL, PRIOR_DATA_API_RUN_ID, classifyLocalRestoreChildFailure, parseCliJson, readPreviewAuthSettings, restorePreviewDocumentLocally, runHostedU03Campaign, runProtectedWindowH1Export, runProtectedWindowSurfaces, runPreviewReadOnlySql, runReadOnlyPreflight, safeLedgerDetail, verifyFinalPreviewState, verifyInitialPreviewState, verifyProtectedWindowRuntime, verifyReadOnlyPreviewState, writeH1ANavigationDiagnostics } from './u03-preview-b4-orchestrator.mjs';
 import { V4_SECURITY_DEFINER_ALLOWLIST } from './u03-preview-v4-receipt.mjs';
 
 const runId = 'u03-orchestrator-test-run';
@@ -19,6 +19,28 @@ test('local restore child exposes only a closed failure code to the campaign', (
     'PREVIEW_EXPORT_LOCAL_RESTORE_FAILED');
   assert.equal(classifyLocalRestoreChildFailure('postgres error with password=fictional'),
     'PREVIEW_EXPORT_LOCAL_RESTORE_FAILED');
+});
+
+test('Windows child transport reaches real restore input and classifies early boundaries', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'rubik-restore-transport-'));
+  const env = { PROVENANCE_SIGNING_KEYS:'fictional', PROVENANCE_ACTIVE_KEY_ID:'fictional' };
+  try {
+    // The real child must receive stdin and reject this fictional run before Docker starts.
+    await assert.rejects(restorePreviewDocumentLocally({}, env, 'invalid-run'),
+      { message:'LOCAL_RESTORE_RUN_ID_INVALID' });
+    const early = join(dir, 'early.mjs');
+    const protocol = join(dir, 'protocol.mjs');
+    const explicit = join(dir, 'explicit.mjs');
+    await writeFile(early, 'process.exit(7)\n');
+    await writeFile(protocol, 'process.stdin.resume(); process.stdin.on("end", () => process.stdout.write("unexpected\\n"))\n');
+    await writeFile(explicit, 'process.stdin.resume(); process.stdin.on("end", () => { process.stderr.write("U03_PREVIEW_TO_LOCAL_RESTORE BLOCKED code=LOCAL_RESTORE_DESTINATION_NOT_FRESH\\n"); process.exitCode=1 })\n');
+    await assert.rejects(restorePreviewDocumentLocally({}, env, 'invalid-run', early),
+      { message:'LOCAL_RESTORE_PROCESS_CLOSED_EARLY' });
+    await assert.rejects(restorePreviewDocumentLocally({}, env, 'invalid-run', protocol),
+      { message:'LOCAL_RESTORE_PROTOCOL_INVALID' });
+    await assert.rejects(restorePreviewDocumentLocally({}, env, 'invalid-run', explicit),
+      { message:'LOCAL_RESTORE_DESTINATION_NOT_FRESH' });
+  } finally { await rm(dir, { recursive:true, force:true }); }
 });
 
 test('failed CDP interception is BLOCKED in the navigation ledger and retains only closed fields', async () => {

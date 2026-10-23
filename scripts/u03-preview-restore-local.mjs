@@ -53,8 +53,12 @@ function exportedRows(document) {
 
 async function main() {
   const inputChunks = [];
-  for await (const chunk of process.stdin) inputChunks.push(chunk);
-  const input = JSON.parse(Buffer.concat(inputChunks).toString('utf8'));
+  let input;
+  try {
+    for await (const chunk of process.stdin) inputChunks.push(chunk);
+  } catch { throw new Error('LOCAL_RESTORE_STDIN_READ_FAILED'); }
+  try { input = JSON.parse(Buffer.concat(inputChunks).toString('utf8')); }
+  catch { throw new Error('LOCAL_RESTORE_INPUT_JSON_INVALID'); }
   inputChunks.length = 0;
   const runId = input?.document ? input.runId : process.env.U03_RESTORE_DESTINATION_RUN_ID;
   const document = input?.document ?? input;
