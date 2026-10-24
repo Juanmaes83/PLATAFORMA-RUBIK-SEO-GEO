@@ -392,13 +392,13 @@ $credentialOperations = 0
 foreach ($requested in @($ProvisionPreviewKeys.IsPresent, $CheckPreviewKeys.IsPresent, $ReplacePreviewKeys.IsPresent, $DeletePreviewKeys.IsPresent)) {
   if ($requested) { $credentialOperations++ }
 }
-$campaignModes = @($ReadOnlyPreflightOnly.IsPresent, $V4ConnectionDiagnosticOnly.IsPresent, $WindowRolePreflightOnly.IsPresent,
+$campaignModes = @(@($ReadOnlyPreflightOnly.IsPresent, $V4ConnectionDiagnosticOnly.IsPresent, $WindowRolePreflightOnly.IsPresent,
   $WindowRoleReadOnlyDiagnosticOnly.IsPresent, $WindowRecoveryOnly.IsPresent, $H1ARecoveryOnly.IsPresent, $H1ARecoveryTransportOnly.IsPresent, $WindowI2I5H1A.IsPresent, $WindowH1A.IsPresent, $WindowBatchAttestationOnly.IsPresent,
   $ProvisionWindowSecrets.IsPresent,
   $WindowTransportSelfTestOnly.IsPresent,
   $WindowRoleTransportSelfTestOnly.IsPresent,
   $PlaywrightOnly.IsPresent, $MembershipRevocationOnly.IsPresent, $RolesInvitationsOnly.IsPresent,
-  $CrossSurfaceOnly.IsPresent, $SessionProvidersOnly.IsPresent, $ProviderEgressOnly.IsPresent) | Where-Object { $_ }
+  $CrossSurfaceOnly.IsPresent, $SessionProvidersOnly.IsPresent, $ProviderEgressOnly.IsPresent) | Where-Object { $_ })
 if ($credentialOperations -gt 1 -or ($credentialOperations -gt 0 -and $campaignModes.Count -gt 0) -or
     $campaignModes.Count -gt 1) { Stop-B4 'CREDENTIAL_OPERATION_ARGUMENTS_INVALID' }
 if ($CheckPreviewKeys) {

@@ -1,6 +1,18 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { cleanupAuthProbe, evaluateAuthenticatedTrace, safeTrace } from './h1a-auth-login-probe.mjs';
+
+test('PowerShell 5.1 nested owner keeps a collection for the single campaign mode', { skip: process.platform !== 'win32' }, () => {
+  const owner=fileURLToPath(new URL('./u03-preview-b4-owner.ps1',import.meta.url));
+  const command=`Set-StrictMode -Version Latest; & '${owner.replaceAll("'","''")}' -WindowTransportSelfTestOnly`;
+  const result=spawnSync('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-EncodedCommand',
+    Buffer.from(command,'utf16le').toString('base64')],{encoding:'utf8',timeout:30000});
+  const output=`${result.stdout ?? ''}\n${result.stderr ?? ''}`;
+  assert.match(output,/WRONG_MODE_BRANCH/);
+  assert.doesNotMatch(output,/PropertyNotFoundStrict|No se encuentra la propiedad 'Count'/);
+});
 
 const request={ordinal:1,stage:'REQUEST',resourceClass:'panel-xhr',destinationClass:'PINNED_ORIGIN',
   interceptionOperation:'CONTINUE_REQUEST',responseClass:'UNKNOWN',disposition:'ALLOWED',result:'CONTINUED'};

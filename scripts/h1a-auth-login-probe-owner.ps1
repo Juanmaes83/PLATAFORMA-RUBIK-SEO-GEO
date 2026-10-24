@@ -72,7 +72,7 @@ function Invoke-ProbeChild([string]$AdminKey,[bool]$CleanupOnly,[string]$ChildPa
     if (-not $process.WaitForExit(120000)) { try { $process.Kill() } catch {}; return [pscustomobject]@{Status='BLOCKED';Code='CHILD_TIMEOUT';Cleanup='BLOCKED'} }
     $output=$outTask.GetAwaiter().GetResult(); $null=$errTask.GetAwaiter().GetResult()
     $lines=@($output -split "`r?`n" | Where-Object { $_ -cmatch '^H1A_AUTH_LOGIN_PROBE \{' })
-    if ($lines.Count -ne 1) { return [pscustomobject]@{Status='BLOCKED';Code='CHILD_RESULT_MISSING';Cleanup='BLOCKED'} }
+    if (@($lines).Count -ne 1) { return [pscustomobject]@{Status='BLOCKED';Code='CHILD_RESULT_MISSING';Cleanup='BLOCKED'} }
     $result=$lines[0].Substring('H1A_AUTH_LOGIN_PROBE '.Length) | ConvertFrom-Json
     if ([string]::IsNullOrEmpty([string]$result.runId)) { return [pscustomobject]@{Status='BLOCKED';Code='CHILD_RUN_EMPTY';Cleanup='BLOCKED'} }
     if ($result.runId -cne $RunId) { return [pscustomobject]@{Status='BLOCKED';Code='CHILD_RUN_MISMATCH';Cleanup='BLOCKED'} }
@@ -125,7 +125,7 @@ if ($TeardownOnly) {
   $remove={ param($Id) Invoke-SafeVercel -Arguments @('remove',$Id,'--yes') }
   $result=Remove-U03WindowDeploymentConfigurationSafe -DeploymentId $DeploymentId -Cli $cli -RemoveDeployment $remove
   if (-not $result.Passed) { Stop-Probe $result.Code }
-  $gone=Invoke-SafeVercel -Arguments @('api',"/v13/deployments/$DeploymentId?teamId=team_hLhdb3M9MviTIysXD9whFF2c")
+  $gone=Invoke-SafeVercel -Arguments @('api',"/v13/deployments/${DeploymentId}?teamId=team_hLhdb3M9MviTIysXD9whFF2c")
   if (-not $gone.DeploymentNotFound) { Stop-Probe 'DEPLOYMENT_ABSENCE_UNVERIFIED' }
   if (-not (Remove-U03WindowBatch)) { Stop-Probe 'VAULT_REMOVE_FAILED' }
   if (Test-Path -LiteralPath (Get-U03WindowVaultPath)) { Stop-Probe 'VAULT_ABSENCE_UNVERIFIED' }
@@ -133,13 +133,18 @@ if ($TeardownOnly) {
   return
 }
 
-$credentials=$null; $cleanup=$null; $result=$null
+$credentials=$null; $cleanup=$null; $result=$null; $phase='ATTESTATION'
 try {
   & $owner -WindowBatchAttestationOnly -DeploymentId $DeploymentId -DeploymentHost $DeploymentHost -DeploymentSha $DeploymentSha -RunId $RunId | Out-Null
+  $phase='CREDENTIAL_LOAD'
   $credentials=Get-B4PreviewCredentials
   if ($credentials.ProjectRef -cne 'rhnnplewqsekrnaousyl') { Stop-Probe 'PREVIEW_KEY_REF_MISMATCH' }
+  $phase='CHILD_PROBE'
   $result=Invoke-ProbeChild -AdminKey ([string]$credentials.AdminKey) -CleanupOnly $false
   Write-Output "H1A_AUTH_LOGIN_PROBE_RESULT status=$($result.Status) code=$($result.Code) cleanup=$($result.Cleanup) runId=$RunId"
+} catch {
+  Write-Output "H1A_AUTH_LOGIN_PROBE_WRAPPER BLOCKED phase=$phase code=WRAPPER_PHASE_FAILED runId=$RunId"
+  throw 'H1A_AUTH_LOGIN_PROBE_WRAPPER_BLOCKED'
 } finally {
   if ($credentials) {
     $cleanup=Invoke-ProbeChild -AdminKey ([string]$credentials.AdminKey) -CleanupOnly $true
