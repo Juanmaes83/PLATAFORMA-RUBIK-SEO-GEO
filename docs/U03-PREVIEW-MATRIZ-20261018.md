@@ -1,5 +1,9 @@
 # U03 · matriz alojada de Preview · 18/10/2026
 
+## H1-A · sonda de login autenticado · 24/10/2026
+
+U03/I-2/I-5 permanecen CERRADOS sin repetir sus campañas. H1-A continúa BLOCKED por el run `9570e8d0…`; el ledger original muestra `interceptionOperation` pero no la categoría del rechazo CDP. Una sonda anterior de `/acceso` y XHR sin sesión no es equivalente. La preparación nueva limita la prueba a una sola cuenta Auth ficticia, POST real, sesión `/panel` y XHR correlacionados por ordinal con el interceptor auténtico; no crea recursos de producto ni acredita exportación/restauración. [Plan, prueba local y limpieza exigida](H1A-CDP-9570-20261023.md). Solo una sonda alojada, con SHA/deployment/host y lote HMAC fijados, puede determinar si el defecto reaparece bajo protección. Un PASS de la sonda no cierra H1-A.
+
 ## H1-A · origen del E2E local · 23/10/2026
 
 U03 sigue PASS sin repetir campañas. El CI del SHA `7c50cd0` falló en navegador: Playwright usaba `localhost` y el login HTTP local solo permite `127.0.0.1`. Se corrigió el origen del arnés y se probó el rechazo/admisión de la ruta, el caso Playwright dirigido y el recorrido H1-A local con restauración doble. CI del nuevo SHA está pendiente; H1-A alojado continúa BLOCKED. La ventana `eb6f4b69…` fue solo preparada, sin rol ni fixtures, y sus variables/deployment/vault se retiraron al cambiar el SHA. [Expediente](H1A-CI-LOGIN-20261023.md).

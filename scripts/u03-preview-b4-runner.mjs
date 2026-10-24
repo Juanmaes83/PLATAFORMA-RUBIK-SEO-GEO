@@ -121,11 +121,13 @@ export function classifyCdpInterceptionFailure(error) {
   return 'CDP_OPERATION_REJECTED';
 }
 
-export async function installScopedRoutes(context, page, token, allowedOrigin = ORIGIN, onEvent = () => {}, onRouteEvent = () => {}, runId = null, onNavigationDiagnostic = () => {}) {
+export async function installScopedRoutes(context, page, token, allowedOrigin = ORIGIN, onEvent = () => {}, onRouteEvent = () => {}, runId = null, onNavigationDiagnostic = () => {}, onRequestTrace = (event) => { void event; }, blockExternalSubresources = false) {
   // Playwright routes are called once for a redirect chain. CDP Fetch pauses each
   // Chromium request, including the GET produced by an action's 303 response.
   const session = await context.newCDPSession(page);
   const requestOrigins = new Map();
+  const traceOrdinals = new Map();
+  let nextTraceOrdinal = 0;
   const frameTree = await session.send("Page.getFrameTree");
   const mainFrameId = frameTree?.frameTree?.frame?.id ?? null;
   const blocked = (event, paused, redirect, status = null) => {
@@ -151,6 +153,21 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
   };
   session.on("Fetch.requestPaused", (paused) => {
     const stage = paused.responseStatusCode || paused.responseErrorReason ? 'response' : 'request';
+    const traceable = paused.resourceType === 'XHR' || paused.resourceType === 'Fetch';
+    if (traceable && !traceOrdinals.has(paused.requestId)) traceOrdinals.set(paused.requestId, ++nextTraceOrdinal);
+    const trace = (result, failureCategory = null) => {
+      if (!traceable) return;
+      try {
+        onRequestTrace({ ordinal: traceOrdinals.get(paused.requestId), stage: stage.toUpperCase(),
+          resourceClass: classifyDiagnosticResource(paused.request?.url, paused.resourceType),
+          destinationClass, interceptionOperation: operation,
+          responseClass: stage === 'request' ? 'UNKNOWN' :
+            paused.responseStatusCode >= 300 && paused.responseStatusCode < 400 ? 'REDIRECT' : 'DIRECT',
+          disposition: result === 'BLOCKED' ? 'PINNED_REQUEST_BLOCKED' : 'ALLOWED',
+          result, failureCategory,
+          httpStatus: Number.isInteger(paused.responseStatusCode) ? paused.responseStatusCode : null });
+      } catch { onRouteEvent('diagnostic-cardinality-exceeded'); onEvent('pinned-origin-request-failed'); }
+    };
     let operation = 'CLASSIFY_URL';
     let destinationClass = 'UNKNOWN';
     const requestClass = paused.resourceType === 'Document'
@@ -171,21 +188,24 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
             blocked("external-redirect-blocked", paused, true, paused.responseStatusCode);
             operation = 'FAIL_REQUEST';
             await session.send("Fetch.failRequest", { requestId: paused.requestId, errorReason: "BlockedByClient" });
+            trace('BLOCKED');
             return;
           }
         }
         operation = 'CONTINUE_RESPONSE';
         await session.send("Fetch.continueResponse", { requestId: paused.requestId });
+        trace('CONTINUED');
         return;
       }
       const redirectedFromAllowed = requestOrigins.get(paused.redirectedRequestId) === allowedOrigin;
       requestOrigins.set(paused.requestId, origin);
       const navigation = paused.resourceType === "Document";
-      if (origin !== allowedOrigin && (navigation || redirectedFromAllowed)) {
+      if (origin !== allowedOrigin && (navigation || redirectedFromAllowed || blockExternalSubresources)) {
         const event = redirectedFromAllowed ? "external-redirect-blocked" : "external-navigation-blocked";
         blocked(event, paused, redirectedFromAllowed);
         operation = 'FAIL_REQUEST';
         await session.send("Fetch.failRequest", { requestId: paused.requestId, errorReason: "BlockedByClient" });
+        trace('BLOCKED');
         return;
       }
       operation = 'CONSTRUCT_HEADERS';
@@ -201,7 +221,9 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
         requestId: paused.requestId,
         headers: Object.entries(headers).map(([name, value]) => ({ name, value: String(value) })),
       });
+      trace('CONTINUED');
     })().catch(async (error) => {
+      trace('BLOCKED', classifyCdpInterceptionFailure(error));
       const resource = classifyDiagnosticResource(paused.request?.url, paused.resourceType);
       onRouteEvent(`cdp-failure-${stage}-${resource}`);
       const diagnostic = { event: "pinned-origin-request-failed", disposition: "PINNED_REQUEST_BLOCKED",

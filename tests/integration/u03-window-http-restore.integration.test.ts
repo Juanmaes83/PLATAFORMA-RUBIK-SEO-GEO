@@ -135,6 +135,7 @@ beforeAll(async () => {
   expect(sql(DEST_DB,'select count(*) from auth.users')+'|'+sql(DEST_DB,'select count(*) from public.organizations')).toBe('0|0');
   users.push(await createConfirmedUser('u03-http-owner'));
   users.push(await createConfirmedUser('u03-http-member'));
+  users.push(await createConfirmedUser('u03-http-minimal'));
   user = await signedIn('u03-http-owner');
   member = await signedIn('u03-http-member');
   memberId = users[1];
@@ -242,6 +243,33 @@ afterAll(async()=>{
   record('destination-cleanup','PASS');
 });
 
+it('logs in an Auth-only account and correlates the real post-login XHR without product rows',async()=>{
+  const origin=process.env.U03_LOCAL_HTTP_BASE!;
+  const minimalBrowser=await chromium.launch({headless:true});
+  try {
+    const context=await minimalBrowser.newContext({serviceWorkers:'block'});
+    const page=await context.newPage();
+    const trace:Array<{ordinal:number;stage:string;destinationClass:string;result:string}>=[];
+    await installScopedRoutes(context,page,null,origin,()=>{},()=>{},null,()=>{},row=>trace.push(row),true);
+    expect((await page.goto(`${origin}/acceso`))?.status()).toBe(200);
+    await page.locator('#email').fill(email('u03-http-minimal'));
+    await page.locator('#password').fill(TEST_PASSPHRASE);
+    const post=page.waitForResponse(response=>response.request().method()==='POST'&&
+      new URL(response.url()).pathname==='/api/auth/login');
+    await page.getByRole('button',{name:'Entrar'}).click();
+    expect((await post).status()).toBe(303);
+    await page.waitForURL(`${origin}/panel`);
+    await page.waitForLoadState('networkidle');
+    expect(await page.getByText('Sin proyectos',{exact:true}).count()).toBeGreaterThan(0);
+    const requests=trace.filter(row=>row.stage==='REQUEST');
+    const responses=trace.filter(row=>row.stage==='RESPONSE');
+    expect(requests.length).toBeGreaterThan(0);
+    expect(requests.map(row=>row.ordinal).sort()).toEqual(responses.map(row=>row.ordinal).sort());
+    expect(trace.every(row=>row.destinationClass==='PINNED_ORIGIN'&&row.result==='CONTINUED')).toBe(true);
+    await context.close();
+  } finally { await minimalBrowser.close(); }
+},60_000);
+
 it('exports over a loopback HTTP socket and restores the verified signed manifest twice into a second empty local stack',async()=>{
   const origin=process.env.U03_LOCAL_HTTP_BASE!;
   browser=await chromium.launch({headless:true});
@@ -250,9 +278,10 @@ it('exports over a loopback HTTP socket and restores the verified signed manifes
     const page=await context.newPage();
     browserPage=page;
     const diagnostics=createPageDiagnostics(page,{allowedOrigin:origin});
+    const authenticatedTrace: Array<{ordinal:number;stage:string;resourceClass:string;destinationClass:string;result:string}> = [];
     await installScopedRoutes(context,page,null,origin,()=>{},(...args:unknown[])=>{
       if(typeof args[0]==='string') diagnostics.addRouteEvent(args[0]);
-    });
+    },null,()=>{},detail=>authenticatedTrace.push(detail));
     const diagnosticIntervals=createDiagnosticIntervalTracker(diagnostics);
     const pageErrors={count:0};
     page.on('pageerror',()=>{ pageErrors.count+=1; });
@@ -281,7 +310,13 @@ it('exports over a loopback HTTP socket and restores the verified signed manifes
     record('browser-auth-diagnostics',loginStatus===303?'PASS':'BLOCKED',{loginHttpStatus:loginStatus,loginOriginCategory});
     expect(loginStatus).toBe(303);
     await page.waitForURL(`${origin}/panel`);
+    await page.waitForLoadState('networkidle');
     boundary('after-login');
+    const loginRequests=authenticatedTrace.filter(row=>row.stage==='REQUEST');
+    const loginResponses=authenticatedTrace.filter(row=>row.stage==='RESPONSE');
+    expect(loginRequests.length).toBeGreaterThan(0);
+    expect(loginRequests.map(row=>row.ordinal).sort()).toEqual(loginResponses.map(row=>row.ordinal).sort());
+    expect(authenticatedTrace.every(row=>row.destinationClass==='PINNED_ORIGIN'&&row.result==='CONTINUED')).toBe(true);
     record('browser-auth-diagnostics','PASS',{diagnostics:diagnostics.snapshot(),pageErrorCount:pageErrors.count});
     const captureRoot=`${ROOT}/test-results/u03-local-h1a-${RUN}`;
     mkdirSync(captureRoot,{recursive:true});

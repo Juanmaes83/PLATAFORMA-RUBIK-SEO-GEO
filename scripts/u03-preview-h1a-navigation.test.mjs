@@ -7,7 +7,7 @@ import { chromium } from 'playwright';
 import { installScopedRoutes, classifyBlockedExternalRequest, classifyDiagnosticResource, classifyCdpInterceptionFailure, createPageDiagnostics, summarizeDiagnosticInterval } from './u03-preview-b4-runner.mjs';
 
 async function injectPausedRequest({ url, headers = {}, rejectHeaderOverride = false, rejectContinue = false,
-  rejectResponse = false, rejectFail = false, resourceType = 'XHR', responseStatusCode = null }) {
+  rejectResponse = false, rejectFail = false, resourceType = 'XHR', responseStatusCode = null, traceFailure = false }) {
   const session = new EventEmitter();
   const calls = [];
   let complete;
@@ -28,14 +28,23 @@ async function injectPausedRequest({ url, headers = {}, rejectHeaderOverride = f
   };
   const events = [];
   const diagnostics = [];
+  const routes = [];
   await installScopedRoutes({ newCDPSession: async () => session }, { on() {} }, 'fictional-oidc', 'https://pinned.invalid',
-    (event, detail) => events.push({ event, detail }), () => {}, null, detail => diagnostics.push(detail));
+    (event, detail) => events.push({ event, detail }), event => routes.push(event), null,
+    detail => diagnostics.push(detail), () => { if (traceFailure) throw new Error('fictional trace secret'); });
   session.emit('Fetch.requestPaused', { requestId:'fictional-request', frameId:'main-frame',
     request:{ url, method:'GET', headers }, resourceType, ...(responseStatusCode ? { responseStatusCode } : {}) });
   await finished;
   await new Promise(resolve => setImmediate(resolve));
-  return { calls, events, diagnostics };
+  return { calls, events, diagnostics, routes };
 }
+
+test('a trace callback failure fails the gate without leaking its message',async()=>{
+  const result=await injectPausedRequest({url:'https://pinned.invalid/api/signal',traceFailure:true});
+  assert.equal(result.events[0]?.event,'pinned-origin-request-failed');
+  assert.ok(result.routes.includes('diagnostic-cardinality-exceeded'));
+  assert.doesNotMatch(JSON.stringify(result.events),/fictional trace secret/);
+});
 
 test('injected request-stage XHR CDP failure records operation and stays fatal', async () => {
   const url = 'https://external.invalid/fake-resource?token=fictional-secret';
@@ -131,6 +140,31 @@ test('real Chromium handles a 303 login followed by an external XHR 204 without 
   }
 });
 
+test('auth probe mode blocks direct external XHR before network egress', async () => {
+  let externalRequests=0;
+  const external=createServer((_request,response)=>{ externalRequests++;response.writeHead(204).end(); });
+  external.listen(0,'127.0.0.1'); await once(external,'listening');
+  const externalOrigin=`http://127.0.0.1:${external.address().port}`;
+  const pinned=createServer((_request,response)=>response.writeHead(200,{'content-type':'text/html'}).end(
+    `<script>const xhr=new XMLHttpRequest();xhr.open('GET','${externalOrigin}/signal');xhr.send();</script>`));
+  pinned.listen(0,'127.0.0.1'); await once(pinned,'listening');
+  const origin=`http://127.0.0.1:${pinned.address().port}`;
+  let browser;
+  try {
+    browser=await chromium.launch({headless:true});
+    const context=await browser.newContext({serviceWorkers:'block'});
+    const page=await context.newPage();
+    const trace=[];
+    await installScopedRoutes(context,page,null,origin,()=>{},()=>{},null,()=>{},row=>trace.push(row),true);
+    await page.goto(origin,{waitUntil:'networkidle'});
+    assert.equal(externalRequests,0);
+    assert.equal(trace.find(row=>row.destinationClass==='EXTERNAL')?.result,'BLOCKED');
+  } finally {
+    await browser?.close(); pinned.close(); external.close();
+    await Promise.all([once(pinned,'close'),once(external,'close')]);
+  }
+});
+
 test('real Chromium continues three pinned XHR subresources after a 303 login', async () => {
   const server = createServer((request, response) => {
     if (request.method === 'POST' && request.url === '/acceso') return response.writeHead(303, { location:'/panel' }).end();
@@ -156,13 +190,21 @@ test('real Chromium continues three pinned XHR subresources after a 303 login', 
     const context = await browser.newContext({ serviceWorkers:'block' });
     const page = await context.newPage();
     const diagnostics = [];
+    const traces = [];
     await installScopedRoutes(context, page, 'fictional-oidc', origin,
-      () => {}, () => {}, null, detail => diagnostics.push(detail));
+      () => {}, () => {}, null, detail => diagnostics.push(detail), detail => traces.push(detail));
     await page.goto(`${origin}/acceso`);
     await page.getByRole('button', { name:'Entrar' }).click();
     await page.waitForFunction(() => window.xhrSettled === 3);
     assert.equal(new URL(page.url()).pathname, '/panel');
     assert.equal(diagnostics.some(row => row.disposition === 'PINNED_REQUEST_BLOCKED'), false);
+    const requests = traces.filter(row => row.stage === 'REQUEST');
+    const responses = traces.filter(row => row.stage === 'RESPONSE');
+    assert.equal(requests.length, 3);
+    assert.equal(responses.length, 3);
+    assert.deepEqual(requests.map(row => row.ordinal), responses.map(row => row.ordinal));
+    assert.ok(traces.every(row => row.destinationClass === 'PINNED_ORIGIN' && row.result === 'CONTINUED'));
+    assert.doesNotMatch(JSON.stringify(traces), /\/signal-|fictional-oidc/);
   } finally {
     await browser?.close();
     server.close();
