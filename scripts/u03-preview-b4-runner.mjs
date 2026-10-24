@@ -129,9 +129,9 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
   const traceOrdinals = new Map();
   const traceNetworkIds = new Map();
   const traceResponses = new Set();
-  const traceResponsePaused = new Set();
   const traceRequests = new Map();
   const traceNetworkResponses = new Map();
+  const traceNetworkInitiators = new Map();
   let nextTraceOrdinal = 0;
   const frameTree = await session.send("Page.getFrameTree");
   const mainFrameId = frameTree?.frameTree?.frame?.id ?? null;
@@ -162,10 +162,15 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
     const ordinal = traceNetworkIds.get(event.requestId);
     const request = traceRequests.get(ordinal);
     if (!request) return;
-    try { onRequestTrace({ ...request, stage:'TERMINAL', interceptionOperation:'NETWORK_LOADING_FAILED',
+    try { onRequestTrace({ ...request, initiatorClass:traceNetworkInitiators.get(event.requestId) ?? 'UNKNOWN', stage:'TERMINAL', interceptionOperation:'NETWORK_LOADING_FAILED',
       responseClass:'UNKNOWN', result:'BLOCKED', disposition:'PINNED_REQUEST_BLOCKED',
       failureCategory:event.canceled === true ? 'NETWORK_CANCELLED' : 'NETWORK_FAILED' }); }
     catch { onRouteEvent('diagnostic-cardinality-exceeded'); onEvent('pinned-origin-request-failed'); }
+  });
+  session.on('Network.requestWillBeSent', event => {
+    const kind=String(event.initiator?.type ?? '').toLowerCase();
+    traceNetworkInitiators.set(event.requestId,
+      ({parser:'PARSER',script:'SCRIPT',preload:'PRELOAD',other:'OTHER'})[kind] ?? 'UNKNOWN');
   });
   session.on('Network.responseReceived', event => {
     const ordinal = traceNetworkIds.get(event.requestId);
@@ -176,25 +181,26 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
   session.on('Network.loadingFinished', event => {
     const ordinal = traceNetworkIds.get(event.requestId);
     const request = traceRequests.get(ordinal);
-    if (!request || traceResponses.has(ordinal) || traceResponsePaused.has(ordinal)) return;
+    if (!request) return;
     const status=traceNetworkResponses.get(ordinal);
-    try { onRequestTrace({ ...request, stage:'TERMINAL', interceptionOperation:'NETWORK_FINISHED',
+    try { onRequestTrace({ ...request, initiatorClass:traceNetworkInitiators.get(event.requestId) ?? 'UNKNOWN', stage:'TERMINAL', interceptionOperation:'NETWORK_FINISHED',
       responseClass:Number.isInteger(status) ? status >= 300 && status < 400 ? 'REDIRECT' : 'DIRECT' : 'UNKNOWN',
-      httpStatus:status, result:'BLOCKED', disposition:'PINNED_REQUEST_BLOCKED',
-      failureCategory:'RESPONSE_NOT_OBSERVED' }); }
+      httpStatus:status, result:traceResponses.has(ordinal) && Number.isInteger(status) ? 'CONTINUED' : 'BLOCKED',
+      disposition:traceResponses.has(ordinal) && Number.isInteger(status) ? 'ALLOWED' : 'PINNED_REQUEST_BLOCKED',
+      failureCategory:traceResponses.has(ordinal) && Number.isInteger(status) ? null : 'RESPONSE_NOT_OBSERVED' }); }
     catch { onRouteEvent('diagnostic-cardinality-exceeded'); onEvent('pinned-origin-request-failed'); }
   });
   session.on("Fetch.requestPaused", (paused) => {
     const stage = paused.responseStatusCode || paused.responseErrorReason ? 'response' : 'request';
     const traceable = paused.resourceType === 'XHR' || paused.resourceType === 'Fetch';
     if (traceable && !traceOrdinals.has(paused.requestId)) traceOrdinals.set(paused.requestId, ++nextTraceOrdinal);
-    if (traceable && stage === 'response') traceResponsePaused.add(traceOrdinals.get(paused.requestId));
     if (traceable && paused.networkId) traceNetworkIds.set(paused.networkId,traceOrdinals.get(paused.requestId));
     const trace = (result, failureCategory = null) => {
       if (!traceable) return;
       try {
         onRequestTrace({ ordinal: traceOrdinals.get(paused.requestId), stage: stage.toUpperCase(),
           resourceClass: classifyDiagnosticResource(paused.request?.url, paused.resourceType),
+          initiatorClass:traceNetworkInitiators.get(paused.networkId) ?? 'UNKNOWN',
           destinationClass, interceptionOperation: operation,
           responseClass: stage === 'request' ? 'UNKNOWN' :
             paused.responseStatusCode >= 300 && paused.responseStatusCode < 400 ? 'REDIRECT' : 'DIRECT',

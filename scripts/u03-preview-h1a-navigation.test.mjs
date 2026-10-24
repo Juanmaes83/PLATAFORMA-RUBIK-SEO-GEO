@@ -5,6 +5,7 @@ import { EventEmitter } from 'node:events';
 import test from 'node:test';
 import { chromium } from 'playwright';
 import { installScopedRoutes, classifyBlockedExternalRequest, classifyDiagnosticResource, classifyCdpInterceptionFailure, createPageDiagnostics, summarizeDiagnosticInterval } from './u03-preview-b4-runner.mjs';
+import { evaluateAuthenticatedTrace } from './h1a-auth-login-probe.mjs';
 
 async function injectPausedRequest({ url, headers = {}, rejectHeaderOverride = false, rejectContinue = false,
   rejectResponse = false, rejectFail = false, resourceType = 'XHR', responseStatusCode = null, traceFailure = false,
@@ -216,9 +217,14 @@ test('real Chromium continues three pinned XHR subresources after a 303 login', 
     assert.equal(diagnostics.some(row => row.disposition === 'PINNED_REQUEST_BLOCKED'), false);
     const requests = traces.filter(row => row.stage === 'REQUEST');
     const responses = traces.filter(row => row.stage === 'RESPONSE');
+    const terminals = traces.filter(row => row.stage === 'TERMINAL');
     assert.equal(requests.length, 3);
     assert.equal(responses.length, 3);
+    assert.equal(terminals.length, 3);
+    assert.ok(terminals.every(row => row.interceptionOperation === 'NETWORK_FINISHED'));
+    assert.ok(terminals.every(row => ['SCRIPT','UNKNOWN'].includes(row.initiatorClass)));
     assert.deepEqual(requests.map(row => row.ordinal).sort((a,b)=>a-b), responses.map(row => row.ordinal).sort((a,b)=>a-b));
+    assert.deepEqual(evaluateAuthenticatedTrace(traces),{ok:true,count:3});
     assert.ok(traces.every(row => row.destinationClass === 'PINNED_ORIGIN' && row.result === 'CONTINUED'));
     assert.doesNotMatch(JSON.stringify(traces), /\/signal-|fictional-oidc/);
   } finally {
@@ -254,7 +260,44 @@ test('real Chromium records a cancelled pinned XHR as a closed terminal failure'
     assert.ok(request);
     assert.equal(terminal?.interceptionOperation,'NETWORK_LOADING_FAILED');
     assert.equal(terminal?.failureCategory,'NETWORK_CANCELLED');
+    assert.ok(['SCRIPT','UNKNOWN'].includes(terminal?.initiatorClass));
     assert.doesNotMatch(JSON.stringify(trace),/\/slow|fictional/);
+  } finally {
+    await browser?.close(); server.closeAllConnections?.(); server.close(); await once(server,'close');
+  }
+});
+
+test('real Chromium cannot pass an active XHR before its response and network completion', async () => {
+  let releaseResponse;
+  const server=createServer((request,response)=>{
+    if(request.url==='/stream') {
+      releaseResponse=()=>response.writeHead(200,{'content-type':'text/plain'}).end('fictional part');
+      return;
+    }
+    response.writeHead(200,{'content-type':'text/html'}).end('<main>fictional</main>');
+  });
+  server.listen(0,'127.0.0.1'); await once(server,'listening');
+  const origin=`http://127.0.0.1:${server.address().port}`;
+  let browser;
+  try {
+    browser=await chromium.launch({headless:true});
+    const context=await browser.newContext({serviceWorkers:'block'});
+    const page=await context.newPage();
+    const trace=[];
+    await installScopedRoutes(context,page,null,origin,()=>{},()=>{},null,()=>{},row=>trace.push(row),true);
+    await page.goto(origin);
+    await page.evaluate(()=>{ window.syntheticXhr=new XMLHttpRequest(); window.syntheticXhr.open('GET','/stream'); window.syntheticXhr.send(); });
+    for(let attempt=0;attempt<30 && !trace.some(row=>row.stage==='REQUEST');attempt++)
+      await new Promise(resolve=>setTimeout(resolve,10));
+    assert.ok(trace.some(row=>row.stage==='REQUEST'));
+    assert.equal(evaluateAuthenticatedTrace(trace).code,'XHR_INCOMPLETE');
+    assert.equal(typeof releaseResponse,'function');
+    releaseResponse();
+    await page.waitForFunction(()=>window.syntheticXhr.readyState===4);
+    for(let attempt=0;attempt<30 && !trace.some(row=>row.stage==='TERMINAL');attempt++)
+      await new Promise(resolve=>setTimeout(resolve,10));
+    assert.deepEqual(evaluateAuthenticatedTrace(trace),{ok:true,count:1});
+    assert.doesNotMatch(JSON.stringify(trace),/\/stream|fictional/);
   } finally {
     await browser?.close(); server.closeAllConnections?.(); server.close(); await once(server,'close');
   }

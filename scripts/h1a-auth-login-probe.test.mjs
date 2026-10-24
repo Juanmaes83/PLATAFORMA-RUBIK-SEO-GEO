@@ -102,12 +102,17 @@ test('PowerShell 5.1 preserves fictional OIDC only across nested attestation and
 const request={ordinal:1,stage:'REQUEST',resourceClass:'panel-xhr',destinationClass:'PINNED_ORIGIN',
   interceptionOperation:'CONTINUE_REQUEST',responseClass:'UNKNOWN',disposition:'ALLOWED',result:'CONTINUED'};
 const response={...request,stage:'RESPONSE',interceptionOperation:'CONTINUE_RESPONSE',responseClass:'DIRECT',httpStatus:200};
+const finished={...request,stage:'TERMINAL',interceptionOperation:'NETWORK_FINISHED',responseClass:'DIRECT',httpStatus:200};
 
-test('authenticated XHR needs a correlated request and response at the pinned origin',()=>{
-  assert.deepEqual(evaluateAuthenticatedTrace([request,response]),{ok:true,count:1});
+test('authenticated XHR needs request, response headers and completed body at the pinned origin',()=>{
+  assert.deepEqual(evaluateAuthenticatedTrace([request,response,finished]),{ok:true,count:1});
+  assert.equal(safeTrace({...request,initiatorClass:'SCRIPT'}).initiatorClass,'SCRIPT');
+  assert.equal(evaluateAuthenticatedTrace([{...request,initiatorClass:'fictional secret'},response,finished]).code,'XHR_PROTOCOL_INVALID');
   assert.equal(evaluateAuthenticatedTrace([]).code,'XHR_NOT_OBSERVED');
   assert.equal(evaluateAuthenticatedTrace([request]).code,'XHR_INCOMPLETE');
+  assert.equal(evaluateAuthenticatedTrace([request,response]).code,'XHR_INCOMPLETE');
   assert.equal(evaluateAuthenticatedTrace([request,response,response]).code,'XHR_PROTOCOL_INVALID');
+  assert.equal(evaluateAuthenticatedTrace([request,response,finished,{...finished,ordinal:2}]).code,'XHR_INCOMPLETE');
 });
 
 test('terminal outcomes are explicit and never turn a missing response into PASS',()=>{

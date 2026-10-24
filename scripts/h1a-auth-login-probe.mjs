@@ -28,6 +28,7 @@ const PREFLIGHT_CATEGORIES = Object.freeze({
 export function preflightCategory(code) { return PREFLIGHT_CATEGORIES[code] ?? 'UNKNOWN'; }
 const TRACE_ENUMS = {
   stage:['REQUEST','RESPONSE','TERMINAL'], destinationClass:['PINNED_ORIGIN','EXTERNAL','UNKNOWN'],
+  initiatorClass:['PARSER','SCRIPT','PRELOAD','OTHER','UNKNOWN'],
   interceptionOperation:['CONTINUE_REQUEST','CONTINUE_RESPONSE','FAIL_REQUEST','CLASSIFY_URL','CLASSIFY_ORIGIN','CLASSIFY_REDIRECT','CONSTRUCT_HEADERS','NETWORK_LOADING_FAILED','NETWORK_FINISHED'],
   responseClass:['UNKNOWN','DIRECT','REDIRECT'], disposition:['ALLOWED','PINNED_REQUEST_BLOCKED'],
   result:['CONTINUED','BLOCKED'], failureCategory:['REQUEST_NOT_ACTIVE','CDP_SESSION_CLOSED','HEADER_REJECTED','CDP_OPERATION_REJECTED','NETWORK_CANCELLED','NETWORK_FAILED','RESPONSE_NOT_OBSERVED'],
@@ -40,6 +41,7 @@ export function evaluateAuthenticatedTrace(input, securityEvents = []) {
     if (!Number.isSafeInteger(row.ordinal) || row.ordinal < 1 || row.ordinal > 128 ||
         !['REQUEST','RESPONSE','TERMINAL'].includes(row.stage) || !/^(?:next-static|next-image|access|panel|api|project|root|other|unknown)-(?:xhr|fetch)$/.test(row.resourceClass) ||
         !['PINNED_ORIGIN','EXTERNAL','UNKNOWN'].includes(row.destinationClass) ||
+        (row.initiatorClass != null && !['PARSER','SCRIPT','PRELOAD','OTHER','UNKNOWN'].includes(row.initiatorClass)) ||
         !['CONTINUE_REQUEST','CONTINUE_RESPONSE','FAIL_REQUEST','CLASSIFY_URL','CLASSIFY_ORIGIN','CLASSIFY_REDIRECT','CONSTRUCT_HEADERS','NETWORK_LOADING_FAILED','NETWORK_FINISHED'].includes(row.interceptionOperation) ||
         !['UNKNOWN','DIRECT','REDIRECT'].includes(row.responseClass) || !['ALLOWED','PINNED_REQUEST_BLOCKED'].includes(row.disposition) ||
         !['CONTINUED','BLOCKED'].includes(row.result) ||
@@ -54,7 +56,7 @@ export function evaluateAuthenticatedTrace(input, securityEvents = []) {
     stages.add(row.stage); ordinals.set(row.ordinal, stages);
   }
   if (!ordinals.size) return { ok:false, code:'XHR_NOT_OBSERVED' };
-  if ([...ordinals.values()].some(stages => !stages.has('REQUEST') || !stages.has('RESPONSE')))
+  if ([...ordinals.values()].some(stages => !stages.has('REQUEST') || !stages.has('RESPONSE') || !stages.has('TERMINAL')))
     return { ok:false, code:'XHR_INCOMPLETE' };
   return { ok:true, count:ordinals.size };
 }
