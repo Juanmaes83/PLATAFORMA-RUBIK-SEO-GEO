@@ -1,5 +1,45 @@
 # U03 · matriz alojada de Preview · 18/10/2026
 
+## Corte H1-A · CI E2E y diagnóstico de sonda · 24/10/2026
+
+U03/I-2/I-5 conservan CERRADO y no se repitieron. El HEAD `dbdd3d7` de #145 tuvo verify Node 22/24 y Vercel PASS, E2E FAIL en la confirmación de una cuenta invitada; el rechazo posterior del cleanup fue consecuencia de propiedad no acreditada. La sonda Auth alojada `22761709-ff1e-4af5-8984-e7c76b3e6179` conserva BLOCKED antes de `auth-create`, POST, sesión y XHR. La corrección local separa categorías cerradas de preflight y espera que termine el registro E2E antes de seguir el enlace; sus pruebas no cambian el resultado histórico. H1-A, R1, H1-B/U04, H1 global y H2 siguen abiertos. [Expediente](H1A-CDP-9570-20261023.md).
+
+## H1-A · sonda Auth 22761709 · preflight bloqueado
+
+U03/I-2/I-5 conservan CERRADO sin repetición. Una única sonda Auth nueva, SHA `074e67356e4519ccf10ca14f97a456289a282cb4`, deployment `dpl_GELaGFHaposXQPTyTXxVTSWhKDui`, pasó preflight externo y atestación HMAC, pero el hijo registró `preflight / PRECHECK_FAILED` como primer bloqueo. Login, sesión y XHR alojados carecen de PASS; H1-A integral es NOT_RUN. El ledger conservado y una lectura independiente posterior acreditan Auth/inventario/outbox y capacidades temporales a cero; las nueve variables, deployment y vault se retiraron y verificaron ausentes. El código no guardó la subcategoría del preflight de ese run; la instrumentación posterior conserva códigos cerrados para una futura decisión, sin atribuir retrospectivamente una causa. H1-A, R1, H1-B/U04, H1 global y H2 siguen abiertos. [Expediente](H1A-CDP-9570-20261023.md).
+
+## H1-A · sonda de login autenticado · 24/10/2026
+
+U03/I-2/I-5 permanecen CERRADOS sin repetir sus campañas. H1-A continúa BLOCKED por el run `9570e8d0…`; el ledger original muestra `interceptionOperation` pero no la categoría del rechazo CDP. Una sonda anterior de `/acceso` y XHR sin sesión no es equivalente. La preparación nueva limita la prueba a una sola cuenta Auth ficticia, POST real, sesión `/panel` y XHR correlacionados por ordinal con el interceptor auténtico; no crea recursos de producto ni acredita exportación/restauración. [Plan, prueba local y limpieza exigida](H1A-CDP-9570-20261023.md). Solo una sonda alojada, con SHA/deployment/host y lote HMAC fijados, puede determinar si el defecto reaparece bajo protección. Un PASS de la sonda no cierra H1-A.
+
+## H1-A · origen del E2E local · 23/10/2026
+
+U03 sigue PASS sin repetir campañas. El CI del SHA `7c50cd0` falló en navegador: Playwright usaba `localhost` y el login HTTP local solo permite `127.0.0.1`. Se corrigió el origen del arnés y se probó el rechazo/admisión de la ruta, el caso Playwright dirigido y el recorrido H1-A local con restauración doble. CI del nuevo SHA está pendiente; H1-A alojado continúa BLOCKED. La ventana `eb6f4b69…` fue solo preparada, sin rol ni fixtures, y sus variables/deployment/vault se retiraron al cambiar el SHA. [Expediente](H1A-CI-LOGIN-20261023.md).
+
+## H1-A · run f31e8ca6 · restore local bloqueado · 23/10/2026
+
+U03 conserva **PASS/CERRADO** por el run `330c6e4b-14ad-439a-a8cf-43d92c73fadb`; no se repitió. En H1-A `f31e8ca6-7349-4c6a-8d16-409ad7f4e1b6` pasaron principal/Session pooler, firma, recibos, aislamiento, login, cuatro vistas/capturas, exportación HTTP 200, verificación offline y rechazo de manipulación. El último PASS fue `h1a-tamper-rejection`; el primer FAIL fue `campaign-error / PREVIEW_EXPORT_LOCAL_RESTORE_FAILED`. La restauración doble, su idempotencia y el logout no quedaron acreditados. Cleanup y contención PASS; lectura independiente de Preview: inventario/outbox y rol/políticas/sesiones temporales cero, guarda original y escritor general NOLOGIN; variables, deployment y vault retirados. El fallo interno del hijo no consta en el ledger histórico. La reproducción local con manifiesto firmado mostró dos defectos del adaptador, corregidos en SHA funcional `4df694a`: stdin de `psql` ignorado y comparación de columnas no equivalentes. El mismo proceso hijo pasó después en el ensayo local integral con destino aislado; **no equivale a PASS alojado**. H1-A sigue BLOCKED y la aceptación visual humana sigue pendiente. [Expediente](H1A-RESTORE-F31-20261023.md).
+
+## H1-A tras c594d41d · export 503 · 23/10/2026
+
+El run alojado `c594d41d-dc26-4870-a4b4-3ec9fc2256ae` acredita principal, Session pooler, firma, recibos, aislamiento, login y cuatro vistas/capturas como **PASS acotados**. `h1a-export-consistency-limit` pasó; el GET HTTP de exportación respondió 503 y dejó verificación/restauración `NOT_RUN`. El run permanece **BLOCKED** y su ledger original no identifica la barrera del 503. Cleanup y lectura SQL independiente acreditan inventario/outbox/capacidades temporales a cero. Se identificó una atestación N1 ausente que causaría 503 al evaluar el contrato; el nuevo operador la comprueba y registra un código cerrado si persiste otro 503. El ensayo local `aa8602bd-6957-4f81-9d88-56bfe151d255` pasó export/verificación/manipulación/restauración doble y limpieza, sin equivaler a Preview. U03 conserva PASS previo; H1-A, H1-B/U04, R1, H1 global y H2 siguen abiertos. [Expediente](H1A-EXPORT-503-C594-20261023.md).
+
+## H1-A · sonda Auth de 24/10 detenida antes de login
+
+U03/I-2/I-5 conservan CERRADO. El run de diagnóstico `600e45b3-f280-400a-9ac0-c9d20e335c0c` pasó preflight de lectura y atestación HMAC en Preview `rhnnplewqsekrnaousyl`, SHA `8cc8ceb2d3f0b39675b7e50b424137ce29bb3808`, deployment `dpl_5c7y3UDHSsZW95qBbuzbnM4r1Dqj`; la invocación se bloqueó en PowerShell 5.1 por `PropertyNotFoundStrict` en `.Count` del modo, sin ledger de sonda. No consta POST autenticado ni XHR alojado; ambos carecen de PASS, al igual que la campaña integral. La lectura independiente posterior dio inventario/outbox/capacidades temporales cero y escritor NOLOGIN; nueve variables, deployment y vault ausentes. La causa del wrapper se reprodujo y corrigió localmente. No se repitió la sonda. H1-A, R1, H1-B/U04, H1 global y H2 permanecen abiertos. [Expediente](H1A-CDP-9570-20261023.md).
+
+## H1-A · correccion de login en revision · 23/10/2026
+
+U03 conserva el PASS alojado `330c6e4b-14ad-439a-a8cf-43d92c73fadb`. H1-A sigue **BLOCKED**: el run `d3bb7af4-fa3c-49f0-98af-742158444963` se detuvo tras login y se limpio. Una sonda protegida posterior reprodujo 404 de assets inmutables despues del clic de Server Action; el envio nativo del mismo formulario devolvio 303 sin esos errores. El Route Handler de login conserva Auth y origen exacto. El recorrido local completo `d1a93948-00dc-4e8b-ad3b-83b8b16504ae` paso con 303, cuatro vistas sin errores, export/verificacion/restauracion y limpieza de dos stacks. La sonda protegida del SHA funcional `029db301498b8134a70eb6f0ed6aa5a3d07a3388` en `dpl_HnUY7E1B8rLGzLZtUtvfwHEZvkbM` paso con POST 303 y cero 404/errores, sin fixtures ni sesion. Faltan la campana integral alojada y la aceptacion visual humana. [Diagnostico detallado](H1A-DIAGNOSTICO-D3BB-20261022.md).
+
+## Estado H1-A tras d3bb7af4 · 22/10/2026
+
+U03 sigue PASS por `330c6e4b-14ad-439a-a8cf-43d92c73fadb`, sin repeticion. H1-A sigue BLOCKED: el run alojado `d3bb7af4-fa3c-49f0-98af-742158444963` llego a fixtures firmados, aislamiento y recibo, pero se detuvo en `after-login` antes de la primera vista. La limpieza independiente de Preview dio inventario/outbox y capacidades temporales cero. El ensayo local posterior paso con interceptacion CDP, export HTTP y doble restauracion, sin equivaler al deployment protegido. Diagnostico y limites: [expediente d3bb7af4](H1A-DIAGNOSTICO-D3BB-20261022.md). H1-B/Sarah, R1, H1 global y H2 permanecen abiertos.
+
+## Nota de vigencia · H1-A separado · 22/10/2026
+
+I-2, I-5 y U03 global conservan el PASS alojado del run `330c6e4b-14ad-439a-a8cf-43d92c73fadb`; no se repitieron. El ledger de ese run indica H1-A `NOT_RUN`. La prueba local posterior `d6bc8e22-a761-4d68-823a-d7827b2acc6f` solo verifica el flujo local HTTP/exportación/restauración y no altera el estado alojado de U03. H1-A, U04/H1-B, R1, H1 y H2 continúan abiertos.
+
 ## Run 26f7efe8 · recuperación de contención · 21/10/2026
 
 El run `26f7efe8-e5e4-4d68-bfea-e53a7a4bfa8e` instaló el principal nuevo en NOLOGIN y se detuvo antes de activarlo o crear fixtures. Ownership, NOLOGIN, OID y sesiones pasaron; `containment-new-login` quedó BLOCKED con `CONTAINMENT_NEW_LOGIN_QUERY_FAILED` en el intento inicial y en dos vías independientes. Los ledgers originales permanecen intactos. La traza de Supavisor de esa ventana sitúa cuatro errores de autenticación en `auth_scram_first_wait`, categoría interna «user not found»; el ledger original no distingue si el error final provino de `connect()` o de la relectura administrativa que el código ejecutaba dentro del mismo `catch`.
@@ -506,3 +546,17 @@ La campaña dirigida del run `330c6e4b-14ad-439a-a8cf-43d92c73fadb` terminó con
 | H1-A | **NO EJECUTADO; independiente** | `h1a-result NOT_RUN`. No condiciona el cierre de U03. H1/H2 y U04/Sarah permanecen abiertos según sus propios gates. |
 
 Deployment usado: `dpl_56PEz8SoynyU8UD1ufRenAesQyx5`, host `plataforma-rubik-seo-9u4p45110-juanma-espinosas-projects.vercel.app`, SHA funcional `ed0bbee9006feabae546fa376e4eaf7beffafc42`, Preview `rhnnplewqsekrnaousyl`. El run de campaña finalizó PASS; no repetirlo. El ledger registra `run-artifacts NONE`; la salida saneada y el ledger original quedan conservados localmente por Juanma, sin incorporarlos al repositorio.
+
+## H1-A · transporte restaurador y revisión visual · 23/10/2026
+
+U03/I-2/I-5 conservan PASS/CERRADO sin nueva campaña. H1-A run 10d6561e conserva BLOCKED en h1a-local-double-restore; export HTTP, verificación y manipulación pasaron, mientras restauración doble, idempotencia y logout quedaron NOT_RUN. Limpieza alojada: ledger PASS y lectura independiente anterior a cero. El SHA bc5bac2 pasó CI Node 22/24, E2E y Vercel; el ensayo local nuevo con padre+hijo reales y dos stacks N1 pasó y se retiró. Las cuatro capturas del run anterior fueron revisadas sin errores de render evidentes, pero la aceptación visual humana final y la navegación real no están acreditadas. Observaciones de producto registradas en H1A-RESTORE-10D-20261023.md. H1-A, H1-B/U04, R1, H1 global y H2 siguen abiertos.
+
+## H1-A · bloqueo de interceptación del run 9570e8d0 · 23/10/2026
+
+U03/I-2/I-5 continúan CERRADOS. El run H1-A `9570e8d0-0c45-432a-b300-2c51d0c3ef58` terminó BLOCKED durante login: tres subrecursos del origen fijado fallaron en `Fetch.continueRequest`; tres filas más son el intento fallido posterior de `Fetch.failRequest`. No hubo PASS de login, vistas, exportación ni restauración. El ledger carece de clase de error CDP, por lo que no demuestra su causa interna. La lectura independiente **nueva** confirmó Preview a cero, guarda restaurada y escritor general bloqueado; deployment, nueve variables y vault ausentes. [Expediente](H1A-CDP-9570-20261023.md). La instrumentación cerrada del rechazo se probó localmente; H1-A sigue BLOCKED, sin nueva campaña autorizada por esta evidencia.
+## Corte H1-A · sonda Auth afa3c860 · 24/10/2026
+
+U03, I-2 e I-5 permanecen PASS/CERRADO por evidencia anterior. H1-A continúa BLOCKED: la sonda Auth `afa3c860-ad05-4db9-a048-5bed5f7e25ad` acreditó login POST 303 y sesión, pero el gate XHR se bloqueó con `XHR_INCOMPLETE`. Cuatro ordinales carecen de RESPONSE y su desenlace original no fue registrado. Auth cleanup, lectura independiente de inventario/outbox/capacidades a cero y retirada del lote/deployment/vault fueron acreditados. Vistas, exportación, verificación, restauración, recibos, logout y aceptación visual integral siguen NOT_RUN en esa sonda. [Expediente](H1A-AUTH-XHR-AFA3-20261024.md). R1, H1-B/U04, H1 global y H2 conservan gates separados.
+## Corte H1-A · sonda Auth 5e8fa1aa · 24/10/2026
+
+U03/I-2/I-5 conservan PASS/CERRADO. La sonda Auth `5e8fa1aa-c2a2-4540-9d1e-48230fe25325` acreditó POST 303 y sesión, pero el gate XHR permanece BLOCKED por `XHR_TERMINAL_UNVERIFIED`; otros cuatro ordinales carecen de respuesta y terminal. Auth cleanup, lectura independiente a cero y teardown de nueve variables, deployment y vault pasaron. Vistas, exportación, verificación, restauración, recibos, logout y aceptación visual integral son NOT_RUN para esta sonda. La corrección local exige carga completa acreditada, sin atribuir causa de cancelación al run. [Expediente](H1A-AUTH-XHR-5E8-20261024.md). H1-A, R1, H1-B/U04, H1 global y H2 mantienen sus gates separados.

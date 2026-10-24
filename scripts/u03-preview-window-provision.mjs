@@ -1,10 +1,10 @@
 import { pathToFileURL } from 'node:url';
 
-export const WINDOW_BRANCH = 'codex/u03-final-gates-20261020';
+export const WINDOW_BRANCH = 'codex/h1a-integral-20261022';
 export const WINDOW_VARIABLES = Object.freeze([
   'U03_PREVIEW_WRITER_WINDOW', 'U03_PREVIEW_WRITER_WINDOW_REF', 'U03_PREVIEW_WRITER_WINDOW_SHA',
   'U03_PREVIEW_WRITER_WINDOW_RUN_ID', 'U03_PREVIEW_WRITER_WINDOW_SECRET', 'RUBIK_AUDIT_DATABASE_URL',
-  'PROVENANCE_SIGNING_KEYS', 'PROVENANCE_ACTIVE_KEY_ID',
+  'PROVENANCE_SIGNING_KEYS', 'PROVENANCE_ACTIVE_KEY_ID', 'RUBIK_RECOVERY_SCHEMA_ATTESTATION',
 ]);
 
 /** Secret provisioning must pass through the visible Windows PowerShell DPAPI vault. */

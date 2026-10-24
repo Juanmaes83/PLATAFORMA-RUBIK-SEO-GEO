@@ -1,8 +1,8 @@
 Set-StrictMode -Version Latest
-$script:WindowBranch = 'codex/u03-final-gates-20261020'
+$script:WindowBranch = 'codex/h1a-integral-20261022'
 $script:WindowNames = @('U03_PREVIEW_WRITER_WINDOW','U03_PREVIEW_WRITER_WINDOW_REF','U03_PREVIEW_WRITER_WINDOW_SHA',
   'U03_PREVIEW_WRITER_WINDOW_RUN_ID','U03_PREVIEW_WRITER_WINDOW_SECRET','RUBIK_AUDIT_DATABASE_URL',
-  'PROVENANCE_SIGNING_KEYS','PROVENANCE_ACTIVE_KEY_ID')
+  'PROVENANCE_SIGNING_KEYS','PROVENANCE_ACTIVE_KEY_ID','RUBIK_RECOVERY_SCHEMA_ATTESTATION')
 
 function Get-U03WindowEnvironmentSnapshot($Result) {
   if ($null -eq $Result -or $Result.ExitCode -ne 0 -or [string]::IsNullOrEmpty($Result.Output)) { return $null }

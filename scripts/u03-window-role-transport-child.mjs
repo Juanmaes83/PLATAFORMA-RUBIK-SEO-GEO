@@ -6,7 +6,15 @@ const chunks = [];
 process.stdin.on('data', chunk => chunks.push(chunk));
 process.stdin.on('end', () => {
   try {
-    const input = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    if (process.argv.includes('--local-preflight-only')) {
+      if (process.env.RUBIK_RECOVERY_SCHEMA_ATTESTATION === 'pre-n2-through-20261015210000')
+        process.stdout.write(`U03_PREVIEW_WINDOW_LOCAL_PREFLIGHT PASS runId=${PASS_ID} deploymentId=dpl_Fictional123 sha=${process.env.U03_FUNCTIONAL_SHA}\n`);
+      else { process.stdout.write('U03_PREVIEW_WINDOW_LOCAL_PREFLIGHT BLOCKED; no database operation was attempted\n'); process.exitCode = 1; }
+      return;
+    }
+    let input;
+    try { input = JSON.parse(Buffer.concat(chunks).toString('utf8')); }
+    catch { process.stderr.write('U03_WINDOW_ROLE_SELFTEST_INPUT_PARSE_FAILED\n'); process.exitCode = 43; return; }
     if (input.databasePassword !== FAKE_PASSWORD) process.exitCode = 41;
     else if (input.mode === 'run' && input.runId === PASS_ID) {
       process.stdout.write(`U03_WINDOW_ROLE_RESULT PASS runId=${PASS_ID} roleRemoved=true policies=0 inventoryZero=true outboxTotal=0 pending=0\n`);
@@ -22,6 +30,7 @@ process.stdin.on('end', () => {
       process.stdout.write(`U03_WINDOW_RECOVERY PASS runId=${RECOVERY_ID} rolePresent=false policies=0 sessions=0 inventoryZero=true outboxTotal=0 pending=0 guardOriginal=true writerLocked=true\n`);
     } else process.exitCode = 42;
   } catch {
+    process.stderr.write('U03_WINDOW_ROLE_SELFTEST_UNEXPECTED_FAILURE\n');
     process.exitCode = 43;
   }
 });

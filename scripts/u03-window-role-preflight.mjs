@@ -43,6 +43,7 @@ const INVENTORY = Object.freeze([
 ]);
 const LEDGER_ROOT = join(process.cwd(), 'test-results', 'u03-hosted');
 const RECOVERY_RUN = '840261c6-e410-4e25-893a-9206fd3f74ef';
+const H1A_RECOVERY_RUN = 'f7ee4d0a-edb4-4276-88fc-03bbab570a19';
 const SAFE_SQLSTATES = new Set(['42501', '28P01', '28000', '57P01', '0A000', '42704', '42710']);
 const SAFE_TRANSPORT_CODES = new Set(['ENOTFOUND','EAI_AGAIN','EAI_FAIL','ETIMEDOUT','ECONNREFUSED','ECONNRESET',
   'EHOSTUNREACH','ENETUNREACH','EPIPE','ENETDOWN','ECONNABORTED','ERR_TLS_CERT_ALTNAME_INVALID','CERT_HAS_EXPIRED','UNABLE_TO_VERIFY_LEAF_SIGNATURE',
@@ -738,7 +739,7 @@ function originalGuardVerified(definition, securityDefiner) {
 /** One-run administrative recovery. It never installs or activates a role or creates fixtures. */
 export async function recoverInstalledRun({ databasePassword, runId, PoolClass = Pool,
   adminPoolFactory = createPreviewAdminPool, ledgerPath = null } = {}) {
-  if (runId !== RECOVERY_RUN || typeof databasePassword !== 'string' || !databasePassword)
+  if (![RECOVERY_RUN, H1A_RECOVERY_RUN].includes(runId) || typeof databasePassword !== 'string' || !databasePassword)
     throw new Error('RECOVERY_INPUT_REJECTED');
   const path = ledgerPath ?? join(LEDGER_ROOT, `${runId}-recovery.jsonl`);
   await mkdir(join(path, '..'), { recursive: true });

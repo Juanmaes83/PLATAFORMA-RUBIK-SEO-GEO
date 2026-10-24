@@ -12,7 +12,7 @@ const PIN_DEFAULTS = {
   teamId: "team_hLhdb3M9MviTIysXD9whFF2c",
   deploymentId: "dpl_Hmpevn3Vds4pFUzbiiFFB3vVGCKD",
   sha: "28fd3927f9acce8ba9b27b43d3afb86b12aa0a86",
-  branch: "codex/u03-session-isolation-20261020",
+  branch: "codex/h1a-integral-20261022",
   host: "plataforma-rubik-seo-3elivlu19-juanma-espinosas-projects.vercel.app",
   supabaseRef: "rhnnplewqsekrnaousyl",
 };
@@ -84,66 +84,215 @@ export function isExternalRedirect(requestUrl, redirectedFromUrl, allowedOrigin 
   catch { return true; }
 }
 
-export async function installScopedRoutes(context, page, token, allowedOrigin = ORIGIN, onEvent = () => {}, onRouteEvent = () => {}, runId = null) {
+export function classifyBlockedExternalRequest({ resourceType, mainFrame = false, redirect = false } = {}) {
+  if (resourceType !== "Document" || !mainFrame) {
+    return redirect ? "BLOCKED_EXTERNAL_SUBRESOURCE_REDIRECT" : "BLOCKED_EXTERNAL_SUBRESOURCE";
+  }
+  return redirect ? "BLOCKED_EXTERNAL_MAIN_FRAME_REDIRECT" : "BLOCKED_EXTERNAL_MAIN_FRAME_NAVIGATION";
+}
+
+// Only fixed classes cross the evidence boundary. Never retain a path, query, or CDP error.
+export function classifyDiagnosticResource(url, resourceType) {
+  let route = 'other';
+  try {
+    const path = new URL(url).pathname;
+    if (path.startsWith('/_next/static/')) route = 'next-static';
+    else if (path === '/_next/image') route = 'next-image';
+    else if (path === '/acceso') route = 'access';
+    else if (path === '/panel') route = 'panel';
+    else if (path.startsWith('/api/')) route = 'api';
+    else if (path.startsWith('/proyectos/')) route = 'project';
+    else if (path === '/') route = 'root';
+  } catch { route = 'unknown'; }
+  const rawType = String(resourceType ?? '').toLowerCase();
+  const type = ({ document:'document', script:'script', stylesheet:'stylesheet', image:'image', fetch:'fetch', xhr:'xhr', font:'font' })[rawType] ?? 'other';
+  return `${route}-${type}`;
+}
+
+// CDP messages stay inside this process. Only these fixed classes cross the ledger boundary.
+export function classifyCdpInterceptionFailure(error) {
+  const message = typeof error?.message === 'string' ? error.message : '';
+  if (/Invalid InterceptionId|Invalid request(?:Id| id)|No resource with given identifier/i.test(message))
+    return 'REQUEST_NOT_ACTIVE';
+  if (/Session closed|Target closed|Session with given id not found/i.test(message))
+    return 'CDP_SESSION_CLOSED';
+  if (/invalid (?:request )?header|header.*invalid/i.test(message))
+    return 'HEADER_REJECTED';
+  return 'CDP_OPERATION_REJECTED';
+}
+
+export async function installScopedRoutes(context, page, token, allowedOrigin = ORIGIN, onEvent = () => {}, onRouteEvent = () => {}, runId = null, onNavigationDiagnostic = () => {}, onRequestTrace = (event) => { void event; }, blockExternalSubresources = false) {
   // Playwright routes are called once for a redirect chain. CDP Fetch pauses each
   // Chromium request, including the GET produced by an action's 303 response.
   const session = await context.newCDPSession(page);
   const requestOrigins = new Map();
+  const traceOrdinals = new Map();
+  const traceNetworkIds = new Map();
+  const traceResponses = new Set();
+  const traceRequests = new Map();
+  const traceNetworkResponses = new Map();
+  const traceNetworkInitiators = new Map();
+  let nextTraceOrdinal = 0;
+  const frameTree = await session.send("Page.getFrameTree");
+  const mainFrameId = frameTree?.frameTree?.frame?.id ?? null;
+  const blocked = (event, paused, redirect, status = null) => {
+    // If CDP cannot identify the root frame, classify documents as main-frame
+    // navigation and fail closed instead of silently treating them as assets.
+    const mainFrame = !mainFrameId || paused.frameId === mainFrameId;
+    const disposition = classifyBlockedExternalRequest({ resourceType: paused.resourceType, mainFrame, redirect });
+    const diagnostic = {
+      event, disposition,
+      requestClass: paused.resourceType === "Document" ? (mainFrame ? "MAIN_DOCUMENT" : "FRAME_DOCUMENT") : "SUBRESOURCE",
+      destinationClass: "EXTERNAL",
+      responseClass: redirect ? "REDIRECT" : "DIRECT",
+      httpStatus: Number.isInteger(status) && status >= 300 && status < 400 ? status : null,
+    };
+    onNavigationDiagnostic(diagnostic);
+    if (disposition === "BLOCKED_EXTERNAL_MAIN_FRAME_REDIRECT" || disposition === "BLOCKED_EXTERNAL_MAIN_FRAME_NAVIGATION") {
+      onEvent(event, diagnostic);
+      onRouteEvent(event);
+    } else {
+      onRouteEvent(event);
+      onRouteEvent(disposition.toLowerCase().replaceAll("_", "-"));
+    }
+  };
+  // A request may finish or fail without a Fetch Response pause. Record a bounded,
+  // closed terminal outcome; never infer a successful response from a missing pause.
+  session.on('Network.loadingFailed', event => {
+    const ordinal = traceNetworkIds.get(event.requestId);
+    const request = traceRequests.get(ordinal);
+    if (!request) return;
+    try { onRequestTrace({ ...request, initiatorClass:traceNetworkInitiators.get(event.requestId) ?? 'UNKNOWN', stage:'TERMINAL', interceptionOperation:'NETWORK_LOADING_FAILED',
+      responseClass:'UNKNOWN', result:'BLOCKED', disposition:'PINNED_REQUEST_BLOCKED',
+      failureCategory:event.canceled === true ? 'NETWORK_CANCELLED' : 'NETWORK_FAILED' }); }
+    catch { onRouteEvent('diagnostic-cardinality-exceeded'); onEvent('pinned-origin-request-failed'); }
+  });
+  session.on('Network.requestWillBeSent', event => {
+    const kind=String(event.initiator?.type ?? '').toLowerCase();
+    traceNetworkInitiators.set(event.requestId,
+      ({parser:'PARSER',script:'SCRIPT',preload:'PRELOAD',other:'OTHER'})[kind] ?? 'UNKNOWN');
+  });
+  session.on('Network.responseReceived', event => {
+    const ordinal = traceNetworkIds.get(event.requestId);
+    const status = event.response?.status;
+    if (traceRequests.has(ordinal) && Number.isInteger(status) && status >= 100 && status <= 599)
+      traceNetworkResponses.set(ordinal,status);
+  });
+  session.on('Network.loadingFinished', event => {
+    const ordinal = traceNetworkIds.get(event.requestId);
+    const request = traceRequests.get(ordinal);
+    if (!request) return;
+    const status=traceNetworkResponses.get(ordinal);
+    try { onRequestTrace({ ...request, initiatorClass:traceNetworkInitiators.get(event.requestId) ?? 'UNKNOWN', stage:'TERMINAL', interceptionOperation:'NETWORK_FINISHED',
+      responseClass:Number.isInteger(status) ? status >= 300 && status < 400 ? 'REDIRECT' : 'DIRECT' : 'UNKNOWN',
+      httpStatus:status, result:traceResponses.has(ordinal) && Number.isInteger(status) ? 'CONTINUED' : 'BLOCKED',
+      disposition:traceResponses.has(ordinal) && Number.isInteger(status) ? 'ALLOWED' : 'PINNED_REQUEST_BLOCKED',
+      failureCategory:traceResponses.has(ordinal) && Number.isInteger(status) ? null : 'RESPONSE_NOT_OBSERVED' }); }
+    catch { onRouteEvent('diagnostic-cardinality-exceeded'); onEvent('pinned-origin-request-failed'); }
+  });
   session.on("Fetch.requestPaused", (paused) => {
+    const stage = paused.responseStatusCode || paused.responseErrorReason ? 'response' : 'request';
+    const traceable = paused.resourceType === 'XHR' || paused.resourceType === 'Fetch';
+    if (traceable && !traceOrdinals.has(paused.requestId)) traceOrdinals.set(paused.requestId, ++nextTraceOrdinal);
+    if (traceable && paused.networkId) traceNetworkIds.set(paused.networkId,traceOrdinals.get(paused.requestId));
+    const trace = (result, failureCategory = null) => {
+      if (!traceable) return;
+      try {
+        onRequestTrace({ ordinal: traceOrdinals.get(paused.requestId), stage: stage.toUpperCase(),
+          resourceClass: classifyDiagnosticResource(paused.request?.url, paused.resourceType),
+          initiatorClass:traceNetworkInitiators.get(paused.networkId) ?? 'UNKNOWN',
+          destinationClass, interceptionOperation: operation,
+          responseClass: stage === 'request' ? 'UNKNOWN' :
+            paused.responseStatusCode >= 300 && paused.responseStatusCode < 400 ? 'REDIRECT' : 'DIRECT',
+          disposition: result === 'BLOCKED' ? 'PINNED_REQUEST_BLOCKED' : 'ALLOWED',
+          result, failureCategory,
+          httpStatus: Number.isInteger(paused.responseStatusCode) ? paused.responseStatusCode : null });
+        if (stage === 'response' && result === 'CONTINUED') traceResponses.add(traceOrdinals.get(paused.requestId));
+      } catch { onRouteEvent('diagnostic-cardinality-exceeded'); onEvent('pinned-origin-request-failed'); }
+    };
+    let operation = 'CLASSIFY_URL';
+    let destinationClass = 'UNKNOWN';
+    const requestClass = paused.resourceType === 'Document'
+      ? (!mainFrameId || paused.frameId === mainFrameId ? 'MAIN_DOCUMENT' : 'FRAME_DOCUMENT') : 'SUBRESOURCE';
     void (async () => {
       const url = paused.request.url;
-      let parsed;
-      try { parsed = new URL(url); }
-      catch { await session.send("Fetch.failRequest", { requestId: paused.requestId, errorReason: "BlockedByClient" }); return; }
+      const parsed = new URL(url);
+      operation = 'CLASSIFY_ORIGIN';
       const origin = parsed.origin;
+      destinationClass = origin === allowedOrigin ? 'PINNED_ORIGIN' : 'EXTERNAL';
+      if (traceable && stage === 'request') traceRequests.set(traceOrdinals.get(paused.requestId),{
+        ordinal:traceOrdinals.get(paused.requestId),resourceClass:classifyDiagnosticResource(url,paused.resourceType),
+        destinationClass });
       if (paused.responseStatusCode || paused.responseErrorReason) {
+        operation = 'CLASSIFY_REDIRECT';
         const location = paused.responseHeaders?.find(header => header.name.toLowerCase() === "location")?.value;
         if (paused.responseStatusCode >= 300 && paused.responseStatusCode < 400 && location) {
           let destination;
           try { destination = new URL(location, url); } catch { destination = null; }
           if (!destination || (origin === allowedOrigin && destination.origin !== allowedOrigin)) {
-            onEvent("external-redirect-blocked");
-            onRouteEvent("external-redirect-blocked");
+            blocked("external-redirect-blocked", paused, true, paused.responseStatusCode);
+            operation = 'FAIL_REQUEST';
             await session.send("Fetch.failRequest", { requestId: paused.requestId, errorReason: "BlockedByClient" });
+            trace('BLOCKED');
             return;
           }
         }
+        operation = 'CONTINUE_RESPONSE';
         await session.send("Fetch.continueResponse", { requestId: paused.requestId });
+        trace('CONTINUED');
         return;
       }
       const redirectedFromAllowed = requestOrigins.get(paused.redirectedRequestId) === allowedOrigin;
       requestOrigins.set(paused.requestId, origin);
       const navigation = paused.resourceType === "Document";
-      if (origin !== allowedOrigin && (navigation || redirectedFromAllowed)) {
+      if (origin !== allowedOrigin && (navigation || redirectedFromAllowed || blockExternalSubresources)) {
         const event = redirectedFromAllowed ? "external-redirect-blocked" : "external-navigation-blocked";
-        onEvent(event);
-        onRouteEvent(event);
+        blocked(event, paused, redirectedFromAllowed);
+        operation = 'FAIL_REQUEST';
         await session.send("Fetch.failRequest", { requestId: paused.requestId, errorReason: "BlockedByClient" });
+        trace('BLOCKED');
         return;
       }
+      operation = 'CONSTRUCT_HEADERS';
       const inputHeaders = paused.request.headers ?? {};
+      const loginPost = parsed.pathname === "/acceso" || parsed.pathname === "/api/auth/login";
       const authAction = origin === allowedOrigin && paused.request.method === "POST" &&
-        (parsed.pathname === "/acceso" || Object.keys(inputHeaders).some(name => name.toLowerCase() === "next-action"));
+        (loginPost || Object.keys(inputHeaders).some(name => name.toLowerCase() === "next-action"));
       if (authAction) onRouteEvent("auth-action-post");
       else if (origin === allowedOrigin) onRouteEvent(navigation ? "pinned-navigation" : "pinned-request");
       const headers = scopedHeaders(url, inputHeaders, token, allowedOrigin, runId);
+      operation = 'CONTINUE_REQUEST';
       await session.send("Fetch.continueRequest", {
         requestId: paused.requestId,
         headers: Object.entries(headers).map(([name, value]) => ({ name, value: String(value) })),
       });
-    })().catch(async () => {
-      onEvent("pinned-origin-request-failed");
+      trace('CONTINUED');
+    })().catch(async (error) => {
+      trace('BLOCKED', classifyCdpInterceptionFailure(error));
+      const resource = classifyDiagnosticResource(paused.request?.url, paused.resourceType);
+      onRouteEvent(`cdp-failure-${stage}-${resource}`);
+      const diagnostic = { event: "pinned-origin-request-failed", disposition: "PINNED_REQUEST_BLOCKED",
+        requestClass, destinationClass, responseClass: stage === 'response'
+          ? (paused.responseStatusCode >= 300 && paused.responseStatusCode < 400 ? 'REDIRECT' : 'DIRECT') : 'UNKNOWN',
+        interceptionOperation: operation, failureCategory: classifyCdpInterceptionFailure(error),
+        resourceClass: resource, httpStatus: Number.isInteger(paused.responseStatusCode) ? paused.responseStatusCode : null };
+      onNavigationDiagnostic(diagnostic);
+      onEvent("pinned-origin-request-failed", diagnostic);
       onRouteEvent("pinned-origin-request-failed");
-      await session.send("Fetch.failRequest", { requestId: paused.requestId, errorReason: "BlockedByClient" }).catch(() => {});
+      await session.send("Fetch.failRequest", { requestId: paused.requestId, errorReason: "BlockedByClient" }).catch(() => {
+        onNavigationDiagnostic({ ...diagnostic, interceptionOperation: 'FAIL_REQUEST' });
+      });
     });
   });
   page.on("response", (response) => {
     const request = response.request();
     try {
       const url = new URL(request.url());
-      if (url.origin === allowedOrigin && request.method() === "POST" && url.pathname === "/acceso") onRouteEvent(`auth-action-http-${response.status()}`);
+      if (url.origin === allowedOrigin && request.method() === "POST" &&
+        (url.pathname === "/acceso" || url.pathname === "/api/auth/login")) onRouteEvent(`auth-action-http-${response.status()}`);
     } catch { /* retain only the classified event */ }
   });
+  await session.send('Network.enable');
   await session.send("Fetch.enable", { patterns: [{ urlPattern: "*", requestStage: "Request" }, { urlPattern: "*", requestStage: "Response" }] });
   return session;
 }
@@ -224,44 +373,59 @@ export function safeLedgerRow(runId, control, status, viewport = null) {
   return { utc: new Date().toISOString(), runId, deploymentId: PIN.deploymentId, sha: PIN.sha, control, status, viewport };
 }
 
-function diagnosticOrigin(value) {
+function diagnosticOrigin(value, allowedOrigin = ORIGIN) {
   try {
     const url = new URL(value);
-    if (url.origin === ORIGIN) return "preview";
+    if (url.origin === allowedOrigin) return "preview";
     if (url.hostname === `${PIN.supabaseRef}.supabase.co`) return "preview-supabase";
     return url.protocol === "data:" || url.protocol === "blob:" ? "inline" : "external";
   } catch { return "unknown"; }
 }
 
-export function createPageDiagnostics(page) {
+export function createPageDiagnostics(page, { allowedOrigin = ORIGIN } = {}) {
   let bucket = emptyDiagnosticBucket();
+  let routeEvents = {};
+  const addRouteEvent = event => {
+    if (!ALLOWED_ROUTE_EVENT.test(event)) return;
+    if (!(event in routeEvents) && Object.keys(routeEvents).length >= 99) event = 'diagnostic-cardinality-exceeded';
+    routeEvents[event] = (routeEvents[event] ?? 0) + 1;
+  };
   const consoleListener = message => {
     const rawType = message.type();
     const type = new Set(["error", "warning", "log", "info", "debug", "dir", "assert", "trace"]).has(rawType) ? rawType : "other";
     let origin = "unknown";
-    try { origin = diagnosticOrigin(message.location()?.url ?? ""); } catch { /* classify only */ }
+    try { origin = diagnosticOrigin(message.location()?.url ?? "", allowedOrigin); } catch { /* classify only */ }
     const key = `${type}:${origin}`;
     bucket.console[key] = (bucket.console[key] ?? 0) + 1;
+    if (type === 'error') {
+      let location = '';
+      try { location = message.location()?.url ?? ''; } catch { /* unknown class */ }
+      addRouteEvent(`console-error-${classifyDiagnosticResource(location, 'Other')}`);
+    }
   };
   const responseListener = response => {
     const status = response.status();
+    const request = response.request();
     let origin = "unknown";
-    try { origin = diagnosticOrigin(response.url()); } catch { /* classify only */ }
+    try { origin = diagnosticOrigin(response.url(), allowedOrigin); } catch { /* classify only */ }
     const key = `${status}:${origin}`;
     bucket.http[key] = (bucket.http[key] ?? 0) + 1;
+    if (status >= 400) addRouteEvent(`http-${status}-${classifyDiagnosticResource(response.url(), request.resourceType())}`);
   };
   const failedListener = request => {
     let origin = "unknown";
-    try { origin = diagnosticOrigin(request.url()); } catch { /* classify only */ }
+    try { origin = diagnosticOrigin(request.url(), allowedOrigin); } catch { /* classify only */ }
     bucket.requestFailures[origin] = (bucket.requestFailures[origin] ?? 0) + 1;
+    addRouteEvent(`request-failed-${classifyDiagnosticResource(request.url(), request.resourceType())}`);
   };
   page.on("console", consoleListener);
   page.on("response", responseListener);
   page.on("requestfailed", failedListener);
-  let routeEvents = {};
-  const allowedRouteEvents = new Set(["auth-action-post", "pinned-navigation", "pinned-request", "external-navigation-blocked", "external-redirect-blocked", "pinned-origin-request-failed"]);
   return {
-    addRouteEvent(event) { if (allowedRouteEvents.has(event) || /^auth-action-http-[1-5]\d\d$/.test(event)) routeEvents[event] = (routeEvents[event] ?? 0) + 1; },
+    addRouteEvent,
+    // Read-only observation for attribution. It never resets counters; only take() consumes
+    // a phase, and auditAndCapture calls take() exactly at the strict visual gate.
+    snapshot() { return structuredClone({ ...bucket, routeEvents }); },
     take() {
       const result = { ...bucket, routeEvents };
       bucket = emptyDiagnosticBucket();
@@ -278,8 +442,145 @@ export function createPageDiagnostics(page) {
 
 function emptyDiagnosticBucket() { return { console: {}, http: {}, requestFailures: {} }; }
 
+const DIAGNOSTIC_RESOURCE = '(?:next-static|next-image|access|panel|api|project|root|other|unknown)-(?:document|script|stylesheet|image|fetch|xhr|font|other)';
+const ROUTE_EVENT_PATTERN = `(?:auth-action-post|auth-action-http-[1-5]\\d\\d|pinned-navigation|pinned-request|external-navigation-blocked|external-redirect-blocked|pinned-origin-request-failed|blocked-external-subresource|blocked-external-subresource-redirect|diagnostic-cardinality-exceeded|(?:console-error|request-failed|cdp-failure-(?:request|response))-${DIAGNOSTIC_RESOURCE}|http-[45]\\d\\d-${DIAGNOSTIC_RESOURCE})`;
+export const ALLOWED_ROUTE_EVENT = new RegExp(`^${ROUTE_EVENT_PATTERN}$`);
+
+const DIAGNOSTIC_ORIGIN_PATTERN = /^(?:preview|preview-supabase|external|inline|unknown)$/;
+const DIAGNOSTIC_INTERVAL_BOUNDARIES = new Set([
+  "before-login", "after-login", "before-navigation", "after-navigation", "before-measurement", "after-measurement",
+]);
+const DIAGNOSTIC_MAP_PATTERNS = Object.freeze({
+  console: /^(?:error|warning|log|info|debug|dir|assert|trace|other):(?:preview|preview-supabase|external|inline|unknown)$/,
+  http: /^[1-5]\d\d:(?:preview|preview-supabase|external|inline|unknown)$/,
+  requestFailures: DIAGNOSTIC_ORIGIN_PATTERN,
+  routeEvents: ALLOWED_ROUTE_EVENT,
+});
+
+function strictDiagnosticSnapshot(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new GateError("DIAGNOSTIC_SNAPSHOT_INVALID");
+  const result = {};
+  for (const [name, pattern] of Object.entries(DIAGNOSTIC_MAP_PATTERNS)) {
+    const input = value[name];
+    if (!input || typeof input !== "object" || Array.isArray(input)) throw new GateError("DIAGNOSTIC_SNAPSHOT_INVALID");
+    const safe = {};
+    for (const [key, count] of Object.entries(input)) {
+      if (!pattern.test(key) || !Number.isSafeInteger(count) || count < 0 || count > 1_000_000 || Object.keys(safe).length >= 100)
+        throw new GateError("DIAGNOSTIC_SNAPSHOT_INVALID");
+      safe[key] = count;
+    }
+    result[name] = safe;
+  }
+  return result;
+}
+
+function diagnosticDelta(before, after) {
+  const delta = {};
+  for (const name of Object.keys(DIAGNOSTIC_MAP_PATTERNS)) {
+    delta[name] = {};
+    const keys = new Set([...Object.keys(before[name]), ...Object.keys(after[name])]);
+    for (const key of keys) {
+      const prior = before[name][key] ?? 0;
+      const current = after[name][key] ?? 0;
+      if (current < prior) throw new GateError("DIAGNOSTIC_COUNTER_RESET");
+      delta[name][key] = current - prior;
+    }
+  }
+  return delta;
+}
+
+function sumDiagnosticDeltas(rows) {
+  const sum = emptyDiagnosticBucket();
+  sum.routeEvents = {};
+  for (const row of rows) for (const name of Object.keys(DIAGNOSTIC_MAP_PATTERNS)) {
+    for (const [key, count] of Object.entries(row.diagnosticsDelta[name])) sum[name][key] = (sum[name][key] ?? 0) + count;
+  }
+  return sum;
+}
+
+function sameDiagnosticCounts(left, right) {
+  return Object.keys(DIAGNOSTIC_MAP_PATTERNS).every(name => {
+    const keys = new Set([...Object.keys(left[name]), ...Object.keys(right[name])]);
+    return [...keys].every(key => (left[name][key] ?? 0) === (right[name][key] ?? 0));
+  });
+}
+
+/**
+ * Keeps cumulative, non-consuming snapshots until the strict visual gate calls finishGate.
+ * Each checkpoint records the interval since the previous checkpoint; finishGate compares
+ * their sum with the exact counter returned by take() before it resets the baseline.
+ */
+export function createDiagnosticIntervalTracker(diagnostics) {
+  if (!diagnostics || typeof diagnostics.snapshot !== "function" || typeof diagnostics.take !== "function")
+    throw new GateError("DIAGNOSTIC_SNAPSHOT_INVALID");
+  let previous;
+  try { previous = strictDiagnosticSnapshot(diagnostics.snapshot()); }
+  catch { throw new GateError("DIAGNOSTIC_SNAPSHOT_INVALID"); }
+  let intervals = [];
+  const checkpoint = boundary => {
+    if (!DIAGNOSTIC_INTERVAL_BOUNDARIES.has(boundary)) throw new GateError("DIAGNOSTIC_STAGE_INVALID");
+    let after;
+    try { after = strictDiagnosticSnapshot(diagnostics.snapshot()); }
+    catch { throw new GateError("DIAGNOSTIC_SNAPSHOT_INVALID"); }
+    const row = { interval: boundary, diagnosticsBefore: previous, diagnosticsAfter: after,
+      diagnosticsDelta: diagnosticDelta(previous, after) };
+    intervals.push(row);
+    previous = after;
+    return row;
+  };
+  return {
+    checkpoint,
+    finishGate(requiredBoundaries = []) {
+      let consumed;
+      try {
+        checkpoint("after-measurement");
+        consumed = strictDiagnosticSnapshot(diagnostics.take());
+      } catch {
+        intervals = [];
+        throw new GateError("DIAGNOSTIC_SNAPSHOT_INVALID");
+      }
+      const expected = [...requiredBoundaries];
+      const observed = intervals.map(row => row.interval);
+      const missing = expected.filter((boundary, index) => observed[index] !== boundary);
+      const extra = observed.length !== expected.length;
+      const total = sumDiagnosticDeltas(intervals);
+      const result = { complete: missing.length === 0 && !extra && sameDiagnosticCounts(total, consumed),
+        code: missing.length || extra ? "DIAGNOSTIC_STAGE_MISSING" : sameDiagnosticCounts(total, consumed) ? null : "DIAGNOSTIC_SUM_MISMATCH",
+        intervals: intervals.slice(), diagnostics: consumed };
+      intervals = [];
+      try {
+        previous = strictDiagnosticSnapshot(diagnostics.snapshot());
+        const empty = strictDiagnosticSnapshot(emptyDiagnosticBucketWithRoutes());
+        if (!sameDiagnosticCounts(previous, empty)) {
+          result.complete = false;
+          result.code = "DIAGNOSTIC_COUNTER_RESET";
+        }
+      } catch {
+        result.complete = false;
+        result.code = "DIAGNOSTIC_SNAPSHOT_INVALID";
+        previous = emptyDiagnosticBucketWithRoutes();
+      }
+      return result;
+    },
+  };
+}
+
+function emptyDiagnosticBucketWithRoutes() { return { ...emptyDiagnosticBucket(), routeEvents: {} }; }
+
 function totalConsoleErrors(diagnostics) {
   return Object.entries(diagnostics.console).filter(([key]) => key.startsWith("error:")).reduce((sum, [, count]) => sum + count, 0);
+}
+
+export function summarizeDiagnosticInterval(row) {
+  if (!row || typeof row !== "object") throw new GateError("DIAGNOSTIC_SNAPSHOT_INVALID");
+  let delta;
+  try { delta = strictDiagnosticSnapshot(row.diagnosticsDelta); }
+  catch { throw new GateError("DIAGNOSTIC_SNAPSHOT_INVALID"); }
+  const consoleErrorCount = totalConsoleErrors(delta);
+  if (delta.routeEvents['diagnostic-cardinality-exceeded'])
+    return { consoleErrorCount, status: 'BLOCKED', code: 'DIAGNOSTIC_SNAPSHOT_INVALID' };
+  return { consoleErrorCount, status: consoleErrorCount > 0 ? "BLOCKED" : "PASS",
+    ...(consoleErrorCount > 0 ? { code: "H1A_PHASE_CONSOLE_ERRORS" } : {}) };
 }
 
 export async function saveSanitizedCapture(page, capturePath) {
@@ -302,7 +603,26 @@ async function appendSafeLedger(runId, control, status, viewport = null) {
   await appendFile(`${dir}/${runId}.jsonl`, `${JSON.stringify(safeLedgerRow(runId, control, status, viewport))}\n`, { mode: 0o600 });
 }
 
-export async function auditAndCapture(page, { runId, viewport, screen, captureRoot, ledger, diagnostics, pageErrors = 0 }) {
+/**
+ * @param {unknown} page
+ * @param {{runId:string,viewport:string,screen:string,captureRoot:string,
+ *   ledger:(caseId:string,status:string,detail:Record<string,unknown>)=>Promise<void>,
+ *   diagnostics:{take:()=>Record<string,any>,snapshot:()=>Record<string,any>},
+ *   diagnosticIntervals?:{checkpoint:(boundary:string)=>Record<string,any>,finishGate:(requiredBoundaries:string[])=>Record<string,any>},
+ *   requiredDiagnosticBoundaries?:string[],pageErrors?:number|{count:number}}} options
+ */
+export async function auditAndCapture(page, { runId, viewport, screen, captureRoot, ledger, diagnostics, pageErrors = 0,
+  diagnosticIntervals = null, requiredDiagnosticBoundaries = [] }) {
+  if (diagnosticIntervals) {
+    const boundary = diagnosticIntervals.checkpoint("before-measurement");
+    const intervalSummary = summarizeDiagnosticInterval(boundary);
+    await ledger("h1a-diagnostic-boundary", intervalSummary.status === "BLOCKED" ? "BLOCKED" : "ATTEMPTED", {
+      diagnosticInterval: boundary.interval, diagnosticsAfter: boundary.diagnosticsAfter,
+      diagnosticsBefore: boundary.diagnosticsBefore, diagnosticsDelta: boundary.diagnosticsDelta,
+      ...(intervalSummary.code ? { code: intervalSummary.code } : {}),
+    });
+    if (intervalSummary.status === "BLOCKED") throw new GateError(intervalSummary.code);
+  }
   await page.waitForTimeout(300);
   const dom = await page.evaluate(() => {
     const visible = element => {
@@ -317,21 +637,35 @@ export async function auditAndCapture(page, { runId, viewport, screen, captureRo
       visibleErrors: [...document.querySelectorAll('[role="alert"], [data-error], [aria-invalid="true"]')].filter(visible).length,
     };
   });
-  const phaseDiagnostics = diagnostics.take();
+  let intervalResult = null;
+  let phaseDiagnostics;
+  if (diagnosticIntervals) {
+    intervalResult = diagnosticIntervals.finishGate(requiredDiagnosticBoundaries);
+    phaseDiagnostics = intervalResult.diagnostics;
+    const afterMeasurement = intervalResult.intervals.at(-1);
+    await ledger("h1a-diagnostic-boundary", intervalResult.complete ? "PASS" : "BLOCKED", {
+      diagnosticInterval: afterMeasurement?.interval ?? "after-measurement", diagnosticsAfter: afterMeasurement?.diagnosticsAfter ?? phaseDiagnostics,
+      diagnosticsBefore: afterMeasurement?.diagnosticsBefore ?? emptyDiagnosticBucketWithRoutes(),
+      diagnosticsDelta: afterMeasurement?.diagnosticsDelta ?? emptyDiagnosticBucketWithRoutes(),
+      ...(intervalResult.code ? { code: intervalResult.code } : {}),
+    });
+  } else {
+    phaseDiagnostics = diagnostics.take();
+  }
   const consoleErrorCount = totalConsoleErrors(phaseDiagnostics);
   const phasePageErrors = typeof pageErrors === "object" ? pageErrors.count : pageErrors;
   if (typeof pageErrors === "object") pageErrors.count = 0;
   const horizontalOverflow = Math.max(dom.documentWidth, dom.bodyWidth) > dom.viewportWidth + 1;
-  const visualPass = !horizontalOverflow && dom.visibleErrors === 0 && consoleErrorCount === 0 && phasePageErrors === 0;
+  const visualPass = (!intervalResult || intervalResult.complete) && !horizontalOverflow && dom.visibleErrors === 0 && consoleErrorCount === 0 && phasePageErrors === 0;
   const capturePath = join(captureRoot, `${runId}-${viewport}-${screen}.png`);
   const captureSaved = await saveSanitizedCapture(page, capturePath);
   await ledger(`visual-${screen}`, visualPass && captureSaved ? "PASS" : "FAIL", {
     viewport, ...(captureSaved ? { path: relative(process.cwd(), capturePath) } : {}),
     viewportWidth: dom.viewportWidth, documentWidth: dom.documentWidth, bodyWidth: dom.bodyWidth,
     visibleErrorCount: dom.visibleErrors, consoleErrorCount, pageErrorCount: phasePageErrors,
-    diagnostics: phaseDiagnostics,
+    diagnostics: phaseDiagnostics, ...(intervalResult?.code ? { code: intervalResult.code } : {}),
   });
-  if (!visualPass) throw new GateError("VISUAL_AUDIT_FAILED");
+  if (!visualPass) throw new GateError(intervalResult?.code ?? "VISUAL_AUDIT_FAILED");
   if (!captureSaved) throw new GateError("CAPTURE_SANITIZATION_FAILED");
   await ledger(`capture-${screen}`, "SAVED", { viewport, path: relative(process.cwd(), capturePath) });
   return capturePath;
@@ -377,13 +711,15 @@ export async function login(page, context, email, password, {
   const observeActionRequest = (actionRequest) => {
     try {
       const actionUrl = new URL(actionRequest.url());
-      if (actionRequest.method() === "POST" && actionUrl.origin === origin && actionUrl.pathname === "/acceso") routeEvents.push("auth-action-post");
+      if (actionRequest.method() === "POST" && actionUrl.origin === origin &&
+        (actionUrl.pathname === "/acceso" || actionUrl.pathname === "/api/auth/login")) routeEvents.push("auth-action-post");
     } catch { /* do not retain malformed or off-origin request data */ }
   };
   const observeActionResponse = (actionResponse) => {
     const request = actionResponse.request();
     try {
-      if (request.method() === "POST" && new URL(request.url()).origin === origin && new URL(request.url()).pathname === "/acceso") {
+      if (request.method() === "POST" && new URL(request.url()).origin === origin &&
+        ["/acceso", "/api/auth/login"].includes(new URL(request.url()).pathname)) {
         actionStatuses.push(actionResponse.status());
         routeEvents.push(`auth-action-http-${actionResponse.status()}`);
       }

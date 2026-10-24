@@ -1,5 +1,9 @@
 # Control canónico del proyecto Rubik SEO/GEO
 
+## Corte de trabajo · preparación H1-A · 22/10/2026
+
+Se parte de `main@3a735510b6b92adcabbdbf462dc06140265a379d` en una rama H1-A separada. Se conserva U03 PASS del run `330c6e4b-14ad-439a-a8cf-43d92c73fadb` sin repetir la campaña. La prueba local H1-A del run `d6bc8e22-a761-4d68-823a-d7827b2acc6f` pasó por HTTP loopback, firma/verificación offline, manipulación rechazada, restauración doble y limpieza de ambos stacks; su ledger está en `docs/evidence/H1A-LOCAL-HTTP-RESTORE-20261022.jsonl`. No es evidencia alojada. Aún no hay deployment H1-A ni campaña Preview; H1-A permanece NOT_RUN/BLOCKED para cierre. La pasada B/U04 requiere a Juanma y Sarah; R1 permanece pendiente antes de datos reales. H1 y H2 siguen abiertos.
+
 ## Estado integrado · 22/10/2026 · PR #143
 
 La [PR #143](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/143) está **MERGED** en `main@5cf2ad62605a1ed823771d28f32ca120797e57e7` (HEAD revisado `73fb8814a596e8a97bbfe2d747b331494c502334`). CI de PR `39737737422`: SUCCESS en Node 22/24, pgTAP, integración y Playwright 184 PASS. I-2/I-5/U03 están **PASS/CERRADO como gate alojado** por el run `330c6e4b-14ad-439a-a8cf-43d92c73fadb` y su contención final independiente; no repetir esa campaña. Comprobación separada tras el merge: Vercel Production `dpl_6HyfzQ9iM3Buy6DEqLAKfEpTyFNL` está READY para el corte documental `5eec425ae3f3c31ce4c71a536c19c5d44aaa261f`; `/api/salud` devolvió HTTP 200 y el ref de Production `yvdgmklgwlshizzgefpv`. Este smoke de salud no acredita el recorrido integral H1 ni la aceptación H2. H1-A fue NOT_RUN; U04/Sarah, H1 y H2 siguen abiertos. R1 requiere decisión antes de Sarah. Las menciones inferiores a #143 Draft, U03 BLOCKED o CI bloqueada son cortes históricos.

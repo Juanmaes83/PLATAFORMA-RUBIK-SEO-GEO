@@ -42,7 +42,7 @@ switch ($Mode) {
     $successState = [pscustomobject]@{ Store=@{}; Adds=New-Object 'System.Collections.Generic.List[string]'; Count=0; FailAt=0 }
     foreach ($name in $names) { $successState.Store[$name] = $true }
     $successCli = { param($Arguments,$InputText)
-      if ($Arguments[1] -eq 'ls') { $envs=@($successState.Store.Keys | ForEach-Object { [pscustomobject]@{key=$_;type='sensitive';target=@('preview');gitBranch='codex/u03-final-gates-20261020'} }); return [pscustomobject]@{ ExitCode=0; Output=(ConvertTo-Json -InputObject @{envs=$envs} -Compress) } }
+      if ($Arguments[1] -eq 'ls') { $envs=@($successState.Store.Keys | ForEach-Object { [pscustomobject]@{key=$_;type='sensitive';target=@('preview');gitBranch='codex/h1a-integral-20261022'} }); return [pscustomobject]@{ ExitCode=0; Output=(ConvertTo-Json -InputObject @{envs=$envs} -Compress) } }
       if ($Arguments[1] -eq 'rm') { $successState.Store.Remove($Arguments[2]) | Out-Null; return [pscustomobject]@{ ExitCode=0; Output='' } }
       if ($Arguments[1] -eq 'add') { $successState.Count++; $successState.Adds.Add($Arguments[2]) | Out-Null; $successState.Store[$Arguments[2]]=$true; return [pscustomobject]@{ ExitCode=0; Output='' } }
       throw 'SELFTEST_UNEXPECTED_CLI'
@@ -52,7 +52,7 @@ switch ($Mode) {
     $scopeState = [pscustomobject]@{ Store=@{}; Adds=0; Removes=0 }
     foreach ($name in $names) { $scopeState.Store[$name] = $true }
     $badScopeCli = { param($Arguments,$InputText)
-      if ($Arguments[1] -eq 'ls') { $envs=@($scopeState.Store.Keys | ForEach-Object { [pscustomobject]@{key=$_;type=if ($_ -eq 'PROVENANCE_SIGNING_KEYS') {'plain'} else {'sensitive'};target=@('preview');gitBranch='codex/u03-final-gates-20261020'} }); return [pscustomobject]@{ ExitCode=0; Output=(ConvertTo-Json -InputObject @{envs=$envs} -Compress) } }
+      if ($Arguments[1] -eq 'ls') { $envs=@($scopeState.Store.Keys | ForEach-Object { [pscustomobject]@{key=$_;type=if ($_ -eq 'PROVENANCE_SIGNING_KEYS') {'plain'} else {'sensitive'};target=@('preview');gitBranch='codex/h1a-integral-20261022'} }); return [pscustomobject]@{ ExitCode=0; Output=(ConvertTo-Json -InputObject @{envs=$envs} -Compress) } }
       if ($Arguments[1] -eq 'rm') { $scopeState.Removes++; return [pscustomobject]@{ExitCode=0;Output=''} }
       if ($Arguments[1] -eq 'add') { $scopeState.Adds++; return [pscustomobject]@{ExitCode=0;Output=''} }
       throw 'SELFTEST_UNEXPECTED_CLI'
@@ -62,7 +62,7 @@ switch ($Mode) {
     $failedState = [pscustomobject]@{ Store=@{}; Adds=New-Object 'System.Collections.Generic.List[string]'; Count=0; FailAt=4 }
     foreach ($name in $names) { $failedState.Store[$name] = $true }
     $failedCli = { param($Arguments,$InputText)
-      if ($Arguments[1] -eq 'ls') { $envs=@($failedState.Store.Keys | ForEach-Object { [pscustomobject]@{key=$_;type='sensitive';target=@('preview');gitBranch='codex/u03-final-gates-20261020'} }); return [pscustomobject]@{ ExitCode=0; Output=(ConvertTo-Json -InputObject @{envs=$envs} -Compress) } }
+      if ($Arguments[1] -eq 'ls') { $envs=@($failedState.Store.Keys | ForEach-Object { [pscustomobject]@{key=$_;type='sensitive';target=@('preview');gitBranch='codex/h1a-integral-20261022'} }); return [pscustomobject]@{ ExitCode=0; Output=(ConvertTo-Json -InputObject @{envs=$envs} -Compress) } }
       if ($Arguments[1] -eq 'rm') { $failedState.Store.Remove($Arguments[2]) | Out-Null; return [pscustomobject]@{ ExitCode=0; Output='' } }
       if ($Arguments[1] -eq 'add') { $failedState.Count++; $failedState.Adds.Add($Arguments[2]) | Out-Null; if ($failedState.Count -eq $failedState.FailAt) { return [pscustomobject]@{ ExitCode=1; Output='' } }; $failedState.Store[$Arguments[2]]=$true; return [pscustomobject]@{ ExitCode=0; Output='' } }
       throw 'SELFTEST_UNEXPECTED_CLI'

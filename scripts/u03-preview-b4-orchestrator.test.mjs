@@ -1,14 +1,85 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, readdir, rm } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
+import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { chromiumEnvironment, networkEnvironment, PIN } from './u03-preview-b4-runner.mjs';
-import { PREFLIGHT_RESULT_FIELDS, PREFLIGHT_SQL, PRIOR_DATA_API_RUN_ID, parseCliJson, readPreviewAuthSettings, runHostedU03Campaign, runProtectedWindowSurfaces, runPreviewReadOnlySql, runReadOnlyPreflight, safeLedgerDetail, verifyFinalPreviewState, verifyInitialPreviewState, verifyProtectedWindowRuntime, verifyReadOnlyPreviewState } from './u03-preview-b4-orchestrator.mjs';
+import { PREFLIGHT_RESULT_FIELDS, PREFLIGHT_SQL, PRIOR_DATA_API_RUN_ID, classifyLocalRestoreChildFailure, parseCliJson, readPreviewAuthSettings, restorePreviewDocumentLocally, runHostedU03Campaign, runProtectedWindowH1Export, runProtectedWindowSurfaces, runPreviewReadOnlySql, runReadOnlyPreflight, safeLedgerDetail, verifyFinalPreviewState, verifyInitialPreviewState, verifyProtectedWindowRuntime, verifyReadOnlyPreviewState, writeH1ANavigationDiagnostics } from './u03-preview-b4-orchestrator.mjs';
 import { V4_SECURITY_DEFINER_ALLOWLIST } from './u03-preview-v4-receipt.mjs';
 
 const runId = 'u03-orchestrator-test-run';
 const sha = 'a'.repeat(40);
+
+test('local restore child exposes only a closed failure code to the campaign', () => {
+  assert.equal(classifyLocalRestoreChildFailure('U03_PREVIEW_TO_LOCAL_RESTORE BLOCKED code=LOCAL_RESTORE_CONTENT_OR_SIGNATURE_MISMATCH\n'),
+    'LOCAL_RESTORE_CONTENT_OR_SIGNATURE_MISMATCH');
+  assert.equal(classifyLocalRestoreChildFailure('U03_PREVIEW_TO_LOCAL_RESTORE BLOCKED code=LOCAL_RESTORE_DESTINATION_NOT_EMPTY\r\n'),
+    'LOCAL_RESTORE_DESTINATION_NOT_EMPTY');
+  assert.equal(classifyLocalRestoreChildFailure('U03_PREVIEW_TO_LOCAL_RESTORE BLOCKED code=secret-token\n'),
+    'PREVIEW_EXPORT_LOCAL_RESTORE_FAILED');
+  assert.equal(classifyLocalRestoreChildFailure('postgres error with password=fictional'),
+    'PREVIEW_EXPORT_LOCAL_RESTORE_FAILED');
+});
+
+test('Windows child transport reaches real restore input and classifies early boundaries', async () => {
+  const legacy = spawn(process.execPath, ['-e','process.exit(0)'], { stdio:['pipe','pipe','ignore'] });
+  assert.equal(legacy.stderr, null); // The old parent dereferenced this value before writing stdin.
+  await new Promise(resolve => legacy.on('close', resolve));
+  const dir = await mkdtemp(join(tmpdir(), 'rubik-restore-transport-'));
+  const env = { PROVENANCE_SIGNING_KEYS:'fictional', PROVENANCE_ACTIVE_KEY_ID:'fictional' };
+  try {
+    // The real child must receive stdin and reject this fictional run before Docker starts.
+    await assert.rejects(restorePreviewDocumentLocally({}, env, 'invalid-run'),
+      { message:'LOCAL_RESTORE_RUN_ID_INVALID' });
+    const early = join(dir, 'early.mjs');
+    const protocol = join(dir, 'protocol.mjs');
+    const explicit = join(dir, 'explicit.mjs');
+    const hung = join(dir, 'hung.mjs');
+    await writeFile(early, 'process.exit(7)\n');
+    await writeFile(protocol, 'process.stdin.resume(); process.stdin.on("end", () => process.stdout.write("unexpected\\n"))\n');
+    await writeFile(explicit, 'process.stdin.resume(); process.stdin.on("end", () => { process.stderr.write("U03_PREVIEW_TO_LOCAL_RESTORE BLOCKED code=LOCAL_RESTORE_DESTINATION_NOT_FRESH\\n"); process.exitCode=1 })\n');
+    await writeFile(hung, 'process.stdin.resume(); process.stdin.on("end", () => setInterval(() => {}, 1000))\n');
+    await assert.rejects(restorePreviewDocumentLocally({}, env, 'invalid-run', early),
+      { message:'LOCAL_RESTORE_PROCESS_CLOSED_EARLY' });
+    await assert.rejects(restorePreviewDocumentLocally({}, env, 'invalid-run', protocol),
+      { message:'LOCAL_RESTORE_PROTOCOL_INVALID' });
+    await assert.rejects(restorePreviewDocumentLocally({}, env, 'invalid-run', explicit),
+      { message:'LOCAL_RESTORE_DESTINATION_NOT_FRESH' });
+    await assert.rejects(restorePreviewDocumentLocally({}, env, 'invalid-run', hung, 300),
+      { message:'LOCAL_RESTORE_PROCESS_TIMEOUT' });
+  } finally { await rm(dir, { recursive:true, force:true }); }
+});
+
+test('failed CDP interception is BLOCKED in the navigation ledger and retains only closed fields', async () => {
+  const rows = [];
+  const ledger = async (caseId, status, detail) => rows.push({ caseId, status, ...safeLedgerDetail(detail) });
+  const events = [{ phase:'H1A_AUTH_LOGIN', disposition:'PINNED_REQUEST_BLOCKED',
+    requestClass:'SUBRESOURCE', destinationClass:'UNKNOWN', responseClass:'UNKNOWN',
+    interceptionOperation:'CONTINUE_REQUEST', failureCategory:'REQUEST_NOT_ACTIVE',
+    resourceClass:'other-xhr', httpStatus:null, message:'fictional CDP secret' }];
+  assert.equal(await writeH1ANavigationDiagnostics(ledger, events), 1);
+  assert.deepEqual(rows, [{ caseId:'h1a-navigation-intercept', status:'BLOCKED',
+    phase:'H1A_AUTH_LOGIN', disposition:'PINNED_REQUEST_BLOCKED', requestClass:'SUBRESOURCE',
+    destinationClass:'UNKNOWN', responseClass:'UNKNOWN', interceptionOperation:'CONTINUE_REQUEST',
+    failureCategory:'REQUEST_NOT_ACTIVE', resourceClass:'other-xhr', httpStatus:null }]);
+  assert.deepEqual(safeLedgerDetail({ failureCategory:'secret-token', resourceClass:'https://evil.invalid/private' }), {});
+});
+
+test('H1-A export classifies only closed 503 gates and rejects an external origin first', async () => {
+  const env = { U03_PREVIEW_WRITER_WINDOW_SECRET: 'fictional-only-secret', VERCEL_OIDC_TOKEN: 'fictional-oidc-token' };
+  const fixtures = { namespace: 'u03-fictional', actorBearer: async () => ({ accessToken:'fictional-token' }) };
+  const ledger = async () => {};
+  const args = { fixtures, runId:'c14f4c11-570f-4e03-a3a1-33a702b85baa', env, ledger };
+  const response = (gate, origin = `https://${PIN.host}`) => ({ status:503, url:`${origin}/proyectos/fixture/a1/exportar`,
+    headers:{ get:() => gate } });
+  await assert.rejects(runProtectedWindowH1Export({ ...args, fetchImpl:async () => response('SCHEMA_UNKNOWN') }),
+    { message:'PREVIEW_HTTP_EXPORT_SCHEMA_UNKNOWN' });
+  await assert.rejects(runProtectedWindowH1Export({ ...args, fetchImpl:async () => response('free-text-secret') }),
+    { message:'PREVIEW_HTTP_EXPORT_FAILED_503' });
+  await assert.rejects(runProtectedWindowH1Export({ ...args, fetchImpl:async () => response('SCHEMA_UNKNOWN','https://foreign.example') }),
+    { message:'PREVIEW_HTTP_EXPORT_ORIGIN_REJECTED' });
+});
 
 test('signed runtime probe records only allowlisted stage codes from the fixed host', async () => {
   const run = 'c14f4c11-570f-4e03-a3a1-33a702b85baa';
@@ -34,7 +105,9 @@ test('ledger retains only categorized browser diagnostics and discards unsafe st
       console: { 'error:preview': 7, 'warning:external': 2, 'error:https://evil.test/?token=leak': 99 },
       http: { '403:preview': 1, '500:external': 3, '200:https://host.test/?key=leak': 9 },
       requestFailures: { external: 4, 'evil.test?token=leak': 5 },
-      routeEvents: { 'pinned-origin-request-failed': 1, 'auth-action-http-403': 1, 'https://evil.test/?token=leak': 6 },
+      routeEvents: { 'pinned-origin-request-failed': 1, 'auth-action-http-403': 1,
+        'http-404-next-static-script': 132, 'request-failed-next-static-script': 132,
+        'cdp-failure-response-panel-document': 2, 'https://evil.test/?token=leak': 6 },
       freeText: 'secret-value',
     },
     consoleText: 'secret-value',
@@ -45,11 +118,23 @@ test('ledger retains only categorized browser diagnostics and discards unsafe st
       console: { 'error:preview': 7, 'warning:external': 2 },
       http: { '403:preview': 1, '500:external': 3 },
       requestFailures: { external: 4 },
-      routeEvents: { 'pinned-origin-request-failed': 1, 'auth-action-http-403': 1 },
+      routeEvents: { 'pinned-origin-request-failed': 1, 'auth-action-http-403': 1,
+        'http-404-next-static-script': 132, 'request-failed-next-static-script': 132,
+        'cdp-failure-response-panel-document': 2 },
     },
   });
   assert.equal(JSON.stringify(safe).includes('leak'), false);
   assert.equal(JSON.stringify(safe).includes('secret-value'), false);
+});
+
+test('H1-A distinguishes a pinned request interception failure from external navigation without persisting URLs', () => {
+  const safe = safeLedgerDetail({ code: 'H1A_PINNED_REQUEST_INTERCEPTION_FAILED',
+    phase: 'H1A_AUTH_LOGIN', expectedDestinationClass: 'PINNED_ORIGIN_AUTH',
+    observedDestinationClass: 'UNKNOWN', requestClass: 'UNKNOWN', responseClass: 'UNKNOWN',
+    url: 'https://example.invalid/?token=secret', message: 'secret' });
+  assert.deepEqual(safe, { code: 'H1A_PINNED_REQUEST_INTERCEPTION_FAILED',
+    phase: 'H1A_AUTH_LOGIN', expectedDestinationClass: 'PINNED_ORIGIN_AUTH',
+    observedDestinationClass: 'UNKNOWN', requestClass: 'UNKNOWN', responseClass: 'UNKNOWN' });
 });
 
 const secrets = {
@@ -845,7 +930,7 @@ test('owner wrapper runs no-key preflight before DPAPI load; V-4 uses one hidden
   assert.doesNotMatch(script, /Read-B4Secret/);
   const generalEnvironmentKeep = script.match(/\$keep = @\(([^\r\n]+)\)/)?.[1] ?? '';
   assert.doesNotMatch(generalEnvironmentKeep, /U03_PREVIEW_ADMIN_KEY|U03_PREVIEW_PUBLIC_KEY/);
-  assert.match(script, /if \(\$Mode -in @\('keys','sequence'\) -and \$null -ne \$PreviewKeys\)[\s\S]*\['U03_PREVIEW_ADMIN_KEY'\] = \[string\]\$PreviewKeys\.AdminKey[\s\S]*\['U03_PREVIEW_PUBLIC_KEY'\] = \[string\]\$PreviewKeys\.PublicKey/);
+  assert.match(script, /if \(\$Mode -in @\('keys','sequence','h1a-recover'\) -and \$null -ne \$PreviewKeys\)[\s\S]*\['U03_PREVIEW_ADMIN_KEY'\] = \[string\]\$PreviewKeys\.AdminKey[\s\S]*\['U03_PREVIEW_PUBLIC_KEY'\] = \[string\]\$PreviewKeys\.PublicKey/);
   assert.match(script, /Invoke-U03WindowRoleChild -Mode 'keys'[\s\S]*Read-Host -Prompt 'Database password existente/);
   assert.match(script, /SEQUENCE_PREVIEW_KEYS_REQUIRED/);
   assert.match(script, /finally\s*\{[\s\S]*Get-ChildItem Env:[\s\S]*U03_\*/);
@@ -854,18 +939,19 @@ test('owner wrapper runs no-key preflight before DPAPI load; V-4 uses one hidden
 
 test('H1-A owner mode checks branch vars, deployment and local signing config before one password prompt and finally containment', async () => {
   const script = await readFile(new URL('./u03-preview-b4-owner.ps1', import.meta.url), 'utf8');
-  const modeStart = script.indexOf('if ($WindowRolePreflightOnly -or $WindowRoleReadOnlyDiagnosticOnly -or $WindowI2I5H1A -or $WindowBatchAttestationOnly)');
+  const modeStart = script.indexOf('if ($WindowRolePreflightOnly -or $WindowRoleReadOnlyDiagnosticOnly -or $WindowI2I5H1A -or $WindowH1A -or $WindowBatchAttestationOnly)');
   const localConfig = script.indexOf("Invoke-U03WindowRoleChild -Mode 'local'", modeStart);
   const attestation = script.indexOf("Invoke-U03WindowRoleChild -Mode 'attest'", localConfig);
   const passwordPrompt = script.indexOf('Read-Host -Prompt', localConfig);
-  const sequenceLaunch = script.indexOf("$childMode = if ($WindowI2I5H1A) { 'sequence' }", passwordPrompt);
+  const sequenceLaunch = script.indexOf("$childMode = if ($WindowI2I5H1A -or $WindowH1A) { 'sequence' }", passwordPrompt);
   const finallyBlock = script.slice(script.indexOf('} finally {', sequenceLaunch));
   assert.ok(modeStart >= 0 && localConfig > modeStart && attestation > localConfig && passwordPrompt > attestation && sequenceLaunch > passwordPrompt);
-  assert.match(script, /if \(\$WindowI2I5H1A -and \$branch -ne 'codex\/u03-final-gates-20261020'\)/);
+  assert.match(script, /if \(\$WindowH1A -and \$branch -ne 'codex\/h1a-integral-20261022'\)/);
+  assert.match(script, /\$campaignMode = if \(\$WindowH1A\) \{ 'window-h1a' \} else \{ 'window-i2-i5' \}/);
   assert.match(script, /WINDOW_BATCH_IDENTITY_MISMATCH/);
   assert.match(script, /\$psi\.Arguments = '--conditions=react-server/);
   assert.match(script, /\$Mode -eq 'local'[\s\S]*--local-preflight-only/);
-  assert.match(finallyBlock, /\$WindowI2I5H1A[\s\S]*Invoke-U03WindowRoleChild -Mode 'contain'/);
+  assert.match(finallyBlock, /\$WindowI2I5H1A -or \$WindowH1A[\s\S]*Invoke-U03WindowRoleChild -Mode 'contain'/);
   assert.match(script, /'RUBIK_AUDIT_DATABASE_URL','PROVENANCE_SIGNING_KEYS','PROVENANCE_ACTIVE_KEY_ID'/);
   assert.match(script, /if \(-not \$WindowRolePreflightOnly -and -not \$WindowRoleReadOnlyDiagnosticOnly -and -not \$WindowI2I5H1A/);
 });

@@ -1,0 +1,7 @@
+{"runId":"d6bc8e22-a761-4d68-823a-d7827b2acc6f","phase":"preflight","category":"LOCAL_HTTP_RESTORE","result":"PASS"}
+{"runId":"d6bc8e22-a761-4d68-823a-d7827b2acc6f","phase":"http-export","category":"LOCAL_HTTP_RESTORE","result":"PASS"}
+{"runId":"d6bc8e22-a761-4d68-823a-d7827b2acc6f","phase":"offline-verification","category":"LOCAL_HTTP_RESTORE","result":"PASS"}
+{"runId":"d6bc8e22-a761-4d68-823a-d7827b2acc6f","phase":"tamper-rejection","category":"LOCAL_HTTP_RESTORE","result":"PASS"}
+{"runId":"d6bc8e22-a761-4d68-823a-d7827b2acc6f","phase":"restore-destination","category":"LOCAL_HTTP_RESTORE","result":"PASS"}
+{"runId":"d6bc8e22-a761-4d68-823a-d7827b2acc6f","phase":"source-cleanup","category":"LOCAL_HTTP_RESTORE","result":"PASS"}
+{"runId":"d6bc8e22-a761-4d68-823a-d7827b2acc6f","phase":"destination-cleanup","category":"LOCAL_HTTP_RESTORE","result":"PASS"}

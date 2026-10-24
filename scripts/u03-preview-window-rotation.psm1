@@ -1,5 +1,5 @@
 Set-StrictMode -Version Latest
-$script:Branch='codex/u03-final-gates-20261020'
+$script:Branch='codex/h1a-integral-20261022'
 $script:Flag='U03_PREVIEW_WRITER_WINDOW'
 function Test-U03WindowEnvSnapshot($Result,[string[]]$Names,[bool]$RequireSensitive) {
   if ($Result.ExitCode -ne 0) { return $false }
