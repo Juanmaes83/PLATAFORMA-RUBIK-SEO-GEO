@@ -11,7 +11,7 @@ import { PIN, preflight, GateError, installScopedRoutes, createPageDiagnostics, 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const STAGES = new Set(['preflight','auth-create','login-post','session','xhr-interception','auth-cleanup','result']);
 const CODES = new Set(['PRECHECK_FAILED','AUTH_CREATE_FAILED','LOGIN_POST_FAILED','SESSION_NOT_CONFIRMED',
-  'XHR_NOT_OBSERVED','XHR_INCOMPLETE','XHR_INTERCEPTION_BLOCKED','XHR_EXTERNAL','XHR_PROTOCOL_INVALID',
+  'XHR_NOT_OBSERVED','XHR_INCOMPLETE','XHR_TERMINAL_UNVERIFIED','XHR_INTERCEPTION_BLOCKED','XHR_EXTERNAL','XHR_PROTOCOL_INVALID',
   'AUTH_CLEANUP_FAILED','LEDGER_FAILED','PROBE_FAILED','OIDC_TOKEN_MISSING','VERCEL_DEPLOYMENT_INSPECTION_FAILED',
   'VERCEL_DEPLOYMENT_METADATA_INVALID','DEPLOYMENT_PIN_MISMATCH','PROTECTION_PREFLIGHT_FAILED',
   'DEPLOYMENT_PROTECTION_NOT_CONFIRMED','OIDC_AUTHENTICATION_FAILED','PREVIEW_IDENTITY_INVALID']);
@@ -27,27 +27,27 @@ const PREFLIGHT_CATEGORIES = Object.freeze({
 });
 export function preflightCategory(code) { return PREFLIGHT_CATEGORIES[code] ?? 'UNKNOWN'; }
 const TRACE_ENUMS = {
-  stage:['REQUEST','RESPONSE'], destinationClass:['PINNED_ORIGIN','EXTERNAL','UNKNOWN'],
-  interceptionOperation:['CONTINUE_REQUEST','CONTINUE_RESPONSE','FAIL_REQUEST','CLASSIFY_URL','CLASSIFY_ORIGIN','CLASSIFY_REDIRECT','CONSTRUCT_HEADERS'],
+  stage:['REQUEST','RESPONSE','TERMINAL'], destinationClass:['PINNED_ORIGIN','EXTERNAL','UNKNOWN'],
+  interceptionOperation:['CONTINUE_REQUEST','CONTINUE_RESPONSE','FAIL_REQUEST','CLASSIFY_URL','CLASSIFY_ORIGIN','CLASSIFY_REDIRECT','CONSTRUCT_HEADERS','NETWORK_LOADING_FAILED','NETWORK_FINISHED'],
   responseClass:['UNKNOWN','DIRECT','REDIRECT'], disposition:['ALLOWED','PINNED_REQUEST_BLOCKED'],
-  result:['CONTINUED','BLOCKED'], failureCategory:['REQUEST_NOT_ACTIVE','CDP_SESSION_CLOSED','HEADER_REJECTED','CDP_OPERATION_REJECTED'],
+  result:['CONTINUED','BLOCKED'], failureCategory:['REQUEST_NOT_ACTIVE','CDP_SESSION_CLOSED','HEADER_REJECTED','CDP_OPERATION_REJECTED','NETWORK_CANCELLED','NETWORK_FAILED','RESPONSE_NOT_OBSERVED'],
 };
 
 export function evaluateAuthenticatedTrace(input, securityEvents = []) {
-  if (!Array.isArray(input) || input.length > 128 || securityEvents.length) return { ok:false, code:'XHR_PROTOCOL_INVALID' };
+  if (!Array.isArray(input) || input.length > 384 || securityEvents.length) return { ok:false, code:'XHR_PROTOCOL_INVALID' };
   const ordinals = new Map();
   for (const row of input) {
     if (!Number.isSafeInteger(row.ordinal) || row.ordinal < 1 || row.ordinal > 128 ||
-        !['REQUEST','RESPONSE'].includes(row.stage) || !/^(?:next-static|next-image|access|panel|api|project|root|other|unknown)-(?:xhr|fetch)$/.test(row.resourceClass) ||
+        !['REQUEST','RESPONSE','TERMINAL'].includes(row.stage) || !/^(?:next-static|next-image|access|panel|api|project|root|other|unknown)-(?:xhr|fetch)$/.test(row.resourceClass) ||
         !['PINNED_ORIGIN','EXTERNAL','UNKNOWN'].includes(row.destinationClass) ||
-        !['CONTINUE_REQUEST','CONTINUE_RESPONSE','FAIL_REQUEST','CLASSIFY_URL','CLASSIFY_ORIGIN','CLASSIFY_REDIRECT','CONSTRUCT_HEADERS'].includes(row.interceptionOperation) ||
+        !['CONTINUE_REQUEST','CONTINUE_RESPONSE','FAIL_REQUEST','CLASSIFY_URL','CLASSIFY_ORIGIN','CLASSIFY_REDIRECT','CONSTRUCT_HEADERS','NETWORK_LOADING_FAILED','NETWORK_FINISHED'].includes(row.interceptionOperation) ||
         !['UNKNOWN','DIRECT','REDIRECT'].includes(row.responseClass) || !['ALLOWED','PINNED_REQUEST_BLOCKED'].includes(row.disposition) ||
         !['CONTINUED','BLOCKED'].includes(row.result) ||
-        (row.failureCategory != null && !['REQUEST_NOT_ACTIVE','CDP_SESSION_CLOSED','HEADER_REJECTED','CDP_OPERATION_REJECTED'].includes(row.failureCategory)) ||
+        (row.failureCategory != null && !['REQUEST_NOT_ACTIVE','CDP_SESSION_CLOSED','HEADER_REJECTED','CDP_OPERATION_REJECTED','NETWORK_CANCELLED','NETWORK_FAILED','RESPONSE_NOT_OBSERVED'].includes(row.failureCategory)) ||
         (row.httpStatus != null && (!Number.isInteger(row.httpStatus) || row.httpStatus < 100 || row.httpStatus > 599)))
       return { ok:false, code:'XHR_PROTOCOL_INVALID' };
     if (row.destinationClass !== 'PINNED_ORIGIN') return { ok:false, code:'XHR_EXTERNAL' };
-    if (row.result === 'BLOCKED') return { ok:false, code:'XHR_INTERCEPTION_BLOCKED', ordinal:row.ordinal,
+    if (row.result === 'BLOCKED') return { ok:false, code:row.stage==='TERMINAL'?'XHR_TERMINAL_UNVERIFIED':'XHR_INTERCEPTION_BLOCKED', ordinal:row.ordinal,
       failureCategory:row.failureCategory ?? null };
     const stages = ordinals.get(row.ordinal) ?? new Set();
     if (stages.has(row.stage)) return { ok:false, code:'XHR_PROTOCOL_INVALID' };
@@ -135,7 +135,7 @@ export async function runAuthLoginProbe({ runId, adminKey, token = process.env.V
     await installScopedRoutes(context,page,token,origin,
       event=>securityEvents.push(event), event=>routeEvents.push(event),runId,
       detail=>{ if (detail.disposition==='PINNED_REQUEST_BLOCKED') securityEvents.push('pinned-origin-request-failed'); },
-      detail=>{ if (trace.length<129) trace.push(safeTrace(detail)); },true);
+      detail=>{ if (trace.length<384) trace.push(safeTrace(detail)); },true);
     currentStage='login-post';
     await record('login-post','ATTEMPTED');
     const access=await page.goto(`${origin}/acceso`,{waitUntil:'domcontentloaded',timeout:30000});

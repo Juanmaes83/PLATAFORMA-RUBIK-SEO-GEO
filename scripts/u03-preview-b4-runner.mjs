@@ -127,6 +127,11 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
   const session = await context.newCDPSession(page);
   const requestOrigins = new Map();
   const traceOrdinals = new Map();
+  const traceNetworkIds = new Map();
+  const traceResponses = new Set();
+  const traceResponsePaused = new Set();
+  const traceRequests = new Map();
+  const traceNetworkResponses = new Map();
   let nextTraceOrdinal = 0;
   const frameTree = await session.send("Page.getFrameTree");
   const mainFrameId = frameTree?.frameTree?.frame?.id ?? null;
@@ -151,10 +156,40 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
       onRouteEvent(disposition.toLowerCase().replaceAll("_", "-"));
     }
   };
+  // A request may finish or fail without a Fetch Response pause. Record a bounded,
+  // closed terminal outcome; never infer a successful response from a missing pause.
+  session.on('Network.loadingFailed', event => {
+    const ordinal = traceNetworkIds.get(event.requestId);
+    const request = traceRequests.get(ordinal);
+    if (!request) return;
+    try { onRequestTrace({ ...request, stage:'TERMINAL', interceptionOperation:'NETWORK_LOADING_FAILED',
+      responseClass:'UNKNOWN', result:'BLOCKED', disposition:'PINNED_REQUEST_BLOCKED',
+      failureCategory:event.canceled === true ? 'NETWORK_CANCELLED' : 'NETWORK_FAILED' }); }
+    catch { onRouteEvent('diagnostic-cardinality-exceeded'); onEvent('pinned-origin-request-failed'); }
+  });
+  session.on('Network.responseReceived', event => {
+    const ordinal = traceNetworkIds.get(event.requestId);
+    const status = event.response?.status;
+    if (traceRequests.has(ordinal) && Number.isInteger(status) && status >= 100 && status <= 599)
+      traceNetworkResponses.set(ordinal,status);
+  });
+  session.on('Network.loadingFinished', event => {
+    const ordinal = traceNetworkIds.get(event.requestId);
+    const request = traceRequests.get(ordinal);
+    if (!request || traceResponses.has(ordinal) || traceResponsePaused.has(ordinal)) return;
+    const status=traceNetworkResponses.get(ordinal);
+    try { onRequestTrace({ ...request, stage:'TERMINAL', interceptionOperation:'NETWORK_FINISHED',
+      responseClass:Number.isInteger(status) ? status >= 300 && status < 400 ? 'REDIRECT' : 'DIRECT' : 'UNKNOWN',
+      httpStatus:status, result:'BLOCKED', disposition:'PINNED_REQUEST_BLOCKED',
+      failureCategory:'RESPONSE_NOT_OBSERVED' }); }
+    catch { onRouteEvent('diagnostic-cardinality-exceeded'); onEvent('pinned-origin-request-failed'); }
+  });
   session.on("Fetch.requestPaused", (paused) => {
     const stage = paused.responseStatusCode || paused.responseErrorReason ? 'response' : 'request';
     const traceable = paused.resourceType === 'XHR' || paused.resourceType === 'Fetch';
     if (traceable && !traceOrdinals.has(paused.requestId)) traceOrdinals.set(paused.requestId, ++nextTraceOrdinal);
+    if (traceable && stage === 'response') traceResponsePaused.add(traceOrdinals.get(paused.requestId));
+    if (traceable && paused.networkId) traceNetworkIds.set(paused.networkId,traceOrdinals.get(paused.requestId));
     const trace = (result, failureCategory = null) => {
       if (!traceable) return;
       try {
@@ -166,6 +201,7 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
           disposition: result === 'BLOCKED' ? 'PINNED_REQUEST_BLOCKED' : 'ALLOWED',
           result, failureCategory,
           httpStatus: Number.isInteger(paused.responseStatusCode) ? paused.responseStatusCode : null });
+        if (stage === 'response' && result === 'CONTINUED') traceResponses.add(traceOrdinals.get(paused.requestId));
       } catch { onRouteEvent('diagnostic-cardinality-exceeded'); onEvent('pinned-origin-request-failed'); }
     };
     let operation = 'CLASSIFY_URL';
@@ -178,6 +214,9 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
       operation = 'CLASSIFY_ORIGIN';
       const origin = parsed.origin;
       destinationClass = origin === allowedOrigin ? 'PINNED_ORIGIN' : 'EXTERNAL';
+      if (traceable && stage === 'request') traceRequests.set(traceOrdinals.get(paused.requestId),{
+        ordinal:traceOrdinals.get(paused.requestId),resourceClass:classifyDiagnosticResource(url,paused.resourceType),
+        destinationClass });
       if (paused.responseStatusCode || paused.responseErrorReason) {
         operation = 'CLASSIFY_REDIRECT';
         const location = paused.responseHeaders?.find(header => header.name.toLowerCase() === "location")?.value;
@@ -247,6 +286,7 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
         (url.pathname === "/acceso" || url.pathname === "/api/auth/login")) onRouteEvent(`auth-action-http-${response.status()}`);
     } catch { /* retain only the classified event */ }
   });
+  await session.send('Network.enable');
   await session.send("Fetch.enable", { patterns: [{ urlPattern: "*", requestStage: "Request" }, { urlPattern: "*", requestStage: "Response" }] });
   return session;
 }

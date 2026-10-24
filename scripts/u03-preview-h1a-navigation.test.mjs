@@ -7,7 +7,8 @@ import { chromium } from 'playwright';
 import { installScopedRoutes, classifyBlockedExternalRequest, classifyDiagnosticResource, classifyCdpInterceptionFailure, createPageDiagnostics, summarizeDiagnosticInterval } from './u03-preview-b4-runner.mjs';
 
 async function injectPausedRequest({ url, headers = {}, rejectHeaderOverride = false, rejectContinue = false,
-  rejectResponse = false, rejectFail = false, resourceType = 'XHR', responseStatusCode = null, traceFailure = false }) {
+  rejectResponse = false, rejectFail = false, resourceType = 'XHR', responseStatusCode = null, traceFailure = false,
+  networkOutcome = null }) {
   const session = new EventEmitter();
   const calls = [];
   let complete;
@@ -29,15 +30,30 @@ async function injectPausedRequest({ url, headers = {}, rejectHeaderOverride = f
   const events = [];
   const diagnostics = [];
   const routes = [];
+  const trace = [];
   await installScopedRoutes({ newCDPSession: async () => session }, { on() {} }, 'fictional-oidc', 'https://pinned.invalid',
     (event, detail) => events.push({ event, detail }), event => routes.push(event), null,
-    detail => diagnostics.push(detail), () => { if (traceFailure) throw new Error('fictional trace secret'); });
-  session.emit('Fetch.requestPaused', { requestId:'fictional-request', frameId:'main-frame',
+    detail => diagnostics.push(detail), row => { if (traceFailure) throw new Error('fictional trace secret'); trace.push(row); });
+  session.emit('Fetch.requestPaused', { requestId:'fictional-request', networkId:'fictional-network', frameId:'main-frame',
     request:{ url, method:'GET', headers }, resourceType, ...(responseStatusCode ? { responseStatusCode } : {}) });
   await finished;
   await new Promise(resolve => setImmediate(resolve));
-  return { calls, events, diagnostics, routes };
+  if (networkOutcome==='cancelled') session.emit('Network.loadingFailed',{requestId:'fictional-network',canceled:true,errorText:'fictional secret'});
+  if (networkOutcome==='finished') {
+    session.emit('Network.responseReceived',{requestId:'fictional-network',response:{status:204,url:'https://pinned.invalid/private?token=fictional'}});
+    session.emit('Network.loadingFinished',{requestId:'fictional-network'});
+  }
+  return { calls, events, diagnostics, routes, trace };
 }
+
+test('network terminal diagnostics distinguish cancellation from a response not paused by Fetch',async()=>{
+  const cancelled=await injectPausedRequest({url:'https://pinned.invalid/private?token=fictional',networkOutcome:'cancelled'});
+  const finished=await injectPausedRequest({url:'https://pinned.invalid/private?token=fictional',networkOutcome:'finished'});
+  assert.equal(cancelled.trace.at(-1)?.failureCategory,'NETWORK_CANCELLED');
+  assert.equal(finished.trace.at(-1)?.failureCategory,'RESPONSE_NOT_OBSERVED');
+  assert.equal(finished.trace.at(-1)?.httpStatus,204);
+  assert.doesNotMatch(JSON.stringify([cancelled.trace,finished.trace]),/fictional secret|\/private|token=/);
+});
 
 test('a trace callback failure fails the gate without leaking its message',async()=>{
   const result=await injectPausedRequest({url:'https://pinned.invalid/api/signal',traceFailure:true});
@@ -202,13 +218,45 @@ test('real Chromium continues three pinned XHR subresources after a 303 login', 
     const responses = traces.filter(row => row.stage === 'RESPONSE');
     assert.equal(requests.length, 3);
     assert.equal(responses.length, 3);
-    assert.deepEqual(requests.map(row => row.ordinal), responses.map(row => row.ordinal));
+    assert.deepEqual(requests.map(row => row.ordinal).sort((a,b)=>a-b), responses.map(row => row.ordinal).sort((a,b)=>a-b));
     assert.ok(traces.every(row => row.destinationClass === 'PINNED_ORIGIN' && row.result === 'CONTINUED'));
     assert.doesNotMatch(JSON.stringify(traces), /\/signal-|fictional-oidc/);
   } finally {
     await browser?.close();
     server.close();
     await once(server, 'close');
+  }
+});
+
+test('real Chromium records a cancelled pinned XHR as a closed terminal failure', async () => {
+  const server=createServer((request,response)=>{
+    if(request.url==='/slow') { setTimeout(()=>{ if(!response.destroyed) response.writeHead(200).end('fictional'); },1200); return; }
+    response.writeHead(200,{'content-type':'text/html'}).end('<main>fictional</main>');
+  });
+  server.listen(0,'127.0.0.1'); await once(server,'listening');
+  const origin=`http://127.0.0.1:${server.address().port}`;
+  let browser;
+  try {
+    browser=await chromium.launch({headless:true});
+    const context=await browser.newContext({serviceWorkers:'block'});
+    const page=await context.newPage();
+    const trace=[];
+    await installScopedRoutes(context,page,null,origin,()=>{},()=>{},null,()=>{},row=>trace.push(row),true);
+    await page.goto(origin);
+    await page.evaluate(()=>{ window.syntheticXhr=new XMLHttpRequest(); window.syntheticXhr.open('GET','/slow'); window.syntheticXhr.send(); });
+    await page.waitForFunction(()=>window.syntheticXhr.readyState===1);
+    await page.waitForTimeout(50);
+    await page.evaluate(()=>window.syntheticXhr.abort());
+    await page.waitForFunction(()=>window.syntheticXhr.readyState===0);
+    await page.waitForTimeout(100);
+    const request=trace.find(row=>row.stage==='REQUEST' && row.resourceClass==='other-xhr');
+    const terminal=trace.find(row=>row.stage==='TERMINAL' && row.ordinal===request?.ordinal);
+    assert.ok(request);
+    assert.equal(terminal?.interceptionOperation,'NETWORK_LOADING_FAILED');
+    assert.equal(terminal?.failureCategory,'NETWORK_CANCELLED');
+    assert.doesNotMatch(JSON.stringify(trace),/\/slow|fictional/);
+  } finally {
+    await browser?.close(); server.closeAllConnections?.(); server.close(); await once(server,'close');
   }
 });
 

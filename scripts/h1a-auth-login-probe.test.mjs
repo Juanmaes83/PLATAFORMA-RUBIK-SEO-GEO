@@ -110,6 +110,26 @@ test('authenticated XHR needs a correlated request and response at the pinned or
   assert.equal(evaluateAuthenticatedTrace([request,response,response]).code,'XHR_PROTOCOL_INVALID');
 });
 
+test('terminal outcomes are explicit and never turn a missing response into PASS',()=>{
+  for(const [operation,failureCategory] of [
+    ['NETWORK_LOADING_FAILED','NETWORK_CANCELLED'],
+    ['NETWORK_LOADING_FAILED','NETWORK_FAILED'],
+    ['NETWORK_FINISHED','RESPONSE_NOT_OBSERVED'],
+  ]) {
+    const terminal={...request,stage:'TERMINAL',interceptionOperation:operation,
+      result:'BLOCKED',disposition:'PINNED_REQUEST_BLOCKED',failureCategory};
+    assert.deepEqual(evaluateAuthenticatedTrace([request,terminal]),
+      {ok:false,code:'XHR_TERMINAL_UNVERIFIED',ordinal:1,failureCategory});
+    assert.equal(safeTrace(terminal).failureCategory,failureCategory);
+  }
+  assert.equal(evaluateAuthenticatedTrace([request]).code,'XHR_INCOMPLETE');
+  assert.equal(evaluateAuthenticatedTrace([request,response,{...request,stage:'TERMINAL',
+    interceptionOperation:'NETWORK_LOADING_FAILED',result:'BLOCKED',
+    disposition:'PINNED_REQUEST_BLOCKED',failureCategory:'NETWORK_FAILED'}]).code,'XHR_TERMINAL_UNVERIFIED');
+  assert.doesNotMatch(JSON.stringify(safeTrace({...request,stage:'TERMINAL',
+    failureCategory:'network failed https://secret.invalid/?token=secret'})),/secret|https:/);
+});
+
 test('blocked interception and external destinations cannot pass',()=>{
   assert.deepEqual(evaluateAuthenticatedTrace([{...request,result:'BLOCKED',failureCategory:'REQUEST_NOT_ACTIVE'}]),
     {ok:false,code:'XHR_INTERCEPTION_BLOCKED',ordinal:1,failureCategory:'REQUEST_NOT_ACTIVE'});

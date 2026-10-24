@@ -1,0 +1,13 @@
+# Sonda Auth H1-A afa3c860 · diagnóstico de XHR
+
+El ledger original `test-results/h1a-auth-login-probe/afa3c860-ad05-4db9-a048-5bed5f7e25ad.jsonl` se conserva intacto, SHA-256 `40C0B8D29001D2C6D6A53D7E918E8BE2C938A00518584D4F3C9417893DB6BD55`. Se ejecutó con SHA `fc7d0f7c3fba775f9871c9e516706ce3cdbf569c` y deployment `dpl_By2HRRayAtP41PFZBHT5di4j7SWS` en Preview `rhnnplewqsekrnaousyl`.
+
+| Último PASS | Primer bloqueo | NOT_RUN | Efectos y limpieza |
+| --- | --- | --- | --- |
+| `session PASS`, precedido de `login-post PASS` HTTP 303. Las filas individuales `xhr-interception PASS` solo confirman el registro de cada evento. | `xhr-interception BLOCKED / XHR_INCOMPLETE`; 40 REQUEST y 36 RESPONSE. Los ordinales 18–21, clase `other-xhr`, tienen `CONTINUE_REQUEST` pero no RESPONSE. `result BLOCKED` y el mensaje del wrapper son cascada. | Gate XHR completo, vistas, exportación, verificación, restauración, recibos, logout y aceptación visual integral. | `auth-cleanup PASS` en ledger. Lectura independiente nueva: Auth, inventario y outbox total/pending cero; rol/políticas/sesiones temporales cero; escritor general NOLOGIN. `-TeardownOnly` retiró las nueve variables, deployment y vault; ausencia verificada por consultas separadas. |
+
+El ledger histórico **no** contiene el desenlace de red de esos cuatro ordinales. No demuestra cancelación, redirección, cierre, respuesta tardía ni defecto del producto. El código anterior registraba pausas `Fetch.requestPaused` de solicitud y respuesta, pero no `Network.loadingFailed` ni `Network.loadingFinished` para una solicitud sin pausa de respuesta.
+
+La reproducción local con Chromium y el interceptor auténtico sí demuestra que un XHR cancelado puede dejar una REQUEST sin RESPONSE; tres XHR normales después de un 303 registran ambas pausas. Estas son observaciones locales, no una atribución retrospectiva al run alojado. La instrumentación nueva registra solo categoría terminal, ordinal, clase de recurso y estado HTTP acotado cuando existe: `NETWORK_CANCELLED`, `NETWORK_FAILED` o `RESPONSE_NOT_OBSERVED`. Ninguno convierte una REQUEST sin respuesta acreditada en PASS. Destinos externos y errores CDP siguen bloqueados. Si el desenlace no se observa, `XHR_INCOMPLETE` permanece.
+
+La causa concreta de los cuatro ordinales alojados sigue sin demostrarse. Por eso no se aprovisiona otra ventana ni se solicita ejecutar otra sonda con este cambio. El siguiente gate es revisar el SHA y CI de la instrumentación; una nueva prueba alojada requeriría decidir explícitamente que la evidencia terminal cerrada es suficiente para discriminar el fallo sin relajar el contrato del gate.
