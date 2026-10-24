@@ -85,7 +85,10 @@ function Invoke-ProbeChild([string]$AdminKey,[bool]$CleanupOnly,[string]$ChildPa
     if ($result.status -ceq 'PASS' -and $process.ExitCode -ne 0) {
       return [pscustomobject]@{Status='BLOCKED';Code='CHILD_EXIT_MISMATCH';Cleanup='BLOCKED'}
     }
-    $allowedCodes=@('PRECHECK_FAILED','AUTH_CREATE_FAILED','LOGIN_POST_FAILED','SESSION_NOT_CONFIRMED','XHR_NOT_OBSERVED',
+    $allowedCodes=@('PRECHECK_FAILED','OIDC_TOKEN_MISSING','VERCEL_DEPLOYMENT_INSPECTION_FAILED',
+      'VERCEL_DEPLOYMENT_METADATA_INVALID','DEPLOYMENT_PIN_MISMATCH','PROTECTION_PREFLIGHT_FAILED',
+      'DEPLOYMENT_PROTECTION_NOT_CONFIRMED','OIDC_AUTHENTICATION_FAILED','PREVIEW_IDENTITY_INVALID',
+      'AUTH_CREATE_FAILED','LOGIN_POST_FAILED','SESSION_NOT_CONFIRMED','XHR_NOT_OBSERVED',
       'XHR_INCOMPLETE','XHR_INTERCEPTION_BLOCKED','XHR_EXTERNAL','XHR_PROTOCOL_INVALID','AUTH_CLEANUP_FAILED','LEDGER_FAILED','PROBE_FAILED','AUTH_CLEANUP_ONLY')
     $code=if ($result.code -in $allowedCodes) { [string]$result.code } else { 'NONE' }
     return [pscustomobject]@{Status=[string]$result.status;Code=$code;Cleanup=[string]$result.cleanup;ExitCode=$process.ExitCode}

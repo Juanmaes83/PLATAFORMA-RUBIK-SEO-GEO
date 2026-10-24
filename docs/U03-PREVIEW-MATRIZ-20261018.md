@@ -1,5 +1,9 @@
 # U03 · matriz alojada de Preview · 18/10/2026
 
+## H1-A · sonda Auth 22761709 · preflight bloqueado
+
+U03/I-2/I-5 conservan CERRADO sin repetición. Una única sonda Auth nueva, SHA `074e67356e4519ccf10ca14f97a456289a282cb4`, deployment `dpl_GELaGFHaposXQPTyTXxVTSWhKDui`, pasó preflight externo y atestación HMAC, pero el hijo registró `preflight / PRECHECK_FAILED` como primer bloqueo. Login, sesión y XHR alojados carecen de PASS; H1-A integral es NOT_RUN. El ledger conservado y una lectura independiente posterior acreditan Auth/inventario/outbox y capacidades temporales a cero; las nueve variables, deployment y vault se retiraron y verificaron ausentes. El código no guardó la subcategoría del preflight de ese run; la instrumentación posterior conserva códigos cerrados para una futura decisión, sin atribuir retrospectivamente una causa. H1-A, R1, H1-B/U04, H1 global y H2 siguen abiertos. [Expediente](H1A-CDP-9570-20261023.md).
+
 ## H1-A · sonda de login autenticado · 24/10/2026
 
 U03/I-2/I-5 permanecen CERRADOS sin repetir sus campañas. H1-A continúa BLOCKED por el run `9570e8d0…`; el ledger original muestra `interceptionOperation` pero no la categoría del rechazo CDP. Una sonda anterior de `/acceso` y XHR sin sesión no es equivalente. La preparación nueva limita la prueba a una sola cuenta Auth ficticia, POST real, sesión `/panel` y XHR correlacionados por ordinal con el interceptor auténtico; no crea recursos de producto ni acredita exportación/restauración. [Plan, prueba local y limpieza exigida](H1A-CDP-9570-20261023.md). Solo una sonda alojada, con SHA/deployment/host y lote HMAC fijados, puede determinar si el defecto reaparece bajo protección. Un PASS de la sonda no cierra H1-A.

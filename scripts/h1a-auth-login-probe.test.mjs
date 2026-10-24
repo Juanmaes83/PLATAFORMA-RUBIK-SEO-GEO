@@ -2,7 +2,18 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { cleanupAuthProbe, evaluateAuthenticatedTrace, safeTrace } from './h1a-auth-login-probe.mjs';
+import { cleanupAuthProbe, evaluateAuthenticatedTrace, safeTrace, classifyPreflightFailure } from './h1a-auth-login-probe.mjs';
+import { GateError } from './u03-preview-b4-runner.mjs';
+
+test('preflight preserves only closed gate codes',()=>{
+  for (const code of ['OIDC_TOKEN_MISSING','VERCEL_DEPLOYMENT_INSPECTION_FAILED',
+    'VERCEL_DEPLOYMENT_METADATA_INVALID','DEPLOYMENT_PIN_MISMATCH','PROTECTION_PREFLIGHT_FAILED',
+    'DEPLOYMENT_PROTECTION_NOT_CONFIRMED','OIDC_AUTHENTICATION_FAILED','PREVIEW_IDENTITY_INVALID']) {
+    assert.equal(classifyPreflightFailure(new GateError(code)),code);
+  }
+  assert.equal(classifyPreflightFailure(new GateError('secret-free-text')),'PRECHECK_FAILED');
+  assert.equal(classifyPreflightFailure(new Error('https://example.invalid/?token=secret')),'PRECHECK_FAILED');
+});
 
 test('PowerShell 5.1 nested owner keeps a collection for the single campaign mode', { skip: process.platform !== 'win32' }, () => {
   const owner=fileURLToPath(new URL('./u03-preview-b4-owner.ps1',import.meta.url));

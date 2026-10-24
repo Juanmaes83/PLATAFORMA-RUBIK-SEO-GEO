@@ -6,13 +6,19 @@ import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
 import { createPreviewAdminClient } from './u03-preview-api-key.mjs';
-import { PIN, preflight, installScopedRoutes, createPageDiagnostics, chromiumEnvironment } from './u03-preview-b4-runner.mjs';
+import { PIN, preflight, GateError, installScopedRoutes, createPageDiagnostics, chromiumEnvironment } from './u03-preview-b4-runner.mjs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const STAGES = new Set(['preflight','auth-create','login-post','session','xhr-interception','auth-cleanup','result']);
 const CODES = new Set(['PRECHECK_FAILED','AUTH_CREATE_FAILED','LOGIN_POST_FAILED','SESSION_NOT_CONFIRMED',
   'XHR_NOT_OBSERVED','XHR_INCOMPLETE','XHR_INTERCEPTION_BLOCKED','XHR_EXTERNAL','XHR_PROTOCOL_INVALID',
-  'AUTH_CLEANUP_FAILED','LEDGER_FAILED','PROBE_FAILED']);
+  'AUTH_CLEANUP_FAILED','LEDGER_FAILED','PROBE_FAILED','OIDC_TOKEN_MISSING','VERCEL_DEPLOYMENT_INSPECTION_FAILED',
+  'VERCEL_DEPLOYMENT_METADATA_INVALID','DEPLOYMENT_PIN_MISMATCH','PROTECTION_PREFLIGHT_FAILED',
+  'DEPLOYMENT_PROTECTION_NOT_CONFIRMED','OIDC_AUTHENTICATION_FAILED','PREVIEW_IDENTITY_INVALID']);
+
+export function classifyPreflightFailure(error) {
+  return error instanceof GateError && CODES.has(error.code) ? error.code : 'PRECHECK_FAILED';
+}
 const TRACE_ENUMS = {
   stage:['REQUEST','RESPONSE'], destinationClass:['PINNED_ORIGIN','EXTERNAL','UNKNOWN'],
   interceptionOperation:['CONTINUE_REQUEST','CONTINUE_RESPONSE','FAIL_REQUEST','CLASSIFY_URL','CLASSIFY_ORIGIN','CLASSIFY_REDIRECT','CONSTRUCT_HEADERS'],
@@ -156,8 +162,8 @@ export async function runAuthLoginProbe({ runId, adminKey, token = process.env.V
     await record('xhr-interception','PASS',{xhrCount:verdict.count});
     diagnostics.dispose();
     await context.close();
-  } catch {
-    fail(currentStage==='preflight'?'PRECHECK_FAILED':'PROBE_FAILED');
+  } catch (error) {
+    fail(currentStage==='preflight'?classifyPreflightFailure(error):'PROBE_FAILED');
     if (!ledgerFailed) await record(currentStage,'BLOCKED',{code:firstFailure,httpStatus:lastHttpStatus});
   } finally {
     await browser?.close().catch(()=>undefined);
