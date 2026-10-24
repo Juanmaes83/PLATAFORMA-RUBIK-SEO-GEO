@@ -4,7 +4,9 @@ param(
   [Parameter(Mandatory)][string]$DeploymentHost,
   [Parameter(Mandatory)][string]$DeploymentSha,
   [switch]$TeardownOnly,
-  [switch]$TransportSelfTestOnly
+  [switch]$TransportSelfTestOnly,
+  [switch]$OidcTransportSelfTestOnly,
+  [switch]$SimulateAttestationFailure
 )
 
 Set-StrictMode -Version Latest
@@ -42,7 +44,7 @@ function Invoke-SafeVercel([string[]]$Arguments) {
   } catch { return [pscustomobject]@{ExitCode=1;Output='';DeploymentNotFound=$false} }
   finally { if ($process) { $process.Dispose() } }
 }
-function Invoke-ProbeChild([string]$AdminKey,[bool]$CleanupOnly,[string]$ChildPath=$child) {
+function Invoke-ProbeChild([string]$AdminKey,[bool]$CleanupOnly,[string]$ChildPath=$child,[string]$OidcToken='',[bool]$RequireFictionalOidc=$false) {
   $process=$null; $bytes=$null; $payload=$null
   try {
     $node=(Get-Command node.exe -ErrorAction Stop).Source
@@ -55,10 +57,12 @@ function Invoke-ProbeChild([string]$AdminKey,[bool]$CleanupOnly,[string]$ChildPa
     $psi.RedirectStandardInput=$true; $psi.RedirectStandardOutput=$true; $psi.RedirectStandardError=$true
     $psi.EnvironmentVariables.Clear()
     foreach ($name in @('PATH','SystemRoot','WINDIR','TEMP','TMP','USERPROFILE','LOCALAPPDATA','APPDATA','HOMEDRIVE','HOMEPATH','COMSPEC','PATHEXT',
-      'HTTP_PROXY','HTTPS_PROXY','ALL_PROXY','NO_PROXY','NODE_USE_ENV_PROXY','NODE_USE_SYSTEM_CA','VERCEL_OIDC_TOKEN')) {
+      'HTTP_PROXY','HTTPS_PROXY','ALL_PROXY','NO_PROXY','NODE_USE_ENV_PROXY','NODE_USE_SYSTEM_CA')) {
       $value=[Environment]::GetEnvironmentVariable($name)
       if (-not [string]::IsNullOrEmpty($value)) { $psi.EnvironmentVariables[$name]=$value }
     }
+    if (-not [string]::IsNullOrWhiteSpace($OidcToken)) { $psi.EnvironmentVariables['VERCEL_OIDC_TOKEN']=$OidcToken }
+    if ($RequireFictionalOidc -and $ChildPath -ceq $transportChild) { $psi.EnvironmentVariables['H1A_TEST_REQUIRE_OIDC']='1' }
     $psi.EnvironmentVariables['U03_PIN_DEPLOYMENT_ID']=$DeploymentId
     $psi.EnvironmentVariables['U03_PIN_DEPLOYMENT_HOST']=$DeploymentHost
     $psi.EnvironmentVariables['U03_PIN_DEPLOYMENT_SHA']=$DeploymentSha
@@ -120,6 +124,24 @@ if ($TransportSelfTestOnly) {
   Write-Output 'H1A_AUTH_LOGIN_PROBE_TRANSPORT PASS powershell=5.1 encoding=UTF8 stdin=memory child=real'
   return
 }
+if ($OidcTransportSelfTestOnly) {
+  if ($actualBranch -cne $branch) { Stop-Probe 'GIT_BRANCH_MISMATCH' }
+  $savedOidc=[Environment]::GetEnvironmentVariable('VERCEL_OIDC_TOKEN')
+  try {
+    if ([string]::IsNullOrWhiteSpace($savedOidc)) { Stop-Probe 'OIDC_TOKEN_MISSING' }
+    # Reproduce the nested owner's finally without calling any hosted service.
+    [Environment]::SetEnvironmentVariable('VERCEL_OIDC_TOKEN',$null)
+    if ($SimulateAttestationFailure) { Stop-Probe 'ATTESTATION_FAILED' }
+    $fake='fictional-only-' + [char]0x00f1 + [char]0x6771 + [char]0x4eac + '-:/?&%'
+    $probe=Invoke-ProbeChild -AdminKey $fake -CleanupOnly $false -ChildPath $transportChild -OidcToken $savedOidc -RequireFictionalOidc $true
+    if ($probe.Status -cne 'PASS') { Stop-Probe ('OIDC_TRANSPORT_' + $probe.Code) }
+    Write-Output 'H1A_AUTH_LOGIN_OIDC_TRANSPORT PASS child=real nested-finally=simulated'
+    return
+  } finally {
+    $savedOidc=$null
+    [Environment]::SetEnvironmentVariable('VERCEL_OIDC_TOKEN',$null)
+  }
+}
 if ($head -cne $DeploymentSha -or $actualBranch -cne $branch -or $dirty) { Stop-Probe 'GIT_PIN_MISMATCH' }
 $batch=Get-U03WindowBatch
 if ($batch.Sha -cne $head -or $batch.RunId -cne $RunId -or $batch.Branch -cne $branch -or
@@ -139,13 +161,15 @@ if ($TeardownOnly) {
 }
 
 $credentials=$null; $cleanup=$null; $result=$null; $phase='ATTESTATION'
+$oidcToken=[Environment]::GetEnvironmentVariable('VERCEL_OIDC_TOKEN')
 try {
+  if ([string]::IsNullOrWhiteSpace($oidcToken)) { Stop-Probe 'OIDC_TOKEN_MISSING' }
   & $owner -WindowBatchAttestationOnly -DeploymentId $DeploymentId -DeploymentHost $DeploymentHost -DeploymentSha $DeploymentSha -RunId $RunId | Out-Null
   $phase='CREDENTIAL_LOAD'
   $credentials=Get-B4PreviewCredentials
   if ($credentials.ProjectRef -cne 'rhnnplewqsekrnaousyl') { Stop-Probe 'PREVIEW_KEY_REF_MISMATCH' }
   $phase='CHILD_PROBE'
-  $result=Invoke-ProbeChild -AdminKey ([string]$credentials.AdminKey) -CleanupOnly $false
+  $result=Invoke-ProbeChild -AdminKey ([string]$credentials.AdminKey) -CleanupOnly $false -OidcToken $oidcToken
   Write-Output "H1A_AUTH_LOGIN_PROBE_RESULT status=$($result.Status) code=$($result.Code) category=$($result.Category) cleanup=$($result.Cleanup) runId=$RunId"
 } catch {
   Write-Output "H1A_AUTH_LOGIN_PROBE_WRAPPER BLOCKED phase=$phase code=WRAPPER_PHASE_FAILED runId=$RunId"
@@ -156,5 +180,7 @@ try {
     $credentials.AdminKey=$null; $credentials.PublicKey=$null
   }
   if ($cleanup) { Write-Output "H1A_AUTH_LOGIN_PROBE_CONTAINMENT status=$($cleanup.Status) code=$($cleanup.Code) cleanup=$($cleanup.Cleanup) runId=$RunId" }
+  $oidcToken=$null
+  [Environment]::SetEnvironmentVariable('VERCEL_OIDC_TOKEN',$null)
 }
 if (-not $result -or $result.Status -cne 'PASS' -or -not $cleanup -or $cleanup.Cleanup -cne 'PASS') { Stop-Probe 'PROBE_OR_CLEANUP_BLOCKED' }

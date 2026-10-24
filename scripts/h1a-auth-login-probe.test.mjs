@@ -77,6 +77,28 @@ test('PowerShell 5.1 transports fictional UTF-8 to the real child without requir
   assert.doesNotMatch(`${result.stdout}\n${result.stderr}`,/fictional-only-.*[:/?&%]|PropertyNotFoundStrict|CHILD_TRANSPORT_FAILED/);
 });
 
+test('PowerShell 5.1 preserves fictional OIDC only across nested attestation and into the real child',
+  { skip: process.platform !== 'win32' },()=>{
+  const owner=fileURLToPath(new URL('./h1a-auth-login-probe-owner.ps1',import.meta.url));
+  const args=['-NoProfile','-ExecutionPolicy','Bypass','-File',owner,
+    '-RunId','11111111-1111-4111-8111-111111111111','-DeploymentId','dpl_FictionalOnly',
+    '-DeploymentHost','fictional-only.vercel.app','-DeploymentSha','1111111111111111111111111111111111111111',
+    '-OidcTransportSelfTestOnly'];
+  const token='fictional-oidc-only';
+  for(const [label,env,extra,expectedExit,expected] of [
+    ['present',{...process.env,VERCEL_OIDC_TOKEN:token},[],0,/H1A_AUTH_LOGIN_OIDC_TRANSPORT PASS/],
+    ['absent',{...process.env,VERCEL_OIDC_TOKEN:''},[],1,/OIDC_TOKEN_MISSING/],
+    ['attestation failure',{...process.env,VERCEL_OIDC_TOKEN:token},['-SimulateAttestationFailure'],1,/ATTESTATION_FAILED/],
+  ]) {
+    const result=spawnSync('powershell.exe',[...args,...extra],{encoding:'utf8',timeout:30000,env});
+    const output=`${result.stdout ?? ''}\n${result.stderr ?? ''}`;
+    assert.equal(result.status,expectedExit,label);
+    assert.match(output,expected,label);
+    assert.doesNotMatch(output,/fictional-oidc-only|fictional-only-.*[:/?&%]|PropertyNotFoundStrict/,label);
+    if(label!=='present') assert.doesNotMatch(output,/OIDC_TRANSPORT PASS/);
+  }
+});
+
 const request={ordinal:1,stage:'REQUEST',resourceClass:'panel-xhr',destinationClass:'PINNED_ORIGIN',
   interceptionOperation:'CONTINUE_REQUEST',responseClass:'UNKNOWN',disposition:'ALLOWED',result:'CONTINUED'};
 const response={...request,stage:'RESPONSE',interceptionOperation:'CONTINUE_RESPONSE',responseClass:'DIRECT',httpStatus:200};
