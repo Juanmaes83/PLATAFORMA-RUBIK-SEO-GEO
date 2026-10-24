@@ -19,6 +19,13 @@ const CODES = new Set(['PRECHECK_FAILED','AUTH_CREATE_FAILED','LOGIN_POST_FAILED
 export function classifyPreflightFailure(error) {
   return error instanceof GateError && CODES.has(error.code) ? error.code : 'PRECHECK_FAILED';
 }
+const PREFLIGHT_CATEGORIES = Object.freeze({
+  OIDC_TOKEN_MISSING:'OIDC', OIDC_AUTHENTICATION_FAILED:'OIDC',
+  VERCEL_DEPLOYMENT_INSPECTION_FAILED:'DEPLOYMENT', VERCEL_DEPLOYMENT_METADATA_INVALID:'DEPLOYMENT',
+  DEPLOYMENT_PIN_MISMATCH:'DEPLOYMENT', PROTECTION_PREFLIGHT_FAILED:'PROTECTION',
+  DEPLOYMENT_PROTECTION_NOT_CONFIRMED:'PROTECTION', PREVIEW_IDENTITY_INVALID:'IDENTITY',
+});
+export function preflightCategory(code) { return PREFLIGHT_CATEGORIES[code] ?? 'UNKNOWN'; }
 const TRACE_ENUMS = {
   stage:['REQUEST','RESPONSE'], destinationClass:['PINNED_ORIGIN','EXTERNAL','UNKNOWN'],
   interceptionOperation:['CONTINUE_REQUEST','CONTINUE_RESPONSE','FAIL_REQUEST','CLASSIFY_URL','CLASSIFY_ORIGIN','CLASSIFY_REDIRECT','CONSTRUCT_HEADERS'],
@@ -83,21 +90,22 @@ export async function cleanupAuthProbe({runId,adminKey,adminFactory=createPrevie
 }
 
 export async function runAuthLoginProbe({ runId, adminKey, token = process.env.VERCEL_OIDC_TOKEN,
-  ledgerPath = join(process.cwd(), 'test-results', 'h1a-auth-login-probe', `${runId}.jsonl`) }) {
+  ledgerPath = join(process.cwd(), 'test-results', 'h1a-auth-login-probe', `${runId}.jsonl`),
+  preflightImpl = preflight, adminFactory = createPreviewAdminClient, cleanupImpl = cleanupAuthProbe }) {
   if (!UUID.test(runId) || PIN.supabaseRef !== 'rhnnplewqsekrnaousyl' || !/^dpl_[A-Za-z0-9]+$/.test(PIN.deploymentId) ||
       !/^[0-9a-f]{40}$/.test(PIN.sha) || PIN.branch !== 'codex/h1a-integral-20261022' ||
       typeof adminKey !== 'string' || !adminKey) return { status:'BLOCKED', code:'PRECHECK_FAILED' };
   const origin = `https://${PIN.host}`;
   const email = `h1a-login-${runId.replaceAll('-','')}@example.test`;
   const password = randomBytes(32).toString('base64url');
-  const admin = createPreviewAdminClient(`https://${PIN.supabaseRef}.supabase.co`, adminKey);
-  let browser, ledgerFailed = false, firstFailure = null, cleanupOk = false;
+  let admin, browser, ledgerFailed = false, firstFailure = null, cleanupOk = false;
   let currentStage='preflight', lastHttpStatus=null;
   const record = async (stage,status,detail = {}) => {
     if (!STAGES.has(stage) || !['ATTEMPTED','PASS','BLOCKED'].includes(status)) throw new Error('LEDGER_FIELD_REJECTED');
     const row = { utc:new Date().toISOString(), runId, sha:PIN.sha, deploymentId:PIN.deploymentId,
       ref:PIN.supabaseRef, stage, status };
     if (CODES.has(detail.code)) row.code=detail.code;
+    if (detail.category && ['OIDC','DEPLOYMENT','PROTECTION','IDENTITY','UNKNOWN'].includes(detail.category)) row.category=detail.category;
     if (Number.isSafeInteger(detail.httpStatus) && detail.httpStatus >= 100 && detail.httpStatus <= 599) row.httpStatus=detail.httpStatus;
     if (Number.isSafeInteger(detail.xhrCount) && detail.xhrCount >= 0 && detail.xhrCount <= 128) row.xhrCount=detail.xhrCount;
     if (detail.trace) row.trace=safeTrace(detail.trace);
@@ -107,7 +115,8 @@ export async function runAuthLoginProbe({ runId, adminKey, token = process.env.V
   const fail = (code) => { if (!firstFailure) firstFailure=CODES.has(code)?code:'PROBE_FAILED'; };
   try {
     await record('preflight','ATTEMPTED');
-    await preflight({token});
+    await preflightImpl({token});
+    admin=adminFactory(`https://${PIN.supabaseRef}.supabase.co`, adminKey);
     if (ledgerFailed) throw new Error('LEDGER_FAILED');
     await record('preflight','PASS');
     currentStage='auth-create';
@@ -164,22 +173,26 @@ export async function runAuthLoginProbe({ runId, adminKey, token = process.env.V
     await context.close();
   } catch (error) {
     fail(currentStage==='preflight'?classifyPreflightFailure(error):'PROBE_FAILED');
-    if (!ledgerFailed) await record(currentStage,'BLOCKED',{code:firstFailure,httpStatus:lastHttpStatus});
+    if (!ledgerFailed) await record(currentStage,'BLOCKED',{code:firstFailure,
+      ...(currentStage==='preflight'?{category:preflightCategory(firstFailure)}:{}),httpStatus:lastHttpStatus});
   } finally {
     await browser?.close().catch(()=>undefined);
     await record('auth-cleanup','ATTEMPTED');
     try {
       // An ambiguous create is reconciled by the exact run-scoped email and metadata.
-      cleanupOk=await cleanupAuthProbe({runId,adminKey});
+      cleanupOk=await cleanupImpl({runId,adminKey});
       if (!cleanupOk) throw new Error('AUTH_CLEANUP_UNVERIFIED');
       await record('auth-cleanup','PASS');
     } catch { fail('AUTH_CLEANUP_FAILED'); await record('auth-cleanup','BLOCKED',{code:'AUTH_CLEANUP_FAILED'}); }
     if (ledgerFailed) fail('LEDGER_FAILED');
   }
   const status=!firstFailure && cleanupOk && !ledgerFailed?'PASS':'BLOCKED';
-  await record('result',status,{...(status==='BLOCKED'?{code:firstFailure ?? 'LEDGER_FAILED'}:{})});
+  await record('result',status,{...(status==='BLOCKED'?{code:firstFailure ?? 'LEDGER_FAILED',
+    ...(currentStage==='preflight'?{category:preflightCategory(firstFailure)}:{})}:{})});
   const finalStatus=ledgerFailed?'BLOCKED':status;
-  return { status:finalStatus, code:finalStatus==='BLOCKED'?firstFailure ?? 'LEDGER_FAILED':null, cleanup:cleanupOk?'PASS':'BLOCKED',
+  return { status:finalStatus, code:finalStatus==='BLOCKED'?firstFailure ?? 'LEDGER_FAILED':null,
+    category:finalStatus==='BLOCKED' && currentStage==='preflight'?preflightCategory(firstFailure):null,
+    cleanup:cleanupOk?'PASS':'BLOCKED',
     deploymentId:PIN.deploymentId,sha:PIN.sha,ref:PIN.supabaseRef,runId };
 }
 

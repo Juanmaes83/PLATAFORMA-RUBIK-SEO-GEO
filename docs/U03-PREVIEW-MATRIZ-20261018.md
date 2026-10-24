@@ -1,5 +1,9 @@
 # U03 · matriz alojada de Preview · 18/10/2026
 
+## Corte H1-A · CI E2E y diagnóstico de sonda · 24/10/2026
+
+U03/I-2/I-5 conservan CERRADO y no se repitieron. El HEAD `dbdd3d7` de #145 tuvo verify Node 22/24 y Vercel PASS, E2E FAIL en la confirmación de una cuenta invitada; el rechazo posterior del cleanup fue consecuencia de propiedad no acreditada. La sonda Auth alojada `22761709-ff1e-4af5-8984-e7c76b3e6179` conserva BLOCKED antes de `auth-create`, POST, sesión y XHR. La corrección local separa categorías cerradas de preflight y espera que termine el registro E2E antes de seguir el enlace; sus pruebas no cambian el resultado histórico. H1-A, R1, H1-B/U04, H1 global y H2 siguen abiertos. [Expediente](H1A-CDP-9570-20261023.md).
+
 ## H1-A · sonda Auth 22761709 · preflight bloqueado
 
 U03/I-2/I-5 conservan CERRADO sin repetición. Una única sonda Auth nueva, SHA `074e67356e4519ccf10ca14f97a456289a282cb4`, deployment `dpl_GELaGFHaposXQPTyTXxVTSWhKDui`, pasó preflight externo y atestación HMAC, pero el hijo registró `preflight / PRECHECK_FAILED` como primer bloqueo. Login, sesión y XHR alojados carecen de PASS; H1-A integral es NOT_RUN. El ledger conservado y una lectura independiente posterior acreditan Auth/inventario/outbox y capacidades temporales a cero; las nueve variables, deployment y vault se retiraron y verificaron ausentes. El código no guardó la subcategoría del preflight de ese run; la instrumentación posterior conserva códigos cerrados para una futura decisión, sin atribuir retrospectivamente una causa. H1-A, R1, H1-B/U04, H1 global y H2 siguen abiertos. [Expediente](H1A-CDP-9570-20261023.md).

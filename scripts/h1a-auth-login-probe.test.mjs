@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { cleanupAuthProbe, evaluateAuthenticatedTrace, safeTrace, classifyPreflightFailure } from './h1a-auth-login-probe.mjs';
+import { cleanupAuthProbe, evaluateAuthenticatedTrace, safeTrace, classifyPreflightFailure,
+  preflightCategory, runAuthLoginProbe } from './h1a-auth-login-probe.mjs';
 import { GateError } from './u03-preview-b4-runner.mjs';
 
 test('preflight preserves only closed gate codes',()=>{
@@ -15,6 +19,42 @@ test('preflight preserves only closed gate codes',()=>{
   assert.equal(classifyPreflightFailure(new Error('https://example.invalid/?token=secret')),'PRECHECK_FAILED');
 });
 
+test('real probe ledger preserves each closed preflight barrier and blocks before Auth creation',async()=>{
+  const dir=mkdtempSync(join(tmpdir(),'h1a-probe-preflight-'));
+  const cases=[['OIDC_TOKEN_MISSING','OIDC'],['OIDC_AUTHENTICATION_FAILED','OIDC'],
+    ['VERCEL_DEPLOYMENT_INSPECTION_FAILED','DEPLOYMENT'],['VERCEL_DEPLOYMENT_METADATA_INVALID','DEPLOYMENT'],
+    ['DEPLOYMENT_PIN_MISMATCH','DEPLOYMENT'],['PROTECTION_PREFLIGHT_FAILED','PROTECTION'],
+    ['DEPLOYMENT_PROTECTION_NOT_CONFIRMED','PROTECTION'],['PREVIEW_IDENTITY_INVALID','IDENTITY'],
+    ['FREE_TEXT_NOT_ALLOWED','UNKNOWN']];
+  try {
+    for(let i=0;i<cases.length;i++) {
+      const [injected,expectedCategory]=cases[i];
+      const runId=`11111111-1111-4111-8111-${String(i+1).padStart(12,'0')}`;
+      const ledgerPath=join(dir,`${i}.jsonl`);
+      let created=false, cleaned=false;
+      const result=await runAuthLoginProbe({runId,adminKey:'fictional-only-secret',ledgerPath,
+        adminFactory:()=>({auth:{admin:{createUser:async()=>{created=true;throw Error('must not run');}}}}),
+        preflightImpl:async()=>{throw new GateError(injected);},
+        cleanupImpl:async()=>{cleaned=true;return true;}});
+      const expectedCode=injected==='FREE_TEXT_NOT_ALLOWED'?'PRECHECK_FAILED':injected;
+      const rows=readFileSync(ledgerPath,'utf8').trim().split('\n').map(JSON.parse);
+      assert.deepEqual(rows.map(row=>[row.stage,row.status]),[
+        ['preflight','ATTEMPTED'],['preflight','BLOCKED'],['auth-cleanup','ATTEMPTED'],
+        ['auth-cleanup','PASS'],['result','BLOCKED']]);
+      assert.equal(rows[1].code,expectedCode);
+      assert.equal(rows[1].category,expectedCategory);
+      assert.equal(rows.at(-1).category,expectedCategory);
+      assert.equal(result.code,expectedCode);
+      assert.equal(result.category,expectedCategory);
+      assert.equal(result.status,'BLOCKED');
+      assert.equal(created,false);
+      assert.equal(cleaned,true);
+      assert.doesNotMatch(readFileSync(ledgerPath,'utf8'),/fictional-only-secret|FREE_TEXT_NOT_ALLOWED|https:\/\//);
+      assert.equal(preflightCategory(expectedCode),expectedCategory);
+    }
+  } finally { rmSync(dir,{recursive:true,force:true}); }
+});
+
 test('PowerShell 5.1 nested owner keeps a collection for the single campaign mode', { skip: process.platform !== 'win32' }, () => {
   const owner=fileURLToPath(new URL('./u03-preview-b4-owner.ps1',import.meta.url));
   const command=`Set-StrictMode -Version Latest; & '${owner.replaceAll("'","''")}' -WindowTransportSelfTestOnly`;
@@ -23,6 +63,18 @@ test('PowerShell 5.1 nested owner keeps a collection for the single campaign mod
   const output=`${result.stdout ?? ''}\n${result.stderr ?? ''}`;
   assert.match(output,/WRONG_MODE_BRANCH/);
   assert.doesNotMatch(output,/PropertyNotFoundStrict|No se encuentra la propiedad 'Count'/);
+});
+
+test('PowerShell 5.1 transports fictional UTF-8 to the real child without requiring an optional category',
+  { skip: process.platform !== 'win32' },()=>{
+  const owner=fileURLToPath(new URL('./h1a-auth-login-probe-owner.ps1',import.meta.url));
+  const result=spawnSync('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-File',owner,
+    '-RunId','11111111-1111-4111-8111-111111111111','-DeploymentId','dpl_FictionalOnly',
+    '-DeploymentHost','fictional-only.vercel.app','-DeploymentSha','1111111111111111111111111111111111111111',
+    '-TransportSelfTestOnly'],{encoding:'utf8',timeout:30000});
+  assert.equal(result.status,0);
+  assert.match(result.stdout,/H1A_AUTH_LOGIN_PROBE_TRANSPORT PASS/);
+  assert.doesNotMatch(`${result.stdout}\n${result.stderr}`,/fictional-only-.*[:/?&%]|PropertyNotFoundStrict|CHILD_TRANSPORT_FAILED/);
 });
 
 const request={ordinal:1,stage:'REQUEST',resourceClass:'panel-xhr',destinationClass:'PINNED_ORIGIN',

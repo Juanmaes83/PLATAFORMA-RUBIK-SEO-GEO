@@ -90,8 +90,10 @@ function Invoke-ProbeChild([string]$AdminKey,[bool]$CleanupOnly,[string]$ChildPa
       'DEPLOYMENT_PROTECTION_NOT_CONFIRMED','OIDC_AUTHENTICATION_FAILED','PREVIEW_IDENTITY_INVALID',
       'AUTH_CREATE_FAILED','LOGIN_POST_FAILED','SESSION_NOT_CONFIRMED','XHR_NOT_OBSERVED',
       'XHR_INCOMPLETE','XHR_INTERCEPTION_BLOCKED','XHR_EXTERNAL','XHR_PROTOCOL_INVALID','AUTH_CLEANUP_FAILED','LEDGER_FAILED','PROBE_FAILED','AUTH_CLEANUP_ONLY')
-    $code=if ($result.code -in $allowedCodes) { [string]$result.code } else { 'NONE' }
-    return [pscustomobject]@{Status=[string]$result.status;Code=$code;Cleanup=[string]$result.cleanup;ExitCode=$process.ExitCode}
+    $code=if ($result.code -in $allowedCodes) { [string]$result.code } elseif ($result.status -ceq 'BLOCKED') { 'CHILD_CODE_UNKNOWN' } else { 'NONE' }
+    $rawCategory=if ($result.PSObject.Properties['category']) { [string]$result.category } else { '' }
+    $category=if ($rawCategory -cin @('OIDC','DEPLOYMENT','PROTECTION','IDENTITY','UNKNOWN')) { $rawCategory } else { 'UNKNOWN' }
+    return [pscustomobject]@{Status=[string]$result.status;Code=$code;Category=$category;Cleanup=[string]$result.cleanup;ExitCode=$process.ExitCode}
   } catch { return [pscustomobject]@{Status='BLOCKED';Code='CHILD_TRANSPORT_FAILED';Cleanup='BLOCKED'} }
   finally {
     if ($bytes) { [Array]::Clear($bytes,0,$bytes.Length) }
@@ -144,7 +146,7 @@ try {
   if ($credentials.ProjectRef -cne 'rhnnplewqsekrnaousyl') { Stop-Probe 'PREVIEW_KEY_REF_MISMATCH' }
   $phase='CHILD_PROBE'
   $result=Invoke-ProbeChild -AdminKey ([string]$credentials.AdminKey) -CleanupOnly $false
-  Write-Output "H1A_AUTH_LOGIN_PROBE_RESULT status=$($result.Status) code=$($result.Code) cleanup=$($result.Cleanup) runId=$RunId"
+  Write-Output "H1A_AUTH_LOGIN_PROBE_RESULT status=$($result.Status) code=$($result.Code) category=$($result.Category) cleanup=$($result.Cleanup) runId=$RunId"
 } catch {
   Write-Output "H1A_AUTH_LOGIN_PROBE_WRAPPER BLOCKED phase=$phase code=WRAPPER_PHASE_FAILED runId=$RunId"
   throw 'H1A_AUTH_LOGIN_PROBE_WRAPPER_BLOCKED'
