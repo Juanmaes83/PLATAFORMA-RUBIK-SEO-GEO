@@ -20,6 +20,7 @@ const HOSTILE = "<img src=x onerror=\"document.title='pwned'\"> Recomiendo Bar L
 async function healthy(page: Page, mobile: boolean) {
   await page.waitForLoadState("networkidle");
   await expect(page.locator("h1")).toHaveCount(1);
+  await expect(page).toHaveTitle("Plataforma Rubik SEO/GEO");
   const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
   expect(axe.violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual([]);
   const overflow = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, width: window.innerWidth }));
@@ -32,6 +33,26 @@ async function healthy(page: Page, mobile: boolean) {
     expect(small, "touch targets under 44 px").toEqual([]);
   }
 }
+
+test("GEO accessibility checks the final title after a delayed head update", async ({ page }, info) => {
+  test.skip(info.project.name !== "movil-390", "one browser width exercises title timing");
+  await page.goto("/acceso");
+  // Hold the real page's metadata update until after its visible body is ready.
+  // The helper must wait for the real title; a permanently missing title still fails.
+  await page.evaluate(() => {
+    const observer = new MutationObserver(() => {
+      for (const title of document.head.querySelectorAll("title")) if (title.textContent) title.textContent = "";
+    });
+    observer.observe(document.head, { subtree: true, childList: true, characterData: true });
+    document.title = "";
+    setTimeout(() => { observer.disconnect(); document.title = "Plataforma Rubik SEO/GEO"; }, 2500);
+  });
+  await healthy(page, true);
+  await expect(page).toHaveTitle("Plataforma Rubik SEO/GEO");
+
+  await page.setContent("<!doctype html><html lang=\"es\"><body><h1>Sin título</h1></body></html>");
+  await expect(healthy(page, true)).rejects.toThrow();
+});
 
 async function screenshot(page: Page, project: string, name: string) {
   const dirs = [join("test-results", "visual", project)];

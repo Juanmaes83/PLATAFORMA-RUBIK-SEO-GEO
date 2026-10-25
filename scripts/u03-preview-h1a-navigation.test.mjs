@@ -221,6 +221,8 @@ test('real Chromium continues three pinned XHR subresources after a 303 login', 
     assert.equal(requests.length, 3);
     assert.equal(responses.length, 3);
     assert.equal(terminals.length, 3);
+    assert.ok(requests.every(row => row.rscClass === 'NONE' && row.prefetchClass === 'NO_HINT' && row.domLinkClass === 'UNKNOWN'));
+    assert.ok(requests.every(row => ['NEXT_STATIC_SCRIPT','PINNED_SCRIPT','EXTERNAL_SCRIPT','UNKNOWN'].includes(row.scriptSourceClass)));
     assert.ok(terminals.every(row => row.interceptionOperation === 'NETWORK_FINISHED'));
     assert.ok(terminals.every(row => ['SCRIPT','UNKNOWN'].includes(row.initiatorClass)));
     assert.deepEqual(requests.map(row => row.ordinal).sort((a,b)=>a-b), responses.map(row => row.ordinal).sort((a,b)=>a-b));

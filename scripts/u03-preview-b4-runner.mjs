@@ -109,6 +109,34 @@ export function classifyDiagnosticResource(url, resourceType) {
   return `${route}-${type}`;
 }
 
+// Classify browser evidence in memory. Never return a URL, query, header value,
+// network ID, or call frame to a ledger callback.
+export function classifyXhrRequestEvidence(url, headers = {}, initiator = {}, allowedOrigin = ORIGIN) {
+  let names, headersKnown=true;
+  try { names = Object.keys(headers ?? {}).map(name => name.toLowerCase()); }
+  catch { names = []; headersKnown=false; }
+  let rscClass = 'UNKNOWN';
+  try {
+    const parsed = new URL(url);
+    rscClass = parsed.searchParams.has('_rsc') || names.includes('rsc') ? 'RSC' : headersKnown ? 'NONE' : 'UNKNOWN';
+  } catch { /* malformed input remains UNKNOWN */ }
+  let prefetchClass = headersKnown ? 'NO_HINT' : 'UNKNOWN';
+  try { if (names.includes('next-router-prefetch') || names.includes('purpose') &&
+    String(Object.entries(headers).find(([name]) => name.toLowerCase() === 'purpose')?.[1]).toLowerCase() === 'prefetch')
+      prefetchClass='PREFETCH_HINT'; }
+  catch { prefetchClass='UNKNOWN'; }
+  const frames = initiator?.stack?.callFrames;
+  let scriptSourceClass = 'UNKNOWN';
+  if (Array.isArray(frames) && frames.length) {
+    try {
+      const source = new URL(frames[0].url);
+      scriptSourceClass = source.origin !== allowedOrigin ? 'EXTERNAL_SCRIPT' :
+        source.pathname.startsWith('/_next/static/') ? 'NEXT_STATIC_SCRIPT' : 'PINNED_SCRIPT';
+    } catch { /* unsupported frame URL remains UNKNOWN */ }
+  }
+  return { rscClass, prefetchClass, scriptSourceClass };
+}
+
 // CDP messages stay inside this process. Only these fixed classes cross the ledger boundary.
 export function classifyCdpInterceptionFailure(error) {
   const message = typeof error?.message === 'string' ? error.message : '';
@@ -121,7 +149,7 @@ export function classifyCdpInterceptionFailure(error) {
   return 'CDP_OPERATION_REJECTED';
 }
 
-export async function installScopedRoutes(context, page, token, allowedOrigin = ORIGIN, onEvent = () => {}, onRouteEvent = () => {}, runId = null, onNavigationDiagnostic = () => {}, onRequestTrace = (event) => { void event; }, blockExternalSubresources = false) {
+export async function installScopedRoutes(context, page, token, allowedOrigin = ORIGIN, onEvent = () => {}, onRouteEvent = () => {}, runId = null, onNavigationDiagnostic = () => {}, onRequestTrace = (event) => { void event; }, blockExternalSubresources = false, classifyDomLink = () => 'UNKNOWN') {
   // Playwright routes are called once for a redirect chain. CDP Fetch pauses each
   // Chromium request, including the GET produced by an action's 303 response.
   const session = await context.newCDPSession(page);
@@ -132,6 +160,7 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
   const traceRequests = new Map();
   const traceNetworkResponses = new Map();
   const traceNetworkInitiators = new Map();
+  const traceNetworkEvidence = new Map();
   const traceRedirectStatuses = new Map();
   let nextTraceOrdinal = 0;
   const frameTree = await session.send("Page.getFrameTree");
@@ -172,6 +201,7 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
     const kind=String(event.initiator?.type ?? '').toLowerCase();
     traceNetworkInitiators.set(event.requestId,
       ({parser:'PARSER',script:'SCRIPT',preload:'PRELOAD',other:'OTHER'})[kind] ?? 'UNKNOWN');
+    traceNetworkEvidence.set(event.requestId,classifyXhrRequestEvidence(event.request?.url,event.request?.headers,event.initiator,allowedOrigin));
   });
   session.on('Network.responseReceived', event => {
     const ordinal = traceNetworkIds.get(event.requestId);
@@ -206,6 +236,8 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
           ...(stage === 'request' && redirectFromOrdinal ? { redirectFromOrdinal } : {}),
           resourceClass: classifyDiagnosticResource(paused.request?.url, paused.resourceType),
           initiatorClass:traceNetworkInitiators.get(paused.networkId) ?? 'UNKNOWN',
+          ...(traceNetworkEvidence.get(paused.networkId) ?? classifyXhrRequestEvidence(paused.request?.url,paused.request?.headers,{},allowedOrigin)),
+          domLinkClass:traceRequests.get(ordinal)?.domLinkClass ?? 'UNKNOWN',
           destinationClass, interceptionOperation: operation,
           responseClass: stage === 'request' ? 'UNKNOWN' :
             paused.responseStatusCode >= 300 && paused.responseStatusCode < 400 ? 'REDIRECT' : 'DIRECT',
@@ -229,9 +261,14 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
       operation = 'CLASSIFY_ORIGIN';
       const origin = parsed.origin;
       destinationClass = origin === allowedOrigin ? 'PINNED_ORIGIN' : 'EXTERNAL';
-      if (traceable && stage === 'request') traceRequests.set(traceOrdinals.get(paused.requestId),{
+      if (traceable && stage === 'request') {
+        const linkClass=classifyDomLink(url);
+        traceRequests.set(traceOrdinals.get(paused.requestId),{
         ordinal:traceOrdinals.get(paused.requestId),resourceClass:classifyDiagnosticResource(url,paused.resourceType),
-        destinationClass });
+        destinationClass,
+        ...(traceNetworkEvidence.get(paused.networkId) ?? classifyXhrRequestEvidence(url,paused.request?.headers,{},allowedOrigin)),
+        domLinkClass:['MATCH','NO_MATCH','UNKNOWN'].includes(linkClass) ? linkClass : 'UNKNOWN' });
+      }
       if (paused.responseStatusCode || paused.responseErrorReason) {
         operation = 'CLASSIFY_REDIRECT';
         const location = paused.responseHeaders?.find(header => header.name.toLowerCase() === "location")?.value;

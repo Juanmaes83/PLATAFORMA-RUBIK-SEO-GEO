@@ -29,6 +29,10 @@ export function preflightCategory(code) { return PREFLIGHT_CATEGORIES[code] ?? '
 const TRACE_ENUMS = {
   stage:['REQUEST','RESPONSE','TERMINAL'], destinationClass:['PINNED_ORIGIN','EXTERNAL','UNKNOWN'],
   initiatorClass:['PARSER','SCRIPT','PRELOAD','OTHER','UNKNOWN'],
+  scriptSourceClass:['NEXT_STATIC_SCRIPT','PINNED_SCRIPT','EXTERNAL_SCRIPT','UNKNOWN'],
+  rscClass:['RSC','NONE','UNKNOWN'], prefetchClass:['PREFETCH_HINT','NO_HINT','UNKNOWN'],
+  domLinkClass:['MATCH','NO_MATCH','UNKNOWN'], tracePhase:['ACCESS','LOGIN_POST','SESSION','GATE','UNKNOWN'],
+  deadlineClass:['TERMINAL_OBSERVED','NO_TERMINAL_AT_DEADLINE','UNKNOWN'],
   interceptionOperation:['CONTINUE_REQUEST','CONTINUE_RESPONSE','FAIL_REQUEST','CLASSIFY_URL','CLASSIFY_ORIGIN','CLASSIFY_REDIRECT','CONSTRUCT_HEADERS','NETWORK_LOADING_FAILED','NETWORK_FINISHED','REDIRECT_FOLLOWED'],
   responseClass:['UNKNOWN','DIRECT','REDIRECT'], disposition:['ALLOWED','PINNED_REQUEST_BLOCKED'],
   result:['CONTINUED','BLOCKED'], failureCategory:['REQUEST_NOT_ACTIVE','CDP_SESSION_CLOSED','HEADER_REJECTED','CDP_OPERATION_REJECTED','NETWORK_CANCELLED','NETWORK_FAILED','RESPONSE_NOT_OBSERVED'],
@@ -42,6 +46,8 @@ export function evaluateAuthenticatedTrace(input, securityEvents = []) {
         !['REQUEST','RESPONSE','TERMINAL'].includes(row.stage) || !/^(?:next-static|next-image|access|panel|api|project|root|other|unknown)-(?:xhr|fetch)$/.test(row.resourceClass) ||
         !['PINNED_ORIGIN','EXTERNAL','UNKNOWN'].includes(row.destinationClass) ||
         (row.initiatorClass != null && !['PARSER','SCRIPT','PRELOAD','OTHER','UNKNOWN'].includes(row.initiatorClass)) ||
+        ['scriptSourceClass','rscClass','prefetchClass','domLinkClass','tracePhase','deadlineClass'].some(key =>
+          row[key] != null && !TRACE_ENUMS[key].includes(row[key])) ||
         !TRACE_ENUMS.interceptionOperation.includes(row.interceptionOperation) ||
         !['UNKNOWN','DIRECT','REDIRECT'].includes(row.responseClass) || !['ALLOWED','PINNED_REQUEST_BLOCKED'].includes(row.disposition) ||
         !['CONTINUED','BLOCKED'].includes(row.result) ||
@@ -81,6 +87,8 @@ export function safeTrace(row) {
   if (typeof row?.resourceClass === 'string' && /^(?:next-static|next-image|access|panel|api|project|root|other|unknown)-(?:xhr|fetch)$/.test(row.resourceClass))
     safe.resourceClass=row.resourceClass;
   for (const [key,allowed] of Object.entries(TRACE_ENUMS)) if (allowed.includes(row?.[key])) safe[key]=row[key];
+  for (const key of ['scriptSourceClass','rscClass','prefetchClass','domLinkClass','tracePhase','deadlineClass'])
+    if (!(key in safe)) safe[key]='UNKNOWN';
   if (Number.isInteger(row?.httpStatus) && row.httpStatus >= 100 && row.httpStatus <= 599) safe.httpStatus=row.httpStatus;
   for (const key of ['redirectFromOrdinal','redirectToOrdinal'])
     if (Number.isSafeInteger(row?.[key]) && row[key] >= 1 && row[key] <= 128) safe[key]=row[key];
@@ -166,25 +174,43 @@ export async function runAuthLoginProbe({ runId, adminKey, token = process.env.V
     const page=await context.newPage();
     const diagnostics=createPageDiagnostics(page,{allowedOrigin:origin});
     const trace=[], securityEvents=[], routeEvents=[];
+    let tracePhase='ACCESS', linkSnapshot=null;
+    const linkKey=value=>{
+      try { const parsed=new URL(value); parsed.searchParams.delete('_rsc'); parsed.hash=''; return parsed.href; }
+      catch { return null; }
+    };
+    const captureLinks=async()=>{
+      const values=await page.locator('a[href]').evaluateAll(links=>links.map(link=>link.href));
+      linkSnapshot={ pagePath:new URL(page.url()).pathname,
+        targets:new Set(values.map(linkKey).filter(Boolean)) };
+    };
+    const classifyDomLink=url=>{
+      try { return linkSnapshot?.pagePath===new URL(page.url()).pathname
+        ? linkSnapshot.targets.has(linkKey(url)) ? 'MATCH' : 'NO_MATCH' : 'UNKNOWN'; }
+      catch { return 'UNKNOWN'; }
+    };
     await installScopedRoutes(context,page,token,origin,
       event=>securityEvents.push(event), event=>routeEvents.push(event),runId,
       detail=>{ if (detail.disposition==='PINNED_REQUEST_BLOCKED') securityEvents.push('pinned-origin-request-failed'); },
-      detail=>{ if (trace.length<384) trace.push(safeTrace(detail)); },true);
+      detail=>{ if (trace.length<384) trace.push(safeTrace({...detail,tracePhase})); },true,classifyDomLink);
     currentStage='login-post';
     await record('login-post','ATTEMPTED');
     const access=await page.goto(`${origin}/acceso`,{waitUntil:'domcontentloaded',timeout:30000});
     if (access?.status()!==200) { fail('LOGIN_POST_FAILED'); throw new Error('LOGIN_POST_FAILED'); }
+    await captureLinks();
     await page.locator('#email').fill(email);
     await page.locator('#password').fill(password);
     const post=page.waitForResponse(response=>{
       try { return response.request().method()==='POST' && new URL(response.url()).origin===origin &&
         new URL(response.url()).pathname==='/api/auth/login'; } catch { return false; }
     },{timeout:20000});
+    tracePhase='LOGIN_POST';
     await page.getByRole('button',{name:'Entrar'}).click();
     const response=await post;
     lastHttpStatus=response.status();
     if (lastHttpStatus!==303) { fail('LOGIN_POST_FAILED'); throw new Error('LOGIN_POST_FAILED'); }
     await record('login-post','PASS',{httpStatus:303});
+    tracePhase='SESSION';
     currentStage='session';
     await record('session','ATTEMPTED');
     await page.waitForURL(url=>url.origin===origin && url.pathname==='/panel',{timeout:20000});
@@ -193,12 +219,17 @@ export async function runAuthLoginProbe({ runId, adminKey, token = process.env.V
     const sessionCookie=cookies.some(cookie=>cookie.name.startsWith(`sb-${PIN.supabaseRef}-auth-token`));
     const panel=await page.getByText('Sin proyectos',{exact:true}).count();
     if (!sessionCookie || !panel) { fail('SESSION_NOT_CONFIRMED'); throw new Error('SESSION_NOT_CONFIRMED'); }
+    await captureLinks();
     await record('session','PASS');
     currentStage='xhr-interception';
+    tracePhase='GATE';
     await record('xhr-interception','ATTEMPTED');
     await waitForAuthenticatedTraceClosure(trace);
     const verdict=evaluateAuthenticatedTrace(trace,securityEvents);
-    for (const row of trace) await record('xhr-interception',row.result==='BLOCKED'?'BLOCKED':'PASS',{trace:row});
+    const terminalOrdinals=new Set(trace.filter(row=>row.stage==='TERMINAL').map(row=>row.ordinal));
+    for (const row of trace) await record('xhr-interception',row.result==='BLOCKED'?'BLOCKED':'PASS',{
+      trace:{...row,deadlineClass:row.stage==='REQUEST'
+        ? terminalOrdinals.has(row.ordinal) ? 'TERMINAL_OBSERVED' : 'NO_TERMINAL_AT_DEADLINE' : 'UNKNOWN'} });
     if (!verdict.ok || diagnostics.snapshot().routeEvents['diagnostic-cardinality-exceeded']) {
       fail(verdict.code ?? 'XHR_PROTOCOL_INVALID');
       throw new Error('XHR_BLOCKED');

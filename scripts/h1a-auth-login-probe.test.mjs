@@ -7,7 +7,31 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { cleanupAuthProbe, evaluateAuthenticatedTrace, safeTrace, classifyPreflightFailure,
   preflightCategory, runAuthLoginProbe, waitForAuthenticatedTraceClosure } from './h1a-auth-login-probe.mjs';
-import { GateError } from './u03-preview-b4-runner.mjs';
+import { GateError, classifyXhrRequestEvidence } from './u03-preview-b4-runner.mjs';
+
+test('XHR evidence keeps only closed source, RSC and prefetch classes',()=>{
+  const origin='https://preview.example.test';
+  const evidence=classifyXhrRequestEvidence('https://preview.example.test/acceso?_rsc=private-query',
+    { 'Next-Router-Prefetch':'1', Cookie:'private-cookie' },
+    {stack:{callFrames:[{url:'https://preview.example.test/_next/static/chunks/private.js'}]}},origin);
+  assert.deepEqual(evidence,{rscClass:'RSC',prefetchClass:'PREFETCH_HINT',scriptSourceClass:'NEXT_STATIC_SCRIPT'});
+  const safe=safeTrace({...evidence,ordinal:1,stage:'REQUEST',resourceClass:'access-xhr',
+    destinationClass:'PINNED_ORIGIN',domLinkClass:'MATCH',tracePhase:'LOGIN_POST',
+    url:'https://preview.example.test/acceso?_rsc=private-query',cookie:'private-cookie',
+    callFrame:'https://preview.example.test/_next/static/chunks/private.js'});
+  assert.equal(safe.scriptSourceClass,'NEXT_STATIC_SCRIPT');
+  assert.equal(safe.domLinkClass,'MATCH');
+  assert.equal(safe.tracePhase,'LOGIN_POST');
+  assert.equal(safe.deadlineClass,'UNKNOWN');
+  assert.equal(safeTrace({deadlineClass:'NO_TERMINAL_AT_DEADLINE'}).deadlineClass,'NO_TERMINAL_AT_DEADLINE');
+  assert.ok(!JSON.stringify(safe).includes('private-'));
+  assert.deepEqual(classifyXhrRequestEvidence('bad-url',{}, {},origin),
+    {rscClass:'UNKNOWN',prefetchClass:'NO_HINT',scriptSourceClass:'UNKNOWN'});
+  assert.deepEqual(classifyXhrRequestEvidence('https://preview.example.test/panel',
+    new Proxy({}, {ownKeys(){ throw Error('fictional secret'); }}), {}, origin),
+    {rscClass:'UNKNOWN',prefetchClass:'UNKNOWN',scriptSourceClass:'UNKNOWN'});
+  assert.equal(safeTrace({scriptSourceClass:'free-text'}).scriptSourceClass,'UNKNOWN');
+});
 
 test('preflight preserves only closed gate codes',()=>{
   for (const code of ['OIDC_TOKEN_MISSING','VERCEL_DEPLOYMENT_INSPECTION_FAILED',
