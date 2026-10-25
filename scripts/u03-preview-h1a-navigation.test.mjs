@@ -267,6 +267,63 @@ test('real Chromium records a cancelled pinned XHR as a closed terminal failure'
   }
 });
 
+test('a cancelled auxiliary fetch after HTTP 200 does not undo login evidence and still blocks the XHR gate', async () => {
+  const server=createServer((request,response)=>{
+    if(request.url==='/api/auth/login' && request.method==='POST') {
+      response.writeHead(303,{'set-cookie':'fictional-session=present; Path=/','location':'/panel'}).end(); return;
+    }
+    if(request.url==='/acceso?auxiliary=1') {
+      response.writeHead(200,{'content-type':'text/plain'});
+      response.write('fictional-first-part');
+      return;
+    }
+    if(request.url==='/acceso') {
+      response.writeHead(200,{'content-type':'text/html'}).end('<form method="post" action="/api/auth/login"><button>Entrar</button></form>'); return;
+    }
+    if(request.url==='/panel') {
+      response.writeHead(200,{'content-type':'text/html'}).end('<main>Sin proyectos</main>'); return;
+    }
+    response.writeHead(404).end();
+  });
+  server.listen(0,'127.0.0.1'); await once(server,'listening');
+  const origin=`http://127.0.0.1:${server.address().port}`;
+  let browser;
+  try {
+    browser=await chromium.launch({headless:true});
+    const context=await browser.newContext({serviceWorkers:'block'});
+    const page=await context.newPage();
+    const trace=[];
+    await installScopedRoutes(context,page,null,origin,()=>{},()=>{},null,()=>{},row=>trace.push(row),true);
+    await page.goto(`${origin}/acceso`);
+    const loginResponse=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/auth/login');
+    await page.getByRole('button',{name:'Entrar'}).click();
+    assert.equal((await loginResponse).status(),303);
+    await page.waitForURL(`${origin}/panel`);
+    assert.equal(await page.getByText('Sin proyectos').count(),1);
+    assert.equal((await context.cookies(origin)).some(cookie=>cookie.name==='fictional-session'),true);
+    await page.evaluate(async()=>{
+      const controller=new AbortController();
+      const response=await fetch('/acceso?auxiliary=1',{signal:controller.signal});
+      const reader=response.body.getReader();
+      await reader.read();
+      controller.abort();
+      await reader.read().catch(()=>undefined);
+    });
+    for(let attempt=0;attempt<50 && !trace.some(row=>row.stage==='TERMINAL');attempt++)
+      await new Promise(resolve=>setTimeout(resolve,10));
+    const request=trace.find(row=>row.stage==='REQUEST' && row.resourceClass==='access-xhr');
+    const response=trace.find(row=>row.stage==='RESPONSE' && row.ordinal===request?.ordinal);
+    const terminal=trace.find(row=>row.stage==='TERMINAL' && row.ordinal===request?.ordinal);
+    assert.ok(request);
+    assert.equal(response?.httpStatus,200);
+    assert.equal(terminal?.failureCategory,'NETWORK_CANCELLED');
+    assert.equal(evaluateAuthenticatedTrace(trace).code,'XHR_TERMINAL_UNVERIFIED');
+    assert.doesNotMatch(JSON.stringify(trace),/auxiliary=|fictional-session|first-part/);
+  } finally {
+    await browser?.close(); server.closeAllConnections?.(); server.close(); await once(server,'close');
+  }
+});
+
 test('real Chromium cannot pass an active XHR before its response and network completion', async () => {
   let releaseResponse;
   const server=createServer((request,response)=>{
