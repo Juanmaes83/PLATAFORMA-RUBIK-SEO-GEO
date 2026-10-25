@@ -24,33 +24,33 @@ export function planCleanup(ledger: Ledger, actual: Snapshot) {
   const userIds = new Set(ledger.users.map((u) => u.id));
   const orgIds = new Set(ledger.organizations.map((o) => o.id));
   const projectIds = new Set(ledger.projects.map((p) => p.id));
-  const refuse = () => { throw new Error("Ambiguous E2E ownership; nothing deleted. Preserve ledger for review."); };
-  if (userIds.size !== ledger.users.length || orgIds.size !== ledger.organizations.length || projectIds.size !== ledger.projects.length) refuse();
+  const refuse = (code: string) => { throw new Error(`Ambiguous E2E ownership (${code}); nothing deleted. Preserve ledger for review.`); };
+  if (userIds.size !== ledger.users.length || orgIds.size !== ledger.organizations.length || projectIds.size !== ledger.projects.length) refuse("DUPLICATE_RECEIPT");
   for (const owned of ledger.users) {
     const found = actual.users.find((u) => u.id === owned.id);
-    if (found && (found.email !== owned.email || found.run !== ledger.run)) refuse();
+    if (found && (found.email !== owned.email || found.run !== ledger.run)) refuse("USER_MARKER_MISMATCH");
   }
   for (const email of ledger.pendingEmails) {
-    if (actual.users.some((u) => u.email === email && !userIds.has(u.id))) refuse();
+    if (actual.users.some((u) => u.email === email && !userIds.has(u.id))) refuse("PENDING_UNCLAIMED_USER");
   }
   for (const owned of ledger.organizations) {
     const found = actual.organizations.find((o) => o.id === owned.id);
-    if (!owned.created_by || !userIds.has(owned.created_by)) refuse();
-    if (found && (found.slug !== owned.slug || found.created_by !== owned.created_by)) refuse();
+    if (!owned.created_by || !userIds.has(owned.created_by)) refuse("ORGANIZATION_OWNER_MISMATCH");
+    if (found && (found.slug !== owned.slug || found.created_by !== owned.created_by)) refuse("ORGANIZATION_OWNER_MISMATCH");
   }
   for (const owned of ledger.projects) {
     const found = actual.projects.find((p) => p.id === owned.id);
-    if (!orgIds.has(owned.organization_id)) refuse();
-    if (found && (found.slug !== owned.slug || found.organization_id !== owned.organization_id)) refuse();
+    if (!orgIds.has(owned.organization_id)) refuse("PROJECT_SCOPE_MISMATCH");
+    if (found && (found.slug !== owned.slug || found.organization_id !== owned.organization_id)) refuse("PROJECT_SCOPE_MISMATCH");
   }
   // Check both sides of cascading references. A foreign member or an unregistered child
   // inside our org, or our account attached to a foreign org, blocks the whole teardown.
-  if (actual.organizations.some((o) => o.created_by && userIds.has(o.created_by) && !orgIds.has(o.id))) refuse();
-  if (actual.projects.some((p) => orgIds.has(p.organization_id) && !projectIds.has(p.id))) refuse();
-  if (actual.organizationMembers.some((m) => orgIds.has(m.organization_id) !== userIds.has(m.user_id))) refuse();
+  if (actual.organizations.some((o) => o.created_by && userIds.has(o.created_by) && !orgIds.has(o.id))) refuse("UNREGISTERED_ORGANIZATION");
+  if (actual.projects.some((p) => orgIds.has(p.organization_id) && !projectIds.has(p.id))) refuse("UNREGISTERED_PROJECT");
+  if (actual.organizationMembers.some((m) => orgIds.has(m.organization_id) !== userIds.has(m.user_id))) refuse("FOREIGN_MEMBERSHIP");
   if (actual.projectMembers.some((m) =>
     (orgIds.has(m.organization_id) || projectIds.has(m.project_id) || userIds.has(m.user_id))
-    && !(orgIds.has(m.organization_id) && projectIds.has(m.project_id) && userIds.has(m.user_id)))) refuse();
+    && !(orgIds.has(m.organization_id) && projectIds.has(m.project_id) && userIds.has(m.user_id)))) refuse("FOREIGN_MEMBERSHIP");
   return {
     organizations: ledger.organizations.filter((o) => actual.organizations.some((a) => a.id === o.id)),
     users: ledger.users.filter((u) => actual.users.some((a) => a.id === u.id)),
@@ -149,6 +149,37 @@ export async function reserveBrowserAccount(email: string) {
   if (!email.startsWith(`${fixtureScope().prefix}-`) || !email.endsWith("@ejemplo.test")) throw new Error("Account outside run namespace");
   if ((await fixtureSnapshot()).users.some((u) => u.email === email)) throw new Error("Preexisting account; refusing adoption");
   recordFixture({ kind: "pending", value: email });
+}
+
+export function reconcileRunMarkedUser(ledger: Ledger, actual: Snapshot, email: string): OwnedUser {
+  if (!ledger.pendingEmails.includes(email) || ledger.users.some((user) => user.email === email))
+    throw new Error("Confirmed account lacks an exact run reservation");
+  const matches = actual.users.filter((user) => user.email === email);
+  if (matches.length !== 1 || matches[0].run !== ledger.run)
+    throw new Error("Confirmed account creation unverified; preserve ledger");
+  return { id: matches[0].id, email };
+}
+
+// Recovery tests need a confirmed account, not a second sign-up flow. The admin
+// creation response supplies the UUID receipt and the run marker before any UI action.
+export async function createOwnedConfirmedAccount(email: string, password: string) {
+  const ledger = readLedger();
+  if (!ledger.pendingEmails.includes(email) || ledger.users.some((user) => user.email === email))
+    throw new Error("Confirmed account lacks an exact run reservation");
+  const { admin } = fixtureClients();
+  let created: Awaited<ReturnType<typeof admin.auth.admin.createUser>> | undefined;
+  try {
+    created = await admin.auth.admin.createUser({
+      email, password, email_confirm: true, app_metadata: { rubik_e2e_run: ledger.run },
+    });
+  } catch {
+    // A lost response may still have committed creation. Reconcile only the
+    // exact reserved email plus the server-side run marker before recording it.
+  }
+  const receipt = !created || created.error || !created.data.user || created.data.user.email !== email
+    ? reconcileRunMarkedUser(ledger, await fixtureSnapshot(), email)
+    : { id: created.data.user.id, email };
+  recordFixture({ kind: "user", value: receipt });
 }
 
 export async function claimBrowserAccount(email: string) {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { assertFixtureEndpoint, fixtureScope } from "../e2e/fixture-scope";
-import { planCleanup, type Ledger, type Snapshot } from "../e2e/fixtures";
+import { planCleanup, reconcileRunMarkedUser, type Ledger, type Snapshot } from "../e2e/fixtures";
 
 const run = "a".repeat(32);
 function fixture() {
@@ -83,7 +83,20 @@ describe("E2E ownership preflight (no database or deletion)", () => {
   it("keeps an unproven UI signup instead of discovering ownership by email", () => {
     const { ledger, snapshot } = fixture();
     ledger.pendingEmails.push("other@ejemplo.test");
-    expect(() => planCleanup(ledger, snapshot)).toThrow("Ambiguous");
+    expect(() => planCleanup(ledger, snapshot)).toThrow("PENDING_UNCLAIMED_USER");
+  });
+  it("recovers a lost creation response only from the exact run marker and reservation", () => {
+    const { ledger, snapshot } = fixture();
+    const email = "new@ejemplo.test";
+    ledger.pendingEmails.push(email);
+    snapshot.users.push({ id: "new-id", email, run });
+    expect(reconcileRunMarkedUser(ledger, snapshot, email)).toEqual({ id: "new-id", email });
+    expect(() => reconcileRunMarkedUser(ledger, { ...snapshot, users: snapshot.users.filter((user) => user.id !== "new-id") }, email)).toThrow("unverified");
+    snapshot.users.at(-1)!.run = "b".repeat(32);
+    expect(() => reconcileRunMarkedUser(ledger, snapshot, email)).toThrow("unverified");
+    snapshot.users.at(-1)!.run = run;
+    snapshot.users.push({ id: "duplicate", email, run });
+    expect(() => reconcileRunMarkedUser(ledger, snapshot, email)).toThrow("unverified");
   });
   it("allows an already-clean run to be checked again without adopting leftovers", () => {
     const { ledger } = fixture();
