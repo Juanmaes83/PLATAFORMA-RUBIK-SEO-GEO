@@ -560,3 +560,7 @@ U03, I-2 e I-5 permanecen PASS/CERRADO por evidencia anterior. H1-A continúa BL
 ## Corte H1-A · sonda Auth 5e8fa1aa · 24/10/2026
 
 U03/I-2/I-5 conservan PASS/CERRADO. La sonda Auth `5e8fa1aa-c2a2-4540-9d1e-48230fe25325` acreditó POST 303 y sesión, pero el gate XHR permanece BLOCKED por `XHR_TERMINAL_UNVERIFIED`; otros cuatro ordinales carecen de respuesta y terminal. Auth cleanup, lectura independiente a cero y teardown de nueve variables, deployment y vault pasaron. Vistas, exportación, verificación, restauración, recibos, logout y aceptación visual integral son NOT_RUN para esta sonda. La corrección local exige carga completa acreditada, sin atribuir causa de cancelación al run. [Expediente](H1A-AUTH-XHR-5E8-20261024.md). H1-A, R1, H1-B/U04, H1 global y H2 mantienen sus gates separados.
+
+## Corte H1-A · sonda Auth e610fc60 · 25/10/2026
+
+U03/I-2/I-5 permanecen PASS/CERRADO. La sonda Auth `e610fc60-7aed-4d3d-8982-3926e303e527` pasó POST 303 y sesión; el primer bloqueo fue `xhr-interception`, ordinal 14, `NETWORK_CANCELLED` tras respuesta HTTP 200. El gate `XHR_TERMINAL_UNVERIFIED` siguió bloqueado; 16–19 tampoco tienen terminal acreditado. La lectura independiente nueva y el teardown verificaron inventario, outbox y capacidades temporales a cero, guarda original, escritor NOLOGIN y ausencia del lote, deployment y vault. La reproducción local del aborto explícito no identifica la causa alojada. [Expediente](H1A-AUTH-XHR-E610-20261025.md). H1-A, R1, H1-B/U04, H1 global y H2 siguen abiertos.
