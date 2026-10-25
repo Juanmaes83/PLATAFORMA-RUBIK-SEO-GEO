@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { localSupabaseEnv } from "../scripts/supabase-test-env.mjs";
 import { OTHER_PROJECT, OTHER_TENANT, TEST_PASSPHRASE, PROJECT, TENANT, USERS, signIn, fixtureEmail, reserveBrowserAccount, claimBrowserAccount, recordBrowserProject } from "./support";
 import { fixtureScope } from "./fixture-scope";
+import { createOwnedConfirmedAccount } from "./fixtures";
 
 // Auth and tenant isolation through the browser, against the local Supabase stack. These
 // flows do not depend on the viewport, so they run once (desktop project).
@@ -62,13 +63,12 @@ test("password recovery: same answer for any address, link only leads to /restab
   const { mailpitUrl } = localSupabaseEnv();
   const address = fixtureEmail("recupera");
   await reserveBrowserAccount(address);
-  await page.goto("/registro");
+  await createOwnedConfirmedAccount(address, TEST_PASSPHRASE);
+  await page.goto("/acceso");
   await page.getByLabel("Correo").fill(address);
   await page.getByLabel("Contraseña").fill(TEST_PASSPHRASE);
-  await page.getByRole("button", { name: "Crear cuenta" }).click();
-  await page.goto(await mailLink(mailpitUrl, address, "email"));
+  await page.getByRole("button", { name: "Entrar" }).click();
   await expect(page).toHaveURL(/\/panel$/);
-  await claimBrowserAccount(address);
   await page.getByRole("button", { name: "Salir" }).click();
   await expect(page).toHaveURL(/\/$/);
 
