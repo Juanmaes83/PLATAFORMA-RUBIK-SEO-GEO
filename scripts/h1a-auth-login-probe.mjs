@@ -29,7 +29,7 @@ export function preflightCategory(code) { return PREFLIGHT_CATEGORIES[code] ?? '
 const TRACE_ENUMS = {
   stage:['REQUEST','RESPONSE','TERMINAL'], destinationClass:['PINNED_ORIGIN','EXTERNAL','UNKNOWN'],
   initiatorClass:['PARSER','SCRIPT','PRELOAD','OTHER','UNKNOWN'],
-  interceptionOperation:['CONTINUE_REQUEST','CONTINUE_RESPONSE','FAIL_REQUEST','CLASSIFY_URL','CLASSIFY_ORIGIN','CLASSIFY_REDIRECT','CONSTRUCT_HEADERS','NETWORK_LOADING_FAILED','NETWORK_FINISHED'],
+  interceptionOperation:['CONTINUE_REQUEST','CONTINUE_RESPONSE','FAIL_REQUEST','CLASSIFY_URL','CLASSIFY_ORIGIN','CLASSIFY_REDIRECT','CONSTRUCT_HEADERS','NETWORK_LOADING_FAILED','NETWORK_FINISHED','REDIRECT_FOLLOWED'],
   responseClass:['UNKNOWN','DIRECT','REDIRECT'], disposition:['ALLOWED','PINNED_REQUEST_BLOCKED'],
   result:['CONTINUED','BLOCKED'], failureCategory:['REQUEST_NOT_ACTIVE','CDP_SESSION_CLOSED','HEADER_REJECTED','CDP_OPERATION_REJECTED','NETWORK_CANCELLED','NETWORK_FAILED','RESPONSE_NOT_OBSERVED'],
 };
@@ -42,11 +42,13 @@ export function evaluateAuthenticatedTrace(input, securityEvents = []) {
         !['REQUEST','RESPONSE','TERMINAL'].includes(row.stage) || !/^(?:next-static|next-image|access|panel|api|project|root|other|unknown)-(?:xhr|fetch)$/.test(row.resourceClass) ||
         !['PINNED_ORIGIN','EXTERNAL','UNKNOWN'].includes(row.destinationClass) ||
         (row.initiatorClass != null && !['PARSER','SCRIPT','PRELOAD','OTHER','UNKNOWN'].includes(row.initiatorClass)) ||
-        !['CONTINUE_REQUEST','CONTINUE_RESPONSE','FAIL_REQUEST','CLASSIFY_URL','CLASSIFY_ORIGIN','CLASSIFY_REDIRECT','CONSTRUCT_HEADERS','NETWORK_LOADING_FAILED','NETWORK_FINISHED'].includes(row.interceptionOperation) ||
+        !TRACE_ENUMS.interceptionOperation.includes(row.interceptionOperation) ||
         !['UNKNOWN','DIRECT','REDIRECT'].includes(row.responseClass) || !['ALLOWED','PINNED_REQUEST_BLOCKED'].includes(row.disposition) ||
         !['CONTINUED','BLOCKED'].includes(row.result) ||
         (row.failureCategory != null && !['REQUEST_NOT_ACTIVE','CDP_SESSION_CLOSED','HEADER_REJECTED','CDP_OPERATION_REJECTED','NETWORK_CANCELLED','NETWORK_FAILED','RESPONSE_NOT_OBSERVED'].includes(row.failureCategory)) ||
-        (row.httpStatus != null && (!Number.isInteger(row.httpStatus) || row.httpStatus < 100 || row.httpStatus > 599)))
+        (row.httpStatus != null && (!Number.isInteger(row.httpStatus) || row.httpStatus < 100 || row.httpStatus > 599)) ||
+        (row.redirectFromOrdinal != null && (!Number.isSafeInteger(row.redirectFromOrdinal) || row.redirectFromOrdinal < 1 || row.redirectFromOrdinal > 128)) ||
+        (row.redirectToOrdinal != null && (!Number.isSafeInteger(row.redirectToOrdinal) || row.redirectToOrdinal < 1 || row.redirectToOrdinal > 128)))
       return { ok:false, code:'XHR_PROTOCOL_INVALID' };
     if (row.destinationClass !== 'PINNED_ORIGIN') return { ok:false, code:'XHR_EXTERNAL' };
     if (row.result === 'BLOCKED') return { ok:false, code:row.stage==='TERMINAL'?'XHR_TERMINAL_UNVERIFIED':'XHR_INTERCEPTION_BLOCKED', ordinal:row.ordinal,
@@ -56,6 +58,18 @@ export function evaluateAuthenticatedTrace(input, securityEvents = []) {
     stages.add(row.stage); ordinals.set(row.ordinal, stages);
   }
   if (!ordinals.size) return { ok:false, code:'XHR_NOT_OBSERVED' };
+  for (const row of input) if (row.interceptionOperation === 'REDIRECT_FOLLOWED') {
+    const successor = input.find(candidate => candidate.ordinal === row.redirectToOrdinal && candidate.stage === 'REQUEST');
+    const parentResponse = input.find(candidate => candidate.ordinal === row.ordinal && candidate.stage === 'RESPONSE');
+    if (row.stage !== 'TERMINAL' || row.result !== 'CONTINUED' || row.responseClass !== 'REDIRECT' ||
+        row.httpStatus < 300 || row.httpStatus >= 400 || !successor || successor.redirectFromOrdinal !== row.ordinal ||
+        successor.destinationClass !== 'PINNED_ORIGIN' || parentResponse?.httpStatus !== row.httpStatus)
+      return { ok:false, code:'XHR_PROTOCOL_INVALID' };
+  }
+  for (const row of input) if (row.redirectFromOrdinal != null &&
+      !input.some(parent => parent.ordinal === row.redirectFromOrdinal && parent.stage === 'TERMINAL' &&
+        parent.interceptionOperation === 'REDIRECT_FOLLOWED' && parent.redirectToOrdinal === row.ordinal))
+    return { ok:false, code:'XHR_PROTOCOL_INVALID' };
   if ([...ordinals.values()].some(stages => !stages.has('REQUEST') || !stages.has('RESPONSE') || !stages.has('TERMINAL')))
     return { ok:false, code:'XHR_INCOMPLETE' };
   return { ok:true, count:ordinals.size };
@@ -68,7 +82,25 @@ export function safeTrace(row) {
     safe.resourceClass=row.resourceClass;
   for (const [key,allowed] of Object.entries(TRACE_ENUMS)) if (allowed.includes(row?.[key])) safe[key]=row[key];
   if (Number.isInteger(row?.httpStatus) && row.httpStatus >= 100 && row.httpStatus <= 599) safe.httpStatus=row.httpStatus;
+  for (const key of ['redirectFromOrdinal','redirectToOrdinal'])
+    if (Number.isSafeInteger(row?.[key]) && row[key] >= 1 && row[key] <= 128) safe[key]=row[key];
   return safe;
+}
+
+// networkidle describes Chromium's page-load heuristic, not a CDP trace barrier.
+// Require a quiet interval after every observed request has a terminal event;
+// timeout, missing terminal, or a blocked terminal still fails in the evaluator.
+export async function waitForAuthenticatedTraceClosure(trace, { timeoutMs=3000, quietMs=200 } = {}) {
+  const deadline=Date.now()+timeoutMs;
+  let previousLength=-1, quietSince=Date.now();
+  while (Date.now() < deadline) {
+    if (trace.length !== previousLength) { previousLength=trace.length; quietSince=Date.now(); }
+    const requests=new Set(trace.filter(row=>row.stage==='REQUEST').map(row=>row.ordinal));
+    const terminals=new Set(trace.filter(row=>row.stage==='TERMINAL').map(row=>row.ordinal));
+    if (requests.size && [...requests].every(ordinal=>terminals.has(ordinal)) &&
+        Date.now()-quietSince >= quietMs) return;
+    await new Promise(resolve=>setTimeout(resolve,10));
+  }
 }
 
 export async function cleanupAuthProbe({runId,adminKey,adminFactory=createPreviewAdminClient}) {
@@ -164,6 +196,7 @@ export async function runAuthLoginProbe({ runId, adminKey, token = process.env.V
     await record('session','PASS');
     currentStage='xhr-interception';
     await record('xhr-interception','ATTEMPTED');
+    await waitForAuthenticatedTraceClosure(trace);
     const verdict=evaluateAuthenticatedTrace(trace,securityEvents);
     for (const row of trace) await record('xhr-interception',row.result==='BLOCKED'?'BLOCKED':'PASS',{trace:row});
     if (!verdict.ok || diagnostics.snapshot().routeEvents['diagnostic-cardinality-exceeded']) {

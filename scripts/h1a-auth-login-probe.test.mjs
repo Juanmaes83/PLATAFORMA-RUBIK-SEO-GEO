@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { cleanupAuthProbe, evaluateAuthenticatedTrace, safeTrace, classifyPreflightFailure,
-  preflightCategory, runAuthLoginProbe } from './h1a-auth-login-probe.mjs';
+  preflightCategory, runAuthLoginProbe, waitForAuthenticatedTraceClosure } from './h1a-auth-login-probe.mjs';
 import { GateError } from './u03-preview-b4-runner.mjs';
 
 test('preflight preserves only closed gate codes',()=>{
@@ -113,6 +113,34 @@ test('authenticated XHR needs request, response headers and completed body at th
   assert.equal(evaluateAuthenticatedTrace([request,response]).code,'XHR_INCOMPLETE');
   assert.equal(evaluateAuthenticatedTrace([request,response,response]).code,'XHR_PROTOCOL_INVALID');
   assert.equal(evaluateAuthenticatedTrace([request,response,finished,{...finished,ordinal:2}]).code,'XHR_INCOMPLETE');
+});
+
+test('redirect completion requires a correlated successor and completed final body',()=>{
+  const redirectResponse={...response,responseClass:'REDIRECT',httpStatus:307};
+  const successor={...request,ordinal:2,redirectFromOrdinal:1};
+  const redirectTerminal={...finished,interceptionOperation:'REDIRECT_FOLLOWED',responseClass:'REDIRECT',
+    httpStatus:307,redirectToOrdinal:2};
+  const finalResponse={...response,ordinal:2};
+  const finalTerminal={...finished,ordinal:2};
+  assert.deepEqual(evaluateAuthenticatedTrace([request,redirectResponse,successor,redirectTerminal,finalResponse,finalTerminal]),
+    {ok:true,count:2});
+  assert.equal(evaluateAuthenticatedTrace([request,redirectResponse,redirectTerminal]).code,'XHR_PROTOCOL_INVALID');
+  assert.equal(evaluateAuthenticatedTrace([request,redirectResponse,successor,redirectTerminal,finalResponse]).code,'XHR_INCOMPLETE');
+  assert.equal(evaluateAuthenticatedTrace([request,redirectResponse,{...successor,redirectFromOrdinal:3},redirectTerminal,finalResponse,finalTerminal]).code,'XHR_PROTOCOL_INVALID');
+  assert.equal(evaluateAuthenticatedTrace([request,redirectResponse,{...successor,destinationClass:'EXTERNAL'},redirectTerminal,finalResponse,finalTerminal]).code,'XHR_EXTERNAL');
+  assert.equal(evaluateAuthenticatedTrace([request,redirectResponse,successor,redirectTerminal,finalResponse,
+    {...finalTerminal,interceptionOperation:'NETWORK_LOADING_FAILED',result:'BLOCKED',failureCategory:'NETWORK_CANCELLED'}]).code,
+    'XHR_TERMINAL_UNVERIFIED');
+  assert.doesNotMatch(JSON.stringify(safeTrace({...redirectTerminal,url:'https://secret.invalid/?token=secret'})),/secret|https:/);
+});
+
+test('bounded closure waits for a terminal but cannot invent one',async()=>{
+  const trace=[request,response];
+  await waitForAuthenticatedTraceClosure(trace,{timeoutMs:30,quietMs:10});
+  assert.equal(evaluateAuthenticatedTrace(trace).code,'XHR_INCOMPLETE');
+  setTimeout(()=>trace.push(finished),20);
+  await waitForAuthenticatedTraceClosure(trace,{timeoutMs:200,quietMs:10});
+  assert.deepEqual(evaluateAuthenticatedTrace(trace),{ok:true,count:1});
 });
 
 test('terminal outcomes are explicit and never turn a missing response into PASS',()=>{

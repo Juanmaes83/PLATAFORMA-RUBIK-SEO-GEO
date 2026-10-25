@@ -132,6 +132,7 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
   const traceRequests = new Map();
   const traceNetworkResponses = new Map();
   const traceNetworkInitiators = new Map();
+  const traceRedirectStatuses = new Map();
   let nextTraceOrdinal = 0;
   const frameTree = await session.send("Page.getFrameTree");
   const mainFrameId = frameTree?.frameTree?.frame?.id ?? null;
@@ -194,11 +195,15 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
     const stage = paused.responseStatusCode || paused.responseErrorReason ? 'response' : 'request';
     const traceable = paused.resourceType === 'XHR' || paused.resourceType === 'Fetch';
     if (traceable && !traceOrdinals.has(paused.requestId)) traceOrdinals.set(paused.requestId, ++nextTraceOrdinal);
+    const ordinal = traceable ? traceOrdinals.get(paused.requestId) : null;
+    const priorOrdinal = traceable && stage === 'request' && paused.networkId ? traceNetworkIds.get(paused.networkId) : null;
+    const redirectFromOrdinal = priorOrdinal && priorOrdinal !== ordinal ? priorOrdinal : null;
     if (traceable && paused.networkId) traceNetworkIds.set(paused.networkId,traceOrdinals.get(paused.requestId));
     const trace = (result, failureCategory = null) => {
       if (!traceable) return;
       try {
         onRequestTrace({ ordinal: traceOrdinals.get(paused.requestId), stage: stage.toUpperCase(),
+          ...(stage === 'request' && redirectFromOrdinal ? { redirectFromOrdinal } : {}),
           resourceClass: classifyDiagnosticResource(paused.request?.url, paused.resourceType),
           initiatorClass:traceNetworkInitiators.get(paused.networkId) ?? 'UNKNOWN',
           destinationClass, interceptionOperation: operation,
@@ -207,7 +212,11 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
           disposition: result === 'BLOCKED' ? 'PINNED_REQUEST_BLOCKED' : 'ALLOWED',
           result, failureCategory,
           httpStatus: Number.isInteger(paused.responseStatusCode) ? paused.responseStatusCode : null });
-        if (stage === 'response' && result === 'CONTINUED') traceResponses.add(traceOrdinals.get(paused.requestId));
+        if (stage === 'response' && result === 'CONTINUED') {
+          traceResponses.add(traceOrdinals.get(paused.requestId));
+          if (paused.responseStatusCode >= 300 && paused.responseStatusCode < 400)
+            traceRedirectStatuses.set(traceOrdinals.get(paused.requestId),paused.responseStatusCode);
+        }
       } catch { onRouteEvent('diagnostic-cardinality-exceeded'); onEvent('pinned-origin-request-failed'); }
     };
     let operation = 'CLASSIFY_URL';
@@ -267,6 +276,15 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
         headers: Object.entries(headers).map(([name, value]) => ({ name, value: String(value) })),
       });
       trace('CONTINUED');
+      if (redirectFromOrdinal && traceRedirectStatuses.has(redirectFromOrdinal) && origin === allowedOrigin) {
+        const parent = traceRequests.get(redirectFromOrdinal);
+        if (parent) {
+          try { onRequestTrace({ ...parent, stage:'TERMINAL', interceptionOperation:'REDIRECT_FOLLOWED',
+            redirectToOrdinal:ordinal, responseClass:'REDIRECT', httpStatus:traceRedirectStatuses.get(redirectFromOrdinal),
+            result:'CONTINUED', disposition:'ALLOWED' }); }
+          catch { onRouteEvent('diagnostic-cardinality-exceeded'); onEvent('pinned-origin-request-failed'); }
+        }
+      }
     })().catch(async (error) => {
       trace('BLOCKED', classifyCdpInterceptionFailure(error));
       const resource = classifyDiagnosticResource(paused.request?.url, paused.resourceType);

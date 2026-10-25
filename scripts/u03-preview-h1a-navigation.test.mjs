@@ -5,7 +5,7 @@ import { EventEmitter } from 'node:events';
 import test from 'node:test';
 import { chromium } from 'playwright';
 import { installScopedRoutes, classifyBlockedExternalRequest, classifyDiagnosticResource, classifyCdpInterceptionFailure, createPageDiagnostics, summarizeDiagnosticInterval } from './u03-preview-b4-runner.mjs';
-import { evaluateAuthenticatedTrace } from './h1a-auth-login-probe.mjs';
+import { evaluateAuthenticatedTrace, waitForAuthenticatedTraceClosure } from './h1a-auth-login-probe.mjs';
 
 async function injectPausedRequest({ url, headers = {}, rejectHeaderOverride = false, rejectContinue = false,
   rejectResponse = false, rejectFail = false, resourceType = 'XHR', responseStatusCode = null, traceFailure = false,
@@ -349,12 +349,40 @@ test('real Chromium cannot pass an active XHR before its response and network co
     assert.ok(trace.some(row=>row.stage==='REQUEST'));
     assert.equal(evaluateAuthenticatedTrace(trace).code,'XHR_INCOMPLETE');
     assert.equal(typeof releaseResponse,'function');
+    const closure=waitForAuthenticatedTraceClosure(trace,{timeoutMs:1500,quietMs:50});
     releaseResponse();
     await page.waitForFunction(()=>window.syntheticXhr.readyState===4);
-    for(let attempt=0;attempt<30 && !trace.some(row=>row.stage==='TERMINAL');attempt++)
-      await new Promise(resolve=>setTimeout(resolve,10));
+    await closure;
     assert.deepEqual(evaluateAuthenticatedTrace(trace),{ok:true,count:1});
     assert.doesNotMatch(JSON.stringify(trace),/\/stream|fictional/);
+  } finally {
+    await browser?.close(); server.closeAllConnections?.(); server.close(); await once(server,'close');
+  }
+});
+
+test('real Chromium correlates a same-origin XHR redirect to a completed body', async () => {
+  const server=createServer((request,response)=>{
+    if(request.url==='/start') return response.writeHead(307,{location:'/done'}).end();
+    if(request.url==='/done') return response.writeHead(200,{'content-type':'text/plain'}).end('fictional');
+    response.writeHead(200,{'content-type':'text/html'}).end('<main>fictional</main>');
+  });
+  server.listen(0,'127.0.0.1'); await once(server,'listening');
+  const origin=`http://127.0.0.1:${server.address().port}`;
+  let browser;
+  try {
+    browser=await chromium.launch({headless:true});
+    const context=await browser.newContext({serviceWorkers:'block'});
+    const page=await context.newPage();
+    const trace=[];
+    await installScopedRoutes(context,page,null,origin,()=>{},()=>{},null,()=>{},row=>trace.push(row),true);
+    await page.goto(origin);
+    await page.evaluate(async()=>{ window.redirectResult=await fetch('/start').then(response=>response.text()); });
+    assert.equal(await page.evaluate(()=>window.redirectResult),'fictional');
+    await page.waitForTimeout(100);
+    assert.deepEqual(evaluateAuthenticatedTrace(trace),{ok:true,count:2});
+    assert.deepEqual(trace.filter(row=>row.interceptionOperation==='REDIRECT_FOLLOWED').map(row=>
+      [row.ordinal,row.redirectToOrdinal,row.httpStatus]),[[1,2,307]]);
+    assert.doesNotMatch(JSON.stringify(trace),/\/start|\/done|fictional/);
   } finally {
     await browser?.close(); server.closeAllConnections?.(); server.close(); await once(server,'close');
   }
