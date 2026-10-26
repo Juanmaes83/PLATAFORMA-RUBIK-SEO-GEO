@@ -33,20 +33,22 @@ const TRACE_ENUMS = {
   rscClass:['RSC','NONE','UNKNOWN'], prefetchClass:['PREFETCH_HINT','NO_HINT','UNKNOWN'],
   domLinkClass:['MATCH','NO_MATCH','UNKNOWN'], tracePhase:['ACCESS','LOGIN_POST','SESSION','GATE','UNKNOWN'],
   deadlineClass:['TERMINAL_OBSERVED','NO_TERMINAL_AT_DEADLINE','UNKNOWN'],
+  inactiveContextClass:['NETWORK_CANCELLED_BEFORE_CONTINUE','NETWORK_FAILED_BEFORE_CONTINUE',
+    'NETWORK_FINISHED_BEFORE_CONTINUE','FRAME_NAVIGATED_BEFORE_CONTINUE','DUPLICATE_PAUSE','UNOBSERVED'],
   interceptionOperation:['CONTINUE_REQUEST','CONTINUE_RESPONSE','FAIL_REQUEST','CLASSIFY_URL','CLASSIFY_ORIGIN','CLASSIFY_REDIRECT','CONSTRUCT_HEADERS','NETWORK_LOADING_FAILED','NETWORK_FINISHED','REDIRECT_FOLLOWED'],
   responseClass:['UNKNOWN','DIRECT','REDIRECT'], disposition:['ALLOWED','PINNED_REQUEST_BLOCKED'],
   result:['CONTINUED','BLOCKED'], failureCategory:['REQUEST_NOT_ACTIVE','CDP_SESSION_CLOSED','HEADER_REJECTED','CDP_OPERATION_REJECTED','NETWORK_CANCELLED','NETWORK_FAILED','RESPONSE_NOT_OBSERVED'],
 };
 
 export function evaluateAuthenticatedTrace(input, securityEvents = []) {
-  if (!Array.isArray(input) || input.length > 384 || securityEvents.length) return { ok:false, code:'XHR_PROTOCOL_INVALID' };
+  if (!Array.isArray(input) || input.length > 384) return { ok:false, code:'XHR_PROTOCOL_INVALID' };
   const ordinals = new Map();
   for (const row of input) {
     if (!Number.isSafeInteger(row.ordinal) || row.ordinal < 1 || row.ordinal > 128 ||
         !['REQUEST','RESPONSE','TERMINAL'].includes(row.stage) || !/^(?:next-static|next-image|access|panel|api|project|root|other|unknown)-(?:xhr|fetch)$/.test(row.resourceClass) ||
         !['PINNED_ORIGIN','EXTERNAL','UNKNOWN'].includes(row.destinationClass) ||
         (row.initiatorClass != null && !['PARSER','SCRIPT','PRELOAD','OTHER','UNKNOWN'].includes(row.initiatorClass)) ||
-        ['scriptSourceClass','rscClass','prefetchClass','domLinkClass','tracePhase','deadlineClass'].some(key =>
+        ['scriptSourceClass','rscClass','prefetchClass','domLinkClass','tracePhase','deadlineClass','inactiveContextClass'].some(key =>
           row[key] != null && !TRACE_ENUMS[key].includes(row[key])) ||
         !TRACE_ENUMS.interceptionOperation.includes(row.interceptionOperation) ||
         !['UNKNOWN','DIRECT','REDIRECT'].includes(row.responseClass) || !['ALLOWED','PINNED_REQUEST_BLOCKED'].includes(row.disposition) ||
@@ -63,6 +65,9 @@ export function evaluateAuthenticatedTrace(input, securityEvents = []) {
     if (stages.has(row.stage)) return { ok:false, code:'XHR_PROTOCOL_INVALID' };
     stages.add(row.stage); ordinals.set(row.ordinal, stages);
   }
+  // A rejected CDP operation is the first actionable failure. The aggregate
+  // security event emitted by the same catch must not mask its closed category.
+  if (securityEvents.length) return { ok:false, code:'XHR_PROTOCOL_INVALID' };
   if (!ordinals.size) return { ok:false, code:'XHR_NOT_OBSERVED' };
   for (const row of input) if (row.interceptionOperation === 'REDIRECT_FOLLOWED') {
     const successor = input.find(candidate => candidate.ordinal === row.redirectToOrdinal && candidate.stage === 'REQUEST');
@@ -140,7 +145,7 @@ export async function runAuthLoginProbe({ runId, adminKey, token = process.env.V
   const origin = `https://${PIN.host}`;
   const email = `h1a-login-${runId.replaceAll('-','')}@example.test`;
   const password = randomBytes(32).toString('base64url');
-  let admin, browser, ledgerFailed = false, firstFailure = null, cleanupOk = false;
+  let admin, browser, ledgerFailed = false, firstFailure = null, firstFailureTrace = null, cleanupOk = false;
   let currentStage='preflight', lastHttpStatus=null;
   const record = async (stage,status,detail = {}) => {
     if (!STAGES.has(stage) || !['ATTEMPTED','PASS','BLOCKED'].includes(status)) throw new Error('LEDGER_FIELD_REJECTED');
@@ -231,6 +236,7 @@ export async function runAuthLoginProbe({ runId, adminKey, token = process.env.V
       trace:{...row,deadlineClass:row.stage==='REQUEST'
         ? terminalOrdinals.has(row.ordinal) ? 'TERMINAL_OBSERVED' : 'NO_TERMINAL_AT_DEADLINE' : 'UNKNOWN'} });
     if (!verdict.ok || diagnostics.snapshot().routeEvents['diagnostic-cardinality-exceeded']) {
+      if (verdict.ordinal) firstFailureTrace=trace.find(row=>row.ordinal===verdict.ordinal && row.result==='BLOCKED') ?? null;
       fail(verdict.code ?? 'XHR_PROTOCOL_INVALID');
       throw new Error('XHR_BLOCKED');
     }
@@ -239,7 +245,7 @@ export async function runAuthLoginProbe({ runId, adminKey, token = process.env.V
     await context.close();
   } catch (error) {
     fail(currentStage==='preflight'?classifyPreflightFailure(error):'PROBE_FAILED');
-    if (!ledgerFailed) await record(currentStage,'BLOCKED',{code:firstFailure,
+    if (!ledgerFailed) await record(currentStage,'BLOCKED',{code:firstFailure,trace:firstFailureTrace,
       ...(currentStage==='preflight'?{category:preflightCategory(firstFailure)}:{}),httpStatus:lastHttpStatus});
   } finally {
     await browser?.close().catch(()=>undefined);
@@ -253,7 +259,7 @@ export async function runAuthLoginProbe({ runId, adminKey, token = process.env.V
     if (ledgerFailed) fail('LEDGER_FAILED');
   }
   const status=!firstFailure && cleanupOk && !ledgerFailed?'PASS':'BLOCKED';
-  await record('result',status,{...(status==='BLOCKED'?{code:firstFailure ?? 'LEDGER_FAILED',
+  await record('result',status,{...(status==='BLOCKED'?{code:firstFailure ?? 'LEDGER_FAILED',trace:firstFailureTrace,
     ...(currentStage==='preflight'?{category:preflightCategory(firstFailure)}:{})}:{})});
   const finalStatus=ledgerFailed?'BLOCKED':status;
   return { status:finalStatus, code:finalStatus==='BLOCKED'?firstFailure ?? 'LEDGER_FAILED':null,

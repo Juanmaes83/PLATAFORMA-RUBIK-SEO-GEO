@@ -24,6 +24,9 @@ test('XHR evidence keeps only closed source, RSC and prefetch classes',()=>{
   assert.equal(safe.tracePhase,'LOGIN_POST');
   assert.equal(safe.deadlineClass,'UNKNOWN');
   assert.equal(safeTrace({deadlineClass:'NO_TERMINAL_AT_DEADLINE'}).deadlineClass,'NO_TERMINAL_AT_DEADLINE');
+  assert.equal(safeTrace({inactiveContextClass:'FRAME_NAVIGATED_BEFORE_CONTINUE'}).inactiveContextClass,
+    'FRAME_NAVIGATED_BEFORE_CONTINUE');
+  assert.equal(safeTrace({inactiveContextClass:'secret CDP text'}).inactiveContextClass,undefined);
   assert.ok(!JSON.stringify(safe).includes('private-'));
   assert.deepEqual(classifyXhrRequestEvidence('bad-url',{}, {},origin),
     {rscClass:'UNKNOWN',prefetchClass:'NO_HINT',scriptSourceClass:'UNKNOWN'});
@@ -190,6 +193,12 @@ test('terminal outcomes are explicit and never turn a missing response into PASS
 test('blocked interception and external destinations cannot pass',()=>{
   assert.deepEqual(evaluateAuthenticatedTrace([{...request,result:'BLOCKED',failureCategory:'REQUEST_NOT_ACTIVE'}]),
     {ok:false,code:'XHR_INTERCEPTION_BLOCKED',ordinal:1,failureCategory:'REQUEST_NOT_ACTIVE'});
+  assert.deepEqual(evaluateAuthenticatedTrace([{...request,result:'BLOCKED',disposition:'PINNED_REQUEST_BLOCKED',
+    failureCategory:'REQUEST_NOT_ACTIVE'}],['pinned-origin-request-failed']),
+    {ok:false,code:'XHR_INTERCEPTION_BLOCKED',ordinal:1,failureCategory:'REQUEST_NOT_ACTIVE'});
+  assert.equal(evaluateAuthenticatedTrace([{...request,result:'BLOCKED',failureCategory:'REQUEST_NOT_ACTIVE'},
+    {...request,ordinal:2,result:'BLOCKED',failureCategory:'REQUEST_NOT_ACTIVE'}],
+    ['pinned-origin-request-failed']).ordinal,1);
   assert.equal(evaluateAuthenticatedTrace([{...request,destinationClass:'EXTERNAL'},response]).code,'XHR_EXTERNAL');
   assert.equal(evaluateAuthenticatedTrace([request,response],['external-navigation-blocked']).code,'XHR_PROTOCOL_INVALID');
 });

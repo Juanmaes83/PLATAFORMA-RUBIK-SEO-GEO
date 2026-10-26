@@ -161,10 +161,17 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
   const traceNetworkResponses = new Map();
   const traceNetworkInitiators = new Map();
   const traceNetworkEvidence = new Map();
+  const traceNetworkTerminals = new Map();
+  const frameNavigationEpochs = new Map();
+  const pauseCounts = new Map();
   const traceRedirectStatuses = new Map();
   let nextTraceOrdinal = 0;
   const frameTree = await session.send("Page.getFrameTree");
   const mainFrameId = frameTree?.frameTree?.frame?.id ?? null;
+  session.on('Page.frameNavigated', event => {
+    const id=event.frame?.id;
+    if (id) frameNavigationEpochs.set(id,(frameNavigationEpochs.get(id) ?? 0)+1);
+  });
   const blocked = (event, paused, redirect, status = null) => {
     // If CDP cannot identify the root frame, classify documents as main-frame
     // navigation and fail closed instead of silently treating them as assets.
@@ -189,6 +196,7 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
   // A request may finish or fail without a Fetch Response pause. Record a bounded,
   // closed terminal outcome; never infer a successful response from a missing pause.
   session.on('Network.loadingFailed', event => {
+    traceNetworkTerminals.set(event.requestId,event.canceled === true ? 'CANCELLED' : 'FAILED');
     const ordinal = traceNetworkIds.get(event.requestId);
     const request = traceRequests.get(ordinal);
     if (!request) return;
@@ -210,6 +218,7 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
       traceNetworkResponses.set(ordinal,status);
   });
   session.on('Network.loadingFinished', event => {
+    traceNetworkTerminals.set(event.requestId,'FINISHED');
     const ordinal = traceNetworkIds.get(event.requestId);
     const request = traceRequests.get(ordinal);
     if (!request) return;
@@ -223,13 +232,24 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
   });
   session.on("Fetch.requestPaused", (paused) => {
     const stage = paused.responseStatusCode || paused.responseErrorReason ? 'response' : 'request';
+    const pauseKey=`${paused.requestId}|${stage}`;
+    const pauseCount=(pauseCounts.get(pauseKey) ?? 0)+1;
+    pauseCounts.set(pauseKey,pauseCount);
+    const navigationEpoch=frameNavigationEpochs.get(paused.frameId) ?? 0;
     const traceable = paused.resourceType === 'XHR' || paused.resourceType === 'Fetch';
     if (traceable && !traceOrdinals.has(paused.requestId)) traceOrdinals.set(paused.requestId, ++nextTraceOrdinal);
     const ordinal = traceable ? traceOrdinals.get(paused.requestId) : null;
     const priorOrdinal = traceable && stage === 'request' && paused.networkId ? traceNetworkIds.get(paused.networkId) : null;
     const redirectFromOrdinal = priorOrdinal && priorOrdinal !== ordinal ? priorOrdinal : null;
     if (traceable && paused.networkId) traceNetworkIds.set(paused.networkId,traceOrdinals.get(paused.requestId));
-    const trace = (result, failureCategory = null) => {
+    const inactiveContext = () => {
+      const terminal=traceNetworkTerminals.get(paused.networkId);
+      if (terminal) return `NETWORK_${terminal}_BEFORE_CONTINUE`;
+      if ((frameNavigationEpochs.get(paused.frameId) ?? 0)>navigationEpoch) return 'FRAME_NAVIGATED_BEFORE_CONTINUE';
+      if (pauseCount>1) return 'DUPLICATE_PAUSE';
+      return 'UNOBSERVED';
+    };
+    const trace = (result, failureCategory = null, contextClass = null) => {
       if (!traceable) return;
       try {
         onRequestTrace({ ordinal: traceOrdinals.get(paused.requestId), stage: stage.toUpperCase(),
@@ -243,6 +263,7 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
             paused.responseStatusCode >= 300 && paused.responseStatusCode < 400 ? 'REDIRECT' : 'DIRECT',
           disposition: result === 'BLOCKED' ? 'PINNED_REQUEST_BLOCKED' : 'ALLOWED',
           result, failureCategory,
+          ...(contextClass ? { inactiveContextClass:contextClass } : {}),
           httpStatus: Number.isInteger(paused.responseStatusCode) ? paused.responseStatusCode : null });
         if (stage === 'response' && result === 'CONTINUED') {
           traceResponses.add(traceOrdinals.get(paused.requestId));
@@ -323,13 +344,16 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
         }
       }
     })().catch(async (error) => {
-      trace('BLOCKED', classifyCdpInterceptionFailure(error));
+      const category=classifyCdpInterceptionFailure(error);
+      const contextClass=category==='REQUEST_NOT_ACTIVE' ? inactiveContext() : null;
+      trace('BLOCKED', category, contextClass);
       const resource = classifyDiagnosticResource(paused.request?.url, paused.resourceType);
       onRouteEvent(`cdp-failure-${stage}-${resource}`);
       const diagnostic = { event: "pinned-origin-request-failed", disposition: "PINNED_REQUEST_BLOCKED",
         requestClass, destinationClass, responseClass: stage === 'response'
           ? (paused.responseStatusCode >= 300 && paused.responseStatusCode < 400 ? 'REDIRECT' : 'DIRECT') : 'UNKNOWN',
-        interceptionOperation: operation, failureCategory: classifyCdpInterceptionFailure(error),
+        interceptionOperation: operation, failureCategory: category,
+        ...(contextClass ? { inactiveContextClass:contextClass } : {}),
         resourceClass: resource, httpStatus: Number.isInteger(paused.responseStatusCode) ? paused.responseStatusCode : null };
       onNavigationDiagnostic(diagnostic);
       onEvent("pinned-origin-request-failed", diagnostic);
@@ -347,6 +371,7 @@ export async function installScopedRoutes(context, page, token, allowedOrigin = 
         (url.pathname === "/acceso" || url.pathname === "/api/auth/login")) onRouteEvent(`auth-action-http-${response.status()}`);
     } catch { /* retain only the classified event */ }
   });
+  await session.send('Page.enable');
   await session.send('Network.enable');
   await session.send("Fetch.enable", { patterns: [{ urlPattern: "*", requestStage: "Request" }, { urlPattern: "*", requestStage: "Response" }] });
   return session;

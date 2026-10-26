@@ -236,6 +236,134 @@ test('real Chromium continues three pinned XHR subresources after a 303 login', 
   }
 });
 
+test('real Chromium rejects continueRequest after the same paused request was invalidated', async () => {
+  const server=createServer((request,response)=>{
+    if(request.url==='/race') return response.writeHead(200).end('fictional');
+    response.writeHead(200,{'content-type':'text/html'}).end('<main>fictional</main>');
+  });
+  server.listen(0,'127.0.0.1'); await once(server,'listening');
+  const origin=`http://127.0.0.1:${server.address().port}`;
+  let browser;
+  try {
+    browser=await chromium.launch({headless:true});
+    const context=await browser.newContext({serviceWorkers:'block'});
+    const page=await context.newPage();
+    const trace=[],diagnostics=[];
+    const session=await installScopedRoutes(context,page,null,origin,()=>{},()=>{},null,
+      row=>diagnostics.push(row),row=>trace.push(row),true);
+    await page.goto(origin);
+    const send=session.send.bind(session);
+    let invalidated=false;
+    session.send=async(method,params)=>{
+      if(method==='Fetch.continueRequest' && !invalidated) {
+        invalidated=true;
+        await send('Fetch.failRequest',{requestId:params.requestId,errorReason:'Aborted'});
+      }
+      return send(method,params);
+    };
+    await page.evaluate(()=>fetch('/race').catch(()=>undefined));
+    for(let i=0;i<50 && !trace.some(row=>row.result==='BLOCKED');i++)
+      await new Promise(resolve=>setTimeout(resolve,10));
+    const blocked=trace.find(row=>row.stage==='REQUEST' && row.result==='BLOCKED');
+    assert.equal(invalidated,true);
+    assert.equal(blocked?.interceptionOperation,'CONTINUE_REQUEST');
+    assert.equal(blocked?.failureCategory,'REQUEST_NOT_ACTIVE');
+    assert.ok(['NETWORK_CANCELLED_BEFORE_CONTINUE','UNOBSERVED'].includes(blocked?.inactiveContextClass));
+    assert.deepEqual(evaluateAuthenticatedTrace(trace,['pinned-origin-request-failed']),
+      {ok:false,code:'XHR_INTERCEPTION_BLOCKED',ordinal:blocked.ordinal,failureCategory:'REQUEST_NOT_ACTIVE'});
+    assert.doesNotMatch(JSON.stringify([trace,diagnostics]),/\/race|fictional|Invalid InterceptionId/);
+  } finally {
+    await browser?.close(); server.closeAllConnections?.(); server.close(); await once(server,'close');
+  }
+});
+
+test('real Chromium keeps a navigation race blocked when a paused XHR loses its request', async () => {
+  const server=createServer((request,response)=>{
+    if(request.url==='/slow') return;
+    response.writeHead(200,{'content-type':'text/html'}).end('<main>fictional</main>');
+  });
+  server.listen(0,'127.0.0.1'); await once(server,'listening');
+  const origin=`http://127.0.0.1:${server.address().port}`;
+  let browser;
+  try {
+    browser=await chromium.launch({headless:true});
+    const context=await browser.newContext({serviceWorkers:'block'});
+    const page=await context.newPage();
+    const trace=[];
+    const session=await installScopedRoutes(context,page,null,origin,()=>{},()=>{},null,()=>{},row=>trace.push(row),true);
+    await page.goto(origin);
+    const send=session.send.bind(session);
+    let heldResolve,release;
+    const held=new Promise(resolve=>{heldResolve=resolve;});
+    const gate=new Promise(resolve=>{release=resolve;});
+    session.send=async(method,params)=>{
+      if(method==='Fetch.continueRequest' && !heldResolve.used) {
+        heldResolve.used=true; heldResolve(); await gate;
+      }
+      return send(method,params);
+    };
+    await page.evaluate(()=>{window.pending=fetch('/slow').catch(()=>undefined);});
+    await held;
+    await page.goto(`${origin}/next`);
+    release();
+    for(let i=0;i<50 && !trace.some(row=>row.result==='BLOCKED');i++)
+      await new Promise(resolve=>setTimeout(resolve,10));
+    const blocked=trace.find(row=>row.stage==='REQUEST' && row.result==='BLOCKED');
+    assert.equal(blocked?.interceptionOperation,'CONTINUE_REQUEST');
+    assert.equal(blocked?.failureCategory,'REQUEST_NOT_ACTIVE');
+    assert.equal(blocked?.inactiveContextClass,'FRAME_NAVIGATED_BEFORE_CONTINUE');
+    assert.equal(evaluateAuthenticatedTrace(trace).code,'XHR_INTERCEPTION_BLOCKED');
+    assert.doesNotMatch(JSON.stringify(trace),/\/slow|fictional/);
+  } finally {
+    await browser?.close(); server.closeAllConnections?.(); server.close(); await once(server,'close');
+  }
+});
+
+test('real Chromium keeps an aborted paused XHR blocked at continueRequest', async () => {
+  const server=createServer((request,response)=>{
+    if(request.url==='/slow') return;
+    response.writeHead(200,{'content-type':'text/html'}).end('<main>fictional</main>');
+  });
+  server.listen(0,'127.0.0.1'); await once(server,'listening');
+  const origin=`http://127.0.0.1:${server.address().port}`;
+  let browser;
+  try {
+    browser=await chromium.launch({headless:true});
+    const context=await browser.newContext({serviceWorkers:'block'});
+    const page=await context.newPage();
+    const trace=[];
+    const session=await installScopedRoutes(context,page,null,origin,()=>{},()=>{},null,()=>{},row=>trace.push(row),true);
+    await page.goto(origin);
+    const send=session.send.bind(session);
+    let heldResolve,release;
+    const held=new Promise(resolve=>{heldResolve=resolve;});
+    const gate=new Promise(resolve=>{release=resolve;});
+    session.send=async(method,params)=>{
+      if(method==='Fetch.continueRequest' && !heldResolve.used) {
+        heldResolve.used=true; heldResolve(); await gate;
+      }
+      return send(method,params);
+    };
+    await page.evaluate(()=>{
+      window.controller=new AbortController();
+      window.pending=fetch('/slow',{signal:window.controller.signal}).catch(()=>undefined);
+    });
+    await held;
+    await page.evaluate(()=>window.controller.abort());
+    release();
+    for(let i=0;i<50 && !trace.some(row=>row.result==='BLOCKED');i++)
+      await new Promise(resolve=>setTimeout(resolve,10));
+    const blocked=trace.find(row=>row.stage==='REQUEST' && row.result==='BLOCKED');
+    assert.equal(blocked?.interceptionOperation,'CONTINUE_REQUEST');
+    assert.equal(blocked?.failureCategory,'REQUEST_NOT_ACTIVE');
+    assert.ok(['NETWORK_CANCELLED_BEFORE_CONTINUE','UNOBSERVED'].includes(blocked?.inactiveContextClass));
+    assert.ok(['XHR_INTERCEPTION_BLOCKED','XHR_TERMINAL_UNVERIFIED'].includes(evaluateAuthenticatedTrace(trace).code));
+    assert.doesNotMatch(JSON.stringify(trace),/\/slow|fictional/);
+  } finally {
+    await browser?.close(); server.closeAllConnections?.(); server.close(); await once(server,'close');
+  }
+});
+
 test('real Chromium records a cancelled pinned XHR as a closed terminal failure', async () => {
   const server=createServer((request,response)=>{
     if(request.url==='/slow') { setTimeout(()=>{ if(!response.destroyed) response.writeHead(200).end('fictional'); },1200); return; }
