@@ -190,6 +190,33 @@ test('terminal outcomes are explicit and never turn a missing response into PASS
     failureCategory:'network failed https://secret.invalid/?token=secret'})),/secret|https:/);
 });
 
+test('HTTP 200 then cancellation remains blocked beside completed neighboring ordinals',()=>{
+  const own=(ordinal,stage,operation,httpStatus)=>({
+    ...request,ordinal,stage,resourceClass:'other-xhr',initiatorClass:'SCRIPT',
+    scriptSourceClass:'NEXT_STATIC_SCRIPT',rscClass:'RSC',prefetchClass:'PREFETCH_HINT',
+    domLinkClass:'UNKNOWN',tracePhase:'SESSION',interceptionOperation:operation,
+    responseClass:stage==='REQUEST'?'UNKNOWN':'DIRECT',
+    ...(httpStatus?{httpStatus}:{}),
+  });
+  const completed=ordinal=>[
+    own(ordinal,'REQUEST','CONTINUE_REQUEST'),
+    own(ordinal,'RESPONSE','CONTINUE_RESPONSE',200),
+    own(ordinal,'TERMINAL','NETWORK_FINISHED',200),
+  ];
+  const cancelled={...own(23,'TERMINAL','NETWORK_LOADING_FAILED'),
+    responseClass:'UNKNOWN',result:'BLOCKED',disposition:'PINNED_REQUEST_BLOCKED',
+    failureCategory:'NETWORK_CANCELLED'};
+  const trace=[...completed(22),own(23,'REQUEST','CONTINUE_REQUEST'),
+    own(23,'RESPONSE','CONTINUE_RESPONSE',200),...completed(24),cancelled];
+  assert.deepEqual(evaluateAuthenticatedTrace(trace),
+    {ok:false,code:'XHR_TERMINAL_UNVERIFIED',ordinal:23,failureCategory:'NETWORK_CANCELLED'});
+  assert.equal(evaluateAuthenticatedTrace(trace.filter(row=>row!==cancelled)).code,'XHR_INCOMPLETE');
+  const serialized=JSON.stringify(trace.map(row=>safeTrace({...row,
+    url:'https://private.invalid/?token=secret',networkId:'private-id',
+    headers:{Cookie:'secret'},cdpMessage:'private error'})));
+  assert.doesNotMatch(serialized,/private|token|headers|networkId|cdpMessage|secret/);
+});
+
 test('blocked interception and external destinations cannot pass',()=>{
   assert.deepEqual(evaluateAuthenticatedTrace([{...request,result:'BLOCKED',failureCategory:'REQUEST_NOT_ACTIVE'}]),
     {ok:false,code:'XHR_INTERCEPTION_BLOCKED',ordinal:1,failureCategory:'REQUEST_NOT_ACTIVE'});

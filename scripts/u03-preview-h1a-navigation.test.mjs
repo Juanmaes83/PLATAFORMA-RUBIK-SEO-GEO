@@ -402,10 +402,19 @@ test('a cancelled auxiliary fetch after HTTP 200 does not undo login evidence an
     if(request.url==='/api/auth/login' && request.method==='POST') {
       response.writeHead(303,{'set-cookie':'fictional-session=present; Path=/','location':'/panel'}).end(); return;
     }
-    if(request.url==='/acceso?auxiliary=1') {
+    if(request.url==='/auxiliary?_rsc=fictional') {
       response.writeHead(200,{'content-type':'text/plain'});
       response.write('fictional-first-part');
       return;
+    }
+    if(request.url==='/_next/static/chunks/fictional.js') {
+      response.writeHead(200,{'content-type':'application/javascript'}).end(`window.auxiliaryDone=(async()=>{
+        const controller=new AbortController();
+        const response=await fetch('/auxiliary?_rsc=fictional',{
+          signal:controller.signal,headers:{'Next-Router-Prefetch':'1'}});
+        const reader=response.body.getReader();
+        await reader.read(); controller.abort(); await reader.read().catch(()=>undefined);
+      })();`); return;
     }
     if(request.url==='/acceso') {
       response.writeHead(200,{'content-type':'text/html'}).end('<form method="post" action="/api/auth/login"><button>Entrar</button></form>'); return;
@@ -423,7 +432,7 @@ test('a cancelled auxiliary fetch after HTTP 200 does not undo login evidence an
     const context=await browser.newContext({serviceWorkers:'block'});
     const page=await context.newPage();
     const trace=[];
-    await installScopedRoutes(context,page,null,origin,()=>{},()=>{},null,()=>{},row=>trace.push(row),true);
+    await installScopedRoutes(context,page,null,origin,()=>{},()=>{},null,()=>{},row=>trace.push({...row,tracePhase:'SESSION'}),true);
     await page.goto(`${origin}/acceso`);
     const loginResponse=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/auth/login');
     await page.getByRole('button',{name:'Entrar'}).click();
@@ -431,24 +440,68 @@ test('a cancelled auxiliary fetch after HTTP 200 does not undo login evidence an
     await page.waitForURL(`${origin}/panel`);
     assert.equal(await page.getByText('Sin proyectos').count(),1);
     assert.equal((await context.cookies(origin)).some(cookie=>cookie.name==='fictional-session'),true);
-    await page.evaluate(async()=>{
-      const controller=new AbortController();
-      const response=await fetch('/acceso?auxiliary=1',{signal:controller.signal});
-      const reader=response.body.getReader();
-      await reader.read();
-      controller.abort();
-      await reader.read().catch(()=>undefined);
-    });
+    await page.addScriptTag({url:`${origin}/_next/static/chunks/fictional.js`});
+    await page.evaluate(()=>window.auxiliaryDone);
     for(let attempt=0;attempt<50 && !trace.some(row=>row.stage==='TERMINAL');attempt++)
       await new Promise(resolve=>setTimeout(resolve,10));
-    const request=trace.find(row=>row.stage==='REQUEST' && row.resourceClass==='access-xhr');
+    const request=trace.find(row=>row.stage==='REQUEST' && row.resourceClass==='other-xhr');
     const response=trace.find(row=>row.stage==='RESPONSE' && row.ordinal===request?.ordinal);
     const terminal=trace.find(row=>row.stage==='TERMINAL' && row.ordinal===request?.ordinal);
     assert.ok(request);
+    assert.equal(request.tracePhase,'SESSION');
+    assert.equal(request.initiatorClass,'SCRIPT');
+    assert.equal(request.rscClass,'RSC');
+    assert.equal(request.prefetchClass,'PREFETCH_HINT');
+    assert.equal(request.scriptSourceClass,'NEXT_STATIC_SCRIPT');
     assert.equal(response?.httpStatus,200);
     assert.equal(terminal?.failureCategory,'NETWORK_CANCELLED');
     assert.equal(evaluateAuthenticatedTrace(trace).code,'XHR_TERMINAL_UNVERIFIED');
     assert.doesNotMatch(JSON.stringify(trace),/auxiliary=|fictional-session|first-part/);
+  } finally {
+    await browser?.close(); server.closeAllConnections?.(); server.close(); await once(server,'close');
+  }
+});
+
+test('real Chromium navigation after HTTP 200 does not certify an unfinished RSC XHR', async () => {
+  const server=createServer((request,response)=>{
+    if(request.url==='/auxiliary?_rsc=fictional') {
+      response.writeHead(200,{'content-type':'text/plain'});
+      response.write('fictional-first-part'); return;
+    }
+    response.writeHead(200,{'content-type':'text/html'}).end('<main>fictional</main>');
+  });
+  server.listen(0,'127.0.0.1'); await once(server,'listening');
+  const origin=`http://127.0.0.1:${server.address().port}`;
+  let browser;
+  try {
+    browser=await chromium.launch({headless:true});
+    const context=await browser.newContext({serviceWorkers:'block'});
+    const page=await context.newPage();
+    const trace=[];
+    await installScopedRoutes(context,page,null,origin,()=>{},()=>{},null,()=>{},
+      row=>trace.push({...row,tracePhase:'SESSION'}),true);
+    await page.goto(`${origin}/panel`);
+    const headers=page.waitForResponse(response=>{
+      try { return new URL(response.url()).pathname==='/auxiliary'; } catch { return false; }
+    });
+    await page.evaluate(()=>{ window.pending=fetch('/auxiliary?_rsc=fictional',{
+      headers:{'Next-Router-Prefetch':'1'}}).catch(()=>undefined); });
+    assert.equal((await headers).status(),200);
+    await page.goto(`${origin}/next`);
+    for(let attempt=0;attempt<50 && !trace.some(row=>row.stage==='TERMINAL');attempt++)
+      await new Promise(resolve=>setTimeout(resolve,10));
+    const request=trace.find(row=>row.stage==='REQUEST' && row.resourceClass==='other-xhr');
+    const response=trace.find(row=>row.stage==='RESPONSE' && row.ordinal===request?.ordinal);
+    const terminal=trace.find(row=>row.stage==='TERMINAL' && row.ordinal===request?.ordinal);
+    assert.equal(request?.tracePhase,'SESSION');
+    assert.equal(request?.rscClass,'RSC');
+    assert.equal(request?.prefetchClass,'PREFETCH_HINT');
+    assert.equal(response?.httpStatus,200);
+    assert.ok(!terminal || terminal.failureCategory==='NETWORK_CANCELLED');
+    const verdict=evaluateAuthenticatedTrace(trace);
+    assert.deepEqual(verdict,{ok:false,code:'XHR_INTERCEPTION_BLOCKED',
+      ordinal:request.ordinal,failureCategory:'REQUEST_NOT_ACTIVE'});
+    assert.doesNotMatch(JSON.stringify(trace),/\/auxiliary|fictional-first-part|Next-Router-Prefetch/);
   } finally {
     await browser?.close(); server.closeAllConnections?.(); server.close(); await once(server,'close');
   }
