@@ -11,7 +11,7 @@ process.env.RUBIK_E2E_PASSPHRASE ??= randomBytes(24).toString('hex');
 
 export default defineConfig({
   testDir: 'e2e',
-  testMatch: 'h1a-prod-xhr-audit.spec.ts',
+  testMatch: 'h1a-prod-xhr-audit.audit.ts',
   outputDir: 'test-results/playwright-h1a-prod-audit',
   globalSetup: './e2e/global-setup.ts',
   fullyParallel: false,
