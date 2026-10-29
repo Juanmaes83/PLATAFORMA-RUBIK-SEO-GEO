@@ -1,6 +1,6 @@
 # GEO Citation Lab — referencia de investigación y plan de aprovechamiento para Rubik SEO/GEO
 
-**Decisión registrada:** 29/10/2026. **Estado:** APROBADO COMO REFERENCIA Y BACKLOG; NO IMPLEMENTADO NI ACTIVADO.
+**Decisión registrada:** 29/10/2026. **Seguimiento permanente:** [Issue #150 — backlog GEO Citation Lab](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/issues/150). **Estado:** APROBADO COMO REFERENCIA Y BACKLOG; NO IMPLEMENTADO NI ACTIVADO.
 **Repositorio de destino de este documento:** Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO.
 **Fuente revisada:** [fork de Juanma](https://github.com/Juanmaes83/geo-citation-lab), [upstream yaojingang](https://github.com/yaojingang/geo-citation-lab), main del fork @ 59e5188198d5fe627f6d160234f7ea1e94ee224a (último commit visible 28/10/2026).
 **Prioridad:** después de H1 + H2 (piloto Sarah y MVP comercial multicliente). **No es un gate de H1-A, R1 ni H2.**
