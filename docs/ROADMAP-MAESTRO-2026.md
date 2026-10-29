@@ -1,5 +1,10 @@
 # ROADMAP MAESTRO · Rubik SEO/GEO
 
+## Registro de investigación futura · GEO Citation Lab · 29/10/2026
+
+Queda registrada la [evaluación de GEO Citation Lab](N2-GEO-CITATION-LAB-REFERENCIA-20261029.md) (fork `Juanmaes83/geo-citation-lab`, fuente metodológica externa). Su posible aprovechamiento en N2-09/12/13/14 y N2-10 —citabilidad, selección/absorción estimada, contratos de observación e informes explicables— **es backlog de investigación posterior a H1 + H2**, no implementación, nueva dependencia, despliegue, activación de proveedor ni requisito adicional para H1-A/U04. Se debe evaluar junto con el backlog de geo-audit-skill de la [PR #144](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/144), aún separada en este corte, antes de evitar duplicaciones. Las decisiones H1/H2 y sus gates anteriores no cambian por este registro. El último estado técnico de H1-A se consulta en la PR #145 y expedientes de su rama, no se infiere de este documento.
+
+
 ## Integración U03 · 22/10/2026
 
 La [PR #143](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/143) se fusionó en `main@5cf2ad62605a1ed823771d28f32ca120797e57e7` desde el HEAD revisado `73fb8814a596e8a97bbfe2d747b331494c502334`. Su CI de PR `39737737422` terminó SUCCESS en Node 22/24, pgTAP, integración y Playwright (184 PASS). I-2/I-5/U03 conservan el cierre alojado del run `330c6e4b-14ad-439a-a8cf-43d92c73fadb`, con limpieza independiente; el merge acredita integración del código, no un nuevo ensayo alojado. El deployment de Production `dpl_6HyfzQ9iM3Buy6DEqLAKfEpTyFNL` para el corte documental `5eec425ae3f3c31ce4c71a536c19c5d44aaa261f` quedó READY; `/api/salud` respondió 200 con `supabaseProjectRef=yvdgmklgwlshizzgefpv`. Esto es un smoke de salud, no aceptación funcional H1/H2. H1-A sigue NOT_RUN, U04/Sarah, H1 y H2 abiertos; R1 se decide antes de Sarah. Los cortes inferiores sobre #143 Draft, U03 BLOCKED o Actions sin jobs son históricos.

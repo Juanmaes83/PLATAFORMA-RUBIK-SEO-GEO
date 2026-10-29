@@ -1,5 +1,10 @@
 # Control canónico del proyecto Rubik SEO/GEO
 
+## Decisión de cartera / fuente externa · 29/10/2026 · GEO Citation Lab
+
+**REGISTRADO COMO BACKLOG, NO IMPLEMENTADO:** expediente canónico [N2-GEO-CITATION-LAB-REFERENCIA-20261029.md](N2-GEO-CITATION-LAB-REFERENCIA-20261029.md). Fuente: fork `Juanmaes83/geo-citation-lab` del repositorio `yaojingang/geo-citation-lab`; investigación de selección de citas, estimación de absorción, QA y contratos de fuentes/páginas. Evaluación prevista tras H1/H2 para N2-09/12/13/14/10, comparándola con geo-audit-skill del backlog PR #144 y capacidades Core/OpenSEO existentes. **No hay código, datos externos, nueva API, migración, despliegue ni gasto autorizado por esta decisión.** H1-A, R1, U04, H1 y H2 conservan sus propios gates. Este corte solo registra la decisión de investigación; verificar estados operativos actuales en GitHub/expedientes recientes.
+
+
 ## Estado integrado · 22/10/2026 · PR #143
 
 La [PR #143](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/143) está **MERGED** en `main@5cf2ad62605a1ed823771d28f32ca120797e57e7` (HEAD revisado `73fb8814a596e8a97bbfe2d747b331494c502334`). CI de PR `39737737422`: SUCCESS en Node 22/24, pgTAP, integración y Playwright 184 PASS. I-2/I-5/U03 están **PASS/CERRADO como gate alojado** por el run `330c6e4b-14ad-439a-a8cf-43d92c73fadb` y su contención final independiente; no repetir esa campaña. Comprobación separada tras el merge: Vercel Production `dpl_6HyfzQ9iM3Buy6DEqLAKfEpTyFNL` está READY para el corte documental `5eec425ae3f3c31ce4c71a536c19c5d44aaa261f`; `/api/salud` devolvió HTTP 200 y el ref de Production `yvdgmklgwlshizzgefpv`. Este smoke de salud no acredita el recorrido integral H1 ni la aceptación H2. H1-A fue NOT_RUN; U04/Sarah, H1 y H2 siguen abiertos. R1 requiere decisión antes de Sarah. Las menciones inferiores a #143 Draft, U03 BLOCKED o CI bloqueada son cortes históricos.
