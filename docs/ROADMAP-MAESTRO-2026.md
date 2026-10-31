@@ -1,5 +1,11 @@
 # ROADMAP MAESTRO · Rubik SEO/GEO
 
+## PRIORIDAD ESTRATÉGICA · 31/10/2026 · MVP funcional basado en riesgo
+
+**Decisión aprobada:** dejar de convertir la investigación histórica de XHR/RSC en el camino crítico comercial sin defecto de producto demostrado. Documento rector: [DECISION-MVP-RIESGO-Y-PLAN-CIERRE-20261031](DECISION-MVP-RIESGO-Y-PLAN-CIERRE-20261031.md). **No confundir cambio de prioridad con cierre:** U03 PASS alojado e integrado; #145 CI SUCCESS en SHA 72bfbcd (27/10), pero H1-A original BLOCKED/incompleta; R1 sin decisión; U04, H1 y H2 abiertos. El gate técnico histórico conserva BLOCKED y no se relaja CDP/origen/seguridad. Se prepara evaluación independiente MVP_FUNCTIONAL_ACCEPTANCE (pendiente ratificación de protocolo y evidencias), preservando P0/P1 y la pasada real con export/restore. Los capítulos históricos posteriores conservan el alcance original, pero sus estados 16–22/10 no prevalecen sobre este corte. SEO OS/Agency Operations (#152) y GEO Citation Lab (#149) siguen ampliaciones aditivas, no bloquean el primer MVP.
+
+> Los cortes siguientes son expedientes históricos de la rama H1-A; la decisión del 31/10 prevalece para prioridades y aceptación.
+
 ## Pasada H1-A · preparación local · 22/10/2026
 
 La base actual comprobada para esta rama es `main@3a735510b6b92adcabbdbf462dc06140265a379d`; el U03 alojado PASS del run `330c6e4b-14ad-439a-a8cf-43d92c73fadb` se reutiliza sin repetirlo. El ensayo local integrado HTTP/exportación/verificación/manipulación/restauración doble pasó en `d6bc8e22-a761-4d68-823a-d7827b2acc6f` con dos stacks N1 desechables y retirados; ledger saneado en `docs/evidence/H1A-LOCAL-HTTP-RESTORE-20261022.jsonl`. Esto valida lógica local, no Session pooler ni Preview. H1-A alojado sigue `NOT_RUN`; U04/Sarah (H1-B), R1, H1 completo y H2 siguen abiertos. No se abrió una ventana alojada ni se creó un recurso Supabase adicional.

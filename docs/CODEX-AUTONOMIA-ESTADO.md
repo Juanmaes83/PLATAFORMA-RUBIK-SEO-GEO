@@ -1,5 +1,11 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
+## Prioridad estratégica superior a checkpoints previos · 31/10/2026
+
+Leer primero [DECISION-MVP-RIESGO-Y-PLAN-CIERRE-20261031](DECISION-MVP-RIESGO-Y-PLAN-CIERRE-20261031.md). Este archivo contiene checkpoints históricos desde 15–22/10: sirven como evidencia de sus runs, no como orden actual para seguir investigando XHR por defecto. **U03 PASS, #143 MERGED; #145 72bfbcd, CI SUCCESS 27/10, H1-A original BLOCKED; R1 pendiente, U04/H1/H2 abiertos.** Directriz aprobada: priorizar recorrido funcional crítico, P0/P1, export/restore, R1 y Sarah; mantener resultados de la forénsica XHR sin reetiquetarlos. No convertir un script de pruebas ni un checkpoint antiguo en fuente de nuevos requisitos de producto. Reconciliar siempre GitHub y entorno antes de ejecutar; protocolo MVP funcional todavía necesita ratificación expresa.
+
+> Los cortes siguientes son expedientes históricos de la rama H1-A; la decisión del 31/10 prevalece para prioridades y aceptación.
+
 ## #145 · E2E local y ventana H1-A retirada · 23/10/2026
 
 En el CI de `7c50cd0`, verify Node 22/24 pasó y e2e falló. Causa concreta del login: origen Playwright `localhost` rechazado por la guarda HTTP local que exige `127.0.0.1`. Corrección en el arnés, regresión de la ruta 7 PASS, Playwright dirigido con login 1 PASS, H1-A local HTTP/restauración 2 PASS y `npm run verify` 648 PASS/1 SKIP. El teardown del Playwright dirigido encontró un stack compartido histórico sin `private.audit_outbox`; sus dos runs se reconciliaron por IDs y una lectura independiente dio cero recursos propios. No se atribuye ese stack a Preview ni se declara CI del nuevo SHA verde antes de ejecutarse. La ventana preparada `eb6f4b69…` tuvo solo preflight/atestación PASS, ninguna instalación o fixture; sus nueve variables, deployment y vault se retiraron. Preview sigue con inventario/outbox y capacidades temporales cero, escritor general NOLOGIN. H1-A alojado sigue BLOCKED; H1-B/U04, R1, H1 global y H2 abiertos. [Detalle](H1A-CI-LOGIN-20261023.md).

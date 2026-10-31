@@ -1,5 +1,10 @@
 # Estado de los tres niveles y plan de cierre · Rubik SEO/GEO
 
+## Actualización de prioridad · 31/10/2026
+
+El «punto de entrada vigente» de este corte 18/10 se mantiene **histórico** para sus hechos y alcance. Para el estado y criterio de salida aplicables tras el 31/10, empezar por [DECISION-MVP-RIESGO-Y-PLAN-CIERRE-20261031](DECISION-MVP-RIESGO-Y-PLAN-CIERRE-20261031.md), reconciliar GitHub y después consultar Roadmap/Control. La prioridad del propietario es MVP seguro con evidencia funcional; XHR forense anterior permanece BLOCKED, sin convertirse retrospectivamente en PASS. H1-A/H1/H2 no se dan por cerrados; R1 y U04 siguen pendientes y cualquier nuevo criterio de aceptación requiere aprobación formal.
+
+
 Corte: 18/10/2026, 23:20 CEST. Repositorio: [Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO). Este documento es el punto de entrada vigente; las tablas y cortes fechados del [Roadmap Maestro](ROADMAP-MAESTRO-2026.md) conservan historia y alcance original, pero no sustituyen los estados de este corte.
 
 ## Meta y criterio de terminado

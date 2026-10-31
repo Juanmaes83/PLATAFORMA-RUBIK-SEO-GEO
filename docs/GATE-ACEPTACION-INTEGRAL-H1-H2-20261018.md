@@ -1,5 +1,11 @@
 # Gate de aceptación integral · H1 y H2
 
+## Addendum estratégico de aceptación mínima · 31/10/2026 · SIN CIERRE RETROACTIVO
+
+La [decisión de MVP por riesgo 31/10](DECISION-MVP-RIESGO-Y-PLAN-CIERRE-20261031.md) aprueba **cambiar prioridades** y preparar una evaluación funcional independiente de la forénsica XHR histórica. **Este protocolo de 18/10 y sus resultados anteriores permanecen sin alterar**; sigue siendo obligatorio para el cierre original mientras Juanma no ratifique formalmente una alternativa exacta. El resultado histórico del gate de XHR sigue BLOCKED; H1-A/H1/H2 siguen abiertos. El addendum propone `MVP_FUNCTIONAL_ACCEPTANCE`: login/sesión, permisos A1/A2/B1, fuente/medición/informe con datos firmados, exportación HTTP/restore/idempotencia, no-egreso, limpieza, escritorio/móvil y decisiones R1/U04/H2. Cualquier fallo P0/P1 del producto o una petición necesaria incompleta bloquea. Una precarga histórica no demostrada inocua se conserva como deuda forense, pero no debe causar una nueva investigación interminable si se acredita por separado un recorrido seguro y se acepta el riesgo residual. El protocolo nuevo requiere ratificación expresa y resultados propios, no cambio automático a PASS. **El resto de este fichero es el protocolo histórico original.**
+
+> Los cortes siguientes son expedientes históricos de la rama H1-A; la decisión del 31/10 prevalece para prioridades y aceptación.
+
 ## Corte vigente H1-A tras 9570e8d0 · 23/10/2026
 
 El run alojado `9570e8d0-0c45-432a-b300-2c51d0c3ef58` conserva **BLOCKED** en `H1A_AUTH_LOGIN`: tres subrecursos del origen fijado fallaron en `Fetch.continueRequest`; otros tres registros corresponden al intento posterior de bloqueo. El ledger no conserva la clase del rechazo CDP y el snapshot `after-login` no demuestra login completo. Una lectura independiente **nueva** confirmó inventario/outbox/capacidades temporales a cero, guarda restaurada y escritor general NOLOGIN; las variables, deployment y vault ya no están. [Expediente y hashes](H1A-CDP-9570-20261023.md). La instrumentación añadida conserva categorías cerradas para un fallo futuro, pero no constituye una corrección funcional ni PASS alojado. U03 permanece cerrado; H1-A, R1, H1-B/U04, H1 global y H2 siguen abiertos.
