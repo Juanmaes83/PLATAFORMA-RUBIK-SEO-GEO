@@ -41,6 +41,7 @@ function h1aTestEnv() {
   return {...env,RUBIK_TEST_H1A_RESTORE_STACK:'1',U03_RESTORE_DESTINATION_RUN_ID:runId,
     SUPABASE_CLI:`npx --yes supabase@2.118.0 --workdir ${sourceWorkdir}`};
 }
+let pendingEvidence;
 try {
   const headSha=safeRun('git',['rev-parse','HEAD']).trim(),digest=scenarioDigest();
   const localEnv={U03_RESTORE_DESTINATION_RUN_ID:runId};
@@ -62,9 +63,7 @@ try {
   if(cases.some(row=>row.status!=='PASS'))throw new Error('FUNCTIONAL_CASE_NOT_PASSED');
   const evidencePath=resolve(ROOT,`test-results/mvp-functional-local-${runId}.json`);
   if(safeRun('git',['rev-parse','HEAD']).trim()!==headSha||scenarioDigest()!==digest)throw new Error('FUNCTIONAL_SOURCE_CHANGED_DURING_RUN');
-  writeFileSync(evidencePath,JSON.stringify({headSha,scenarioDigest:digest,testsPassed:true,cases},null,2),{flag:'wx'});
-  process.stdout.write(`MVP_FUNCTIONAL_EVIDENCE ${evidencePath}\n`);
-  process.stdout.write('MVP_FUNCTIONAL_LOCAL_RESULT PASS loopback_http=real restore_destination=separate_local_stack migrations=27\n');
+  pendingEvidence={evidencePath,document:{headSha,scenarioDigest:digest,testsPassed:true,cases}};
 } finally {
   let cleanupFailed=false;
   for(const [script,marker,project] of [
@@ -77,5 +76,9 @@ try {
       else process.stdout.write(result.stdout);
     }
   }
-  if(cleanupFailed) { process.stderr.write('LOCAL_HTTP_RESTORE_CLEANUP BLOCKED; preserve owned stacks for reconciliation\n'); process.exitCode=2; }
+  if(cleanupFailed) throw new Error('LOCAL_HTTP_RESTORE_CLEANUP_BLOCKED_PRESERVE_OWNED_STACKS');
 }
+if(!pendingEvidence)throw new Error('FUNCTIONAL_EVIDENCE_MISSING');
+writeFileSync(pendingEvidence.evidencePath,JSON.stringify(pendingEvidence.document,null,2),{flag:'wx'});
+process.stdout.write(`MVP_FUNCTIONAL_EVIDENCE ${pendingEvidence.evidencePath}\n`);
+process.stdout.write('MVP_FUNCTIONAL_LOCAL_RESULT PASS loopback_http=real restore_destination=separate_local_stack migrations=27\n');

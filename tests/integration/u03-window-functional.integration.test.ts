@@ -366,10 +366,10 @@ it('MVP functional: real identity, signed populated views and isolated double re
     await page.waitForLoadState('networkidle');
     await Promise.all(necessaryBodies);
     await visit(page,`/proyectos/${TENANT}/a1/informe`);
-    await expect.poll(()=>page.locator('#s-measurement').innerText()).toContain('Google Search Console: capturas verificadas');
+    await expect.poll(async()=>(await page.locator('#s-measurement').innerText()).toLowerCase()).toContain('google search console: capturas verificadas');
     const measured=page.locator('#s-measurement');
-    expect(await measured.getByText('Google Search Console: capturas verificadas',{exact:true}).locator('..').locator('dd').innerText()).toBe('1');
-    expect(await measured.getByText('Google Search Console: última, filas',{exact:true}).locator('..').locator('dd').innerText()).toBe('1');
+    expect(await measured.locator('dl > div').filter({has:page.locator('dt').filter({hasText:/Google Search Console: capturas verificadas/i})}).locator('dd').innerText()).toBe('1');
+    expect(await measured.locator('dl > div').filter({has:page.locator('dt').filter({hasText:/Google Search Console: última, filas/i})}).locator('dd').innerText()).toBe('1');
     expect(await measured.innerText()).toContain('2026-10-01');
     expect(await page.locator('body').innerText()).toContain('No es una instantánea transaccional');
     await page.screenshot({path:`${ROOT}/test-results/functional-${RUN}/${viewport.width}-report.png`,fullPage:true});
