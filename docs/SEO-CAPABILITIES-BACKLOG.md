@@ -1,5 +1,10 @@
 # Catálogo objetivo de capacidades SEO/GEO
 
+## Decisión 31/10/2026 — SEO OS 23/23, operación de agencia y demostración al cliente
+
+El [roadmap aditivo RUBIK Agency Operations](RUBIK-AGENCY-OPERATIONS-SEO-OS-ROADMAP-20261031.md) es parte del **objetivo completo de producto** ([Epic #151](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/issues/151)): cubrir 23 skills de SEO OS y expedientes, decisiones, intervenciones verificables, operaciones, informes, seguimiento y facturación. **Ninguna funcionalidad existente del catálogo SEO/GEO se elimina ni sustituye.** Las nuevas capacidades se diseñan como extensiones de Core/N2/OpenSEO con aislamiento multicliente, evidencia, costes y aprobación. Los estados operativo/implementado y permisos de proveedor siguen condicionados a pruebas y gates; este registro es documental. 
+
+
 **Estado:** inventario de capacidades deseadas por el propietario, pendiente de priorización y de entrega por fases.  
 **Actualizado:** 09/10/2026.
 **Estado vigente (09/10/2026):** producción Vercel, acceso real Supabase y Sarah Katerina como primer proyecto piloto. Su auditoría de 10/10 páginas en OpenSEO `legacy` quedó guardada y verificada visualmente y por SQL de solo lectura: un resultado de páginas y uno de incidencias, firmados y sin duplicados tras reintento (HANDOFF/#44). Las nueve migraciones del primer paquete están aplicadas; las migraciones posteriores de presupuesto/consumo integradas en código no están aplicadas en alojado. No hay conexión OpenSEO de Sarah por proyecto, modo `project` ni lectura Google real desde Rubik. El resto del catálogo conserva su estado por capacidad.
