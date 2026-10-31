@@ -1,5 +1,10 @@
 # Control canónico del proyecto Rubik SEO/GEO
 
+## CORTE VIGENTE DE DIRECCIÓN · 31/10/2026 · RECUPERACIÓN MVP
+
+El propietario aprueba cambiar prioridad del proyecto hacia **MVP funcional seguro y demostrable**, separando deuda forense histórica XHR de controles críticos sin falsear PASS. Leer primero el [protocolo de decisión y cierre 31/10](DECISION-MVP-RIESGO-Y-PLAN-CIERRE-20261031.md), que registra estado exacto, P0/P1/P2, recorrido mínimo, R1, U04 y H2, con autorización pendiente de la alternativa formal de aceptación. U03 PASS/#143 MERGED; #145 OPEN/Draft en 72bfbcd con CI 40510937115 SUCCESS, **H1-A NO ACEPTADA**, R1 PENDIENTE, U04/H1/H2 ABIERTOS. No reabrir forénsica XHR por inercia, no cambiar el gate CDP/origen, no declarar inocuidad de cancelaciones. No interpretar esta decisión como aprobación de producción, SQL alojado, gasto o merge. El historial inferior conserva fechas y no invalida el corte más reciente.
+
+
 ## Estado integrado · 22/10/2026 · PR #143
 
 La [PR #143](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/143) está **MERGED** en `main@5cf2ad62605a1ed823771d28f32ca120797e57e7` (HEAD revisado `73fb8814a596e8a97bbfe2d747b331494c502334`). CI de PR `39737737422`: SUCCESS en Node 22/24, pgTAP, integración y Playwright 184 PASS. I-2/I-5/U03 están **PASS/CERRADO como gate alojado** por el run `330c6e4b-14ad-439a-a8cf-43d92c73fadb` y su contención final independiente; no repetir esa campaña. Comprobación separada tras el merge: Vercel Production `dpl_6HyfzQ9iM3Buy6DEqLAKfEpTyFNL` está READY para el corte documental `5eec425ae3f3c31ce4c71a536c19c5d44aaa261f`; `/api/salud` devolvió HTTP 200 y el ref de Production `yvdgmklgwlshizzgefpv`. Este smoke de salud no acredita el recorrido integral H1 ni la aceptación H2. H1-A fue NOT_RUN; U04/Sarah, H1 y H2 siguen abiertos. R1 requiere decisión antes de Sarah. Las menciones inferiores a #143 Draft, U03 BLOCKED o CI bloqueada son cortes históricos.
