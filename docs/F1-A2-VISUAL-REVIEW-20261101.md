@@ -35,3 +35,12 @@ REA-01: sólo recomendaciones documentadas en #157/#156; el informe original no 
 Fuentes oficiales consultadas: [Semrush Home](https://www.semrush.com/kb/833-home-page), resumen y lectura de fuentes; [SE Ranking Audit Overview](https://help.seranking.com/hc/en-us/articles/18560929519772-Overview-Tab-Interactive-Guide), prioridades y acceso al detalle. Se reutilizan patrones de lectura, no identidad visual ni métricas ajenas.
 
 La Preview debe permanecer protegida y ligada al SHA exacto. Los fixtures sólo son locales: una Preview desplegada no equivale a una demo alojada poblada. No habilitar sesiones, cambiar variables, sembrar bases alojadas ni desbloquear la protección para mostrar el diseño. H1-A y R1 mantienen sus estados propios. Sin aprobación visual hasta revisión humana de Juanma.
+
+## Resultados del cierre visual
+
+- Verificación local completa PASS: pin Core, secretos, lint, tipos, 650 unitarias PASS / 1 SKIP y build. Suite dashboard existente 15/15 PASS, sin tocar tests. Revisión dirigida de capturas: nueve combinaciones de pantalla/viewport y roles 2/1, sin errores de página, overflow ni axe serious/critical.
+- Carteras 1/4/50 comprobadas. En 50: compacta automática, búsqueda hasta un proyecto y disclosure de herramientas por teclado. Capturas de volumen aparte. Carga local incluyendo login y lectura de cartera: 4.58 s con 50; 0.30 s con 1. No benchmark de Production ni mejora backend acreditada. Se retiran sólo los 46 fixtures propios de volumen y se conservan los cuatro originales.
+- Preview protegida: el candidato publicado mantiene redirección anónima 302 hacia Vercel SSO. URL inmutable y SHA final en #158; los datos ficticios no se alojan. Actions consultada una vez: verify 22/24 y e2e pendientes en run 41253572843; Vercel PASS. Este estado no se confunde con las verificaciones locales.
+- Candidato para revisión humana, no aprobación visual. Sin merge, sesiones alojadas, proveedores ni cambios a los frentes H1-A/R1.
+
+Nota de ejecución: una invocación de verify heredó RUBIK_TEST_F1A2_STACK de la limpieza local y provocó ocho fallos en pruebas puras de selección de entorno (comparaban el default con otros selectores). Se repitió verify sin variables de demo: 650 PASS / 1 SKIP y build PASS, sin modificar tests o guardrails. No se clasifica esa invocación contaminada como suite verde ni como baseline de producto.

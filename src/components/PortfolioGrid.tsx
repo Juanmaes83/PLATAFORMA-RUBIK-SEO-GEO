@@ -44,7 +44,7 @@ function PortfolioCard({ item }: { item: PortfolioItem }) {
       <p className="muted small project-card-activity">
         {item.modules.audit.state === "data" ? item.modules.audit.lines[0] : "Sin actividad registrada todavía"}
       </p>
-      <Link className="btn btn-block" href={item.href}>Abrir proyecto</Link>
+      <Link className="btn btn-block" href={item.href}>Abrir proyecto <span aria-hidden="true">↗</span></Link>
     </li>
   );
 }
@@ -81,7 +81,7 @@ export function PortfolioGrid({ items }: { items: PortfolioItem[] }) {
 
   return (
     <>
-      <div className="portfolio-heading"><div><p className="eyebrow">ESPACIO DE AGENCIA</p><h2>Una cartera. Todas las perspectivas.</h2><p className="muted small">{items.length} proyectos autorizados · {orgs.length} {orgs.length === 1 ? "organización" : "organizaciones"}. Abre un proyecto para revisar sus fuentes y próximos pasos.</p></div><label className="portfolio-view"><input type="checkbox" checked={compact} onChange={e=>setCompact(e.target.checked)}/> Vista compacta</label></div>
+      <div className="portfolio-heading"><p className="eyebrow">{items.length} proyectos autorizados · {orgs.length} {orgs.length === 1 ? "organización" : "organizaciones"}</p><label className="portfolio-view"><input type="checkbox" checked={compact} onChange={e=>setCompact(e.target.checked)}/> Vista compacta</label></div>
       {controls && (
         <form className="portfolio-controls" role="search" aria-label="Filtrar cartera" onSubmit={(e) => e.preventDefault()}>
           <div className="field">
