@@ -5,6 +5,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { once } from 'node:events';
 import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { Pool } from 'pg';
 import { chromium, type Page } from 'playwright';
@@ -237,7 +238,7 @@ beforeAll(async () => {
   delete appEnv.OPENSEO_ENDPOINT; delete appEnv.OPENSEO_API_KEY;
   try { execFileSync(process.execPath,[nextBin,'build'],{cwd:ROOT,env:appEnv,stdio:'pipe',timeout:120_000}); }
   catch { throw new Error('H1A_LOCAL_PRODUCTION_BUILD_FAILED'); }
-  server=spawn(process.execPath,['--import',`${ROOT}/scripts/h1a-local-egress-guard.mjs`,nextBin,'start','--hostname','127.0.0.1','--port',String(port)],{
+  server=spawn(process.execPath,['--import',pathToFileURL(`${ROOT}/scripts/h1a-local-egress-guard.mjs`).href,nextBin,'start','--hostname','127.0.0.1','--port',String(port)],{
     cwd:ROOT,stdio:'ignore',env:appEnv,
   });
   await waitForServer(server,`http://127.0.0.1:${port}`);
@@ -247,7 +248,7 @@ beforeAll(async () => {
 
 afterAll(async()=>{
   await browser?.close().catch(()=>undefined);
-  if(server?.pid) {
+  if(server?.pid && server.exitCode===null) {
     server.kill('SIGTERM');
     await Promise.race([once(server,'exit'),new Promise(resolve=>setTimeout(resolve,5000))]);
   }
@@ -279,7 +280,7 @@ afterAll(async()=>{
   expect(destGlobal).toBe('0|0|0|0|0|0|0|0');
   record('source-cleanup','PASS');
   record('destination-cleanup','PASS');
-});
+},60_000);
 
 it('MVP functional: real identity, signed populated views and isolated double recovery',async()=>{
   const origin=process.env.U03_LOCAL_HTTP_BASE!;
