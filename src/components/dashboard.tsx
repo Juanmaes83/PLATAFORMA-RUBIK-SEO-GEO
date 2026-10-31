@@ -1,7 +1,5 @@
 import Link from "next/link";
 import { STATE_META, type ModuleSignal, type ProjectModules, type SourceState } from "@/lib/signals";
-import { roleLabel } from "@/lib/labels";
-import type { ProjectAccess } from "@/lib/access";
 import { StatusPill } from "@/components/ui";
 
 export function SourceStatePill({ state }: { state: SourceState }) {
@@ -37,29 +35,10 @@ export function ModuleChips({ modules }: { modules: ProjectModules }) {
 }
 
 /**
- * Agency portfolio card. Everything on it comes from RLS reads: identity, role, and per-module
- * states; there are no invented metrics, activity or approvals.
+ * Agency portfolio card markup lives in `src/components/PortfolioGrid.tsx` (the panel renders it
+ * client-side so the authorized collection can be searched, sorted and filtered without new
+ * server reads).
  */
-export function ProjectCard({ access, modules }: { access: ProjectAccess; modules: ProjectModules }) {
-  const { project, role } = access;
-  const href = `/proyectos/${project.tenantId}/${project.projectId}`;
-  const lastActivity = modules.audit.state === "data" ? modules.audit.lines[0] : null;
-  return (
-    <li className="card project-card">
-      <div className="card-head">
-        <h3 className="project-card-title">{project.name}</h3>
-        <StatusPill tone="neutral">{roleLabel(role)}</StatusPill>
-      </div>
-      <p className="muted small project-card-meta">
-        <span>{project.tenantName}</span>
-        {project.domain && <span className="break"> · {project.domain}</span>}
-      </p>
-      <ModuleChips modules={modules} />
-      <p className="muted small project-card-activity">{lastActivity ?? "Sin actividad registrada todavía"}</p>
-      <Link className="btn btn-block" href={href}>Abrir proyecto</Link>
-    </li>
-  );
-}
 
 /**
  * Module tile for the project summary. Links are real routes; the signal lines come from the

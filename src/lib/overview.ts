@@ -97,7 +97,7 @@ async function technical(client: Client, ref: ProjectRef, keyring: Keyring | nul
         const errors = issues.filter((i) => i.severity === "ERROR").length;
         const warnings = issues.filter((i) => i.severity === "WARNING").length;
         lines.push(errors > 0 || warnings > 0
-          ? `${plural(errors, "error", "errores")} · ${plural(warnings, "avisos")}`
+          ? `${plural(errors, "error", "errores")} · ${plural(warnings, "aviso", "avisos")}`
           : plural(issues.length, "incidencia menor", "incidencias menores"));
       }
     }
