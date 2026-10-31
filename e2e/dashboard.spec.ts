@@ -105,11 +105,14 @@ test.describe("f1 agency dashboard", () => {
 
   test("public home leads with the product, not the internals", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: "Rubik SEO/GEO" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Tus proyectos SEO/GEO, medidos con fuente y fecha" })).toBeVisible();
     await expect(page.getByText("Qué puedes hacer hoy")).toBeVisible();
     // The internal version status is demoted to a collapsed details.
     await expect(page.locator("details.tech")).not.toHaveAttribute("open", /.*/);
     await expect(page.locator("details.tech .checklist")).toBeHidden();
     await expect(page.getByText("Próximamente")).toHaveCount(0);
+    // Visitors never see the workspace navigation, only the public entry.
+    await expect(page.getByRole("navigation", { name: "Principal" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Acceso" })).toBeVisible();
   });
 });

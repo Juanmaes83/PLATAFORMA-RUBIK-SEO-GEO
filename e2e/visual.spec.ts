@@ -105,14 +105,19 @@ for (const p of PAGES) {
 }
 
 test("navigation: mobile menu disclosure vs desktop sidebar", async ({ page }, info) => {
+  // Visitors get the public shell without workspace navigation.
   await page.goto("/");
+  await expect(page.locator(".side-nav, .mobile-nav")).toHaveCount(0);
+  // Signed in, the shell shows the sidebar on desktop and the disclosure on mobile.
+  await signIn(page, "owner");
+  await page.goto("/panel");
   const mobile = info.project.name.startsWith("movil");
   await expect(page.locator(".side-nav")).toBeVisible({ visible: !mobile });
   await expect(page.locator(".mobile-nav > summary")).toBeVisible({ visible: mobile });
   if (mobile) {
     await page.locator(".mobile-nav > summary").focus();
     await page.keyboard.press("Enter");
-    await expect(page.getByRole("navigation", { name: "Principal (móvil)" }).getByRole("link", { name: /Revisión y aprobaciones/ })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Principal (móvil)" }).getByRole("link", { name: "Proyectos" })).toBeVisible();
     await screenshot(page, info.project.name, "14-menu-movil-abierto");
   }
 });
@@ -135,8 +140,14 @@ test("honest empty states: no invented numbers on the dashboard", async ({ page 
   await signIn(page, "owner");
   await page.goto("/panel");
   const main = (await page.locator("main").innerText()).replace(/\s+/g, " ");
-  // The only digits allowed are the project count sentence and stage names (CORE-9.x).
-  const digits = main.replace(/CORE-9\.\d+( y \d+(\.\d+)?)?/g, "").replace(/acceso a \d proyectos?/, "").match(/\d/g);
+  // The only digits allowed are the real portfolio counts («Cartera de 1 proyecto…», the
+  // «1 proyecto» / «2 de 4 proyectos» filter count) and stage names (CORE-9.x).
+  const digits = main
+    .replace(/CORE-9\.\d+( y \d+(\.\d+)?)?/g, "")
+    .replace(/Cartera de \d+ proyectos?/g, "")
+    .replace(/\b\d+ de \d+ proyectos\b/g, "")
+    .replace(/\b\d+ proyectos?\b/g, "")
+    .match(/\d/g);
   expect(digits).toBeNull();
 });
 
@@ -144,7 +155,11 @@ test("permissions come from the stored role: granted but unbuilt functions never
   await signIn(page, "analyst");
   await page.goto(P);
   const row = (name: string) => page.locator("tr", { has: page.getByRole("rowheader", { name, exact: true }) });
-  await expect(page.getByText("tu rol: Analista")).toBeVisible();
+  // The contextual bar names the stored role; the permission matrix lives in a collapsed
+  // technical disclosure that the test opens explicitly.
+  await expect(page.locator(".context-role")).toContainText("Tu rol:");
+  await expect(page.locator(".context-role")).toContainText("Analista");
+  await page.getByText("Tus permisos en este proyecto").click();
   await expect(row("Leer")).toHaveAttribute("data-state", "available");
   await expect(row("Redactar borradores")).toHaveAttribute("data-state", "granted-not-built");
   await expect(row("Redactar borradores")).toContainText("Hoy no se puede usar");
@@ -154,7 +169,8 @@ test("permissions come from the stored role: granted but unbuilt functions never
 
   await signIn(page, "client");
   await page.goto(P);
-  await expect(page.getByText("tu rol: Cliente (aprobación)")).toBeVisible();
+  await expect(page.locator(".context-role")).toContainText("Cliente (aprobación)");
+  await page.getByText("Tus permisos en este proyecto").click();
   await expect(row("Aprobar acciones externas")).not.toHaveAttribute("data-state", "denied");
   await expect(row("Redactar borradores")).toHaveAttribute("data-state", "denied");
 });
@@ -186,16 +202,53 @@ test("projects page: the Core denial code is only secondary technical informatio
   await expect(code).toBeVisible();
 });
 
+// The configured projects cover 360, 390 and 1280 px; the brief also asks for 768 and 1600.
+// One pass per extra width, on the desktop project, with the same overflow and axe checks.
+for (const width of [768, 1600]) {
+  test(`portada y panel a ${width} px`, async ({ page }, info) => {
+    test.skip(info.project.name !== "escritorio-1280", "una sola pasada por ancho extra");
+    await page.setViewportSize({ width, height: 900 });
+
+    await page.goto("/");
+    await page.waitForLoadState("networkidle");
+    await expect(page.locator("h1")).toHaveCount(1);
+    let overflow = await horizontalOverflow(page);
+    expect(overflow.scroll, `portada a ${width}px`).toBeLessThanOrEqual(overflow.width);
+    let axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+    expect(axe.violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => v.id)).toEqual([]);
+    await screenshot(page, info.project.name, `70-inicio-${width}`);
+
+    await signIn(page, "owner");
+    await page.goto("/panel");
+    await page.waitForLoadState("networkidle");
+    overflow = await horizontalOverflow(page);
+    expect(overflow.scroll, `panel a ${width}px`).toBeLessThanOrEqual(overflow.width);
+    axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+    expect(axe.violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => v.id)).toEqual([]);
+    await screenshot(page, info.project.name, `71-panel-${width}`);
+  });
+}
+
 test("project summary links to measurement without duplicating its empty state", async ({ page }) => {
-  await signIn(page, "analyst");
+  await signIn(page, "owner");
   await page.goto(P);
-  const section = page.locator("section[aria-labelledby=s-estado]");
-  await expect(section.getByRole("link", { name: "Abrir centro de medición" })).toHaveAttribute("href", `${P}/medicion`);
-  await expect(section).toContainText("Revisa las capturas guardadas de Google, su procedencia y cobertura");
-  await expect(section.getByText("Cómo se mostrarán los datos")).toBeVisible();
-  await expect(section.locator(".empty")).toHaveCount(0);
-  await expect(section).not.toContainText(/CORE-9\.3|CORE-9\.4/);
-  await section.getByRole("link", { name: "Abrir centro de medición" }).click();
+  const section = page.locator("section[aria-labelledby=s-modulos]");
+  const tile = section.getByRole("link", { name: /Medición orgánica/ });
+  await expect(tile).toHaveAttribute("href", `${P}/medicion`);
+  await expect(tile).toContainText("Capturas firmadas de Search Console y GA4");
+  // The fixture project has no Google property: for the owner, whose role may read the stored
+  // association, the tile names the pending configuration and the next step once.
+  await expect(tile).toContainText("Configuración pendiente");
+  await expect(tile).toContainText("Sin propiedad de Google asociada");
+  await tile.click();
   await expect(page).toHaveURL(`${P}/medicion`);
   await expect(page.getByRole("heading", { level: 1, name: "Medición orgánica" })).toBeVisible();
+
+  // The analyst's role cannot read the association, so their tile stays an honest «Sin datos»:
+  // «Configuración pendiente» never stands in for a forbidden or failed read.
+  await signIn(page, "analyst");
+  await page.goto(P);
+  const analystTile = page.locator("section[aria-labelledby=s-modulos]").getByRole("link", { name: /Medición orgánica/ });
+  await expect(analystTile).toContainText("Sin datos");
+  await expect(analystTile).not.toContainText("Configuración pendiente");
 });

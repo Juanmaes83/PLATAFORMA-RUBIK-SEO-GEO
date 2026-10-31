@@ -29,12 +29,33 @@ function chainable(result: Result) {
   return self;
 }
 
-function fakeClient(tables: Record<string, Result>) {
+type RpcArgs = { p_provider?: string };
+type RpcImpl = (args: RpcArgs) => Result;
+
+/** Default property read: nothing associated (the RPC answers NONE for the requested provider). */
+const noProperty: RpcImpl = (args) => ({ data: { state: "NONE", provider: args.p_provider }, error: null });
+
+function fakeClient(tables: Record<string, Result>, rpc: RpcImpl = noProperty) {
   return {
     from: (table: string) => chainable(tables[table] ?? { data: [], error: null }),
+    rpc: (_fn: string, args: RpcArgs) => Promise.resolve(rpc(args)),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any;
 }
+
+const activeProperty = (provider: string): RpcImpl => (args) => args.p_provider === provider
+  ? { data: {
+      propertyId: UUID, connectionId: UUID, provider, state: "ACTIVE",
+      externalPropertyId: provider === "search-console" ? "sc-domain:ejemplo.test" : "properties/12345",
+      source: "OWNER_DECLARED", grantedAt: "2026-10-01T08:00:00.000Z", revokedAt: null,
+    }, error: null }
+  : noProperty(args);
+
+const revokedProperty: RpcImpl = (args) => ({ data: {
+  propertyId: UUID, connectionId: UUID, provider: args.p_provider, state: "REVOKED",
+  externalPropertyId: args.p_provider === "search-console" ? "sc-domain:ejemplo.test" : "properties/12345",
+  source: "OWNER_DECLARED", grantedAt: "2026-10-01T08:00:00.000Z", revokedAt: "2026-10-15T08:00:00.000Z",
+}, error: null });
 
 const empty = { data: [], error: null };
 
@@ -54,19 +75,47 @@ describe("project overview state mapping", () => {
   it("an empty project reads no_data in every installed module, never a fabricated zero", async () => {
     const overview = await readProjectOverview(fakeClient({}), ref, null);
     expect(states(overview)).toEqual({
-      measurement: "no_data", technical: "no_data", imports: "no_data",
+      measurement: "pending", technical: "no_data", imports: "no_data",
       competitors: "no_data", content: "no_data", geo: "no_data", audit: "no_data",
     });
-    for (const signal of Object.values(overview)) {
+    for (const [key, signal] of Object.entries(overview)) {
+      if (key === "measurement") continue;
       expect(signal.lines).toEqual([]);
       expect(signal.note).toBeNull();
     }
   });
 
+  it("measurement without an associated property is pending with the next step, not a fake zero", async () => {
+    const overview = await readProjectOverview(fakeClient({}), ref, null);
+    expect(overview.measurement.state).toBe("pending");
+    expect(overview.measurement.lines).toEqual(["Sin propiedad de Google asociada"]);
+    expect(overview.measurement.note).toBe("Asóciala desde el centro de medición");
+  });
+
+  it("an associated property without captures is no_data that names the configuration", async () => {
+    const overview = await readProjectOverview(fakeClient({}, activeProperty("search-console")), ref, null);
+    expect(overview.measurement.state).toBe("no_data");
+    expect(overview.measurement.lines).toEqual(["Propiedad asociada, sin capturas todavía"]);
+  });
+
+  it("a revoked property is pending and asks for reauthorization", async () => {
+    const overview = await readProjectOverview(fakeClient({}, revokedProperty), ref, null);
+    expect(overview.measurement.state).toBe("pending");
+    expect(overview.measurement.lines).toEqual(["Propiedad revocada"]);
+    expect(overview.measurement.note).toBe("Vuelve a autorizarla desde el centro de medición");
+  });
+
+  it("a failed property read stays no_data: pending never stands in for an unknown state", async () => {
+    const overview = await readProjectOverview(fakeClient({}, () => ({ data: null, error: { code: "42501" } })), ref, null);
+    expect(overview.measurement.state).toBe("no_data");
+    expect(overview.measurement.lines).toEqual([]);
+    expect(overview.measurement.note).toBeNull();
+  });
+
   it("a failed read is unavailable and never blanks the other modules", async () => {
     const overview = await readProjectOverview(fakeClient({ audit_events: { data: null, error: { code: "42P01" } } }), ref, null);
     expect(overview.audit.state).toBe("unavailable");
-    expect(overview.measurement.state).toBe("no_data");
+    expect(overview.measurement.state).toBe("pending");
     expect(overview.technical.state).toBe("no_data");
   });
 
@@ -99,7 +148,7 @@ describe("project overview state mapping", () => {
     expect(overview.competitors.state).toBe("unavailable");
     expect(overview.content.state).toBe("unavailable");
     expect(overview.geo.state).toBe("unavailable");
-    expect(overview.measurement.state).toBe("no_data");
+    expect(overview.measurement.state).toBe("pending");
   });
 
   it("real counts appear only from stored rows", async () => {
