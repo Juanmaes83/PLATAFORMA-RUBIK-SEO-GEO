@@ -73,6 +73,7 @@ let pool: Pool | undefined;
 let server: ChildProcess | undefined;
 let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
 let ownerCookie = '';
+let finishBrowserFlow:(()=>Promise<void>)|undefined;
 let orgCreated = false;
 let roleInstalled = false;
 let targetRowsCreated = false;
@@ -329,7 +330,7 @@ it('independently verifies provider costs and server egress remain fail closed',
   record('functional-egress-cost','PASS');
 });
 
-it('MVP browser functional: real identity, signed populated views and logout',async()=>{
+it('MVP browser functional: real identity and signed populated desktop/mobile views',async()=>{
   const origin=process.env.U03_LOCAL_HTTP_BASE!;
   browser=await chromium.launch({headless:true});
   const securityFailures:string[]=[];
@@ -398,8 +399,7 @@ it('MVP browser functional: real identity, signed populated views and logout',as
   };
   const owner=await login('u03-http-owner');
   const page=owner.page;
-  // Export below uses the independently authenticated local client session from setup;
-  // it can prove export/recovery even when the separate browser case is blocked.
+  ownerCookie=(await owner.context.cookies()).map(cookie=>`${cookie.name}=${cookie.value}`).join('; ');
   action='A1_CLICK';
   await page.locator(`a[href='/proyectos/${TENANT}/a1']`).first().click();
   await page.waitForURL(`${origin}/proyectos/${TENANT}/a1`);
@@ -467,6 +467,8 @@ it('MVP browser functional: real identity, signed populated views and logout',as
   expect(paidToolDecision('get_domain_overview',{}).ok).toBe(false);
   record('functional-egress-cost','PASS');
 
+  finishBrowserFlow=async()=>{
+  action='LOGOUT';
   await page.getByRole('button',{name:'Salir'}).click();
   await page.waitForURL(`${origin}/`);
   const denied=await page.goto(`${origin}/proyectos/${TENANT}/a1`,{waitUntil:'domcontentloaded'});
@@ -478,6 +480,7 @@ it('MVP browser functional: real identity, signed populated views and logout',as
   await bounded(Promise.all(necessaryBodies),'LOGOUT_NECESSARY_BODIES_TIMEOUT');
   expect(securityFailures).toEqual([]);expect(necessaryFailures).toEqual([]);
   record('browser-views-and-logout','PASS');
+  };
 },180_000);
 
 it('independently authenticates the HTTP export and verifies real isolated double recovery',async()=>{
@@ -545,11 +548,8 @@ it('independently authenticates the HTTP export and verifies real isolated doubl
   expect(first.split('|').slice(2).map(Number)).toEqual([document.audit.rows.length,document.results.length,document.imports.length]);
   expect(sql(DEST_DB,`select count(*) from private.audit_outbox where project_id='${project.projectId}'::uuid and state='pending'`)).toBe('0');
   record('restore-destination','PASS');
-  deleteOwnedOrganizations([...ownedOrganizations.keys()].filter(id=>id!==foreignOrgId));
-  orgCreated=false;
   sql(DEST_DB,`delete from public.organizations where id='${project.organizationId}'::uuid; delete from auth.users where id in (${actorIds.map(id=>`'${id}'::uuid`).join(',')})`);
   targetRowsCreated=false;
-  expect(inventory(SOURCE_DB,project.projectId,project.organizationId)).toBe('0|0|0|0|0|0|0');
   expect(inventory(DEST_DB,project.projectId,project.organizationId)).toBe('0|0|0|0|0|0|0');
 },180_000);
 
@@ -565,3 +565,9 @@ it('restores the real signed HTTP export through the hosted parent and child tra
   expect(execFileSync('docker',['ps','-a','--filter',`label=com.supabase.cli.project=${RESTORE_PROJECT}`,'--format','{{.Names}}'],{encoding:'utf8'}).trim()).toBe('');
   record('functional-restore-transport','PASS');
 },240_000);
+
+it('logs out the same browser session after export and isolated recovery',async(context)=>{
+  if(!finishBrowserFlow){context.skip();return;}
+  expect(sql(SOURCE_DB,`select count(*) from public.projects where id='${project.projectId}'::uuid`)).toBe('1');
+  await finishBrowserFlow();
+},30_000);
