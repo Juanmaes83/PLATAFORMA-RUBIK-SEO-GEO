@@ -1,5 +1,10 @@
 # U04 · Paquete de aceptación con Sarah
 
+## Nuevo enfoque de aceptación del MVP · 31/10/2026
+
+Antes de preparar la ventana real de Sarah, leer la [decisión MVP por riesgo del 31/10](DECISION-MVP-RIESGO-Y-PLAN-CIERRE-20261031.md). La nueva estrategia **reduce la investigación forense XHR**, no los requisitos de autorización/consentimiento, seguridad, fuentes, recuperación y utilidad. U04 sigue **NO EJECUTADA**. El nuevo contrato `MVP_FUNCTIONAL_ACCEPTANCE` necesita ratificación formal antes de sustituir exigencias del gate anterior. Para R1 sigue sin haber elección: `R1-SNAPSHOT` o `R1-PILOTO-QUIETO` (solo si se demuestra barrera real de escrituras o detección/aborto; comparar recuentos no basta). No usar datos reales ni solicitar aceptación a Sarah hasta que el alcance y sus controles estén aprobados. El resto del documento mantiene la pauta histórica de la sesión.
+
+
 Estado: **PREPARACIÓN DOCUMENTAL; sesión y aceptación no ejecutadas**. Usar solo después de que U03 y H1-A tengan evidencia suficiente, Juanma autorice el alcance concreto y Sarah consienta accesos, fuentes y tratamiento de datos. No guardar datos del cliente ni credenciales en este expediente o GitHub.
 
 ## Decisión previa R1
