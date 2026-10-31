@@ -297,7 +297,39 @@ afterAll(async()=>{
   record('destination-cleanup','PASS');
 },60_000);
 
-it('MVP functional: real identity, signed populated views and isolated double recovery',async()=>{
+it('independently verifies authentic HTTP A1/A2/B1 views and foreign denials',async()=>{
+  const origin=process.env.U03_LOCAL_HTTP_BASE!;
+  for(const [client,scope] of [[user,project.scope],[member,projectA2.scope],[ownerB,projectB.scope]] as const) {
+    const session=(await client.auth.getSession()).data.session;
+    expect(session?.access_token).toBeTruthy();
+    const cookie=`sb-127-auth-token=base64-${Buffer.from(JSON.stringify(session),'utf8').toString('base64url')}`;
+    for(const suffix of ['', '/medicion','/informe']) {
+      const response=await fetch(`${origin}/proyectos/${scope.tenantId}/${scope.projectId}${suffix}`,{headers:{cookie},redirect:'manual',signal:AbortSignal.timeout(15_000)});
+      expect(response.status).toBe(200);
+      const body=await response.text();expect(body.length).toBeGreaterThan(0);
+      if(suffix==='/medicion'){expect(body).toContain('Firma verificada');expect(body).toContain('sc-domain:fixture.invalid');}
+      if(suffix==='/informe'){expect(body).toContain('Google Search Console: capturas verificadas');expect(body).toContain('No es una instantánea transaccional');}
+    }
+    if(client!==user)for(const suffix of ['', '/medicion','/informe','/exportar'])for(const projectSlug of ['a1','missing']) {
+      const response=await fetch(`${origin}/proyectos/${TENANT}/${projectSlug}${suffix}`,{headers:{cookie},redirect:'manual',signal:AbortSignal.timeout(15_000)});
+      expect(response.status).toBe(404);await response.arrayBuffer();
+    }
+  }
+  record('functional-tenancy','PASS');
+},60_000);
+
+it('independently verifies provider costs and server egress remain fail closed',async()=>{
+  let invocations=0;
+  const client=createOpenSeoMcpClient({mcpUrl:'https://never.invalid/mcp',apiKey:'fictional',maxPages:10,
+    fetchImpl:async()=>{invocations++;throw new Error('UNEXPECTED_PROVIDER_CALL');}});
+  for(const name of ['get_domain_overview','get_search_console_performance'])await expect(client.callTool(name,{})).rejects.toMatchObject({code:'TOOL_NOT_ALLOWED'});
+  expect(invocations).toBe(0);expect(paidToolDecision('get_domain_overview',{}).ok).toBe(false);
+  const journal=readFileSync(egressJournal,'utf8').trim().split(/\r?\n/);
+  expect(journal).toContain('READY');expect(journal).not.toContain('DENIED');
+  record('functional-egress-cost','PASS');
+});
+
+it('MVP browser functional: real identity, signed populated views and logout',async()=>{
   const origin=process.env.U03_LOCAL_HTTP_BASE!;
   browser=await chromium.launch({headless:true});
   const securityFailures:string[]=[];

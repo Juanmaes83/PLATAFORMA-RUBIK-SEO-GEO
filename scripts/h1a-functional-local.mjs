@@ -42,8 +42,9 @@ function h1aTestEnv() {
     SUPABASE_CLI:`npx --yes supabase@2.118.0 --workdir ${sourceWorkdir}`};
 }
 let pendingEvidence;
+let caughtError;
+const headSha=safeRun('git',['rev-parse','HEAD']).trim(),digest=scenarioDigest();
 try {
-  const headSha=safeRun('git',['rev-parse','HEAD']).trim(),digest=scenarioDigest();
   process.stdout.write(safeRun(node,['--test','scripts/h1a-functional-preflight.test.mjs','scripts/h1a-local-egress-guard.test.mjs']));
   const localEnv={U03_RESTORE_DESTINATION_RUN_ID:runId};
   call('h1a-local-source-stack.mjs','start',localEnv);
@@ -64,7 +65,9 @@ try {
   if(cases.some(row=>row.status!=='PASS'))throw new Error('FUNCTIONAL_CASE_NOT_PASSED');
   const evidencePath=resolve(ROOT,`test-results/mvp-functional-local-${runId}.json`);
   if(safeRun('git',['rev-parse','HEAD']).trim()!==headSha||scenarioDigest()!==digest)throw new Error('FUNCTIONAL_SOURCE_CHANGED_DURING_RUN');
-  pendingEvidence={evidencePath,document:{headSha,scenarioDigest:digest,testsPassed:true,cases}};
+  pendingEvidence={evidencePath,document:{headSha,scenarioDigest:digest,testsPassed:true,cases,runId,ledgerFile:ledgers[0]}};
+} catch(error) {
+  caughtError=error;
 } finally {
   let cleanupFailed=false;
   for(const [script,marker,project] of [
@@ -78,6 +81,15 @@ try {
     }
   }
   if(cleanupFailed) throw new Error('LOCAL_HTTP_RESTORE_CLEANUP_BLOCKED_PRESERVE_OWNED_STACKS');
+}
+if(caughtError) {
+  const ledgers=existsSync(resolve(ROOT,'test-results'))?readdirSync(resolve(ROOT,'test-results')).filter(name=>/^mvp-functional-[0-9a-f-]+\.jsonl$/.test(name)&&statSync(resolve(ROOT,'test-results',name)).mtimeMs>=startedAt):[];
+  const rows=ledgers.length===1?readFileSync(resolve(ROOT,'test-results',ledgers[0]),'utf8').trim().split(/\r?\n/).filter(Boolean).map(line=>JSON.parse(line)):[];
+  const evidencePath=resolve(ROOT,`test-results/mvp-functional-local-${runId}.json`);
+  writeFileSync(evidencePath,JSON.stringify({headSha,scenarioDigest:digest,testsPassed:false,runId,ledgerFile:ledgers.length===1?ledgers[0]:null,
+    cases:CASES.map(caseId=>({caseId,status:rows.findLast(row=>row.phase===caseId)?.result??'NOT_RUN'}))},null,2),{flag:'wx'});
+  process.stdout.write(`MVP_FUNCTIONAL_EVIDENCE_BLOCKED ${evidencePath}\n`);
+  throw caughtError;
 }
 if(!pendingEvidence)throw new Error('FUNCTIONAL_EVIDENCE_MISSING');
 writeFileSync(pendingEvidence.evidencePath,JSON.stringify(pendingEvidence.document,null,2),{flag:'wx'});
