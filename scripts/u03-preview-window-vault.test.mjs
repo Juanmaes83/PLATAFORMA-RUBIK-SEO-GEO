@@ -17,7 +17,7 @@ test('Windows PowerShell 5.1 DPAPI vault survives a new process and rejects tamp
   const root = mkdtempSync(join(env.LOCALAPPDATA,'u03-window-vault-'));
   try {
     assert.match(run('write',root), /VAULT_WRITE_PASS/);
-    const path = join(root,'Rubik','U03-Window','v1','window-batch.json');
+    const path = join(root,'Rubik','H1A-Window','v2','window-batch.json');
     const record = JSON.parse(readFileSync(path,'utf8'));
     assert.equal(record.version,1);
     assert.ok(record.ciphertext);
@@ -36,7 +36,7 @@ test('Windows PowerShell 5.1 parser accepts the owner wrapper and vault module',
     {encoding:'utf8',windowsHide:true,timeout:30000}),/U03_WINDOW_PS51_PARSE_PASS/);
 });
 
-test('partial eight variable rotation removes the arming flag first, adds it last, and rolls back in failure', () => {
+test('partial nine variable rotation removes the arming flag first, adds it last, and rolls back in failure', () => {
   const root = join(env.LOCALAPPDATA,'u03-window-rotation-'+Math.random().toString(16).slice(2));
   try {
     assert.match(run('rotation',root),/WINDOW_ROTATION_SUCCESS_PARTIAL_ROLLBACK_AND_RETRY_PASS/);

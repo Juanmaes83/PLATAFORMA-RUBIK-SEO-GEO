@@ -7,9 +7,77 @@ import { test } from "node:test";
 import { chromium } from "playwright";
 import {
   PIN, deploymentMatches, scopedHeaders, isExternalRedirect,
-  sanitizeDiagnostic, safePath, preflight, runB4, installScopedRoutes, createPageDiagnostics, auditAndCapture,
+  sanitizeDiagnostic, safePath, preflight, runB4, installScopedRoutes, createPageDiagnostics, createDiagnosticIntervalTracker, summarizeDiagnosticInterval, auditAndCapture,
   safeLedgerRow, login,
 } from "./u03-preview-b4-runner.mjs";
+
+test("H1-A diagnostic intervals retain cumulative snapshots and reconcile exactly to the visual gate", () => {
+  let counters = { console: {}, http: {}, requestFailures: {}, routeEvents: {} };
+  const clone = () => structuredClone(counters);
+  const diagnostics = {
+    snapshot: clone,
+    take() { const value = clone(); counters = { console: {}, http: {}, requestFailures: {}, routeEvents: {} }; return value; },
+  };
+  const tracker = createDiagnosticIntervalTracker(diagnostics);
+  const required = ['before-login','after-login','before-navigation','after-navigation','before-measurement','after-measurement'];
+  tracker.checkpoint('before-login');
+  counters.console['error:preview'] = 1;
+  const login = tracker.checkpoint('after-login');
+  assert.equal(login.diagnosticsAfter.console['error:preview'], 1);
+  assert.equal(diagnostics.snapshot().console['error:preview'], 1, 'snapshot is cumulative and non-consuming');
+  tracker.checkpoint('before-navigation');
+  counters.http['503:preview'] = 1;
+  tracker.checkpoint('after-navigation');
+  tracker.checkpoint('before-measurement');
+  counters.console['error:external'] = 1;
+  const gate = tracker.finishGate(required);
+  assert.equal(gate.complete, true);
+  assert.equal(gate.code, null);
+  assert.equal(gate.diagnostics.console['error:preview'] + gate.diagnostics.console['error:external'], 2);
+  assert.equal(gate.diagnostics.http['503:preview'], 1);
+  assert.deepEqual(gate.intervals.map(row => row.interval), required);
+});
+
+test("H1-A interval gate blocks a missing stage and a counter sum mismatch", () => {
+  const empty = () => ({ console: {}, http: {}, requestFailures: {}, routeEvents: {} });
+  const makeDiagnostics = ({ extraOnTake = false } = {}) => {
+    let current = empty();
+    return {
+      snapshot: () => structuredClone(current),
+      add() { current.console['error:preview'] = (current.console['error:preview'] ?? 0) + 1; },
+      take() { const value = structuredClone(current); if (extraOnTake) value.console['error:preview'] = (value.console['error:preview'] ?? 0) + 1; current = empty(); return value; },
+    };
+  };
+  const required = ['before-login','after-login','before-navigation','after-navigation','before-measurement','after-measurement'];
+  const missingDiagnostics = makeDiagnostics();
+  const missing = createDiagnosticIntervalTracker(missingDiagnostics);
+  missing.checkpoint('before-login'); missing.checkpoint('after-login'); missing.checkpoint('before-navigation');
+  missing.checkpoint('before-measurement');
+  assert.equal(missing.finishGate(required).code, 'DIAGNOSTIC_STAGE_MISSING');
+
+  const mismatchedDiagnostics = makeDiagnostics({ extraOnTake: true });
+  const mismatched = createDiagnosticIntervalTracker(mismatchedDiagnostics);
+  mismatched.checkpoint('before-login'); mismatched.checkpoint('after-login'); mismatched.checkpoint('before-navigation');
+  mismatched.checkpoint('after-navigation'); mismatched.checkpoint('before-measurement');
+  mismatchedDiagnostics.add();
+  const result = mismatched.finishGate(required);
+  assert.equal(result.complete, false);
+  assert.equal(result.code, 'DIAGNOSTIC_SUM_MISMATCH');
+});
+
+test("H1-A interval snapshots reject free text instead of persisting it", () => {
+  const diagnostics = { snapshot: () => ({ console: { 'error:preview https://private.invalid/?token=x': 132 },
+    http: {}, requestFailures: {}, routeEvents: {} }), take: () => ({ console: {}, http: {}, requestFailures: {}, routeEvents: {} }) };
+  assert.throws(() => createDiagnosticIntervalTracker(diagnostics), error => error.code === 'DIAGNOSTIC_SNAPSHOT_INVALID');
+});
+
+test("H1-A stops at the first interval with console errors and assigns the closed code", () => {
+  const summary = summarizeDiagnosticInterval({ diagnosticsDelta: { console: { 'error:preview': 132 },
+    http: {}, requestFailures: {}, routeEvents: {} } });
+  assert.deepEqual(summary, { consoleErrorCount: 132, status: 'BLOCKED', code: 'H1A_PHASE_CONSOLE_ERRORS' });
+  assert.deepEqual(summarizeDiagnosticInterval({ diagnosticsDelta: { console: {}, http: {}, requestFailures: {}, routeEvents: {} } }),
+    { consoleErrorCount: 0, status: 'PASS' });
+});
 
 const validDeployment = () => ({
   id: PIN.deploymentId,
@@ -147,12 +215,15 @@ test("visual diagnostics are scoped per phase, categorized, sanitized, and captu
     browser = await chromium.launch({ headless: true });
     const context = await browser.newContext();
     const page = await context.newPage();
-    const diagnostics = createPageDiagnostics(page);
+    const diagnostics = createPageDiagnostics(page, { allowedOrigin: origin });
     await page.goto(origin);
     await page.evaluate(() => console.error("SECRET_TEXT https://example.test/path?token=hidden"));
     await page.waitForTimeout(25);
+    const beforeTake = diagnostics.snapshot();
+    assert.equal(beforeTake.console["error:preview"], 1);
+    assert.equal(diagnostics.snapshot().console["error:preview"], 1, "snapshot must not consume the counter");
     const loginPhase = diagnostics.take();
-    assert.equal(loginPhase.console["error:external"], 1);
+    assert.equal(loginPhase.console["error:preview"], 1);
     assert.ok(Object.values(loginPhase.console).reduce((sum, count) => sum + count, 0) >= 1);
     assert.equal(JSON.stringify(loginPhase).includes("SECRET_TEXT"), false);
     assert.equal(JSON.stringify(loginPhase).includes("token=hidden"), false);
@@ -166,7 +237,7 @@ test("visual diagnostics are scoped per phase, categorized, sanitized, and captu
     }), error => error.code === "VISUAL_AUDIT_FAILED");
     const visual = events.find(event => event.caseId === "visual-a-panel");
     assert.equal(visual.status, "FAIL");
-    assert.equal(visual.diagnostics.http[`500:external`], 1);
+    assert.equal(visual.diagnostics.http[`500:preview`], 1);
     assert.equal(JSON.stringify(visual).includes("missing.js"), false);
     assert.equal(JSON.stringify(visual).includes("credential=hidden"), false);
     assert.equal(JSON.stringify(visual).includes("never retain body"), false);
@@ -428,7 +499,8 @@ test("Chromium sends scoped OIDC on the GET after a login POST 303 and blocks an
     await page.evaluate(() => fetch("/api-leave", { method: "POST" }).catch(() => null));
     assert.equal(requests.find(req => req.path === "/api-leave" && req.method === "POST")?.hasToken, true);
     assert.deepEqual(externalRequests, []);
-    assert.equal(securityEvents.includes("external-redirect-blocked"), true, JSON.stringify(securityEvents));
+    assert.equal(routeEvents.includes("blocked-external-subresource-redirect"), true, JSON.stringify(routeEvents));
+    assert.equal(securityEvents.length, 0, "a blocked fetch redirect is not a document navigation");
 
     await page.goto(`${origin}/external-form`);
     await page.getByRole("button", { name: "Leave" }).click().catch(() => {});

@@ -3,7 +3,7 @@ import { previewIdentityMatches } from "@/lib/auth/mode";
 import { currentPreviewWriterCapability } from "./preview-writer-capability";
 
 const APPROVED_REF = "rhnnplewqsekrnaousyl";
-const APPROVED_BRANCH = "codex/u03-final-gates-20261020";
+const APPROVED_BRANCH = "codex/h1a-integral-20261022";
 const APPROVED_POOLER = "aws-1-eu-west-3.pooler.supabase.com";
 const APPROVED_WRITER_USER = `rubik_preview_u03_writer.${APPROVED_REF}`;
 const SHA = /^[0-9a-f]{40}$/;

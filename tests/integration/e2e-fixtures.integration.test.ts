@@ -4,7 +4,7 @@ import { afterAll, beforeAll, expect, it } from "vitest";
 import { SUPABASE_CLI } from "../../scripts/supabase-test-env.mjs";
 import { consentedMembership } from "../fixtures/consented-membership";
 import { fixtureScope } from "../../e2e/fixture-scope";
-import { cleanupFixtures, fixtureClients, fixtureSnapshot, initializeLedger, readLedger, recordFixture, reserveBrowserAccount, type Snapshot } from "../../e2e/fixtures";
+import { cleanupFixtures, createOwnedConfirmedAccount, fixtureClients, fixtureSnapshot, initializeLedger, readLedger, reconcileRunMarkedUser, recordFixture, reserveBrowserAccount, type Snapshot } from "../../e2e/fixtures";
 
 // Two isolated runs are deliberately treated as strangers. Only this test's successful
 // creation receipts may be cleaned; the original shared stack is compared before/after.
@@ -102,6 +102,30 @@ it("atomically preserves a private invitation even after its foreign membership 
     // roots belong to this regression; no discovered invitation is adopted or erased.
     deleteRegressionInvitation(invite.invitationId);
   }
+}, 60_000);
+
+it("records a confirmed recovery account before browser actions and removes it by run receipt", async () => {
+  activate(a);
+  const email = `${fixtureScope().prefix}-recovery@ejemplo.test`;
+  await reserveBrowserAccount(email);
+  await createOwnedConfirmedAccount(email, password);
+  const receipt = readLedger().users.find((user) => user.email === email);
+  expect(receipt?.id).toBeTruthy();
+  expect((await fixtureSnapshot()).users).toContainEqual({ ...receipt, run: a });
+  const signed = await fixtureClients().client().auth.signInWithPassword({ email, password });
+  expect(signed.error).toBeNull();
+}, 60_000);
+
+it("reconciles a lost local Auth create response only with the exact run marker", async () => {
+  activate(a);
+  const email = `${fixtureScope().prefix}-lost-response@ejemplo.test`;
+  await reserveBrowserAccount(email);
+  const created = must(await fixtureClients().admin.auth.admin.createUser({
+    email, password, email_confirm: true, app_metadata: { rubik_e2e_run: a },
+  })).data.user!;
+  const receipt = reconcileRunMarkedUser(readLedger(), await fixtureSnapshot(), email);
+  expect(receipt.id).toBe(created.id);
+  recordFixture({ kind: "user", value: receipt });
 }, 60_000);
 
 function deleteRegressionInvitation(invitationId: string) {

@@ -32,6 +32,13 @@ export const STACKS = {
 /** The stack selected by the environment. More than one selector is refused, never resolved by precedence. */
 export function selectedStack(env = process.env) {
   const chosen = Object.values(STACKS).filter((s) => s.selector && env[s.selector] === "1");
+  if (env.RUBIK_TEST_H1A_RESTORE_STACK === "1") {
+    const runId = env.U03_RESTORE_DESTINATION_RUN_ID ?? "";
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(runId) || chosen.length)
+      throw new Error("Refused: invalid isolated H1-A local source selection");
+    return { selector: "RUBIK_TEST_H1A_RESTORE_STACK", apiPort: 65421, dbPort: 65422,
+      projectId: `rubik-h1a-src-${runId.replaceAll("-", "").slice(0, 12).toLowerCase()}` };
+  }
   if (chosen.length > 1) throw new Error(`Refused: select only one local test stack (${chosen.map((s) => s.selector).join(", ")})`);
   return chosen[0] ?? STACKS.shared;
 }

@@ -1,4 +1,8 @@
+> **Actualización prioritaria 31/10/2026:** #154 fusionada en `main@01795dd7f3ac812bc0d069370c899a5d3d037e71` e incorporada mediante merge sin conflictos. Repetición H1-A en `e3c9f72`: 6/6 PASS y 15 fases; stacks propios retirados. Juanma autoriza push de #145 y comprobación de CI del HEAD exacto; permanece Draft, sin merge, campaña alojada ni datos de Sarah. Candidato reconciliado `2905eb2` con teclado/foco/Atrás: 6/6 PASS, 15 fases y verify 661 PASS/1 SKIP; nueva ejecución del HEAD final antes de push y CI exacto registrados en #145. Los cortes inferiores conservan resultados históricos; sus referencias a #154 pendiente o prohibición anterior de push están sustituidas por esta orden. [Evidencias y límites](docs/H1A-FUNCTIONAL-PREPARACION-20261031.md).
+
 # Continuidad autónoma de Rubik SEO/GEO
+
+> **Reconciliación posterior · 31/10/2026:** #154 ya está ratificada y R1-SNAPSHOT elegido; los párrafos inferiores que dicen propuesta/no ratificada describen el corte previo. H1-A preflight local PASS (6/6, verify 661 PASS/1 SKIP) en `2e04e50`; alojado NOT_RUN, #154 aún fuera de main y #145 remota Draft. Candidato local con navegación documental y logout POST pendiente de revisión/publicación autorizada; no desplegar ni fusionar. R1 modelo local 11/11, sin garantía de producto ni migración. [Estado vigente](docs/CODEX-AUTONOMIA-ESTADO.md) y [evidencia/plan](docs/H1A-FUNCTIONAL-PREPARACION-20261031.md). No reabrir la forénsica histórica por defecto.
 
 ## Actualización prioritaria de mandato · 31/10/2026
 

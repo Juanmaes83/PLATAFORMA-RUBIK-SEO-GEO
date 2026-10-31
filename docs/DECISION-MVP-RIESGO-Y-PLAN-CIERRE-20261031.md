@@ -86,7 +86,7 @@ No declarar «H2 cerrado» cuando solo existe un piloto controlado. Una excepci�
 ## 7. Deuda forense XHR — registro, no bucle
 
 **Referencia:** [#145](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/145), [H1A XHR local con datos](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/blob/codex/h1a-integral-20261022/docs/H1A-XHR-POPULATED-LOCAL-20261027.md).
-**Hecho observado:** en Preview, login 303 y sesión PASS; ordinal 23 en fase SESSION recibió cabeceras 200 y `NETWORK_CANCELLED`; actor y consumidor de cancelación no demostrados. Ensayo poblado A confirmó datos firmados; B no probó sustitución (directFinished=0); varios pasos posteriores NOT_RUN. 
+**Hecho observado:** en Preview, login 303 y sesión PASS; ordinal 23 en fase SESSION recibió cabeceras 200 y `NETWORK_CANCELLED`; actor y consumidor de cancelación no demostrados. Ensayo poblado A confirmó datos firmados; B no probó sustitución (directFinished=0); varios pasos posteriores NOT_RUN.
 **Evaluación comercial actual:** ninguna evidencia en esos expedientes identifica fuga de datos, daño al usuario o fallo crítico comercial causado *por ese ordinal*; esa ausencia **no prueba inocuidad**.
 **Acción:** congelar forénsica histórica como línea prioritaria. Mantener logs, SHA, pruebas y BLOCKED. Reabrir si nuevo recorrido demuestra una pérdida funcional, solicitud necesaria cancelada, error de permisos/firma, egreso o correlación adversarial que afecte a los controles esenciales. No añadir pruebas de precarga especulativa ni cambiar `prefetch` por defecto si no hay defecto reproducible de producto.
 

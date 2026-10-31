@@ -2,8 +2,13 @@
 
 ## CORTE DE PRIORIZACIÓN MVP · 31/10/2026
 
-[Decisión y plan de cierre por riesgo 31/10](DECISION-MVP-RIESGO-Y-PLAN-CIERRE-20261031.md): **piloto controlado**, **H2 MVP comercial restringido** y **producto generalizado** son alcances distintos. No exigir la explicación forense histórica perfecta del XHR para planificar la aceptación funcional, pero tampoco sustituir los controles P0/P1, recuperación, datos personales, soporte y despliegue. Clasificar cada fila N1-07/N1-08 como probada, pendiente o excepción explícita con alcance/fecha/propietario. Para el corte #145 del 27/10, GitHub Actions tuvo una ejecución SUCCESS (`40510937115`, SHA `72bfbcd`); las frases inferiores «CI bloqueada por facturación» describen cortes históricos y **no invalidan ese run**, aunque un CI verde no acredita operación comercial. H1-A original, R1, U04, H1 y H2 siguen sin cierre. No ampliar funciones vendidas si faltan controles operativos. 
+[Decisión y plan de cierre por riesgo 31/10](DECISION-MVP-RIESGO-Y-PLAN-CIERRE-20261031.md): **piloto controlado**, **H2 MVP comercial restringido** y **producto generalizado** son alcances distintos. No exigir la explicación forense histórica perfecta del XHR para planificar la aceptación funcional, pero tampoco sustituir los controles P0/P1, recuperación, datos personales, soporte y despliegue. Clasificar cada fila N1-07/N1-08 como probada, pendiente o excepción explícita con alcance/fecha/propietario. Para el corte #145 del 27/10, GitHub Actions tuvo una ejecución SUCCESS (`40510937115`, SHA `72bfbcd`); las frases inferiores «CI bloqueada por facturación» describen cortes históricos y **no invalidan ese run**, aunque un CI verde no acredita operación comercial. H1-A original, R1, U04, H1 y H2 siguen sin cierre. No ampliar funciones vendidas si faltan controles operativos.
 
+> Los cortes siguientes son expedientes históricos de la rama H1-A; la decisión del 31/10 prevalece para prioridades y aceptación.
+
+## Nota de estado H1-A · 22/10/2026
+
+La prueba local integrada `d6bc8e22-a761-4d68-823a-d7827b2acc6f` es evidencia de desarrollo, no cierre de H1-A/H1. La pasada A alojada sigue NOT_RUN; U04/Sarah y la aceptación de usuario siguen pendientes, al igual que R1 y los controles operativos/comerciales de H2. No atribuir a un deployment READY ni a la evidencia U03 el cierre de H1.
 
 ## Corte vigente · integración U03 · 22/10/2026
 

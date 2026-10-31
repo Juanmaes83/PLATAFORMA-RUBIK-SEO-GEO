@@ -3,7 +3,6 @@ import Link from "next/link";
 import "./globals.css";
 import { MobileNav, SideNav } from "@/components/AppNav";
 import { ModeBanner } from "@/components/ModeBanner";
-import { signOut } from "@/lib/auth/actions";
 import { currentUser, requestAuthMode } from "@/lib/auth/session";
 import { corePin } from "@/lib/core";
 
@@ -29,7 +28,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </Link>
           <div className="topbar-actions">
             {user ? (
-              <form action={signOut} className="user-chip">
+              <form action="/api/auth/logout" method="post" className="user-chip">
                 <span className="user-name">{user.email}</span>
                 <button type="submit" className="btn btn-ghost">Salir</button>
               </form>

@@ -8,7 +8,7 @@ const sha = "0123456789abcdef0123456789abcdef01234567";
 const env = {
   VERCEL_ENV: "preview",
   NEXT_PUBLIC_SUPABASE_URL: "https://rhnnplewqsekrnaousyl.supabase.co",
-  VERCEL_GIT_COMMIT_REF: "codex/u03-final-gates-20261020",
+  VERCEL_GIT_COMMIT_REF: "codex/h1a-integral-20261022",
   VERCEL_GIT_COMMIT_SHA: sha,
   U03_PREVIEW_WRITER_WINDOW: "armed-run-capability",
   U03_PREVIEW_WRITER_WINDOW_REF: "rhnnplewqsekrnaousyl",
@@ -25,7 +25,7 @@ describe("temporary Preview writer window", () => {
   it("classifies host, run, TTL, MAC and scope rejection without granting access", async () => {
     const expiresAt = now + 20 * 60_000;
     const mac = previewWindowMac(env.U03_PREVIEW_WRITER_WINDOW_SECRET, { runId, expiresAt,
-      deploymentId: env.VERCEL_DEPLOYMENT_ID, host: env.VERCEL_URL, sha });
+      deploymentId: env.VERCEL_DEPLOYMENT_ID, host: env.VERCEL_URL, sha, branch: env.VERCEL_GIT_COMMIT_REF });
     const request = (host: string, run = runId, expiry = expiresAt, signature = mac) =>
       new Request(`https://${host}/api/u03/window`, { headers: {
         "x-rubik-u03-run-id": run, "x-rubik-u03-expires": String(expiry), "x-rubik-u03-capability": signature,
@@ -44,7 +44,7 @@ describe("temporary Preview writer window", () => {
     expect(previewWriterWindowActive(env, now)).toBe(false);
     const expiresAt = now + 20 * 60_000;
     const capability = previewWindowMac(env.U03_PREVIEW_WRITER_WINDOW_SECRET, { runId, expiresAt,
-      deploymentId: env.VERCEL_DEPLOYMENT_ID, host: env.VERCEL_URL, sha });
+      deploymentId: env.VERCEL_DEPLOYMENT_ID, host: env.VERCEL_URL, sha, branch: env.VERCEL_GIT_COMMIT_REF });
     const request = new Request(`https://${env.VERCEL_URL}/api/u03/window-fixtures`, { headers: {
       "x-rubik-u03-run-id": runId, "x-rubik-u03-expires": String(expiresAt), "x-rubik-u03-capability": capability,
     } });

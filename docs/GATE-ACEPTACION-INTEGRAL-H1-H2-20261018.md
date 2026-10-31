@@ -4,6 +4,43 @@
 
 La [decisión de MVP por riesgo 31/10](DECISION-MVP-RIESGO-Y-PLAN-CIERRE-20261031.md) aprueba **cambiar prioridades** y preparar una evaluación funcional independiente de la forénsica XHR histórica. **Este protocolo de 18/10 y sus resultados anteriores permanecen sin alterar**; sigue siendo obligatorio para el cierre original mientras Juanma no ratifique formalmente una alternativa exacta. El resultado histórico del gate de XHR sigue BLOCKED; H1-A/H1/H2 siguen abiertos. El addendum propone `MVP_FUNCTIONAL_ACCEPTANCE`: login/sesión, permisos A1/A2/B1, fuente/medición/informe con datos firmados, exportación HTTP/restore/idempotencia, no-egreso, limpieza, escritorio/móvil y decisiones R1/U04/H2. Cualquier fallo P0/P1 del producto o una petición necesaria incompleta bloquea. Una precarga histórica no demostrada inocua se conserva como deuda forense, pero no debe causar una nueva investigación interminable si se acredita por separado un recorrido seguro y se acepta el riesgo residual. El protocolo nuevo requiere ratificación expresa y resultados propios, no cambio automático a PASS. **El resto de este fichero es el protocolo histórico original.**
 
+> Los cortes siguientes son expedientes históricos de la rama H1-A; la decisión del 31/10 prevalece para prioridades y aceptación.
+
+## Corte vigente H1-A tras 9570e8d0 · 23/10/2026
+
+El run alojado `9570e8d0-0c45-432a-b300-2c51d0c3ef58` conserva **BLOCKED** en `H1A_AUTH_LOGIN`: tres subrecursos del origen fijado fallaron en `Fetch.continueRequest`; otros tres registros corresponden al intento posterior de bloqueo. El ledger no conserva la clase del rechazo CDP y el snapshot `after-login` no demuestra login completo. Una lectura independiente **nueva** confirmó inventario/outbox/capacidades temporales a cero, guarda restaurada y escritor general NOLOGIN; las variables, deployment y vault ya no están. [Expediente y hashes](H1A-CDP-9570-20261023.md). La instrumentación añadida conserva categorías cerradas para un fallo futuro, pero no constituye una corrección funcional ni PASS alojado. U03 permanece cerrado; H1-A, R1, H1-B/U04, H1 global y H2 siguen abiertos.
+
+## Corte H1-A tras e4296f43 · 23/10/2026
+
+El run alojado `e4296f43-338a-4ca2-9f8f-340ac7f0c50a` conserva resultado **BLOCKED** en login por `H1A_PINNED_REQUEST_INTERCEPTION_FAILED`, antes de exportación HTTP. La lectura final independiente confirmó Preview e inventario/outbox a cero y principal temporal retirado. La operación CDP concreta no quedó en el ledger original; [el expediente acotado](H1A-CDP-E429-20261023.md) distingue lo acreditado de la reproducción local y documenta la corrección de categorías del ledger y del teardown. H1-A sigue abierto y la aceptación visual humana no se infiere de capturas anteriores.
+
+## Estado histórico de H1-A tras c594d41d
+
+H1-A continúa **BLOCKED**: el run alojado `c594d41d-dc26-4870-a4b4-3ec9fc2256ae` pasó login, permisos, datos firmados, aislamiento y cuatro vistas/capturas, pero export HTTP respondió 503; verificación y restauración no se ejecutaron. La limpieza y la lectura independiente dieron inventario/outbox/capacidades temporales cero. Una condición necesaria faltó en la ventana: la atestación del corte N1 para exportar v2. El código ahora la exige en el lote y en la atestación protegida y clasifica un 503 posterior con categoría cerrada. El ensayo local `aa8602bd-6957-4f81-9d88-56bfe151d255` pasó export HTTP, verificación, rechazo de manipulación, restauración doble y limpieza; no cierra H1-A alojado. U03 permanece PASS; R1, H1-B/U04, H1 global y H2 siguen abiertos. [Expediente](H1A-EXPORT-503-C594-20261023.md).
+
+## Estado vigente de H1-A tras d3bb7af4
+
+El run alojado `d3bb7af4-fa3c-49f0-98af-742158444963` se bloqueo en el intervalo `after-login`, antes de completar vistas, exportacion y restauracion. La limpieza independiente de Preview termino a cero. Los 132 errores de consola y 132 respuestas 404 originales carecen de clasificacion de recurso; la causa exacta sigue sin atribuir. El ensayo local completo con CDP y dos stacks paso, pero H1-A sigue BLOCKED hasta una campana alojada completa y aceptacion visual humana. [Diagnostico y evidencia](H1A-DIAGNOSTICO-D3BB-20261022.md). U03 conserva su PASS; R1, U04/H1-B, H1 global y H2 permanecen abiertos.
+
+## H1-A · login normal y nueva prueba local · 23/10/2026
+
+El run alojado `d3bb7af4-fa3c-49f0-98af-742158444963` conserva BLOCKED y su limpieza acreditada. El defecto actual se reprodujo de forma segura sin fixtures: clic con Server Action seguido de 404 de assets inmutables; envio nativo del mismo formulario con HTTP 303 y cero errores. El login se cambio a POST de documento con Auth del servidor, comprobacion de origen y redireccion relativa. El run local `d1a93948-00dc-4e8b-ad3b-83b8b16504ae` paso el recorrido completo con dos stacks desechables y limpieza. La sonda protegida sin fixtures en `dpl_HnUY7E1B8rLGzLZtUtvfwHEZvkbM` / SHA `029db301498b8134a70eb6f0ed6aa5a3d07a3388` paso el login negativo con 303, cero 404 y cero errores. Falta una unica campana integral alojada y revision visual humana. H1-A sigue BLOCKED; H1-B/U04 con Sarah, R1, H1 global y H2 permanecen abiertos.
+
+## H1-A · snapshots acumulativos locales · 22/10/2026
+
+El run local `1c37450a-5cbb-4bad-8c91-6a92d9a24491` registra snapshots acumulativos no consumibles antes y después de login, navegación y medición. El verificador comprueba los 18 límites esperados entre cuatro gates visuales (desktop/móvil, medición/informe), valida mapas cerrados, continuidad before/after, deltas recalculados y suma exacta contra cada contador del gate. Un límite ausente, una discrepancia o cualquier dato fuera del esquema bloquea la evidencia. Los cuatro gates visuales locales reportaron cero errores de consola/página; exportación HTTP loopback, verificación offline, rechazo de manipulación, restauración doble e idempotente y limpieza de ambos stacks pasaron. La prueba de integración vuelve a leer y validar el ledger persistido.
+
+Este es un PASS local, no evidencia alojada. No se ha preparado ni abierto una ventana H1-A nueva en Preview en este corte. H1-A permanece BLOCKED hasta superar preflights alojados, una sola campaña integral, lectura independiente de limpieza y revisión visual humana. R1, H1-B/U04, H1 global y H2 siguen abiertos.
+
+## Corte H1-A · 22/10/2026 · recuperación y ensayo local
+
+El run alojado `f7ee4d0a-edb4-4276-88fc-03bbab570a19` conserva su resultado **BLOCKED**. Su recuperación posterior pasó y una lectura independiente confirmó Preview a cero, guarda restaurada y capacidades temporales retiradas. El fallo `H1A_EXTERNAL_NAVIGATION_BLOCKED` histórico no identifica el tipo de petición; un defecto reproducido localmente confundía redirecciones de recursos secundarios con navegación principal. El arnés ahora bloquea ambas salidas, pero solo la navegación principal falla ese gate, y registra categorías cerradas. Véase [expediente de recuperación](H1A-RECUPERACION-F7EE-20261022.md).
+
+Un recorrido local nuevo con dos stacks N1 desechables pasó Auth, vistas desktop/móvil, exportación HTTP real, verificación y rechazo de manipulación, restauración doble, logout y limpieza. Esta evidencia local no cierra H1-A: faltan deployment protegido del SHA funcional, preflights alojados, una campaña nueva única y aceptación visual humana. R1, H1-B/U04 con Sarah, H1 global y H2 siguen abiertos.
+
+## Actualización de pasada A · 22/10/2026
+
+La evidencia local integrada del run `d6bc8e22-a761-4d68-823a-d7827b2acc6f` pasó exportación HTTP loopback, verificación, rechazo de manipulación, restauración doble en destino separado y limpieza; véase `docs/evidence/H1A-LOCAL-HTTP-RESTORE-20261022.jsonl`. No satisface la fila de pasada A, que exige Preview alojado y evidencia visual asociada al mismo run. H1-A alojado permanece NOT_RUN. U03 PASS del run `330c6e4b-14ad-439a-a8cf-43d92c73fadb` se reutiliza. R1 (consistencia frente a escrituras concurrentes) sigue pendiente para datos reales/Sarah; en esta prueba ficticia no hubo escrituras concurrentes y no se afirma snapshot transaccional. H1-B/U04, aceptación humana de Sarah, H1 y H2 siguen abiertos.
 
 Fecha de incorporación: 18/10/2026. Estado: **PENDIENTE DE EJECUCIÓN**. Este protocolo concreta el criterio de terminado del [Roadmap Maestro](ROADMAP-MAESTRO-2026.md) y del [estado de los tres niveles](ESTADO-TRES-NIVELES-Y-CIERRE-20261018.md). Los tests de componentes, la matriz U03, el despliegue READY y una demostración visual aislada no sustituyen este recorrido.
 
@@ -58,3 +95,9 @@ El acta guarda: tareas completas/incompletas, incidencias y severidad, tiempo po
 - **Sarah:** validar utilidad y comprensión del piloto en la pasada B.
 
 El expediente final separa **PASS, FAIL, SKIP y NO EJECUTADO**. H1 solo puede marcarse CERRADO cuando la pasada A cubra exportación HTTP firmada y restauración/idempotencia, la pasada B sea aceptada y no queden incidencias bloqueantes. H2 solo puede marcarse CERRADO después de H1, U02/U03 y N1-07/08 aceptados. GitHub Actions bloqueado por facturación requiere resolución o excepción de release explícita del propietario; nunca se denomina CI verde.
+
+## Regla permanente de informe por run H1-A
+
+Antes de proponer otro paso, para cada run alojado, local, de CI o preparado, informar: (1) último gate PASS, caseId y evidencia; (2) primer FAIL/BLOCKED con fase, código y categoría, separado de cascadas; (3) gates NOT_RUN separados de FAIL; (4) efectos y limpieza de fixtures, recibos, outbox, rol, políticas, sesiones, guarda, variables, deployment y vault. Un entorno alojado exige lectura independiente además del ledger; un stack local exige verificar su retirada. (5) Separar causa demostrada de hipótesis y nunca reconstruir campos ausentes. (6) Corrección y prueba que fallaba antes y pasa después, o impedimento exacto y acción mínima. Identificar para cada afirmación si procede del ledger original, de una lectura independiente anterior o de una comprobación nueva. La regla se aplica aunque no se ejecute un nuevo run.
+
+Para la sonda Auth/XHR, el gate sigue exigiendo `Network.loadingFinished` correlacionado para cada petición observada. El diagnóstico nuevo clasifica fase, script iniciador, señal RSC/prefetch, relación con enlaces del DOM y ausencia de terminal al vencimiento; `UNKNOWN`, cancelación y falta de terminal siguen bloqueando. El expediente `H1A-XHR-CAUSAL-20261025.md` separa esas categorías futuras de lo que acredita el ledger histórico `e610fc60…`. Un `document-title` ausente al ejecutar axe se sincroniza esperando el título real; el test conserva el rechazo si nunca aparece.

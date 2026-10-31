@@ -25,7 +25,7 @@ export default defineConfig({
   reporter: [["list"]],
   timeout: 60_000,
   use: {
-    baseURL: `http://localhost:${port}`,
+    baseURL: `http://127.0.0.1:${port}`,
     browserName: "chromium",
     colorScheme: "light",
     locale: "es-ES",
@@ -36,8 +36,8 @@ export default defineConfig({
     { name: "escritorio-1280", use: { viewport: { width: 1280, height: 800 } } },
   ],
   webServer: {
-    command: `node scripts/run-next.mjs dev -p ${port}`,
-    url: `http://localhost:${port}/api/salud`,
+    command: `node scripts/run-next.mjs dev -H 127.0.0.1 -p ${port}`,
+    url: `http://127.0.0.1:${port}/api/salud`,
     reuseExistingServer: false,
     timeout: 120_000,
     env: {

@@ -50,6 +50,9 @@ async function newConfirmedAccount(page: Page, address: string) {
   await page.getByLabel("Correo").fill(address);
   await page.getByLabel("Contraseña").fill(TEST_PASSPHRASE);
   await page.getByRole("button", { name: "Crear cuenta" }).click();
+  // The Server Action must finish before the browser follows the one-use Auth link.
+  // Otherwise its late redirect can race the callback and leave ownership unproven.
+  await expect(page).toHaveURL(/\/acceso\?aviso=confirma$/, { timeout: 20_000 });
   await page.goto(await confirmLink(mailpitUrl, address));
   await expect(page).toHaveURL(/\/panel$/);
   await claimBrowserAccount(address);
