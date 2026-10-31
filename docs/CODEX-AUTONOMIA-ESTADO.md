@@ -1,5 +1,10 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
+## Prioridad estratégica superior a checkpoints previos · 31/10/2026
+
+Leer primero [DECISION-MVP-RIESGO-Y-PLAN-CIERRE-20261031](DECISION-MVP-RIESGO-Y-PLAN-CIERRE-20261031.md). Este archivo contiene checkpoints históricos desde 15–22/10: sirven como evidencia de sus runs, no como orden actual para seguir investigando XHR por defecto. **U03 PASS, #143 MERGED; #145 72bfbcd, CI SUCCESS 27/10, H1-A original BLOCKED; R1 pendiente, U04/H1/H2 abiertos.** Directriz aprobada: priorizar recorrido funcional crítico, P0/P1, export/restore, R1 y Sarah; mantener resultados de la forénsica XHR sin reetiquetarlos. No convertir un script de pruebas ni un checkpoint antiguo en fuente de nuevos requisitos de producto. Reconciliar siempre GitHub y entorno antes de ejecutar; protocolo MVP funcional todavía necesita ratificación expresa.
+
+
 ## #143 · recuperación run 26f7efe8 · 21/10/2026
 
 El run alojado `26f7efe8-e5e4-4d68-bfea-e53a7a4bfa8e` se detuvo después de instalar el rol mínimo NOLOGIN, antes de activación, sesiones del principal o fixtures. La contención original dejó `CONTAINMENT_NEW_LOGIN_QUERY_FAILED`; los ledgers originales se conservan. Prelectura administrativa independiente: Preview exacto, 27 N1, rol propio NOLOGIN, cuatro políticas exactas, cero sesiones, inventario/outbox cero y escritor general cerrado. Rollback del marcador exacto PASS; lectura final independiente confirma rol/políticas/sesiones cero, guarda original, inventario/outbox total/pending cero y escritor general NOLOGIN. Ocho variables de rama, deployment temporal y vault DPAPI retirados y verificados ausentes. La recuperación se resumió después en una reconciliación manual sanitizada, con `recordedUtc` y sin horas de ejecución inferidas: `test-results/u03-hosted/26f7efe8-e5e4-4d68-bfea-e53a7a4bfa8e-recovery.jsonl`.
