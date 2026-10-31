@@ -76,7 +76,8 @@ test.describe("f1 agency dashboard", () => {
     }
     // A fresh fixture project has no stored data: tiles say so explicitly, never as zeros,
     // and the uninstalled content/GEO schema is "No disponible".
-    await expect(page.locator(".module-tile")).toContainText(["Sin datos", "No disponible"].join(" "));
+    await expect(page.locator(".module-tile", { hasText: "Sin datos" }).first()).toBeVisible();
+    await expect(page.locator(".module-tile", { hasText: "No disponible" }).first()).toBeVisible();
     await expect(page.getByText(/score|Score/)).toHaveCount(0);
     await healthy(page, info.project.name !== "escritorio-1280");
     await screenshot(page, `resumen-${info.project.name}`);

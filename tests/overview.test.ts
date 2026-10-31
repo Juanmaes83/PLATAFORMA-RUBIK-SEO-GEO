@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { readProjectOverview, type ModuleSignal, type SourceState } from "@/lib/overview";
+import { readProjectOverview, type ModuleSignal, type ProjectModules, type SourceState } from "@/lib/overview";
 import type { ProjectRef } from "@/lib/provenance/audit";
 
 // The overview module only maps repository results to honest dashboard states. These tests
@@ -17,6 +17,7 @@ const ref: ProjectRef = {
 
 /** A thenable query chain: every method returns the chain, awaiting it resolves the result. */
 function chainable(result: Result) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const self: any = new Proxy({}, {
     get(_target, prop) {
       if (prop === "then") return (resolve: (value: unknown) => void) => resolve(result);
@@ -37,8 +38,8 @@ function fakeClient(tables: Record<string, Result>) {
 
 const empty = { data: [], error: null };
 
-const states = (signals: Record<string, ModuleSignal>): Record<string, SourceState> =>
-  Object.fromEntries(Object.entries(signals).map(([k, v]) => [k, v.state]));
+const states = (signals: ProjectModules): Record<string, SourceState> =>
+  Object.fromEntries((Object.entries(signals) as [string, ModuleSignal][]).map(([k, v]) => [k, v.state]));
 
 describe("project overview state mapping", () => {
   beforeEach(() => {
@@ -65,7 +66,7 @@ describe("project overview state mapping", () => {
   it("a failed read is unavailable and never blanks the other modules", async () => {
     const overview = await readProjectOverview(fakeClient({ audit_events: { data: null, error: { code: "42P01" } } }), ref, null);
     expect(overview.audit.state).toBe("unavailable");
-    expect(states({ rest: overview.measurement }).rest).toBe("no_data");
+    expect(overview.measurement.state).toBe("no_data");
     expect(overview.technical.state).toBe("no_data");
   });
 
