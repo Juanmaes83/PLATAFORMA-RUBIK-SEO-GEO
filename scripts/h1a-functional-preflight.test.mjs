@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {CASES,evaluateFunctionalPreflight,ratifiedContractInMain,isAuxiliaryPrefetch} from './h1a-functional-preflight.mjs';
+import {CASES,evaluateFunctionalPreflight,ratifiedContractInMain,isAuxiliaryPrefetch,hasUncommittedSource} from './h1a-functional-preflight.mjs';
 const headSha='1'.repeat(40),expectedDigest='2'.repeat(64);
 function valid() {return {headSha,expectedDigest,contractInMain:true,evidence:{headSha,scenarioDigest:expectedDigest,testsPassed:true,cases:CASES.map(caseId=>({caseId,status:'PASS'}))},plan:{
   supabaseRef:'rhnnplewqsekrnaousyl',schema:'pre-n2-through-20261015210000',deployment:{id:'dpl_Fictional',host:'plataforma-rubik-seo-fictional.vercel.app',sha:headSha,protected:true},
@@ -27,4 +27,9 @@ test('ratified blob is accepted after squash merge and rejected if changed or mi
 for(const value of ['1','2','3'])test('explicit Next prefetch '+value+' is auxiliary',()=>assert.equal(isAuxiliaryPrefetch({'next-router-prefetch':value}),true));
 test('unknown or missing prefetch hints remain necessary',()=>{
   for(const headers of [{},{rsc:'1'},{'next-router-prefetch':'4'}])assert.equal(isAuxiliaryPrefetch(headers),false);
+});
+test('evidence refuses tracked edits and untracked executable code',()=>{
+  assert.equal(hasUncommittedSource(''),false);
+  assert.equal(hasUncommittedSource('?? docs/notes.md\n'),false);
+  for(const status of [' M src/app/page.tsx','M  scripts/runner.mjs','?? scripts/new.mjs',' M docs/notes.md'])assert.equal(hasUncommittedSource(status),true);
 });

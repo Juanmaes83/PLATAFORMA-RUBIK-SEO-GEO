@@ -4,7 +4,7 @@ import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from '
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
-import { CASES, scenarioDigest } from './h1a-functional-preflight.mjs';
+import { CASES, scenarioDigest, hasUncommittedSource } from './h1a-functional-preflight.mjs';
 
 const ROOT=resolve(import.meta.dirname,'..');
 const runId=randomUUID();
@@ -43,6 +43,7 @@ function h1aTestEnv() {
 }
 let pendingEvidence;
 let caughtError;
+if(hasUncommittedSource(safeRun('git',['status','--porcelain','--untracked-files=all'])))throw new Error('FUNCTIONAL_SOURCE_NOT_COMMITTED');
 const headSha=safeRun('git',['rev-parse','HEAD']).trim(),digest=scenarioDigest();
 try {
   process.stdout.write(safeRun(node,['--test','scripts/h1a-functional-preflight.test.mjs','scripts/h1a-local-egress-guard.test.mjs']));
@@ -64,7 +65,7 @@ try {
   const cases=CASES.map(caseId=>({caseId,status:rows.findLast(row=>row.phase===caseId)?.result??'NOT_RUN'}));
   if(cases.some(row=>row.status!=='PASS'))throw new Error('FUNCTIONAL_CASE_NOT_PASSED');
   const evidencePath=resolve(ROOT,`test-results/mvp-functional-local-${runId}.json`);
-  if(safeRun('git',['rev-parse','HEAD']).trim()!==headSha||scenarioDigest()!==digest)throw new Error('FUNCTIONAL_SOURCE_CHANGED_DURING_RUN');
+  if(safeRun('git',['rev-parse','HEAD']).trim()!==headSha||scenarioDigest()!==digest||hasUncommittedSource(safeRun('git',['status','--porcelain','--untracked-files=all'])))throw new Error('FUNCTIONAL_SOURCE_CHANGED_DURING_RUN');
   pendingEvidence={evidencePath,document:{headSha,scenarioDigest:digest,testsPassed:true,cases,runId,ledgerFile:ledgers[0]}};
 } catch(error) {
   caughtError=error;

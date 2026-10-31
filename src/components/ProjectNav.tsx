@@ -18,7 +18,7 @@ export function ProjectNav({ base, current }: { base: string; current: string | 
       <ul>
         {items.map((i) => (
           <li key={i.href}>
-            <Link href={i.href} aria-current={i.key === current ? "page" : undefined}>{i.label}</Link>
+            <Link prefetch={false} href={i.href} aria-current={i.key === current ? "page" : undefined}>{i.label}</Link>
           </li>
         ))}
       </ul>

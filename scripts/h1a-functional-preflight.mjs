@@ -8,6 +8,9 @@ export const CONTRACT_SHA='3a35528f4cd08432f61fc302664e8074177f269d';
 export function isAuxiliaryPrefetch(headers) {
   return ['1','2','3'].includes(headers['next-router-prefetch'])||headers.purpose==='prefetch';
 }
+export function hasUncommittedSource(status) {
+  return status.split(/\r?\n/).filter(Boolean).some(line=>!line.startsWith('?? docs/'));
+}
 export const CASES=Object.freeze(['preflight','functional-identity','functional-desktop','functional-mobile','functional-tenancy',
   'functional-egress-cost','http-export','offline-verification','tamper-rejection','restore-destination',
   'browser-views-and-logout','foreign-preserved','source-cleanup','destination-cleanup','functional-restore-transport']);
