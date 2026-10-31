@@ -2,6 +2,8 @@
 
 ## #145 · main integrado mediante merge · 31/10/2026
 
+Corrección posterior en `6591497`: Next/eslint-config-next 16.4.3, Vite 8.3.5 y Zod 4.6.7 tras identificar un aviso DoS aplicable a App Router/Server Actions. Verify repetido PASS: 649 PASS/1 SKIP, lint/tipos/build y escaneo de 813 archivos; audit completo 18 moderados/0 altos/0 críticos, audit de producción 0. Sin SQL ni Supabase en esta corrección. El HEAD final incorpora un checkpoint documental posterior; requiere CI y revisión propios. Detalle en el expediente enlazado abajo.
+
 Merge local `e005a6529b7936adeddd065842accb7cb0a2a102`: incorpora `main@ba21a080` a `72bfbcd`, preserva #147/#148 y resuelve cinco conflictos documentales conservando ambos expedientes con precedencia del corte 31/10. `npm run verify` PASS: 649 PASS/1 SKIP, lint/tipos/build y escaneo de 812 archivos. Sin cambios de producto ni pruebas/escrituras Supabase en esta integración. El HEAD publicado y sus checks exactos se consultan en #145; no heredar el CI del SHA anterior. [Expediente y riesgos](H1A-MAIN-INTEGRACION-20261031.md). H1-A/H1/H2, R1 y U04 siguen abiertos; la propuesta #154 sigue pendiente de ratificación.
 
 ## Prioridad estratégica superior a checkpoints previos · 31/10/2026
