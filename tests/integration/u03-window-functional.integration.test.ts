@@ -287,6 +287,7 @@ it('MVP functional: real identity, signed populated views and isolated double re
   browser=await chromium.launch({headless:true});
   const securityFailures:string[]=[];
   const necessaryFailures:string[]=[];
+  const necessaryBodies:Promise<void>[]=[];
   let completedDocuments=0;
   const visit=async(page:Page,path:string,status=200)=>{
     const response=await page.goto(`${origin}${path}`,{waitUntil:'networkidle'});
@@ -303,6 +304,11 @@ it('MVP functional: real identity, signed populated views and isolated double re
   const login=async(name:string)=>{
     const context=await browser!.newContext({locale:'es-ES',serviceWorkers:'block'});
     const page=await context.newPage();
+    page.on('response',response=>{
+      const request=response.request(),headers=request.headers();
+      if(!['document','fetch','xhr'].includes(request.resourceType())||headers['next-router-prefetch']==='1'||headers.purpose==='prefetch'||response.status()>=300&&response.status()<400)return;
+      necessaryBodies.push((async()=>{expect(await response.finished()).toBeNull();expect((await response.body()).byteLength).toBeGreaterThan(0);})().catch(()=>{necessaryFailures.push('NECESSARY_BODY_INCOMPLETE');}));
+    });
     await installScopedRoutes(context,page,null,origin,(...args:unknown[])=>{securityFailures.push(typeof args[0]==='string'?args[0]:'INTERCEPTION_FAILED');},()=>{},null,()=>{},row=>{
       if((row.stage==='REQUEST'||row.stage==='RESPONSE')&&row.result!=='CONTINUED') securityFailures.push('CDP_INTERCEPTION_FAILED');
     },true);
@@ -329,6 +335,8 @@ it('MVP functional: real identity, signed populated views and isolated double re
   await page.locator(`a[href='/proyectos/${TENANT}/a1']`).first().click();
   await page.waitForURL(`${origin}/proyectos/${TENANT}/a1`);
   await expect.poll(()=>page.locator('h1').innerText()).toBeTruthy();
+  await page.waitForLoadState('networkidle');
+  await Promise.all(necessaryBodies);
   await visit(page,`/proyectos/${TENANT}/a1`);
   record('functional-identity','PASS');
 
@@ -347,6 +355,8 @@ it('MVP functional: real identity, signed populated views and isolated double re
     await page.screenshot({path:`${ROOT}/test-results/functional-${RUN}/${viewport.width}-measurement.png`,fullPage:true});
     await page.getByRole('navigation',{name:'Secciones del proyecto'}).getByRole('link',{name:'Informe del proyecto',exact:true}).click();
     await expect.poll(()=>page.getByRole('heading',{name:'Informe del proyecto',exact:true}).count()).toBe(1);
+    await page.waitForLoadState('networkidle');
+    await Promise.all(necessaryBodies);
     await visit(page,`/proyectos/${TENANT}/a1/informe`);
     await expect.poll(()=>page.locator('#s-measurement').innerText()).toContain('Google Search Console: capturas verificadas');
     const measured=page.locator('#s-measurement');
