@@ -288,12 +288,17 @@ it('MVP functional: real identity, signed populated views and isolated double re
   const securityFailures:string[]=[];
   const necessaryFailures:string[]=[];
   const necessaryBodies:Promise<void>[]=[];
+  const bounded=async<T>(promise:Promise<T>,stage:string):Promise<T>=>{
+    let timer:ReturnType<typeof setTimeout>|undefined;
+    try{return await Promise.race([promise,new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(new Error(stage)),10_000);})]);}
+    finally{clearTimeout(timer);}
+  };
   let completedDocuments=0;
   const visit=async(page:Page,path:string,status=200)=>{
     const response=await page.goto(`${origin}${path}`,{waitUntil:'networkidle'});
     expect(response?.status()).toBe(status);
-    expect(await response!.finished()).toBeNull();
-    expect((await response!.body()).byteLength).toBeGreaterThan(0);
+    expect(await bounded(response!.finished(),'DOCUMENT_FINISH_TIMEOUT')).toBeNull();
+    expect((await bounded(response!.body(),'DOCUMENT_BODY_TIMEOUT')).byteLength).toBeGreaterThan(0);
     expect(response!.request().failure()).toBeNull();
     expect(new URL(page.url()).origin).toBe(origin);
     completedDocuments++;
@@ -304,10 +309,11 @@ it('MVP functional: real identity, signed populated views and isolated double re
   const login=async(name:string)=>{
     const context=await browser!.newContext({locale:'es-ES',serviceWorkers:'block'});
     const page=await context.newPage();
+    page.setDefaultTimeout(15_000);
     page.on('response',response=>{
       const request=response.request(),headers=request.headers();
       if(!['document','fetch','xhr'].includes(request.resourceType())||headers['next-router-prefetch']==='1'||headers.purpose==='prefetch'||response.status()>=300&&response.status()<400)return;
-      necessaryBodies.push((async()=>{expect(await response.finished()).toBeNull();expect((await response.body()).byteLength).toBeGreaterThan(0);})().catch(()=>{necessaryFailures.push('NECESSARY_BODY_INCOMPLETE');}));
+      necessaryBodies.push((async()=>{expect(await bounded(response.finished(),'NECESSARY_FINISH_TIMEOUT')).toBeNull();expect((await bounded(response.body(),'NECESSARY_BODY_TIMEOUT')).byteLength).toBeGreaterThan(0);})().catch(()=>{necessaryFailures.push('NECESSARY_BODY_INCOMPLETE_'+request.resourceType());}));
     });
     await installScopedRoutes(context,page,null,origin,(...args:unknown[])=>{securityFailures.push(typeof args[0]==='string'?args[0]:'INTERCEPTION_FAILED');},()=>{},null,()=>{},row=>{
       if((row.stage==='REQUEST'||row.stage==='RESPONSE')&&row.result!=='CONTINUED') securityFailures.push('CDP_INTERCEPTION_FAILED');
@@ -324,10 +330,10 @@ it('MVP functional: real identity, signed populated views and isolated double re
     await page.getByRole('button',{name:'Entrar'}).click();
     const response=await post;
     expect(response.status()).toBe(303);
-    expect(await response.finished()).toBeNull();
+    expect(await bounded(response.finished(),'LOGIN_POST_FINISH_TIMEOUT')).toBeNull();
     await page.waitForURL(`${origin}/panel`);
     await page.waitForLoadState('networkidle');
-    await Promise.all(necessaryBodies);
+    await bounded(Promise.all(necessaryBodies),'LOGIN_NECESSARY_BODIES_TIMEOUT');
     await visit(page,'/panel');
     return {context,page};
   };
