@@ -41,9 +41,14 @@ test.describe("f1 agency dashboard", () => {
     await expect(card).toContainText("restaurante.ejemplo.test");
     await expect(card).toContainText("Titular");
     await expect(card.getByRole("link", { name: "Abrir proyecto" })).toHaveAttribute("href", P);
-    // Six module chips, each with an honest state; no invented numbers anywhere.
+    // Six module chips, each labelled with one of the four honest states; no invented numbers.
     await expect(card.locator(".chip")).toHaveCount(6);
-    await expect(card).toContainText("Sin actividad registrada todavía");
+    for (const chip of await card.locator(".chip").all()) {
+      await expect(chip).toContainText(/Con datos|Sin datos|Configuración pendiente|No disponible/);
+    }
+    // The activity line is an honest reading either way: a stack whose audit pipeline exists
+    // records the fixture setup itself («Último evento · …»); one without it shows no activity.
+    await expect(card.locator(".project-card-activity")).toContainText(/Sin actividad registrada todavía|Último evento ·/);
     await expect(page.getByText("Sin bandeja de aprobaciones todavía")).toHaveCount(0);
     await expect(page.getByText(/Próximamente/)).toHaveCount(0);
     await healthy(page, info.project.name !== "escritorio-1280");
@@ -74,10 +79,17 @@ test.describe("f1 agency dashboard", () => {
     for (const title of ["Análisis SEO", "Medición orgánica", "Competidores", "Contenidos", "GEO e IA", "Informe del proyecto"]) {
       await expect(page.locator(".module-tile", { hasText: title })).toBeVisible();
     }
-    // A fresh fixture project has no stored data: tiles say so explicitly, never as zeros,
-    // and the uninstalled content/GEO schema is "No disponible".
-    await expect(page.locator(".module-tile", { hasText: "Sin datos" }).first()).toBeVisible();
-    await expect(page.locator(".module-tile", { hasText: "No disponible" }).first()).toBeVisible();
+    // Every signal tile carries one of the four honest states, never a fabricated zero. The
+    // content/GEO schema may be installed in this stack or not («Sin datos» vs «No disponible»),
+    // and a fresh stack may already hold rows from other specs («Con datos»): all are honest.
+    for (const title of ["Análisis SEO", "Medición orgánica", "Competidores", "Contenidos", "GEO e IA"]) {
+      await expect(page.locator(".module-tile", { hasText: title })).toContainText(/Con datos|Sin datos|Configuración pendiente|No disponible/);
+    }
+    // Deterministic for the owner role: the fixture project has no Google property stored, so
+    // the measurement tile asks for the association instead of pretending to measure.
+    const measurementTile = page.locator(".module-tile", { hasText: "Medición orgánica" });
+    await expect(measurementTile).toContainText("Configuración pendiente");
+    await expect(measurementTile).toContainText("Sin propiedad de Google asociada");
     await expect(page.getByText(/score|Score/)).toHaveCount(0);
     await healthy(page, info.project.name !== "escritorio-1280");
     await screenshot(page, `resumen-${info.project.name}`);

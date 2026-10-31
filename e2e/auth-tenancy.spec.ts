@@ -186,7 +186,8 @@ test("an owner creates a project; a manipulated organization field is rejected b
   await form.getByRole("button", { name: "Crear proyecto" }).click();
   await expect(page).toHaveURL(new RegExp(`/proyectos/${OTHER_TENANT}/${slug}$`));
   await recordBrowserProject(slug);
-  await expect(page.getByText("tu rol: Titular")).toBeVisible();
+  await expect(page.locator(".context-role")).toContainText("Tu rol:");
+  await expect(page.locator(".context-role")).toContainText("Titular");
 
   // Point the hidden field at another tenant (browser dev tools): the insert must fail.
   await page.goto("/organizaciones");

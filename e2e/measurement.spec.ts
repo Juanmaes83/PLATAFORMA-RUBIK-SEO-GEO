@@ -14,7 +14,7 @@ test("project measurement center is navigable, honest and responsive without pro
     if (/googleapis\.com$|bing\.com$|openseo/i.test(url.hostname)) providerRequests.push(url.hostname);
   });
   await page.goto(PAGE);
-  await page.getByRole("link", { name: "Abrir centro de medición" }).click();
+  await page.locator(".module-grid").getByRole("link", { name: /Medición orgánica/ }).click();
   await expect(page).toHaveURL(new RegExp(`${PAGE}/medicion$`));
   await expect(page.getByRole("heading", { name: "Medición orgánica" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Google Search Console" })).toBeVisible();
