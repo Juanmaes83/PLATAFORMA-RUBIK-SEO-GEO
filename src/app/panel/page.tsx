@@ -38,7 +38,7 @@ export default async function PanelPage() {
                   <div><dt>Tu rol</dt><dd>{roleLabel(role)}</dd></div>
                   <div><dt>Última observación</dt><dd><StatusPill tone="neutral">Desconocido</StatusPill> Sin observaciones registradas</dd></div>
                 </dl>
-                <Link prefetch={false} className="btn btn-block" href={`/proyectos/${project.tenantId}/${project.projectId}`}>Abrir proyecto</Link>
+                <a className="btn btn-block" href={`/proyectos/${project.tenantId}/${project.projectId}`}>Abrir proyecto</a>
               </li>
             ))}
           </ul>

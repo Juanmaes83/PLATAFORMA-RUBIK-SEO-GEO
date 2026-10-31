@@ -1,8 +1,7 @@
-import Link from "next/link";
 import { PROJECT_SECTIONS } from "@/lib/navigation";
 import { contentGeoSchemaAvailable, n2SchemaAvailable } from "@/lib/n2/availability";
 
-/** Project sub-navigation; wraps on small screens (no horizontal scroll). */
+/** Private project navigation uses complete documents, freshly authorized on each request. */
 export function ProjectNav({ base, current }: { base: string; current: string | null }) {
   const items = [
     { href: base, label: "Resumen", key: null as string | null },
@@ -18,7 +17,7 @@ export function ProjectNav({ base, current }: { base: string; current: string | 
       <ul>
         {items.map((i) => (
           <li key={i.href}>
-            <Link prefetch={false} href={i.href} aria-current={i.key === current ? "page" : undefined}>{i.label}</Link>
+            <a href={i.href} aria-current={i.key === current ? "page" : undefined}>{i.label}</a>
           </li>
         ))}
       </ul>
