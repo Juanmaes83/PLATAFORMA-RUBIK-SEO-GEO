@@ -335,6 +335,13 @@ it('MVP browser functional: real identity, signed populated views and logout',as
   const securityFailures:string[]=[];
   const necessaryFailures:string[]=[];
   const necessaryBodies:Promise<void>[]=[];
+  let action='BEFORE_LOGIN';
+  const requestActions=new WeakMap<import('playwright').Request,string>();
+  const requestClass=(request:import('playwright').Request)=>{
+    const url=new URL(request.url());
+    const route=url.pathname==='/panel'?'PANEL':url.pathname===`/proyectos/${TENANT}/a1`?'A1':'OTHER';
+    return `${request.resourceType()}_${requestActions.get(request)??'UNKNOWN'}_${route}_${url.searchParams.has('_rsc')?'RSC':'DIRECT'}`;
+  };
   const bounded=async<T>(promise:Promise<T>,stage:string):Promise<T>=>{
     let timer:ReturnType<typeof setTimeout>|undefined;
     try{return await Promise.race([promise,new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(new Error(stage)),10_000);})]);}
@@ -357,10 +364,14 @@ it('MVP browser functional: real identity, signed populated views and logout',as
     const context=await browser!.newContext({locale:'es-ES',serviceWorkers:'block'});
     const page=await context.newPage();
     page.setDefaultTimeout(15_000);
+    page.on('request',request=>requestActions.set(request,action));
     page.on('response',response=>{
       const request=response.request(),headers=request.headers();
       if(!['document','fetch','xhr'].includes(request.resourceType())||isAuxiliaryPrefetch(headers)||response.status()>=300&&response.status()<400)return;
-      necessaryBodies.push((async()=>{expect(await bounded(response.finished(),'NECESSARY_FINISH_TIMEOUT')).toBeNull();expect((await bounded(response.body(),'NECESSARY_BODY_TIMEOUT')).byteLength).toBeGreaterThan(0);})().catch(()=>{necessaryFailures.push('NECESSARY_BODY_INCOMPLETE_'+request.resourceType());}));
+      necessaryBodies.push((async()=>{expect(await bounded(response.finished(),'NECESSARY_FINISH_TIMEOUT')).toBeNull();expect((await bounded(response.body(),'NECESSARY_BODY_TIMEOUT')).byteLength).toBeGreaterThan(0);})().catch((error:unknown)=>{
+        const reason=error instanceof Error&&['NECESSARY_FINISH_TIMEOUT','NECESSARY_BODY_TIMEOUT'].includes(error.message)?error.message:'ASSERTION';
+        necessaryFailures.push('NECESSARY_BODY_INCOMPLETE_'+requestClass(request)+'_'+reason);
+      }));
     });
     await installScopedRoutes(context,page,null,origin,(...args:unknown[])=>{securityFailures.push(typeof args[0]==='string'?args[0]:'INTERCEPTION_FAILED');},()=>{},null,()=>{},row=>{
       if((row.stage==='REQUEST'||row.stage==='RESPONSE')&&row.result!=='CONTINUED') securityFailures.push('CDP_INTERCEPTION_FAILED');
@@ -368,12 +379,13 @@ it('MVP browser functional: real identity, signed populated views and logout',as
     page.on('requestfailed',request=>{
       const headers=request.headers();
       const auxiliary=isAuxiliaryPrefetch(headers);
-      if(!auxiliary) necessaryFailures.push('NECESSARY_REQUEST_FAILED');
+      if(!auxiliary) necessaryFailures.push('NECESSARY_REQUEST_FAILED_'+requestClass(request));
     });
     await visit(page,'/acceso');
     await page.locator('#email').fill(email(name));
     await page.locator('#password').fill(TEST_PASSPHRASE);
     const post=page.waitForResponse(response=>response.request().method()==='POST'&&new URL(response.url()).pathname==='/api/auth/login');
+    action='LOGIN';
     await page.getByRole('button',{name:'Entrar'}).click();
     const response=await post;
     expect(response.status()).toBe(303);
@@ -388,6 +400,7 @@ it('MVP browser functional: real identity, signed populated views and logout',as
   const page=owner.page;
   // Export below uses the independently authenticated local client session from setup;
   // it can prove export/recovery even when the separate browser case is blocked.
+  action='A1_CLICK';
   await page.locator(`a[href='/proyectos/${TENANT}/a1']`).first().click();
   await page.waitForURL(`${origin}/proyectos/${TENANT}/a1`);
   await expect.poll(()=>page.locator('h1').innerText()).toBeTruthy();
