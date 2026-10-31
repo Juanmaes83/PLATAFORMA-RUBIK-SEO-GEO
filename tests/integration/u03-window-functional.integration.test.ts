@@ -354,7 +354,8 @@ it('MVP functional: real identity, signed populated views and isolated double re
   };
   const owner=await login('u03-http-owner');
   const page=owner.page;
-  ownerCookie=(await owner.context.cookies()).map(cookie=>`${cookie.name}=${cookie.value}`).join('; ');
+  // Export below uses the independently authenticated local client session from setup;
+  // it can prove export/recovery even when the separate browser case is blocked.
   await page.locator(`a[href='/proyectos/${TENANT}/a1']`).first().click();
   await page.waitForURL(`${origin}/proyectos/${TENANT}/a1`);
   await expect.poll(()=>page.locator('h1').innerText()).toBeTruthy();
@@ -421,6 +422,20 @@ it('MVP functional: real identity, signed populated views and isolated double re
   expect(paidToolDecision('get_domain_overview',{}).ok).toBe(false);
   record('functional-egress-cost','PASS');
 
+  await page.getByRole('button',{name:'Salir'}).click();
+  await page.waitForURL(`${origin}/`);
+  const denied=await page.goto(`${origin}/proyectos/${TENANT}/a1`,{waitUntil:'domcontentloaded'});
+  expect(denied).not.toBeNull();
+  expect(new URL(page.url()).pathname).toBe('/acceso');
+  expect(await bounded(denied!.finished(),'LOGOUT_REDIRECT_FINISH_TIMEOUT')).toBeNull();
+  expect((await bounded(denied!.body(),'LOGOUT_REDIRECT_BODY_TIMEOUT')).byteLength).toBeGreaterThan(0);
+  await page.waitForLoadState('networkidle');
+  await bounded(Promise.all(necessaryBodies),'LOGOUT_NECESSARY_BODIES_TIMEOUT');
+  expect(securityFailures).toEqual([]);expect(necessaryFailures).toEqual([]);
+  record('browser-views-and-logout','PASS');
+},180_000);
+
+it('independently authenticates the HTTP export and verifies real isolated double recovery',async()=>{
   const response=await fetch(`${process.env.U03_LOCAL_HTTP_BASE}/proyectos/${TENANT}/a1/exportar`,{headers:{cookie:ownerCookie},redirect:'manual'});
   expect(response.status).toBe(200);
   const document=await response.json() as HttpExport;
@@ -485,17 +500,6 @@ it('MVP functional: real identity, signed populated views and isolated double re
   expect(first.split('|').slice(2).map(Number)).toEqual([document.audit.rows.length,document.results.length,document.imports.length]);
   expect(sql(DEST_DB,`select count(*) from private.audit_outbox where project_id='${project.projectId}'::uuid and state='pending'`)).toBe('0');
   record('restore-destination','PASS');
-  await page.getByRole('button',{name:'Salir'}).click();
-  await page.waitForURL(`${origin}/`);
-  const denied=await page.goto(`${origin}/proyectos/${TENANT}/a1`,{waitUntil:'domcontentloaded'});
-  expect(denied).not.toBeNull();
-  expect(new URL(page.url()).pathname).toBe('/acceso');
-  expect(await bounded(denied!.finished(),'LOGOUT_REDIRECT_FINISH_TIMEOUT')).toBeNull();
-  expect((await bounded(denied!.body(),'LOGOUT_REDIRECT_BODY_TIMEOUT')).byteLength).toBeGreaterThan(0);
-  await page.waitForLoadState('networkidle');
-  await bounded(Promise.all(necessaryBodies),'LOGOUT_NECESSARY_BODIES_TIMEOUT');
-  expect(securityFailures).toEqual([]);expect(necessaryFailures).toEqual([]);
-  record('browser-views-and-logout','PASS');
   deleteOwnedOrganizations([...ownedOrganizations.keys()].filter(id=>id!==foreignOrgId));
   orgCreated=false;
   sql(DEST_DB,`delete from public.organizations where id='${project.organizationId}'::uuid; delete from auth.users where id in (${actorIds.map(id=>`'${id}'::uuid`).join(',')})`);
