@@ -326,6 +326,8 @@ it('MVP functional: real identity, signed populated views and isolated double re
     expect(response.status()).toBe(303);
     expect(await response.finished()).toBeNull();
     await page.waitForURL(`${origin}/panel`);
+    await page.waitForLoadState('networkidle');
+    await Promise.all(necessaryBodies);
     await visit(page,'/panel');
     return {context,page};
   };

@@ -42,6 +42,7 @@ function h1aTestEnv() {
     SUPABASE_CLI:`npx --yes supabase@2.118.0 --workdir ${sourceWorkdir}`};
 }
 try {
+  const headSha=safeRun('git',['rev-parse','HEAD']).trim(),digest=scenarioDigest();
   const localEnv={U03_RESTORE_DESTINATION_RUN_ID:runId};
   call('h1a-local-source-stack.mjs','start',localEnv);
   call('h1a-local-source-stack.mjs','inspect',localEnv);
@@ -60,7 +61,8 @@ try {
   const cases=CASES.map(caseId=>({caseId,status:rows.findLast(row=>row.phase===caseId)?.result??'NOT_RUN'}));
   if(cases.some(row=>row.status!=='PASS'))throw new Error('FUNCTIONAL_CASE_NOT_PASSED');
   const evidencePath=resolve(ROOT,`test-results/mvp-functional-local-${runId}.json`);
-  writeFileSync(evidencePath,JSON.stringify({headSha:safeRun('git',['rev-parse','HEAD']).trim(),scenarioDigest:scenarioDigest(),testsPassed:true,cases},null,2),{flag:'wx'});
+  if(safeRun('git',['rev-parse','HEAD']).trim()!==headSha||scenarioDigest()!==digest)throw new Error('FUNCTIONAL_SOURCE_CHANGED_DURING_RUN');
+  writeFileSync(evidencePath,JSON.stringify({headSha,scenarioDigest:digest,testsPassed:true,cases},null,2),{flag:'wx'});
   process.stdout.write(`MVP_FUNCTIONAL_EVIDENCE ${evidencePath}\n`);
   process.stdout.write('MVP_FUNCTIONAL_LOCAL_RESULT PASS loopback_http=real restore_destination=separate_local_stack migrations=27\n');
 } finally {

@@ -4,11 +4,12 @@ import {spawnSync} from 'node:child_process';
 import {mkdirSync,readFileSync,rmSync} from 'node:fs';
 import {randomUUID} from 'node:crypto';
 import {resolve} from 'node:path';
+import {pathToFileURL} from 'node:url';
 function probe(code,extra={}) {
   mkdirSync('test-results',{recursive:true});
   const journal=resolve('test-results','egress-guard-test-'+randomUUID()+'.txt');
   try {
-    const child=spawnSync(process.execPath,['--import','./scripts/h1a-local-egress-guard.mjs','--input-type=module','-e',code],{
+    const child=spawnSync(process.execPath,['--import',pathToFileURL(resolve('scripts/h1a-local-egress-guard.mjs')).href,'--input-type=module','-e',code],{
       env:{...process.env,VERCEL_ENV:'development',RUBIK_LOCAL_EGRESS_PORTS:'65421',RUBIK_LOCAL_EGRESS_JOURNAL:journal,...extra},encoding:'utf8'});
     return {status:child.status,out:child.stdout,err:child.stderr,journal:readFileSync(journal,'utf8')};
   } finally {rmSync(journal,{force:true});}

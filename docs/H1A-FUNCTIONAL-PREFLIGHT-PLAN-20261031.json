@@ -2,9 +2,10 @@
   "supabaseRef": "rhnnplewqsekrnaousyl",
   "schema": "pre-n2-through-20261015210000",
   "deployment": { "id": null, "host": null, "sha": null, "protected": false },
-  "writer": { "principal": "rubik_preview_u03_writer", "attested": false, "ttlSeconds": 900 },
+  "writer": { "principal": "rubik_preview_u03_writer", "attested": false, "ttlSeconds": 900, "sha": null, "runId": null },
+  "signing": { "attested": false, "activeKeyId": null },
   "flags": { "googleReads": false, "googleCatalog": false, "paidProviders": false },
-  "inventory": { "independentRead": false, "ownCount": null, "outboxPending": null, "foreignPreservationPlan": true },
+  "inventory": { "independentRead": false, "ownCount": null, "outboxPending": null, "foreignPreservationPlan": true, "recordedAt": null },
   "containment": { "nologin": true, "terminateOwnedSessions": true, "cleanupByIds": true, "backupScope": true },
   "authorization": { "run": false, "deploy": false }
 }
