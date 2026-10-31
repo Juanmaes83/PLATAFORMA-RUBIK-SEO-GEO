@@ -469,7 +469,11 @@ it('MVP browser functional: real identity and signed populated desktop/mobile vi
 
   finishBrowserFlow=async()=>{
   action='LOGOUT';
+  const logoutResponse=page.waitForResponse(response=>response.request().method()==='POST'&&new URL(response.url()).pathname==='/api/auth/logout');
   await page.getByRole('button',{name:'Salir'}).click();
+  const logout=await logoutResponse;
+  expect(logout.status()).toBe(303);
+  expect(await bounded(logout.finished(),'LOGOUT_POST_FINISH_TIMEOUT')).toBeNull();
   await page.waitForURL(`${origin}/`);
   const denied=await page.goto(`${origin}/proyectos/${TENANT}/a1`,{waitUntil:'domcontentloaded'});
   expect(denied).not.toBeNull();
