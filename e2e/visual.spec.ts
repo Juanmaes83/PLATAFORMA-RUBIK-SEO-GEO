@@ -141,9 +141,11 @@ test("honest empty states: no invented numbers on the dashboard", async ({ page 
   await page.goto("/panel");
   const main = (await page.locator("main").innerText()).replace(/\s+/g, " ");
   // The only digits allowed are the real portfolio counts («Cartera de 1 proyecto…», the
-  // «1 proyecto» / «2 de 4 proyectos» filter count) and stage names (CORE-9.x).
+  // «1 proyecto» / «2 de 4 proyectos» filter count), stage names (CORE-9.x) and the audit
+  // activity line when the stack records events («Último evento · 31 oct 2026, 21:48 CET»).
   const digits = main
     .replace(/CORE-9\.\d+( y \d+(\.\d+)?)?/g, "")
+    .replace(/Último evento · \d{1,2} \w+ \d{4}, \d{2}:\d{2}(:\d{2})?( [A-Z]+)?/g, "")
     .replace(/Cartera de \d+ proyectos?/g, "")
     .replace(/\b\d+ de \d+ proyectos\b/g, "")
     .replace(/\b\d+ proyectos?\b/g, "")
