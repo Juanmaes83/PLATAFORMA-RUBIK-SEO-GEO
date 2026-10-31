@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { SourceStatePill } from "@/components/dashboard";
+import { contentGeoSchemaAvailable, n2SchemaAvailable } from "@/lib/n2/availability";
 import { formatDateTime } from "@/lib/format";
 import type { ProjectModules, ModuleSignal } from "@/lib/signals";
 import type { ImportRow } from "@/lib/imports/repository";
@@ -31,10 +32,22 @@ export function ProjectDashboard({modules, imports, base}: {modules:ProjectModul
   const openFindings = imports?.flatMap(row=>row.findings.filter(f=>f.status === "open")) ?? [];
   const severity = ["critical", "high", "medium", "low", "info"].map(key=>({key,label:SEVERITY[key],count:openFindings.filter(f=>f.severity===key).length}));
   const hasImports = imports !== null && imports.length > 0;
+  // Navigation order only: imported evidence, other recorded sources, then preparation.
+  // Schema flags gate N2 routes; RLS and server permissions still decide every operation.
+  const actions = [
+    {key:"imports", title:hasImports ? "Revisar la evidencia importada" : "Consultar importaciones", body:hasImports ? "Contrasta cada hallazgo con su fuente y alcance." : "Abre la fuente para consultar o aportar una revisión existente.", route:"importaciones", signal:modules.imports, enabled:true},
+    {key:"measurement", title:modules.measurement.state === "data" ? "Revisar la medición" : "Preparar la medición", body:modules.measurement.lines[0] ?? "Consulta las propiedades y capturas disponibles, sin confundir conexión con medición.", route:"medicion", signal:modules.measurement, enabled:true},
+    {key:"technical", title:"Consultar el análisis SEO", body:modules.technical.lines[0] ?? "Consulta la auditoría disponible y sus límites.", route:"seo", signal:modules.technical, enabled:true},
+    {key:"content", title:"Revisar contenidos", body:modules.content.lines[0] ?? "Consulta oportunidades y briefs con su evidencia.", route:"contenidos", signal:modules.content, enabled:contentGeoSchemaAvailable()},
+    {key:"competitors", title:"Situar la competencia", body:modules.competitors.lines[0] ?? "Consulta los competidores declarados y sus lecturas.", route:"competidores", signal:modules.competitors, enabled:n2SchemaAvailable()},
+    {key:"geo", title:"Analizar observaciones GEO", body:modules.geo.lines[0] ?? "Consulta observaciones y fuentes, sin atribuirles rankings.", route:"geo", signal:modules.geo, enabled:contentGeoSchemaAvailable()},
+  ].filter(action=>action.enabled && (action.key === "imports" || action.signal.state !== "unavailable"))
+    .sort((a,b)=>Number(b.key === "imports" && hasImports)-Number(a.key === "imports" && hasImports) || Number(b.signal.state === "data")-Number(a.signal.state === "data"))
+    .slice(0,3);
   return <div className="project-intelligence">
     <section className="intelligence-intro" aria-labelledby="intelligence-title">
       <div><p className="eyebrow">RESUMEN · INTELIGENCIA DEL PROYECTO</p>
-        <h2 id="intelligence-title">{hasImports ? <>{openFindings.length} hallazgos abiertos.<br/><span>Una prioridad: revisar la evidencia.</span></> : <>Empieza por una fuente fiable.<br/><span>Después, decide dónde actuar.</span></>}</h2>
+        <h2 id="intelligence-title">{hasImports ? <>{openFindings.length} hallazgos abiertos en la muestra.<br/><span>Una prioridad: revisar la evidencia.</span></> : <>Empieza por una fuente fiable.<br/><span>Después, decide dónde actuar.</span></>}</h2>
         <p>{hasImports ? `Muestra de ${imports.length} importaciones recientes. Distingue las incidencias declaradas de las mediciones verificadas y convierte la información en próximos pasos.` : "Conecta la medición o importa una revisión existente. Aquí verás la información disponible, su origen y sus límites."}</p>
         <div className="hero-actions"><Link className="btn" href={`${base}/${hasImports ? "importaciones" : "medicion"}`}>{hasImports ? "Revisar hallazgos importados" : "Preparar la medición"} <span aria-hidden="true">→</span></Link><Link className="btn btn-ghost" href={`${base}/informe`}>Abrir informe</Link></div>
       </div>
@@ -54,16 +67,13 @@ export function ProjectDashboard({modules, imports, base}: {modules:ProjectModul
         <p className="small muted">Hasta seis hallazgos abiertos de las tres importaciones más recientes. Son declaraciones importadas, no comprobaciones independientes de Rubik. Un hallazgo puede repetirse entre importaciones.</p>
         {findings.length > 0 ? <ul className="finding-list">{findings.map(({finding,row,key})=><li key={key}>
           <span className={`severity severity-${finding.severity}`}>{SEVERITY[finding.severity] ?? finding.severity}</span>
-          <div><h3><Link href={`${base}/importaciones/${row.id}`}>{finding.title}</Link></h3><p>{finding.observation}</p><p className="finding-provenance">{row.source_label} · Capturada {formatDateTime(row.captured_at)} · {row.status === "partial" ? "Importación parcial" : "Declaración importada"}</p></div>
+          <div><h3><Link href={`${base}/importaciones/${row.id}`}>{finding.title}</Link></h3><p>{finding.observation}</p><p className="finding-target"><span className="muted">URL afectada · </span>{finding.url}</p><p className="finding-provenance">{row.source_label} · Capturada {formatDateTime(row.captured_at)} · {row.status === "partial" ? "Importación parcial" : "Declaración importada"}</p></div>
           <span className="finding-status">Abierto</span>
         </li>)}</ul> : <div className="designed-empty"><span className="empty-symbol" aria-hidden="true">↗</span><h3>{imports === null ? "No se pudo leer la evidencia" : hasImports ? "Sin hallazgos abiertos en esta muestra" : "Tu primera lectura empieza aquí"}</h3><p>{imports === null ? "No se interpreta un fallo de lectura como ausencia de incidencias. Puedes consultar la fuente directamente." : hasImports ? "Esto no acredita que todo el sitio esté libre de incidencias. Revisa las importaciones y su alcance." : "Importa una auditoría o revisión existente para convertir la evidencia del sitio en próximos pasos concretos."}</p><Link className="btn btn-ghost" href={`${base}/importaciones`}>{imports === null || hasImports ? "Consultar importaciones" : "Abrir importaciones"}</Link></div>}
       </section>
       <aside className="analysis-panel next-actions" aria-labelledby="next-title"><p className="eyebrow">PLAN DE TRABAJO</p><h2 id="next-title">Dónde continuar</h2>
-        <ol>{[
-          ["01","Revisa la medición",modules.measurement.state === "data" ? "Consulta la captura, su periodo y su verificación." : "Asocia una propiedad o consulta por qué aún no hay capturas.","medicion"],
-          ["02","Prioriza contenido",modules.content.lines[0] ?? "Consulta oportunidades y briefs con evidencia, si el módulo está disponible.","contenidos"],
-          ["03","Sitúa tu competencia",modules.competitors.lines[0] ?? "Declara los sitios que quieres comparar sin inventar posiciones.","competidores"],
-        ].map(([n,title,body,route])=><li key={n}><span>{n}</span><div><h3><Link href={`${base}/${route}`}>{title} <span aria-hidden="true">↗</span></Link></h3><p>{body}</p></div></li>)}</ol>
+        <p className="small muted">Primero la evidencia importada; después las fuentes con registros y la preparación. Este orden no mide urgencia.</p>
+        <ol>{actions.map(({key,title,body,route},index)=><li key={key}><span>{String(index+1).padStart(2,"0")}</span><div><h3><Link href={`${base}/${route}`}>{title} <span aria-hidden="true">↗</span></Link></h3><p>{body}</p></div></li>)}</ol>
         <div className="analysis-footnote"><strong>Sin tendencias inventadas</strong><p>Este resumen no dispone de una serie temporal comparable. Las métricas y sus límites se consultan en cada fuente.</p></div>
       </aside>
     </div>

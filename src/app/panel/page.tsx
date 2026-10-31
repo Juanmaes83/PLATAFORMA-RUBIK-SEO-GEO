@@ -56,7 +56,7 @@ export default async function PanelPage() {
       <p className="muted small panel-note">
         Cada tarjeta resume el estado real de los módulos del proyecto: «Sin datos» significa que el módulo está
         operativo pero todavía no guarda nada; «Configuración pendiente» pide un paso dentro del proyecto;
-        «No disponible» significa que su esquema no está instalado en este entorno.
+        «No disponible» indica un esquema sin habilitar o una lectura no completada; no equivale a ausencia de datos.
       </p>
     </>
   );

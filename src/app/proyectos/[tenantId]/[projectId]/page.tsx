@@ -12,7 +12,7 @@ import { serverKeyring } from "@/lib/provenance/keyring";
 import { readProjectOverview } from "@/lib/overview";
 import { myProjectMembership } from "@/lib/tenancy";
 
-const UNAVAILABLE_HINT = "Los módulos «No disponible» no tienen su esquema instalado en este entorno; sus migraciones figuran en el roadmap N2.";
+const UNAVAILABLE_HINT = "«No disponible» indica que el esquema no está habilitado o que no se pudo completar la lectura; no significa que no existan datos.";
 
 export default async function ProjectPage({ params }: { params: Promise<{ tenantId: string; projectId: string }> }) {
   const [{ tenantId, projectId }, { user, supabase }] = await Promise.all([params, requireSession()]);

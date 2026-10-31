@@ -38,9 +38,17 @@ La Preview debe permanecer protegida y ligada al SHA exacto. Los fixtures sólo 
 
 ## Resultados del cierre visual
 
-- Verificación local completa PASS: pin Core, secretos, lint, tipos, 650 unitarias PASS / 1 SKIP y build. Suite dashboard existente 15/15 PASS, sin tocar tests. Revisión dirigida de capturas: nueve combinaciones de pantalla/viewport y roles 2/1, sin errores de página, overflow ni axe serious/critical.
+- Verificación local completa PASS: pin Core, secretos, lint, tipos, 653 unitarias PASS / 1 SKIP y build. Suite dashboard existente 15/15 PASS, sin tocar tests. Revisión dirigida de capturas: nueve combinaciones de pantalla/viewport y roles 2/1, sin errores de página, overflow ni axe serious/critical.
 - Carteras 1/4/50 comprobadas. En 50: compacta automática, búsqueda hasta un proyecto y disclosure de herramientas por teclado. Capturas de volumen aparte. Carga local incluyendo login y lectura de cartera: 4.58 s con 50; 0.30 s con 1. No benchmark de Production ni mejora backend acreditada. Se retiran sólo los 46 fixtures propios de volumen y se conservan los cuatro originales.
-- Preview protegida: el candidato publicado mantiene redirección anónima 302 hacia Vercel SSO. URL inmutable y SHA final en #158; los datos ficticios no se alojan. Actions consultada una vez: verify 22/24 y e2e pendientes en run 41253572843; Vercel PASS. Este estado no se confunde con las verificaciones locales.
+- Preview protegida: URL inmutable, SHA y CI del cierre se registran en #158 después del push. La consulta del checkpoint anterior f3746ac (run 41253572843) dejó verify 22/24 y e2e pendientes, Vercel PASS; no es un resultado de CI del HEAD final. Los datos ficticios no se alojan.
 - Candidato para revisión humana, no aprobación visual. Sin merge, sesiones alojadas, proveedores ni cambios a los frentes H1-A/R1.
 
 Nota de ejecución: una invocación de verify heredó RUBIK_TEST_F1A2_STACK de la limpieza local y provocó ocho fallos en pruebas puras de selección de entorno (comparaban el default con otros selectores). Se repitió verify sin variables de demo: 650 PASS / 1 SKIP y build PASS, sin modificar tests o guardrails. No se clasifica esa invocación contaminada como suite verde ni como baseline de producto.
+
+## Ajuste del encargo de continuidad
+
+Se conserva el trabajo publicado en fc2b9e8. El titular declara explícitamente la muestra; cada hallazgo muestra su URL afectada. Las acciones usan estados existentes y flags N2: primero evidencia importada, después fuentes con registros, después preparación. Es orden de navegación explícito, no scoring ni urgencia comercial. La leyenda de no disponibilidad admite fallo de lectura sin atribuirlo siempre a schema. No cambia contratos.
+
+Revisión adicional real: 360/768, claro/oscuro, poblado/vacío/cartera; doce escenas y cuatro comprobaciones de foco, menú por Enter/Tab y reduced-motion: PASS. Axe con tags WCAG2/2.1/2.2 AA sin infracciones en esas escenas; controles de contraste automáticos en 77–78 nodos por escena, no una certificación WCAG completa. Se corrigió el anclaje móvil del menú que dejaba foco fuera del viewport a 360 px y el fondo oscuro del shell. Tres unitarias nuevas verifican fallo frente a vacío, muestra/URL/procedencia y orden/flags de acciones.
+
+Los contratos overview heredados sólo distinguen cuatro estados; no se inventan causas de error, antigüedad ni verificación ausentes. Lectura fallida de detalle se verifica con render del componente, sin provocar errores ni cambiar políticas en la base. No se ejecutó un E2E de fallo de lectura ni se certifica accesibilidad completa. No hay períodos comparables: scores, tendencias, Geo-Grid, nuevas automatizaciones y encargos web siguen fuera.

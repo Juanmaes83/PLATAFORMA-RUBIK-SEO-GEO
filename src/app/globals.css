@@ -452,3 +452,7 @@ fieldset.field > legend { font-weight: 600; padding: 0; margin-bottom: var(--spa
 @media(max-width:639px){.context-bar{padding:12px}.context-bar .context-meta{font-size:11px;gap:4px}.context-bar-row{gap:6px}.subnav{margin-top:8px;padding-bottom:8px}.subnav a,.project-nav-disclosure summary{font-size:11px;padding-inline:8px}.project-nav-disclosure details>ul{right:0;max-width:calc(100vw - 48px)}}
 
 .portfolio-heading{margin:10px 0;gap:10px}.portfolio-heading .eyebrow{margin:0}
+
+.finding-list .finding-target{overflow-wrap:anywhere;font-family:var(--font-mono);font-size:11px}.severity-key dd{font-variant-numeric:tabular-nums}
+@media(prefers-color-scheme:dark){.shell{background:var(--color-bg)}}
+@media(max-width:639px){.project-nav-disclosure details>ul{left:0;right:auto;min-width:min(230px,calc(100vw - 48px))}}
