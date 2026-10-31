@@ -1,0 +1,69 @@
+{
+  "headSha": "2e04e5072b2dc7aada5c348aeb635823ee6a7506",
+  "scenarioDigest": "a7f0ed614a3f8692289af2567d64ac5271c579702d86052ce036fe588285ddbb",
+  "testsPassed": true,
+  "cases": [
+    {
+      "caseId": "preflight",
+      "status": "PASS"
+    },
+    {
+      "caseId": "functional-identity",
+      "status": "PASS"
+    },
+    {
+      "caseId": "functional-desktop",
+      "status": "PASS"
+    },
+    {
+      "caseId": "functional-mobile",
+      "status": "PASS"
+    },
+    {
+      "caseId": "functional-tenancy",
+      "status": "PASS"
+    },
+    {
+      "caseId": "functional-egress-cost",
+      "status": "PASS"
+    },
+    {
+      "caseId": "http-export",
+      "status": "PASS"
+    },
+    {
+      "caseId": "offline-verification",
+      "status": "PASS"
+    },
+    {
+      "caseId": "tamper-rejection",
+      "status": "PASS"
+    },
+    {
+      "caseId": "restore-destination",
+      "status": "PASS"
+    },
+    {
+      "caseId": "browser-views-and-logout",
+      "status": "PASS"
+    },
+    {
+      "caseId": "foreign-preserved",
+      "status": "PASS"
+    },
+    {
+      "caseId": "source-cleanup",
+      "status": "PASS"
+    },
+    {
+      "caseId": "destination-cleanup",
+      "status": "PASS"
+    },
+    {
+      "caseId": "functional-restore-transport",
+      "status": "PASS"
+    }
+  ],
+  "runId": "1426ca32-09dc-4236-ad9f-c98831856a8b",
+  "ledgerFile": "mvp-functional-dbdc24c8-d929-43af-8916-2eee4d614865.jsonl"
+}

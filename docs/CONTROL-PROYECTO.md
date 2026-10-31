@@ -1,5 +1,7 @@
 # Control canónico del proyecto Rubik SEO/GEO
 
+> **31/10/2026 · posterior a ratificación #154:** H1-A preflight LOCAL PASS en `2e04e50` (6/6, verify 661 PASS/1 SKIP); alojado NOT_RUN. #154 sigue fuera de `main@ba21a080`; #145 remota Draft `1553f690`, commits de preparación locales sin desplegar. R1-SNAPSHOT elegido, garantía real todavía pendiente; U03 se reutiliza solo donde no cambian controles, XHR forense intacto/BLOCKED y H1/H2/U04 abiertos. [Matriz, evidencia y prerrequisitos vigentes](H1A-FUNCTIONAL-PREPARACION-20261031.md). Los estados anteriores sobre decisiones pendientes son cortes históricos.
+
 ## CORTE VIGENTE DE DIRECCIÓN · 31/10/2026 · RECUPERACIÓN MVP
 
 El propietario aprueba cambiar prioridad del proyecto hacia **MVP funcional seguro y demostrable**, separando deuda forense histórica XHR de controles críticos sin falsear PASS. Leer primero el [protocolo de decisión y cierre 31/10](DECISION-MVP-RIESGO-Y-PLAN-CIERRE-20261031.md), que registra estado exacto, P0/P1/P2, recorrido mínimo, R1, U04 y H2, con autorización pendiente de la alternativa formal de aceptación. U03 PASS/#143 MERGED; #145 OPEN/Draft en 72bfbcd con CI 40510937115 SUCCESS, **H1-A NO ACEPTADA**, R1 PENDIENTE, U04/H1/H2 ABIERTOS. No reabrir forénsica XHR por inercia, no cambiar el gate CDP/origen, no declarar inocuidad de cancelaciones. No interpretar esta decisión como aprobación de producción, SQL alojado, gasto o merge. El historial inferior conserva fechas y no invalida el corte más reciente.

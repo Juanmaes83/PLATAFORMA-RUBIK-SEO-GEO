@@ -1,5 +1,11 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
+## H1-A funcional local acreditado · ratificación 31/10/2026
+
+Contrato #154 ratificado, HEAD `3a35528f`; aún OPEN y fuera de `main@ba21a080`. #145 remota OPEN/Draft `1553f690`; preparación local sobre `2e04e50`: H1-A 6/6, 15 fases PASS; verify 661 PASS/1 SKIP, 24 regresiones offline y 32 Auth/Preview dirigidas. Navegación privada HTML y logout POST con Origin/Host; requieren revisión del SHA antes de publicar/desplegar. No push, deployment, campaña alojada, Sarah ni fusión. Evidencia, fallos previos y plan en [H1A-FUNCTIONAL-PREPARACION](H1A-FUNCTIONAL-PREPARACION-20261031.md). El runner liga la repetición al HEAD exacto del checkpoint; no heredar automáticamente el PASS de `2e04e50`.
+
+U03 reutilizable solo en controles no afectados; nuevo logout alojado NOT_RUN. Gate XHR histórico intacto/BLOCKED, H1/H2/U04 abiertos. R1-SNAPSHOT elegido: preparación separada `codex/r1-snapshot-prepare-20261031@573f136`, diseño + modelo PG17 11/11, ninguna migración ni adaptador de producto; garantía real pendiente de revisión explícita #155. Siguiente: integrar #154 en main por el proceso de revisión, reconciliar #145 por merge, revisar HEAD y solo entonces solicitar la ventana ficticia con deployment/capacidad/keyring/inventario nuevos. Los cortes anteriores que indican ratificación o elección R1 pendientes son históricos.
+
 ## #145 · main integrado mediante merge · 31/10/2026
 
 Corrección posterior en `6591497`: Next/eslint-config-next 16.4.3, Vite 8.3.5 y Zod 4.6.7 tras identificar un aviso DoS aplicable a App Router/Server Actions. Verify repetido PASS: 649 PASS/1 SKIP, lint/tipos/build y escaneo de 813 archivos; audit completo 18 moderados/0 altos/0 críticos, audit de producción 0. Sin SQL ni Supabase en esta corrección. El HEAD final incorpora un checkpoint documental posterior; requiere CI y revisión propios. Detalle en el expediente enlazado abajo.
