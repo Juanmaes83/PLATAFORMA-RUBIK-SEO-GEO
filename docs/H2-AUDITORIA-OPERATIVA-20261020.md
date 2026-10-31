@@ -1,5 +1,10 @@
 # H2 · Auditoría operativa N1-07/N1-08
 
+## CORTE DE PRIORIZACIÓN MVP · 31/10/2026
+
+[Decisión y plan de cierre por riesgo 31/10](DECISION-MVP-RIESGO-Y-PLAN-CIERRE-20261031.md): **piloto controlado**, **H2 MVP comercial restringido** y **producto generalizado** son alcances distintos. No exigir la explicación forense histórica perfecta del XHR para planificar la aceptación funcional, pero tampoco sustituir los controles P0/P1, recuperación, datos personales, soporte y despliegue. Clasificar cada fila N1-07/N1-08 como probada, pendiente o excepción explícita con alcance/fecha/propietario. Para el corte #145 del 27/10, GitHub Actions tuvo una ejecución SUCCESS (`40510937115`, SHA `72bfbcd`); las frases inferiores «CI bloqueada por facturación» describen cortes históricos y **no invalidan ese run**, aunque un CI verde no acredita operación comercial. H1-A original, R1, U04, H1 y H2 siguen sin cierre. No ampliar funciones vendidas si faltan controles operativos. 
+
+
 ## Corte vigente · integración U03 · 22/10/2026
 
 La [PR #143](https://github.com/Juanmaes83/PLATAFORMA-RUBIK-SEO-GEO/pull/143) está **MERGED** en `main@5cf2ad62605a1ed823771d28f32ca120797e57e7`; CI de PR `39737737422` SUCCESS. I-2/I-5/U03 están cerrados como gates alojados por el run `330c6e4b-14ad-439a-a8cf-43d92c73fadb`, con limpieza independiente. Se utilizó el mismo Preview existente, sin nuevo proyecto Supabase ni costes de proyecto adicional. La tabla y reconciliación inferiores preservan sus fechas y las referencias a #143 Draft, U03 BLOCKED, coste de un entorno nuevo, P-1 servidor pendiente y Actions sin jobs son históricas. H1-A NOT_RUN, U04/Sarah, H1 y H2 abiertos; R1 requiere decisión antes de Sarah. Vercel Production `dpl_6HyfzQ9iM3Buy6DEqLAKfEpTyFNL` quedó READY para el corte documental `5eec425ae3f3c31ce4c71a536c19c5d44aaa261f`, y `/api/salud` respondió 200 con el ref de Production; esto solo acredita el smoke de salud. Los restantes controles operativos N1-07/08 y la aceptación funcional tras release conservan sus gates propios.
