@@ -1,5 +1,9 @@
 # Continuidad autónoma — Rubik SEO/GEO
 
+## #145 · main integrado mediante merge · 31/10/2026
+
+Merge local `e005a6529b7936adeddd065842accb7cb0a2a102`: incorpora `main@ba21a080` a `72bfbcd`, preserva #147/#148 y resuelve cinco conflictos documentales conservando ambos expedientes con precedencia del corte 31/10. `npm run verify` PASS: 649 PASS/1 SKIP, lint/tipos/build y escaneo de 812 archivos. Sin cambios de producto ni pruebas/escrituras Supabase en esta integración. El HEAD publicado y sus checks exactos se consultan en #145; no heredar el CI del SHA anterior. [Expediente y riesgos](H1A-MAIN-INTEGRACION-20261031.md). H1-A/H1/H2, R1 y U04 siguen abiertos; la propuesta #154 sigue pendiente de ratificación.
+
 ## Prioridad estratégica superior a checkpoints previos · 31/10/2026
 
 Leer primero [DECISION-MVP-RIESGO-Y-PLAN-CIERRE-20261031](DECISION-MVP-RIESGO-Y-PLAN-CIERRE-20261031.md). Este archivo contiene checkpoints históricos desde 15–22/10: sirven como evidencia de sus runs, no como orden actual para seguir investigando XHR por defecto. **U03 PASS, #143 MERGED; #145 72bfbcd, CI SUCCESS 27/10, H1-A original BLOCKED; R1 pendiente, U04/H1/H2 abiertos.** Directriz aprobada: priorizar recorrido funcional crítico, P0/P1, export/restore, R1 y Sarah; mantener resultados de la forénsica XHR sin reetiquetarlos. No convertir un script de pruebas ni un checkpoint antiguo en fuente de nuevos requisitos de producto. Reconciliar siempre GitHub y entorno antes de ejecutar; protocolo MVP funcional todavía necesita ratificación expresa.
