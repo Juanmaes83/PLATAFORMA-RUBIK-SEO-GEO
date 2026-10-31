@@ -1,4 +1,8 @@
 # Continuidad autónoma — Rubik SEO/GEO
+## Corrección documental del recuento F1-A.1 · 01/11/2026
+
+El total histórico «172 passed / 11 failed» fue reportado por Kimi; no se ha repetido ni validado aquí. Su clasificación publicada en #157 enumera **12 casos**, no 11: entorno imports ×2 + report ×3 + seo ×1 + openseo-connection ×1 + openseo-reconcile ×2 = **9**; markup ya corregido measurement ×1 + invitations ×2 = **3**. La síntesis anterior «7 de entorno + 4 de markup» tampoco coincide con esa enumeración. Sin el ledger original completo no se puede determinar qué caso está duplicado o qué total está mal; el recuento local queda **inconsistente/no reconciliado**, no se inventa una nueva ejecución 172/12. CI PASS de d2c4426 sigue siendo evidencia independiente reportada para stack fresco. Esta corrección es sólo documental, separada del rediseño F1-A.2; no altera Auth, RLS, gates ni conclusiones de H1-A/R1.
+
 
 ## Corte F1-A.1 refinamiento + demo · 31/10/2026 · worktree kimi-f1-dashboard (Kimi)
 
