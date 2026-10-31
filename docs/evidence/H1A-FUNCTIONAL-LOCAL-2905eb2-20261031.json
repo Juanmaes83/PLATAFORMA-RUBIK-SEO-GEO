@@ -1,0 +1,69 @@
+{
+  "headSha": "2905eb2ef4d4f23defe30207dae016a377efdc3c",
+  "scenarioDigest": "eed48acd3e444eb6ae9f20e0d324e5d401d02344bdb3d6c05253a49b12a025f0",
+  "testsPassed": true,
+  "cases": [
+    {
+      "caseId": "preflight",
+      "status": "PASS"
+    },
+    {
+      "caseId": "functional-identity",
+      "status": "PASS"
+    },
+    {
+      "caseId": "functional-desktop",
+      "status": "PASS"
+    },
+    {
+      "caseId": "functional-mobile",
+      "status": "PASS"
+    },
+    {
+      "caseId": "functional-tenancy",
+      "status": "PASS"
+    },
+    {
+      "caseId": "functional-egress-cost",
+      "status": "PASS"
+    },
+    {
+      "caseId": "http-export",
+      "status": "PASS"
+    },
+    {
+      "caseId": "offline-verification",
+      "status": "PASS"
+    },
+    {
+      "caseId": "tamper-rejection",
+      "status": "PASS"
+    },
+    {
+      "caseId": "restore-destination",
+      "status": "PASS"
+    },
+    {
+      "caseId": "browser-views-and-logout",
+      "status": "PASS"
+    },
+    {
+      "caseId": "foreign-preserved",
+      "status": "PASS"
+    },
+    {
+      "caseId": "source-cleanup",
+      "status": "PASS"
+    },
+    {
+      "caseId": "destination-cleanup",
+      "status": "PASS"
+    },
+    {
+      "caseId": "functional-restore-transport",
+      "status": "PASS"
+    }
+  ],
+  "runId": "f9841680-785b-4071-99a5-b6ec0e95a24e",
+  "ledgerFile": "mvp-functional-cf4b0b7b-7695-4bc4-95c4-40f018ad22f8.jsonl"
+}
