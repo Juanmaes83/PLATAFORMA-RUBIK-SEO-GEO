@@ -108,7 +108,8 @@ test.describe("f1 agency dashboard", () => {
     await expect(page.getByRole("heading", { name: "Rubik SEO/GEO" })).toBeVisible();
     await expect(page.getByText("Qué puedes hacer hoy")).toBeVisible();
     // The internal version status is demoted to a collapsed details.
-    await expect(page.locator("details.tech")).not.toBeVisible();
+    await expect(page.locator("details.tech")).not.toHaveAttribute("open", /.*/);
+    await expect(page.locator("details.tech .checklist")).toBeHidden();
     await expect(page.getByText("Próximamente")).toHaveCount(0);
   });
 });
