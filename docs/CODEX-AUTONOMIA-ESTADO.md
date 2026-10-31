@@ -1,3 +1,5 @@
+> **Actualización prioritaria 31/10/2026:** #154 fusionada en `main@01795dd7f3ac812bc0d069370c899a5d3d037e71` e incorporada mediante merge sin conflictos. Repetición H1-A en `e3c9f72`: 6/6 PASS y 15 fases; stacks propios retirados. Juanma autoriza push de #145 y comprobación de CI del HEAD exacto; permanece Draft, sin merge, campaña alojada ni datos de Sarah. Candidato final con regresión de teclado/foco/Atrás pendiente de su verificación exacta. Los cortes inferiores conservan resultados históricos; sus referencias a #154 pendiente o prohibición anterior de push están sustituidas por esta orden. [Evidencias y límites](H1A-FUNCTIONAL-PREPARACION-20261031.md).
+
 # Continuidad autónoma — Rubik SEO/GEO
 
 ## H1-A funcional local acreditado · ratificación 31/10/2026

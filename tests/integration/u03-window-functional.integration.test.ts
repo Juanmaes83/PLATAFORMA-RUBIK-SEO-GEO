@@ -438,6 +438,23 @@ it('MVP browser functional: real identity and signed populated desktop/mobile vi
     const reportAccessibility=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();
     expect(reportAccessibility.violations.filter(v=>v.impact==='serious'||v.impact==='critical').map(v=>v.id)).toEqual([]);
     await page.screenshot({path:`${ROOT}/test-results/functional-${RUN}/${viewport.width}-report.png`,fullPage:true});
+    const nav=page.getByRole('navigation',{name:'Secciones del proyecto'});
+    expect(await nav.locator('[aria-current="page"]').innerText()).toBe('Informe del proyecto');
+    const measurementLink=nav.getByRole('link',{name:'Medición orgánica',exact:true});
+    await measurementLink.focus();
+    expect(await measurementLink.evaluate(element=>element===document.activeElement)).toBe(true);
+    await page.keyboard.press('Enter');
+    await page.waitForURL(`${origin}/proyectos/${TENANT}/a1/medicion`);
+    await page.waitForLoadState('networkidle');
+    expect(await nav.locator('[aria-current="page"]').innerText()).toBe('Medición orgánica');
+    expect(await page.getByText('Clics',{exact:true}).locator('..').locator('dd').innerText()).toBe('37');
+    const back=await page.goBack({waitUntil:'networkidle'});
+    expect(new URL(page.url()).pathname).toBe(`/proyectos/${TENANT}/a1/informe`);
+    expect(await nav.locator('[aria-current="page"]').innerText()).toBe('Informe del proyecto');
+    // A restored history document may come from the browser cache without a new response.
+    if(back){expect(await bounded(back.finished(),'HISTORY_FINISH_TIMEOUT')).toBeNull();expect((await bounded(back.body(),'HISTORY_BODY_TIMEOUT')).byteLength).toBeGreaterThan(0);}
+    await bounded(Promise.all(necessaryBodies),'NAVIGATION_NECESSARY_BODIES_TIMEOUT');
+    expect(securityFailures).toEqual([]);expect(necessaryFailures).toEqual([]);
     record(viewport.width===1280?'functional-desktop':'functional-mobile','PASS');
   }
 

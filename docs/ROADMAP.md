@@ -1,3 +1,5 @@
+> **Actualización prioritaria 31/10/2026:** #154 fusionada en `main@01795dd7f3ac812bc0d069370c899a5d3d037e71` e incorporada mediante merge sin conflictos. Repetición H1-A en `e3c9f72`: 6/6 PASS y 15 fases; stacks propios retirados. Juanma autoriza push de #145 y comprobación de CI del HEAD exacto; permanece Draft, sin merge, campaña alojada ni datos de Sarah. Candidato final con regresión de teclado/foco/Atrás pendiente de su verificación exacta. Los cortes inferiores conservan resultados históricos; sus referencias a #154 pendiente o prohibición anterior de push están sustituidas por esta orden. [Evidencias y límites](H1A-FUNCTIONAL-PREPARACION-20261031.md).
+
 # Roadmap de la plataforma
 
 > **31/10/2026 · corte vigente:** #154 ratificada; R1-SNAPSHOT elegido. H1-A preflight local 6/6 y verify 661 PASS/1 SKIP, campaña alojada NOT_RUN y #145 Draft sin fusión. #154 todavía debe integrarse en main. R1 garantía real/H1/H2/U04 siguen abiertos. [Matriz y próximos requisitos](H1A-FUNCTIONAL-PREPARACION-20261031.md). Los cortes inferiores son históricos.
