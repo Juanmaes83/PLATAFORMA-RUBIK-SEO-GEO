@@ -3,6 +3,7 @@
 // binds to the SAME selected stack, so a test can never mix one agent's API with another's
 // database. Hosted projects are never in this table.
 export const STACKS = {
+  f1a2: { selector: "RUBIK_TEST_F1A2_STACK", apiPort: 65421, dbPort: 65422, projectId: "rubik-f1-a2-20261101" },
   // Default shared developer stack (supabase/config.toml).
   shared: { selector: null, apiPort: 54321, dbPort: 54322, projectId: "plataforma-rubik-seo-geo" },
   // Codex S2 worktree.

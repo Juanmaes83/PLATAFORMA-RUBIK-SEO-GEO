@@ -6,7 +6,8 @@ import { ProjectNav } from "@/components/ProjectNav";
 import { PageHead } from "@/components/ui";
 import { projectAccess } from "@/lib/access";
 import { requireSession } from "@/lib/auth/session";
-import { loadProjectRef } from "@/lib/imports/repository";
+import { ProjectDashboard } from "@/components/ProjectDashboard";
+import { getImport, listImports, loadProjectRef } from "@/lib/imports/repository";
 import { serverKeyring } from "@/lib/provenance/keyring";
 import { readProjectOverview } from "@/lib/overview";
 import { myProjectMembership } from "@/lib/tenancy";
@@ -25,17 +26,24 @@ export default async function ProjectPage({ params }: { params: Promise<{ tenant
 
   // Real module signals through the user's RLS client; each tile also links to its module.
   const ref = await loadProjectRef(supabase, { tenantId: project.tenantId, projectId: project.projectId });
-  const modules = ref ? await readProjectOverview(supabase, ref, serverKeyring()) : null;
+  const [modules, evidence] = await Promise.all([
+    ref ? readProjectOverview(supabase, ref, serverKeyring()) : null,
+    ref ? listImports(supabase, ref)
+      .then(rows => Promise.all(rows.slice(0, 3).map(row => getImport(supabase, ref, row.id))))
+      .then(rows => rows.some(row => row === null) ? null : rows.filter((row): row is NonNullable<typeof row> => row !== null))
+      .catch(() => null) : null,
+  ]);
 
   return (
     <>
       <PageHead title={project.name} />
       <ProjectNav base={base} current={null} />
 
+      {modules && <ProjectDashboard modules={modules} imports={evidence} base={base} />}
       <section aria-labelledby="s-modulos" className="section">
         <h2 id="s-modulos" className="section-title">Módulos del proyecto</h2>
         {modules ? (
-          <ul className="module-grid">
+          <ul className="module-grid module-directory">
             <ModuleTile href={`${base}/seo`} title="Análisis SEO" description="Incidencias técnicas verificadas, revisión On-Page y palabras clave declaradas." signal={modules.technical} />
             <ModuleTile href={`${base}/medicion`} title="Medición orgánica" description="Capturas firmadas de Search Console y GA4 con su propiedad y periodo." signal={modules.measurement} />
             <ModuleTile href={`${base}/competidores`} title="Competidores" description="Competidores declarados y lecturas comparables, con fuente y fecha." signal={modules.competitors} />

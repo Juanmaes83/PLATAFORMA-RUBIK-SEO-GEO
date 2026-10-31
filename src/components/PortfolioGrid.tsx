@@ -31,6 +31,7 @@ const SORTS: { key: SortKey; label: string }[] = [
 function PortfolioCard({ item }: { item: PortfolioItem }) {
   return (
     <li className="card project-card">
+      <div className="portfolio-monogram" aria-hidden="true">{item.name.slice(0, 1)}</div>
       <div className="card-head">
         <h3 className="project-card-title">{item.name}</h3>
         <StatusPill tone="neutral">{item.roleLabel}</StatusPill>
@@ -49,6 +50,7 @@ function PortfolioCard({ item }: { item: PortfolioItem }) {
 }
 
 export function PortfolioGrid({ items }: { items: PortfolioItem[] }) {
+  const [compact, setCompact] = useState(items.length > 8);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("name");
   const [org, setOrg] = useState("");
@@ -79,6 +81,7 @@ export function PortfolioGrid({ items }: { items: PortfolioItem[] }) {
 
   return (
     <>
+      <div className="portfolio-heading"><div><p className="eyebrow">ESPACIO DE AGENCIA</p><h2>Una cartera. Todas las perspectivas.</h2><p className="muted small">{items.length} proyectos autorizados · {orgs.length} {orgs.length === 1 ? "organización" : "organizaciones"}. Abre un proyecto para revisar sus fuentes y próximos pasos.</p></div><label className="portfolio-view"><input type="checkbox" checked={compact} onChange={e=>setCompact(e.target.checked)}/> Vista compacta</label></div>
       {controls && (
         <form className="portfolio-controls" role="search" aria-label="Filtrar cartera" onSubmit={(e) => e.preventDefault()}>
           <div className="field">
@@ -122,7 +125,7 @@ export function PortfolioGrid({ items }: { items: PortfolioItem[] }) {
           <span className="empty-body">Prueba a quitar la búsqueda o elegir otra organización u otro rol.</span>
         </p>
       ) : (
-        <ul className="cards portfolio">
+        <ul className={`cards portfolio${compact ? " portfolio-compact" : ""}`}>
           {filtered.map((item) => <PortfolioCard key={item.key} item={item} />)}
         </ul>
       )}

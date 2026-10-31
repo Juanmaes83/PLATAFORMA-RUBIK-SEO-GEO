@@ -7,7 +7,8 @@
 // The generated passphrase is printed once and never written to disk.
 import { createHash, randomBytes } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
-import { localSupabaseEnv } from "./supabase-test-env.mjs";
+import { execFileSync } from "node:child_process";
+import { localDatabaseContainer, localSupabaseEnv } from "./supabase-test-env.mjs";
 
 const EMAILS = {
   agency: "demo-agencia@rubik-demo.test",
@@ -135,7 +136,7 @@ async function cleanup(admin) {
 }
 
 async function seed(admin) {
-  const passphrase = randomBytes(12).toString("base64url");
+  const passphrase = process.env.RUBIK_DEMO_PASSPHRASE || randomBytes(12).toString("base64url");
   const users = {};
   for (const [key, email] of Object.entries(EMAILS)) {
     const data = must(await admin.auth.admin.createUser({
@@ -185,8 +186,17 @@ async function seed(admin) {
     ...hotelImports(projects.hotel, orgAgencia, agency.id),
     ...clinicaImports(projects.clinica, orgAgencia, agency.id),
   ];
-  must(await admin.from("imports").insert(imports), "imports");
-
+  if (process.env.RUBIK_TEST_F1A2_STACK === "1") {
+    // Dedicated disposable visual stack only. The existing offline-restore boundary permits
+    // postgres without JWT; preserve every RLS policy and trigger, and validate the container.
+    const columns = Object.keys(imports[0]).join(",");
+    const data = JSON.stringify(imports).replaceAll("'", "''");
+    execFileSync("docker", ["exec", "-i", localDatabaseContainer(), "psql", "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=1"], {
+      input: `insert into public.imports (${columns}) select ${columns} from jsonb_populate_recordset(null::public.imports, '${data}'::jsonb);`, stdio: ["pipe", "ignore", "pipe"],
+    });
+  } else {
+    must(await admin.from("imports").insert(imports), "imports");
+  }
   return { passphrase, orgAgencia, orgHolding, projects };
 }
 

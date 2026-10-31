@@ -9,6 +9,7 @@ export function ProjectNav({ base, current }: { base: string; current: string | 
     { href: `${base}/medicion`, label: "Medición orgánica", key: "medicion" },
     { href: `${base}/informe`, label: "Informe del proyecto", key: "informe" },
     ...PROJECT_SECTIONS
+      .filter((s) => s.available)
       .filter((s) => s.slug !== "competidores" || n2SchemaAvailable())
       .filter((s) => (s.slug !== "contenidos" && s.slug !== "geo") || contentGeoSchemaAvailable())
       .map((s) => ({ href: `${base}/${s.slug}`, label: s.label, key: s.slug })),
