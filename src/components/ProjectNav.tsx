@@ -17,11 +17,12 @@ export function ProjectNav({ base, current }: { base: string; current: string | 
   return (
     <nav aria-label="Secciones del proyecto" className="subnav">
       <ul>
-        {items.map((i) => (
+        {items.slice(0, 3).map((i) => (
           <li key={i.href}>
             <Link href={i.href} aria-current={i.key === current ? "page" : undefined}>{i.label}</Link>
           </li>
         ))}
+        <li className="project-nav-disclosure"><details><summary>{current && !["medicion", "informe"].includes(current) ? items.find(i=>i.key===current)?.label ?? "Más herramientas" : "Más herramientas"}</summary><ul>{items.slice(3).map(i=><li key={i.href}><Link href={i.href} aria-current={i.key === current ? "page" : undefined}>{i.label}</Link></li>)}</ul></details></li>
       </ul>
     </nav>
   );
