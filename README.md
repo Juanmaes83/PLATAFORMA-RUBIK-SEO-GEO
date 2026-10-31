@@ -53,6 +53,7 @@ npm run dev                          # http://localhost:3000
 | `npm run check:core-pin` | Comprueba que el Core está fijado a un SHA completo y que el lockfile coincide |
 | `npm run check:secrets` | Busca credenciales o ficheros `.env` commiteados |
 | `npm run db:start` · `npm run db:stop` · `npm run db:reset` | Arranca, para o reinicia el stack local de Supabase (Docker) con las migraciones del repositorio |
+| `npm run demo:f1` · `npm run demo:f1:cleanup` | Demostración local en `http://localhost:3231` con una cartera multicliente ficticia (usuarios, organizaciones, proyectos e importaciones inventados) en el stack local; imprime la contraseña generada una vez. `demo:f1:cleanup` la elimina |
 | `npm run test:db` | Pruebas pgTAP de RLS y aislamiento (`supabase/tests`) contra el stack local |
 | `npm run test:integration` | Auth y aislamiento por la Data API contra el stack local |
 | `npm run test:e2e` | Playwright contra el stack local, a 360, 390 y 1280 px: flujos de Auth y aislamiento, sin desbordamiento horizontal, axe, objetivos táctiles y capturas (requiere `npx playwright install chromium` una vez) |

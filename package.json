@@ -22,6 +22,8 @@
     "test:u03-preflight-n1": "node --test scripts/u03-preview-preflight-n1.test.mjs",
     "visual:evidence": "node scripts/visual-evidence.mjs",
     "verify:export": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/verify-export.mjs",
+    "demo:f1": "node scripts/demo-f1.mjs",
+    "demo:f1:cleanup": "node scripts/demo-f1-data.mjs --cleanup",
     "db:start": "npx --yes supabase@2.118.0 start -x postgres-meta,imgproxy,vector,logflare,supavisor,studio,realtime,storage-api,edge-runtime",
     "db:stop": "npx --yes supabase@2.118.0 stop",
     "db:reset": "npx --yes supabase@2.118.0 db reset",
