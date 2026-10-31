@@ -4,12 +4,16 @@ import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 export const CONTRACT_SHA='3a35528f4cd08432f61fc302664e8074177f269d';
+// Next 16.4.3 segment-cache/cache.js emits 1, 2 and 3. Unknown values remain necessary.
+export function isAuxiliaryPrefetch(headers) {
+  return ['1','2','3'].includes(headers['next-router-prefetch'])||headers.purpose==='prefetch';
+}
 export const CASES=Object.freeze(['preflight','functional-identity','functional-desktop','functional-mobile','functional-tenancy',
   'functional-egress-cost','http-export','offline-verification','tamper-rejection','restore-destination',
   'browser-views-and-logout','foreign-preserved','source-cleanup','destination-cleanup','functional-restore-transport']);
 export function scenarioDigest() {
   const hash=createHash('sha256');
-  for(const file of ['tests/integration/u03-window-functional.integration.test.ts','scripts/h1a-functional-local.mjs','scripts/h1a-local-egress-guard.mjs'])hash.update(file).update(readFileSync(file));
+  for(const file of ['tests/integration/u03-window-functional.integration.test.ts','scripts/h1a-functional-local.mjs','scripts/h1a-local-egress-guard.mjs','scripts/h1a-functional-preflight.mjs'])hash.update(file).update(readFileSync(file));
   return hash.digest('hex');
 }
 export function ratifiedContractInMain(readBlob) {

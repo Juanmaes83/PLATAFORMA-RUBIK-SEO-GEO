@@ -27,7 +27,8 @@ import { verifyProjectExport } from '@/lib/recovery/verify-export';
 import { recoverySchemaContract } from '@/lib/recovery/schema-contract';
 import { ALLOWED_ROUTE_EVENT, installScopedRoutes } from '../../scripts/u03-preview-b4-runner.mjs';
 import { planRestore } from '@/lib/restore/plan';
-import { createConfirmedUser, deleteOrganizations, deleteUsers, email, env, signedIn, TEST_PASSPHRASE } from './support';
+import { createConfirmedUser, deleteUsers, email, env, signedIn, TEST_PASSPHRASE } from './support';
+import { isAuxiliaryPrefetch } from '../../scripts/h1a-functional-preflight.mjs';
 import { localDatabaseContainer } from '../../scripts/supabase-test-env.mjs';
 import { selectedStack } from '../../scripts/test-stacks.mjs';
 import { ROLE, buildMinimalInstallSql, buildMinimalRollbackSql } from '../../scripts/u03-window-minimal-principal.mjs';
@@ -46,6 +47,16 @@ if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
   throw new Error('LOCAL_RESTORE_RUN_ID_REQUIRED');
 const ledger = `${ROOT}/test-results/mvp-functional-${RUN}.jsonl`;
 const users: string[] = [];
+const ownedOrganizations=new Map<string,string>();
+function deleteOwnedOrganizations(ids:string[]) {
+  for(const id of ids) {
+    const slug=ownedOrganizations.get(id);
+    if(!/^[a-f0-9-]{36}$/.test(id)||!slug||!/^(u03|foreign)-[a-f0-9]{12}(-[ab])?$/.test(slug))throw new Error('CLEANUP_OWNERSHIP_REQUIRED');
+    if(sql(SOURCE_DB,`select count(*) from public.organizations where id='${id}'::uuid and slug='${slug}'`)!=='1')throw new Error('CLEANUP_IDENTITY_AMBIGUOUS');
+    sql(SOURCE_DB,`delete from private.audit_outbox where state='pending' and project_id in (select id from public.projects where organization_id='${id}'::uuid); delete from public.organizations where id='${id}'::uuid`);
+    ownedOrganizations.delete(id);
+  }
+}
 const TENANT_B=TENANT.slice(0,-1)+'b';
 const FOREIGN='foreign-'+RUN.replaceAll('-','').slice(0,12);
 const egressJournal=ROOT+'/test-results/functional-egress-'+RUN+'.txt';
@@ -137,6 +148,7 @@ function canonical(value:unknown,key=''):unknown {
 function digest(value:unknown) { return createHash('sha256').update(JSON.stringify(canonical(value))).digest('hex'); }
 
 beforeAll(async () => {
+  expect(()=>deleteOwnedOrganizations([randomUUID()])).toThrow('CLEANUP_OWNERSHIP_REQUIRED');
   expect(sql(SOURCE_DB,'select count(*)::text||\'|\'||max(version)::text from supabase_migrations.schema_migrations')).toBe('27|20261015210000');
   if (sql(SOURCE_DB,"select count(*) from information_schema.tables where table_schema='private' and table_name='environment_identity'")==='0')
     sql(SOURCE_DB,readFileSync(`${ROOT}/scripts/u02-preview-sentinel.sql`,'utf8'));
@@ -151,6 +163,7 @@ beforeAll(async () => {
   const foreign=await signedIn('u03-functional-foreign');
   expect((await foreign.from('organizations').insert({slug:FOREIGN,name:'Unrelated suite sentinel'})).error).toBeNull();
   foreignOrgId=(await foreign.from('organizations').select('id').eq('slug',FOREIGN).single()).data!.id;
+  ownedOrganizations.set(foreignOrgId,FOREIGN);
   foreignFingerprint=sql(SOURCE_DB,`select md5(to_jsonb(o)::text) from public.organizations o where id='${foreignOrgId}'`);
   user = await signedIn('u03-http-owner');
   member = await signedIn('u03-http-member');
@@ -159,6 +172,7 @@ beforeAll(async () => {
   if (createdOrg.error) throw new Error('LOCAL_ORGANIZATION_CREATE_FAILED');
   orgCreated = true;
   orgId = (await user.from('organizations').select('id').eq('slug',TENANT).single()).data!.id;
+  ownedOrganizations.set(orgId,TENANT);
   const insertedProject = await user.from('projects').insert({organization_id:orgId,slug:'a1',name:'A1'});
   if (insertedProject.error) throw new Error('LOCAL_PROJECT_CREATE_FAILED');
   const projectId = (await user.from('projects').select('id').eq('organization_id',orgId).eq('slug','a1').single()).data!.id;
@@ -168,6 +182,7 @@ beforeAll(async () => {
   projectA2={projectId:a2id,organizationId:orgId,scope:{tenantId:TENANT,projectId:'a2'}};
   expect((await ownerB.from('organizations').insert({slug:TENANT_B,name:'Organization B'})).error).toBeNull();
   const bOrg=(await ownerB.from('organizations').select('id').eq('slug',TENANT_B).single()).data!.id;
+  ownedOrganizations.set(bOrg,TENANT_B);
   expect((await ownerB.from('projects').insert({organization_id:bOrg,slug:'b1',name:'B1'})).error).toBeNull();
   const bId=(await ownerB.from('projects').select('id').eq('organization_id',bOrg).single()).data!.id;
   projectB={projectId:bId,organizationId:bOrg,scope:{tenantId:TENANT_B,projectId:'b1'}};
@@ -258,13 +273,13 @@ afterAll(async()=>{
     sql(DEST_DB,`delete from public.organizations where id='${project.organizationId}'::uuid;${destinationActorIds.length?`delete from auth.users where id in (${destinationActorIds.map(id=>`'${id}'::uuid`).join(',')});`:''}`);
     targetRowsCreated=false;
   }
-  if(orgCreated) await deleteOrganizations([TENANT,TENANT_B]);
+  if(orgCreated) deleteOwnedOrganizations([...ownedOrganizations.keys()].filter(id=>id!==foreignOrgId));
   if(users.length) await deleteUsers(users);
   if(foreignOrgId) {
     expect(sql(SOURCE_DB,`select md5(to_jsonb(o)::text) from public.organizations o where id='${foreignOrgId}'`)).toBe(foreignFingerprint);
     expect(sql(SOURCE_DB,`select count(*) from auth.users where id='${foreignUserId}'`)).toBe('1');
     record('foreign-preserved','PASS');
-    await deleteOrganizations([FOREIGN]);await deleteUsers([foreignUserId]);
+    deleteOwnedOrganizations([foreignOrgId]);await deleteUsers([foreignUserId]);
   }
   const sourceGlobal=sql(SOURCE_DB,`select (select count(*) from auth.users)::text||'|'||(select count(*) from public.organizations)::text||'|'||(select count(*) from public.projects)::text||'|'||(select count(*) from public.audit_events)::text||'|'||(select count(*) from public.provider_results)::text||'|'||(select count(*) from public.imports)::text||'|'||(select count(*) from private.audit_outbox)::text||'|'||(select count(*) from private.audit_outbox where state='pending')::text`);
   if(roleInstalled) {
@@ -312,7 +327,7 @@ it('MVP functional: real identity, signed populated views and isolated double re
     page.setDefaultTimeout(15_000);
     page.on('response',response=>{
       const request=response.request(),headers=request.headers();
-      if(!['document','fetch','xhr'].includes(request.resourceType())||headers['next-router-prefetch']==='1'||headers.purpose==='prefetch'||response.status()>=300&&response.status()<400)return;
+      if(!['document','fetch','xhr'].includes(request.resourceType())||isAuxiliaryPrefetch(headers)||response.status()>=300&&response.status()<400)return;
       necessaryBodies.push((async()=>{expect(await bounded(response.finished(),'NECESSARY_FINISH_TIMEOUT')).toBeNull();expect((await bounded(response.body(),'NECESSARY_BODY_TIMEOUT')).byteLength).toBeGreaterThan(0);})().catch(()=>{necessaryFailures.push('NECESSARY_BODY_INCOMPLETE_'+request.resourceType());}));
     });
     await installScopedRoutes(context,page,null,origin,(...args:unknown[])=>{securityFailures.push(typeof args[0]==='string'?args[0]:'INTERCEPTION_FAILED');},()=>{},null,()=>{},row=>{
@@ -320,7 +335,7 @@ it('MVP functional: real identity, signed populated views and isolated double re
     },true);
     page.on('requestfailed',request=>{
       const headers=request.headers();
-      const auxiliary=headers['next-router-prefetch']==='1'||headers.purpose==='prefetch';
+      const auxiliary=isAuxiliaryPrefetch(headers);
       if(!auxiliary) necessaryFailures.push('NECESSARY_REQUEST_FAILED');
     });
     await visit(page,'/acceso');
@@ -372,6 +387,10 @@ it('MVP functional: real identity, signed populated views and isolated double re
     expect(await measured.locator('dl > div').filter({has:page.locator('dt').filter({hasText:/Google Search Console: última, filas/i})}).locator('dd').innerText()).toBe('1');
     expect(await measured.innerText()).toContain('2026-10-01');
     expect(await page.locator('body').innerText()).toContain('No es una instantánea transaccional');
+    const reportDimensions=await page.evaluate(()=>({width:innerWidth,scroll:window.document.documentElement.scrollWidth}));
+    expect(reportDimensions.scroll).toBeLessThanOrEqual(reportDimensions.width);
+    const reportAccessibility=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();
+    expect(reportAccessibility.violations.filter(v=>v.impact==='serious'||v.impact==='critical').map(v=>v.id)).toEqual([]);
     await page.screenshot({path:`${ROOT}/test-results/functional-${RUN}/${viewport.width}-report.png`,fullPage:true});
     record(viewport.width===1280?'functional-desktop':'functional-mobile','PASS');
   }
@@ -456,6 +475,8 @@ it('MVP functional: real identity, signed populated views and isolated double re
     audit:select(snapshot.audit,columns.audit),results:select(snapshot.results,columns.results),imports:select(snapshot.imports,columns.imports)});
   const firstDigest=digest(projected(destinationSnapshot()));
   expect(firstDigest).toBe(digest(expectedSnapshot));
+  const identity=(container:string)=>sql(container,`select o.id::text||'|'||o.slug||'|'||p.id::text||'|'||p.slug from public.projects p join public.organizations o on o.id=p.organization_id where p.id='${project.projectId}'::uuid`);
+  expect(identity(DEST_DB)).toBe(identity(SOURCE_DB));
   sql(DEST_DB,plan.plan.sql);
   const second=sql(DEST_DB,`select (select count(*) from public.organizations where id='${project.organizationId}'::uuid)::text||'|'||(select count(*) from public.projects where id='${project.projectId}'::uuid)::text||'|'||(select count(*) from public.audit_events where project_id='${project.projectId}'::uuid)::text||'|'||(select count(*) from public.provider_results where project_id='${project.projectId}'::uuid)::text||'|'||(select count(*) from public.imports where project_id='${project.projectId}'::uuid)::text`);
   expect(first).toBe(second);
@@ -469,8 +490,13 @@ it('MVP functional: real identity, signed populated views and isolated double re
   const denied=await page.goto(`${origin}/proyectos/${TENANT}/a1`,{waitUntil:'domcontentloaded'});
   expect(denied).not.toBeNull();
   expect(new URL(page.url()).pathname).toBe('/acceso');
+  expect(await bounded(denied!.finished(),'LOGOUT_REDIRECT_FINISH_TIMEOUT')).toBeNull();
+  expect((await bounded(denied!.body(),'LOGOUT_REDIRECT_BODY_TIMEOUT')).byteLength).toBeGreaterThan(0);
+  await page.waitForLoadState('networkidle');
+  await bounded(Promise.all(necessaryBodies),'LOGOUT_NECESSARY_BODIES_TIMEOUT');
+  expect(securityFailures).toEqual([]);expect(necessaryFailures).toEqual([]);
   record('browser-views-and-logout','PASS');
-  await deleteOrganizations([TENANT,TENANT_B]);
+  deleteOwnedOrganizations([...ownedOrganizations.keys()].filter(id=>id!==foreignOrgId));
   orgCreated=false;
   sql(DEST_DB,`delete from public.organizations where id='${project.organizationId}'::uuid; delete from auth.users where id in (${actorIds.map(id=>`'${id}'::uuid`).join(',')})`);
   targetRowsCreated=false;

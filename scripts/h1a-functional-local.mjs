@@ -44,6 +44,7 @@ function h1aTestEnv() {
 let pendingEvidence;
 try {
   const headSha=safeRun('git',['rev-parse','HEAD']).trim(),digest=scenarioDigest();
+  process.stdout.write(safeRun(node,['--test','scripts/h1a-functional-preflight.test.mjs','scripts/h1a-local-egress-guard.test.mjs']));
   const localEnv={U03_RESTORE_DESTINATION_RUN_ID:runId};
   call('h1a-local-source-stack.mjs','start',localEnv);
   call('h1a-local-source-stack.mjs','inspect',localEnv);
