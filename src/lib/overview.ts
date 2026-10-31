@@ -12,6 +12,7 @@ import { listObservations as listGeoObservations } from "@/lib/geo/repository";
 import { listImports, loadProjectRef } from "@/lib/imports/repository";
 import { contentGeoSchemaAvailable, n2SchemaAvailable } from "@/lib/n2/availability";
 import { listGoogleCaptures } from "@/lib/openseo/google/capture";
+import { getGoogleProperty } from "@/lib/openseo/google/properties";
 import type { ProjectRef } from "@/lib/provenance/audit";
 import type { Keyring } from "@/lib/provenance/keyring";
 import { listProviderResults, loadProviderResult } from "@/lib/provenance/repository";
@@ -19,24 +20,16 @@ import { diagnoseAudit } from "@/lib/seo/diagnosis";
 import type { Database } from "@/lib/supabase/database.types";
 import { formatDateTime } from "@/lib/format";
 import type { ProjectRecord } from "@/lib/access";
+import type { ModuleSignal, ProjectModules } from "@/lib/signals";
+
+export type { ModuleSignal, ProjectModules, SourceState } from "@/lib/signals";
 
 type Client = SupabaseClient<Database>;
 
 const CAPTURE_LIMIT = 1;
 const TECHNICAL_SCAN_LIMIT = 25;
 
-/** The only three honest states a dashboard source can be in. */
-export type SourceState = "data" | "no_data" | "unavailable";
-
-export interface ModuleSignal {
-  state: SourceState;
-  /** Real indicators from the same bounded read, already dated and labelled. */
-  lines: string[];
-  /** Secondary line for limits of the read (unverified signature, schema off is NOT here: that is state). */
-  note: string | null;
-}
-
-const unavailable: ModuleSignal = { state: "unavailable", lines: [], note: null };
+const unavailable: ModuleSignal = { state: "unavailable", lines: [], note: null, at: null };
 
 async function guarded(read: () => Promise<ModuleSignal>): Promise<ModuleSignal> {
   try { return await read(); } catch { return unavailable; }
@@ -44,11 +37,28 @@ async function guarded(read: () => Promise<ModuleSignal>): Promise<ModuleSignal>
 
 const plural = (n: number, one: string, many: string) => `${n.toLocaleString("es-ES")} ${n === 1 ? one : many}`;
 
+/**
+ * No stored captures: is the source configured? Only the stored association state decides —
+ * "pending" never stands in for a failed or forbidden read.
+ */
+async function measurementWithoutCaptures(client: Client, ref: ProjectRef): Promise<ModuleSignal> {
+  const [gsc, ga] = await Promise.all([
+    getGoogleProperty(client, ref.projectId, "search-console"),
+    getGoogleProperty(client, ref.projectId, "google-analytics"),
+  ]);
+  const stateOf = (r: typeof gsc): "ACTIVE" | "REVOKED" | "NONE" | "UNKNOWN" => (!r.ok ? "UNKNOWN" : (r.property?.state ?? "NONE"));
+  const states = [stateOf(gsc), stateOf(ga)];
+  if (states.every((s) => s === "UNKNOWN")) return { state: "no_data", lines: [], note: null, at: null };
+  if (states.some((s) => s === "ACTIVE")) return { state: "no_data", lines: ["Propiedad asociada, sin capturas todavía"], note: null, at: null };
+  if (states.some((s) => s === "REVOKED")) return { state: "pending", lines: ["Propiedad revocada"], note: "Vuelve a autorizarla desde el centro de medición", at: null };
+  return { state: "pending", lines: ["Sin propiedad de Google asociada"], note: "Asóciala desde el centro de medición", at: null };
+}
+
 async function measurement(client: Client, ref: ProjectRef, keyring: Keyring | null): Promise<ModuleSignal> {
   const history = await listGoogleCaptures(client, ref, CAPTURE_LIMIT);
   if (!history.ok) return unavailable;
   const latest = history.rows[0];
-  if (!latest) return { state: "no_data", lines: [], note: null };
+  if (!latest) return measurementWithoutCaptures(client, ref);
   const lines = [`Última captura · ${formatDateTime(latest.capturedAt ?? latest.createdAt)}`];
   let note: string | null = null;
   if (!keyring) {
@@ -64,14 +74,14 @@ async function measurement(client: Client, ref: ProjectRef, keyring: Keyring | n
       if (loaded.row.status === "PARTIAL") note = "Cobertura parcial: no representa el total";
     }
   }
-  return { state: "data", lines, note };
+  return { state: "data", lines, note, at: latest.capturedAt ?? latest.createdAt };
 }
 
 async function technical(client: Client, ref: ProjectRef, keyring: Keyring | null): Promise<ModuleSignal> {
   const listed = await listProviderResults(client, ref, { limit: TECHNICAL_SCAN_LIMIT });
   if (!listed.ok) return unavailable;
   const latest = listed.rows.find((r) => r.provider === "openseo" && r.operation === "auditIssues");
-  if (!latest) return { state: "no_data", lines: [], note: null };
+  if (!latest) return { state: "no_data", lines: [], note: null, at: null };
   const lines = [`Última auditoría · ${formatDateTime(latest.captured_at ?? latest.created_at)}`];
   let note: string | null = null;
   if (!keyring) {
@@ -87,22 +97,23 @@ async function technical(client: Client, ref: ProjectRef, keyring: Keyring | nul
         const errors = issues.filter((i) => i.severity === "ERROR").length;
         const warnings = issues.filter((i) => i.severity === "WARNING").length;
         lines.push(errors > 0 || warnings > 0
-          ? `${plural(errors, "error", "errores")} · ${plural(warnings, "aviso", "avisos")}`
+          ? `${plural(errors, "error", "errores")} · ${plural(warnings, "avisos")}`
           : plural(issues.length, "incidencia menor", "incidencias menores"));
       }
     }
   }
-  return { state: "data", lines, note };
+  return { state: "data", lines, note, at: latest.captured_at ?? latest.created_at };
 }
 
 async function imports(client: Client, ref: ProjectRef): Promise<ModuleSignal> {
   const rows = await listImports(client, ref);
-  if (rows.length === 0) return { state: "no_data", lines: [], note: null };
+  if (rows.length === 0) return { state: "no_data", lines: [], note: null, at: null };
   const latest = rows.reduce((a, b) => (a.created_at >= b.created_at ? a : b));
   return {
     state: "data",
     lines: [plural(rows.length, "importación registrada", "importaciones registradas"), `Última · ${formatDateTime(latest.created_at)}`],
     note: null,
+    at: latest.created_at,
   };
 }
 
@@ -110,11 +121,12 @@ async function competitors(client: Client, ref: ProjectRef): Promise<ModuleSigna
   if (!n2SchemaAvailable()) return unavailable;
   const rows = await listCompetitors(client, ref);
   const active = rows.filter((c) => c.status === "active").length;
-  if (rows.length === 0) return { state: "no_data", lines: [], note: null };
+  if (rows.length === 0) return { state: "no_data", lines: [], note: null, at: null };
   return {
     state: "data",
     lines: [plural(active, "competidor activo", "competidores activos")],
     note: active < rows.length ? `${plural(rows.length - active, "archivado", "archivados")}` : null,
+    at: null,
   };
 }
 
@@ -124,19 +136,20 @@ async function content(client: Client, ref: ProjectRef): Promise<ModuleSignal> {
   const lines: string[] = [];
   if (opportunities.length > 0) lines.push(plural(opportunities.length, "oportunidad", "oportunidades"));
   if (briefs.length > 0) lines.push(plural(briefs.length, "brief", "briefs"));
-  if (lines.length === 0) return { state: "no_data", lines: [], note: null };
-  return { state: "data", lines, note: null };
+  if (lines.length === 0) return { state: "no_data", lines: [], note: null, at: null };
+  return { state: "data", lines, note: null, at: null };
 }
 
 async function geo(client: Client, ref: ProjectRef): Promise<ModuleSignal> {
   if (!contentGeoSchemaAvailable()) return unavailable;
   const observations = await listGeoObservations(client, ref);
-  if (observations.length === 0) return { state: "no_data", lines: [], note: null };
+  if (observations.length === 0) return { state: "no_data", lines: [], note: null, at: null };
   const latest = observations.reduce((a, b) => (a.observedOn >= b.observedOn ? a : b));
   return {
     state: "data",
     lines: [plural(observations.length, "observación registrada", "observaciones registradas"), `Última · ${formatDateTime(latest.observedOn)}`],
     note: null,
+    at: latest.observedOn,
   };
 }
 
@@ -146,18 +159,8 @@ async function audit(client: Client, ref: ProjectRef): Promise<ModuleSignal> {
     .order("seq", { ascending: false }).limit(1);
   if (error) return unavailable;
   const last = data[0]?.at;
-  if (typeof last !== "string") return { state: "no_data", lines: [], note: null };
-  return { state: "data", lines: [`Último evento · ${formatDateTime(last)}`], note: null };
-}
-
-export interface ProjectModules {
-  measurement: ModuleSignal;
-  technical: ModuleSignal;
-  imports: ModuleSignal;
-  competitors: ModuleSignal;
-  content: ModuleSignal;
-  geo: ModuleSignal;
-  audit: ModuleSignal;
+  if (typeof last !== "string") return { state: "no_data", lines: [], note: null, at: null };
+  return { state: "data", lines: [`Último evento · ${formatDateTime(last)}`], note: null, at: last };
 }
 
 /** Bounded module signals for one project. Reads are independent: one failure never blanks the rest. */

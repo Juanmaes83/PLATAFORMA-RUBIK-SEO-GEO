@@ -1,14 +1,8 @@
 import Link from "next/link";
-import type { ModuleSignal, ProjectModules, SourceState } from "@/lib/overview";
+import { STATE_META, type ModuleSignal, type ProjectModules, type SourceState } from "@/lib/signals";
 import { roleLabel } from "@/lib/labels";
 import type { ProjectAccess } from "@/lib/access";
 import { StatusPill } from "@/components/ui";
-
-const STATE_META: Record<SourceState, { label: string; tone: "ok" | "neutral" | "warn"; dot: string }> = {
-  data: { label: "Con datos", tone: "ok", dot: "dot-ok" },
-  no_data: { label: "Sin datos", tone: "neutral", dot: "dot-neutral" },
-  unavailable: { label: "No disponible", tone: "warn", dot: "dot-warn" },
-};
 
 export function SourceStatePill({ state }: { state: SourceState }) {
   const meta = STATE_META[state];
