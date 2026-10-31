@@ -1,10 +1,10 @@
 import Link from "next/link";
-import { PageHead } from "@/components/ui";
 import { currentUser, requestAuthMode } from "@/lib/auth/session";
 import { corePin } from "@/lib/core";
 
-// Public entry (F1): the product speaks first, the internal status second. No invented
-// metrics, no client data; the version facts stay honest and demoted to a small section.
+// Public entry (F1-A.1): the product speaks first, the internal status second. The preview
+// graphic is an abstract illustration of the shell — bars and dots, never numbers that could
+// be read as real metrics.
 const CAPABILITIES = [
   { title: "Cartera de proyectos", body: "Todos los proyectos a los que tienes acceso, con su organización, dominio y tu rol, en una sola vista." },
   { title: "Medición con fuente y fecha", body: "Capturas firmadas de Search Console y GA4, con su propiedad, su periodo y su verificación." },
@@ -18,20 +18,47 @@ export default async function Home() {
   const [user, auth] = await Promise.all([currentUser(), requestAuthMode()]);
   return (
     <>
-      <PageHead title="Rubik SEO/GEO" />
-      <p className="lead home-lead">
-        La plataforma de Rubik para dirigir la visibilidad de tus proyectos: mediciones con fuente y fecha,
-        SEO técnico, competidores, contenidos y presencia en los motores de IA — siempre con revisión humana
-        antes de cualquier acción externa.
-      </p>
-      <div className="actions">
-        {user ? (
-          <Link className="btn" href="/panel">Ir al panel</Link>
-        ) : (
-          <Link className="btn" href="/acceso">Entrar</Link>
-        )}
-        <Link className="btn btn-ghost" href="/conectores">Ver conectores previstos</Link>
-      </div>
+      <section className="hero" aria-labelledby="h-title">
+        <div className="hero-copy">
+          <p className="eyebrow">Plataforma de visibilidad SEO/GEO</p>
+          <h1 id="h-title">Tus proyectos SEO/GEO, medidos con fuente y fecha</h1>
+          <p className="hero-lead">
+            RUBIK reúne la medición orgánica, el SEO técnico, los competidores, los contenidos y la presencia
+            en motores de IA de cada proyecto — siempre con su procedencia y con revisión humana antes de
+            cualquier acción externa.
+          </p>
+          <div className="actions">
+            {user ? (
+              <Link className="btn" href="/panel">Ir al panel</Link>
+            ) : (
+              <Link className="btn" href="/acceso">Entrar</Link>
+            )}
+            <Link className="btn btn-ghost" href="/conectores">Ver conectores previstos</Link>
+          </div>
+        </div>
+        <div className="hero-preview">
+          <div className="preview-frame" role="img" aria-label="Ilustración de la interfaz de la plataforma; no muestra datos reales">
+            <div className="preview-side" aria-hidden="true">
+              <span className="preview-dot" />
+              <span className="preview-line" />
+              <span className="preview-line preview-line-short" />
+              <span className="preview-line preview-line-short" />
+            </div>
+            <div className="preview-main" aria-hidden="true">
+              <span className="preview-line preview-line-title" />
+              <div className="preview-cards">
+                <span className="preview-card"><span className="dot dot-ok" /><span className="preview-line" /><span className="preview-line preview-line-short" /></span>
+                <span className="preview-card"><span className="dot dot-neutral" /><span className="preview-line" /><span className="preview-line preview-line-short" /></span>
+                <span className="preview-card"><span className="dot dot-warn" /><span className="preview-line" /><span className="preview-line preview-line-short" /></span>
+              </div>
+              <span className="preview-line" />
+              <span className="preview-line preview-line-short" />
+              <span className="preview-line preview-line-mid" />
+            </div>
+          </div>
+          <p className="preview-caption">Ilustración de la interfaz. No muestra datos reales.</p>
+        </div>
+      </section>
 
       <section aria-labelledby="h-capacidades" className="section">
         <h2 id="h-capacidades" className="section-title">Qué puedes hacer hoy</h2>

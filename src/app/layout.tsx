@@ -18,6 +18,10 @@ export const viewport: Viewport = { width: "device-width", initialScale: 1 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const [auth, user] = await Promise.all([requestAuthMode(), currentUser()]);
+  // The environment banner stays where it matters: anyone blocked from signing in sees why, and
+  // signed-in users outside Production see which environment they are in. It is not decoration
+  // for the public entry, and Production users do not need to read their own auth mode.
+  const showBanner = !auth.canSignIn || (Boolean(user) && process.env.VERCEL_ENV !== "production");
   return (
     <html lang="es">
       <body>
@@ -29,21 +33,27 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </Link>
           <div className="topbar-actions">
             {user ? (
-              <form action={signOut} className="user-chip">
-                <span className="user-name">{user.email}</span>
-                <button type="submit" className="btn btn-ghost">Salir</button>
-              </form>
+              <>
+                <form action={signOut} className="user-chip">
+                  <span className="user-name">{user.email}</span>
+                  <button type="submit" className="btn btn-ghost">Salir</button>
+                </form>
+                <MobileNav />
+              </>
             ) : (
-              <Link href="/acceso" className="btn btn-ghost">Acceso</Link>
+              <Link href="/acceso" className="btn">Acceso</Link>
             )}
-            <MobileNav />
           </div>
         </header>
-        <ModeBanner auth={auth} coreCommit={corePin.shortCommit} />
-        <div className="shell">
-          <SideNav />
-          <main id="contenido" tabIndex={-1}>{children}</main>
-        </div>
+        {showBanner && <ModeBanner auth={auth} coreCommit={corePin.shortCommit} />}
+        {user ? (
+          <div className="shell">
+            <SideNav />
+            <main id="contenido" tabIndex={-1}>{children}</main>
+          </div>
+        ) : (
+          <main id="contenido" tabIndex={-1} className="shell-public">{children}</main>
+        )}
         <footer className="ownership-footer">
           <span>© Juan Manuel Espinosa Galant · Rubik Sota. Uso y comercialización sujetos a autorización expresa.</span>{" "}
           <Link href="/aviso-titularidad">Titularidad y autorización</Link>

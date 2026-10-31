@@ -259,6 +259,55 @@ main:focus { outline: none; }
   main { padding: var(--space-6) 2rem 3rem; }
 }
 
+/* ── F1-A.1 public entry, environment banner and shell variants ──────────── */
+.eyebrow { margin: 0 0 var(--space-2); font-size: 0.8rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-accent); }
+.hero { display: grid; gap: var(--space-6); padding: var(--space-6) 0 var(--space-4); }
+.hero h1 { font-size: clamp(1.9rem, 1.2rem + 2.6vw, 2.7rem); line-height: 1.1; letter-spacing: -0.02em; margin-bottom: var(--space-3); }
+.hero-lead { font-size: 1.12rem; line-height: 1.5; max-width: 36rem; color: var(--color-muted); }
+.hero-preview { display: none; }
+.preview-frame { display: flex; gap: var(--space-4); background: var(--color-surface); border: 1px solid var(--color-line); border-radius: var(--radius); padding: var(--space-4); box-shadow: 0 4px 16px rgb(0 0 0 / 0.08); }
+.preview-side { display: grid; gap: var(--space-3); align-content: start; width: 22%; min-width: 4.5rem; padding-right: var(--space-4); border-right: 1px solid var(--color-line); }
+.preview-main { display: grid; gap: var(--space-3); align-content: start; flex: 1; min-width: 0; }
+.preview-dot { width: 1.5rem; height: 1.5rem; border-radius: var(--radius-sm); background: var(--color-accent); display: block; }
+.preview-line { display: block; height: 0.7rem; border-radius: 999px; background: var(--color-line); width: 100%; }
+.preview-line-short { width: 60%; }
+.preview-line-mid { width: 78%; }
+.preview-line-title { width: 45%; height: 1rem; }
+.preview-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-2); }
+.preview-card { display: grid; gap: var(--space-2); align-content: start; padding: var(--space-2); border: 1px solid var(--color-line); border-radius: var(--radius-sm); }
+.preview-card .dot { width: 0.6rem; height: 0.6rem; }
+.preview-caption { margin: var(--space-2) 0 0; font-size: 0.8rem; color: var(--color-muted); }
+
+.banner { padding: var(--space-1) var(--space-4); font-size: 0.8rem; }
+
+.shell-public { display: block; width: 100%; max-width: 72rem; margin: 0 auto; padding: var(--space-4) var(--space-4) 3rem; }
+
+/* portfolio controls */
+.portfolio-controls { display: grid; gap: var(--space-3); margin: var(--space-4) 0 var(--space-3); }
+.portfolio-controls .field { margin: 0; }
+.portfolio-controls .field label { font-size: 0.82rem; color: var(--color-muted); }
+
+/* project switcher */
+.context-bar-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); }
+.switcher { display: inline-flex; align-items: center; gap: var(--space-2); font-size: 0.88rem; }
+.switcher label { color: var(--color-muted); }
+.switcher select { min-height: var(--tap); max-width: 100%; padding: 0 var(--space-2); border: 1px solid var(--color-muted); border-radius: var(--radius-sm); background: var(--color-surface); color: var(--color-fg); font: inherit; font-size: 0.9rem; }
+
+@media (min-width: 640px) {
+  .portfolio-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; }
+}
+
+@media (min-width: 1024px) {
+  .hero { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); align-items: center; gap: var(--space-6); padding: var(--space-6) 0; }
+  .hero-preview { display: block; }
+  .portfolio-controls { grid-template-columns: minmax(14rem, 2fr) repeat(3, minmax(9rem, 1fr)); align-items: end; }
+  .shell-public { padding: var(--space-6) 2rem 3rem; }
+}
+
+@media (min-width: 1440px) {
+  main, .shell-public { max-width: 80rem; }
+}
+
 /* ── F1 dashboard: portfolio cards, module tiles, context bar ────────────── */
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
@@ -317,6 +366,7 @@ main:focus { outline: none; }
 /* home */
 .home-lead { max-width: 46rem; }
 .capability-cards h3 { margin-bottom: var(--space-2); }
+.capability-cards .card { border-top: 3px solid var(--color-accent); }
 .capability-cards .card p { margin: 0; }
 
 @media (min-width: 640px) {
