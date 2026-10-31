@@ -87,7 +87,9 @@ code { font-family: var(--font-mono); font-size: 0.88em; overflow-wrap: anywhere
 
 /* ── Header, banner, navigation ─────────────────────────────────────────── */
 .topbar {
-  position: relative;
+  position: sticky;
+  top: 0;
+  z-index: 20;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -95,6 +97,7 @@ code { font-family: var(--font-mono); font-size: 0.88em; overflow-wrap: anywhere
   padding: var(--space-2) var(--space-4);
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-line);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.06);
 }
 .brand { display: inline-flex; align-items: center; gap: var(--space-2); font-weight: 700; color: var(--color-fg); text-decoration: none; min-height: var(--tap); }
 .brand-mark { display: inline-grid; place-items: center; width: 2rem; height: 2rem; border-radius: var(--radius-sm); background: var(--color-accent); color: var(--color-accent-fg); font-weight: 800; }
@@ -250,9 +253,78 @@ main:focus { outline: none; }
   .mobile-nav { display: none; }
   .shell { display: grid; grid-template-columns: 15.5rem minmax(0, 1fr); }
   .shell { min-height: calc(100vh - 7rem); align-items: stretch; }
-  .side-nav { display: block; padding: var(--space-4) var(--space-3); border-right: 1px solid var(--color-line); background: var(--color-surface); }
+  .side-nav { display: block; padding: var(--space-4) var(--space-3); border-right: 1px solid var(--color-line); background: var(--color-surface); position: sticky; top: 3.75rem; max-height: calc(100vh - 3.75rem); overflow-y: auto; }
   .side-nav .nav-link { flex-direction: column; align-items: flex-start; justify-content: center; gap: 0.15rem; }
+  .side-nav .nav-link[aria-current="page"] { background: var(--color-accent-soft); color: var(--color-accent); font-weight: 700; }
   main { padding: var(--space-6) 2rem 3rem; }
+}
+
+/* ── F1 dashboard: portfolio cards, module tiles, context bar ────────────── */
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+.nav-link[aria-current="page"] { background: var(--color-accent-soft); color: var(--color-accent); font-weight: 700; }
+
+.section-title { padding-bottom: var(--space-2); border-bottom: 1px solid var(--color-line); }
+
+/* state dots (chips) */
+.dot { display: inline-block; width: 0.55rem; height: 0.55rem; border-radius: 50%; flex: none; }
+.dot-ok { background: var(--color-ok); }
+.dot-neutral { background: var(--color-muted); opacity: 0.55; }
+.dot-warn { background: var(--color-warn-line); }
+
+.chip-row { list-style: none; display: flex; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-3) 0 0; padding: 0; }
+.chip { display: inline-flex; align-items: center; gap: var(--space-1); font-size: 0.8rem; color: var(--color-muted); border: 1px solid var(--color-line); border-radius: 999px; padding: 0.15rem 0.55rem; background: var(--color-surface); }
+
+.project-card { display: flex; flex-direction: column; }
+.project-card-title { overflow-wrap: anywhere; }
+.project-card-meta { margin: 0; }
+.project-card-activity { margin: var(--space-3) 0 0; }
+.project-card .btn-block { margin-top: auto; }
+.portfolio { margin-top: var(--space-4); }
+.panel-note { margin-top: var(--space-6); max-width: 46rem; }
+
+/* module tiles (project summary) */
+.module-grid { list-style: none; display: grid; gap: var(--space-3); margin: var(--space-4) 0 0; padding: 0; }
+.module-tile-link {
+  display: flex; flex-direction: column; gap: var(--space-2); height: 100%;
+  background: var(--color-surface); border: 1px solid var(--color-line); border-radius: var(--radius);
+  padding: var(--space-4); color: var(--color-fg); text-decoration: none;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.module-tile-link:hover { border-color: var(--color-accent); box-shadow: 0 2px 8px rgb(0 0 0 / 0.08); }
+.module-tile-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.module-tile-title { font-weight: 700; }
+.module-tile-desc { color: var(--color-muted); font-size: 0.9rem; }
+.module-tile-lines { display: grid; gap: 0.1rem; font-size: 0.88rem; }
+.module-tile-note { font-size: 0.82rem; color: var(--color-warn-fg); background: var(--color-warn-bg); border-radius: var(--radius-sm); padding: var(--space-1) var(--space-2); }
+.module-tile-cta { margin-top: auto; font-size: 0.88rem; font-weight: 600; color: var(--color-accent); }
+
+/* project context bar (layout) */
+.context-bar { margin: 0 0 var(--space-4); padding-bottom: var(--space-3); border-bottom: 1px solid var(--color-line); }
+.crumbs ol { list-style: none; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin: 0; padding: 0; font-size: 0.88rem; }
+.crumbs li { display: inline-flex; min-width: 0; }
+.crumbs [aria-current="page"] { font-weight: 700; color: var(--color-fg); overflow-wrap: anywhere; }
+.crumb-sep { color: var(--color-muted); }
+.context-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin: var(--space-2) 0 0; font-size: 0.9rem; color: var(--color-muted); }
+.context-role { display: inline-flex; align-items: center; gap: var(--space-2); }
+
+/* management link list (project summary) */
+.link-list { list-style: none; margin: var(--space-3) 0 0; padding: 0; display: grid; gap: var(--space-2); }
+.link-list a { display: block; padding: var(--space-3); background: var(--color-surface); border: 1px solid var(--color-line); border-radius: var(--radius); text-decoration: none; overflow-wrap: anywhere; }
+.link-list a:hover { border-color: var(--color-accent); }
+.link-list .muted { font-size: 0.85rem; }
+
+/* home */
+.home-lead { max-width: 46rem; }
+.capability-cards h3 { margin-bottom: var(--space-2); }
+.capability-cards .card p { margin: 0; }
+
+@media (min-width: 640px) {
+  .module-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (min-width: 1024px) {
+  .module-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 /* OpenSEO console (ADR 0006): checkbox with its label on one comfortable row. */
@@ -269,7 +341,7 @@ fieldset.field > legend { font-weight: 600; padding: 0; margin-bottom: var(--spa
 .report-natures { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-2) 0; }
 .report-meta { margin-bottom: var(--space-3); }
 @media print {
-  .topbar, .banner, .side-nav, .mobile-nav, .skip-link, .no-print { display: none !important; }
+  .topbar, .banner, .side-nav, .mobile-nav, .skip-link, .no-print, .context-bar { display: none !important; }
   body { background: #fff; color: #000; }
   /* The desktop grid would put main in the hidden menu's 15.5rem column. */
   .shell { display: block !important; min-height: 0; }

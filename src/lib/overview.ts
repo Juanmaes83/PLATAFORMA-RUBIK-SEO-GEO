@@ -162,7 +162,7 @@ export interface ProjectModules {
 
 /** Bounded module signals for one project. Reads are independent: one failure never blanks the rest. */
 export async function readProjectOverview(client: Client, ref: ProjectRef, keyring: Keyring | null): Promise<ProjectModules> {
-  const [measurement, technical, importsSignal, competitorsSignal, contentSignal, geoSignal, auditSignal] = await Promise.all([
+  const [measurementSignal, technicalSignal, importsSignal, competitorsSignal, contentSignal, geoSignal, auditSignal] = await Promise.all([
     guarded(() => measurement(client, ref, keyring)),
     guarded(() => technical(client, ref, keyring)),
     guarded(() => imports(client, ref)),
@@ -172,8 +172,8 @@ export async function readProjectOverview(client: Client, ref: ProjectRef, keyri
     guarded(() => audit(client, ref)),
   ]);
   return {
-    measurement, technical, imports: importsSignal, competitors: competitorsSignal,
-    content: contentSignal, geo: geoSignal, audit: auditSignal,
+    measurement: measurementSignal, technical: technicalSignal, imports: importsSignal,
+    competitors: competitorsSignal, content: contentSignal, geo: geoSignal, audit: auditSignal,
   };
 }
 
