@@ -143,7 +143,8 @@ test.describe("flows (change data: desktop only)", () => {
     await expect(page).toHaveURL(new RegExp(`${path}$`));
     await page.getByRole("button", { name: "Aceptar invitación" }).click();
     await expect(page).toHaveURL(new RegExp(`/proyectos/${TENANT}/${PROJECT}$`));
-    await expect(page.locator("main")).toContainText("tu rol: Solo lectura");
+    await expect(page.locator(".context-role")).toContainText("Tu rol:");
+    await expect(page.locator(".context-role")).toContainText("Solo lectura");
 
     // Single use: a used link gets the same generic answer as an unknown one (ADR 0020) and
     // changes nothing; "already a member" is only for a NEW invitation (covered by pgTAP).
@@ -169,7 +170,8 @@ test.describe("flows (change data: desktop only)", () => {
     await expect(page.locator("main")).toContainText(address.toLowerCase());
     await page.getByRole("button", { name: "Aceptar invitación" }).click();
     await expect(page).toHaveURL(new RegExp(`/proyectos/${TENANT}/${PROJECT}$`));
-    await expect(page.locator("main")).toContainText("tu rol: Analista");
+    await expect(page.locator(".context-role")).toContainText("Tu rol:");
+    await expect(page.locator(".context-role")).toContainText("Analista");
   });
 
   test("withdrawing access (D3): the person loses the project, keeps the account, owners cannot be withdrawn", async ({ page }) => {
