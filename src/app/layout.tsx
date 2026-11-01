@@ -45,7 +45,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             )}
           </div>
         </header>
-        {showBanner && <ModeBanner auth={auth} coreCommit={corePin.shortCommit} />}
+        {showBanner && !auth.canSignIn && <ModeBanner auth={auth} coreCommit={corePin.shortCommit} />}
         {user ? (
           <div className="shell">
             <SideNav />
@@ -55,6 +55,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <main id="contenido" tabIndex={-1} className="shell-public">{children}</main>
         )}
         <footer className="ownership-footer">
+          {showBanner && auth.canSignIn && <ModeBanner auth={auth} coreCommit={corePin.shortCommit} />}
           <span>© Juan Manuel Espinosa Galant · Rubik Sota. Uso y comercialización sujetos a autorización expresa.</span>{" "}
           <Link href="/aviso-titularidad">Titularidad y autorización</Link>
         </footer>

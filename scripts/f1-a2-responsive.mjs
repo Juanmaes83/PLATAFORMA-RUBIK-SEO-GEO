@@ -1,7 +1,7 @@
 import {mkdirSync,writeFileSync} from 'node:fs';
 import {chromium} from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-const base='http://localhost:3232',out='output/playwright/f1-a2/extended';mkdirSync(out,{recursive:true});
+const base='http://localhost:3232',out=process.env.RUBIK_VISUAL_OUT??'output/playwright/f1-a2/extended';mkdirSync(out,{recursive:true});
 const pass=process.env.RUBIK_DEMO_PASSPHRASE;if(!pass)throw Error('Local demo passphrase required');
 const browser=await chromium.launch({executablePath:process.env.CHROME}),report=[],errors=[];
 try{

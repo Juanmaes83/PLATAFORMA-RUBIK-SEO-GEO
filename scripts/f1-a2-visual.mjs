@@ -5,7 +5,7 @@ import AxeBuilder from '@axe-core/playwright';
 const phase=process.argv[2]??'after',base=process.env.RUBIK_DEMO_URL??`http://localhost:${phase==='before'?'3233':'3232'}`;
 if(!/^http:\/\/localhost:323[23]$/.test(base))throw Error('Local F1-A2 demo only');
 const pass=process.env.RUBIK_DEMO_PASSPHRASE;if(!pass)throw Error('Local demo passphrase required');
-const out=`output/playwright/f1-a2/${phase}`;mkdirSync(out,{recursive:true});
+const out=process.env.RUBIK_VISUAL_OUT??`output/playwright/f1-a2/${phase}`;if(!out.startsWith("output/playwright/"))throw Error("Evidence must stay in output/playwright");mkdirSync(out,{recursive:true});
 const browser=await chromium.launch({executablePath:process.env.CHROME}),report=[],errors=[];
 try{
 for(const width of [1280,1600,390]){

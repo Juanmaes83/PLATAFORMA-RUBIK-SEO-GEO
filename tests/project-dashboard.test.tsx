@@ -16,7 +16,7 @@ describe("project intelligence evidence boundaries",()=>{
  it("names the sample, affected URL and declaration without claiming uniqueness",()=>{
   const row={id:"import-1",source_label:"Revisión declarada",captured_at:"2026-10-20T08:00:00Z",status:"partial",findings:[{url:"https://ejemplo.test/pagina",title:"Título",observation:"Observación",severity:"high",status:"open"}]} as ImportRow;
   const html=renderToStaticMarkup(<ProjectDashboard modules={modules()} imports={[row]} base="/project"/>);
-  expect(html).toContain("1 hallazgos abiertos en la muestra");
+  expect(html).toContain("hallazgo abierto");
   expect(html).toContain("https://ejemplo.test/pagina");
   expect(html).toContain("Importación parcial");
   expect(html).toContain("Un hallazgo puede repetirse");

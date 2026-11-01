@@ -13,9 +13,9 @@ export function ProjectCrumbs({ base, tenantName, projectName }: { base: string;
         <li><Link href="/panel">Panel</Link></li>
         <li><Link href="/proyectos">Proyectos</Link></li>
         <li aria-hidden="true" className="crumb-sep">›</li>
-        <li className="muted">{tenantName}</li>
+        <li className="muted crumb-organization">{tenantName}</li>
         <li aria-hidden="true" className="crumb-sep">›</li>
-        <li>
+        <li className={onSummary ? "visually-hidden" : undefined}>
           {onSummary ? <span aria-current="page">{projectName}</span> : <Link href={base}>{projectName}</Link>}
         </li>
       </ol>

@@ -27,7 +27,7 @@ export function ModuleChips({ modules }: { modules: ProjectModules }) {
         <li key={item.label} className="chip">
           <StateDot state={item.signal.state} />
           <span>{item.label}</span>
-          <span className="visually-hidden">{STATE_META[item.signal.state].label}</span>
+          <span className="chip-state">{STATE_META[item.signal.state].label}</span>
         </li>
       ))}
     </ul>

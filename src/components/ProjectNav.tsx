@@ -19,10 +19,10 @@ export function ProjectNav({ base, current }: { base: string; current: string | 
       <ul>
         {items.slice(0, 3).map((i) => (
           <li key={i.href}>
-            <Link href={i.href} aria-current={i.key === current ? "page" : undefined}>{i.label}</Link>
+            <Link href={i.href} aria-label={i.label} aria-current={i.key === current ? "page" : undefined}><span className="nav-full" aria-hidden="true">{i.label}</span><span className="nav-short" aria-hidden="true">{i.key === "medicion" ? "Medición" : i.key === "informe" ? "Informe" : i.label}</span></Link>
           </li>
         ))}
-        <li className="project-nav-disclosure"><details><summary>{current && !["medicion", "informe"].includes(current) ? items.find(i=>i.key===current)?.label ?? "Más herramientas" : "Más herramientas"}</summary><ul>{items.slice(3).map(i=><li key={i.href}><Link href={i.href} aria-current={i.key === current ? "page" : undefined}>{i.label}</Link></li>)}</ul></details></li>
+        <li className="project-nav-disclosure"><details><summary aria-label="Más herramientas"><span className="nav-short" aria-hidden="true">Más</span><span className="nav-full">{current && !["medicion", "informe"].includes(current) ? items.find(i=>i.key===current)?.label ?? "Más herramientas" : "Más herramientas"}</span></summary><ul>{items.slice(3).map(i=><li key={i.href}><Link href={i.href} aria-current={i.key === current ? "page" : undefined}>{i.label}</Link></li>)}</ul></details></li>
       </ul>
     </nav>
   );
