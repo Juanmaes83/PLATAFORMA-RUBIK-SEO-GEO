@@ -52,3 +52,7 @@ Se conserva el trabajo publicado en fc2b9e8. El titular declara explícitamente 
 Revisión adicional real: 360/768, claro/oscuro, poblado/vacío/cartera; doce escenas y cuatro comprobaciones de foco, menú por Enter/Tab y reduced-motion: PASS. Axe con tags WCAG2/2.1/2.2 AA sin infracciones en esas escenas; controles de contraste automáticos en 77–78 nodos por escena, no una certificación WCAG completa. Se corrigió el anclaje móvil del menú que dejaba foco fuera del viewport a 360 px y el fondo oscuro del shell. Tres unitarias nuevas verifican fallo frente a vacío, muestra/URL/procedencia y orden/flags de acciones.
 
 Los contratos overview heredados sólo distinguen cuatro estados; no se inventan causas de error, antigüedad ni verificación ausentes. Lectura fallida de detalle se verifica con render del componente, sin provocar errores ni cambiar políticas en la base. No se ejecutó un E2E de fallo de lectura ni se certifica accesibilidad completa. No hay períodos comparables: scores, tendencias, Geo-Grid, nuevas automatizaciones y encargos web siguen fuera.
+
+## Refinamiento posterior solicitado
+
+La entrega anterior se conserva como baseline `01ca72f`. El refinamiento de primera impresión, móvil, legibilidad, jerarquía y exploración está documentado en [F1-A2-REFINEMENT-20261101.md](F1-A2-REFINEMENT-20261101.md). No interpretar los resultados históricos de esta página como CI del nuevo SHA; consultar #158.
