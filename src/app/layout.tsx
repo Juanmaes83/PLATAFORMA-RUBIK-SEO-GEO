@@ -45,16 +45,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             )}
           </div>
         </header>
-        {showBanner && <ModeBanner auth={auth} coreCommit={corePin.shortCommit} />}
+        {showBanner && !auth.canSignIn && <ModeBanner auth={auth} coreCommit={corePin.shortCommit} />}
         {user ? (
           <div className="shell">
             <SideNav />
-            <main id="contenido" tabIndex={-1}>{children}</main>
+            <main id="contenido" tabIndex={-1}>{process.env.NODE_ENV === "development" && !process.env.VERCEL && process.env.RUBIK_LOCAL_F1_DEMO === "1" && <p className="local-demo-label" role="note">DEMO LOCAL · Proyectos y datos ficticios para revisión visual. No son métricas reales.</p>}{children}</main>
           </div>
         ) : (
           <main id="contenido" tabIndex={-1} className="shell-public">{children}</main>
         )}
         <footer className="ownership-footer">
+          {showBanner && auth.canSignIn && <ModeBanner auth={auth} coreCommit={corePin.shortCommit} />}
           <span>© Juan Manuel Espinosa Galant · Rubik Sota. Uso y comercialización sujetos a autorización expresa.</span>{" "}
           <Link href="/aviso-titularidad">Titularidad y autorización</Link>
         </footer>

@@ -45,6 +45,19 @@ describe("presentational components", () => {
     expect(html).not.toMatch(/<button|<a /);
   });
 
+  it("keeps operational diagnostics available in a closed disclosure", () => {
+    const html = renderToStaticMarkup(<ModeBanner auth={{mode:"supabase",canSignIn:true,notice:"Acceso con Supabase Auth"}} coreCommit="20e4f4e"/>);
+    expect(html).toContain('<details class="environment-diagnostics">');
+    expect(html).not.toContain("open=");
+    expect(html).toContain("Acceso con Supabase Auth");
+    expect(html).toContain("20e4f4e");
+  });
+  it("never collapses a blocked-access notice", () => {
+    const html = renderToStaticMarkup(<ModeBanner auth={{mode:"preview-locked",canSignIn:false,notice:"Acceso bloqueado"}} coreCommit="20e4f4e"/>);
+    expect(html).toContain('role="status"');
+    expect(html).toContain("Acceso bloqueado");
+    expect(html).not.toContain("<details");
+  });
   it("the banner identifies capabilities without claiming every environment is connected", () => {
     const html = renderToStaticMarkup(<ModeBanner auth={resolveAuthMode({ NODE_ENV: "development" })} coreCommit="20e4f4e" />);
     expect(html).toContain("Supabase Auth no está configurado");

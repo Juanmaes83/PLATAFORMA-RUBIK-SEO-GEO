@@ -2,7 +2,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { OTHER_PROJECT, OTHER_TENANT, PROJECT, TENANT, signIn } from "./support";
+import { OTHER_PROJECT, OTHER_TENANT, PROJECT, TENANT, expectActiveProjectTool, signIn } from "./support";
 
 // N2-12 in the browser as fictitious users of the local stack. Every width runs a tour that
 // creates its own data (distinct topic per width) so the screenshots show real states; the full
@@ -88,7 +88,7 @@ test("contenidos at every width: empty state, cluster → opportunity → eviden
 
   await signIn(page, "analyst");
   await page.goto(C);
-  await expect(page.getByRole("link", { name: "Contenidos" })).toHaveAttribute("aria-current", "page");
+  await expectActiveProjectTool(page, "Contenidos", C, P);
   await page.locator("summary", { hasText: "Crear un clúster" }).click();
   await page.getByLabel("Nombre del clúster").fill(cluster);
   await page.getByLabel("Tema principal").fill(topic.toLowerCase());

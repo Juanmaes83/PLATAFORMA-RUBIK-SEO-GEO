@@ -1,4 +1,20 @@
 # Continuidad autónoma — Rubik SEO/GEO
+## F1-A.2 · cierre técnico de los cuatro contratos CI · 01/11/2026
+
+Juanma acepta provisionalmente la dirección visual de `1fa73ce`; no continuar rediseños. Misma rama/PR #158 Draft. Se corrigen sólo contratos E2E: abrir/navegar Más por teclado, comprobar checkbox de densidad, acreditar los dos 1 del caption de proyectos/organización con control negativo de cifras inventadas. Producto, Auth/RLS/Core, rutas y permisos sin cambios. Local: 12/12 regresiones en 360/390/1280; verify 655 PASS / 1 SKIP, lint/tipos/build. Limpieza E2E propia completa; stack local exclusivo. Resultado CI completo y Preview del SHA publicado se consignan en el checkpoint de entrega de #158; no inferir PASS remoto del local. Evidencias: [F1-A2-TECHNICAL-CLOSE-20261101.md](F1-A2-TECHNICAL-CLOSE-20261101.md). Sin merge ni nuevos proveedores/esquemas.
+
+## F1-A.2 · refinamiento visual de la misma PR · 01/11/2026
+
+PR #158 sigue Draft contra Kimi, rama `codex/f1-a2-premium-frontend`. Base de comparación `01ca72f`; implementación recuperable `a01e1ff`. Diagnóstico rutinario plegable, contexto móvil compacto, tipografía legible, estados explícitos y explorador de gravedad con evidencia y filtros locales. Sin consultas nuevas, Auth/RLS/Core ni stacks compartidos. Verify 655 PASS / 1 SKIP + build/lint/tipos; E2E dashboard 15/15, interacciones dirigidas y responsive claro/oscuro PASS. Volumen 1/4/50 verificado; 46 fixtures propios retirados, cuatro demos locales conservadas. Capturas en `output/playwright/f1-a2-refinement`; Preview protegida y CI del SHA final se consignan en #158. Siguiente acción exclusiva: revisión visual humana de Juanma, no aprobación ni merge. Detalles: [F1-A2-REFINEMENT-20261101.md](F1-A2-REFINEMENT-20261101.md).
+
+## F1-A.2 · checkpoint visual Codex · 01/11/2026
+
+Rama propia `codex/f1-a2-premium-frontend`, base Kimi `857cf1b`, PR Draft #158 contra `feat/f1-rubik-product-dashboard`, no main. Checkpoints visuales `e22173b`, `f3746ac` y `fc2b9e8` conservados; cierre adicional de muestra, URL, acciones y menú móvil en la misma PR. Resumen de proyecto implementado y cartera compacta, sin modificar Auth/RLS/Core/H1-A/R1 ni stacks compartidos. `npm run verify` PASS (653 unitarias + 1 SKIP, lint/tipos/build); dashboard E2E existente 15/15 PASS. Fixtures únicamente en stack local exclusivo `rubik-f1-a2-20261101` (654xx); capturas comparativas en `output/playwright/f1-a2`, guardadas localmente. Preview protegida del SHA final y resultados de revisión se registran en #158. Siguiente acción: revisión visual de Juanma; NO diseño aprobado ni merge. Mapa breve y límites: [F1-A2-VISUAL-REVIEW-20261101.md](F1-A2-VISUAL-REVIEW-20261101.md).
+
+## Corrección documental del recuento F1-A.1 · 01/11/2026
+
+El total histórico «172 passed / 11 failed» fue reportado por Kimi; no se ha repetido ni validado aquí. Su clasificación publicada en #157 enumera **12 casos**, no 11: entorno imports ×2 + report ×3 + seo ×1 + openseo-connection ×1 + openseo-reconcile ×2 = **9**; markup ya corregido measurement ×1 + invitations ×2 = **3**. La síntesis anterior «7 de entorno + 4 de markup» tampoco coincide con esa enumeración. Sin el ledger original completo no se puede determinar qué caso está duplicado o qué total está mal; el recuento local queda **inconsistente/no reconciliado**, no se inventa una nueva ejecución 172/12. CI PASS de d2c4426 sigue siendo evidencia independiente reportada para stack fresco. Esta corrección es sólo documental, separada del rediseño F1-A.2; no altera Auth, RLS, gates ni conclusiones de H1-A/R1.
+
 
 ## Corte F1-A.1 refinamiento + demo · 31/10/2026 · worktree kimi-f1-dashboard (Kimi)
 

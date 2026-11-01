@@ -21,7 +21,11 @@ export function MobileNav() {
 export function SideNav() {
   return (
     <nav className="side-nav" aria-label="Principal">
-      <NavItems items={ITEMS} />
+      <p className="side-eyebrow">Espacio de trabajo</p>
+      <NavItems items={ITEMS.slice(0, 2)} />
+      <p className="side-eyebrow">Administración</p>
+      <NavItems items={ITEMS.slice(2)} />
+      <div className="side-context"><span aria-hidden="true">◈</span><strong>Inteligencia SEO/GEO</strong><p>Del dato a una decisión con evidencia.</p></div>
     </nav>
   );
 }
