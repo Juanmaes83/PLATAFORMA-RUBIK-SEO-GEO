@@ -1,4 +1,8 @@
 # Continuidad autónoma — Rubik SEO/GEO
+## F1-A.2 · cierre técnico de los cuatro contratos CI · 01/11/2026
+
+Juanma acepta provisionalmente la dirección visual de `1fa73ce`; no continuar rediseños. Misma rama/PR #158 Draft. Se corrigen sólo contratos E2E: abrir/navegar Más por teclado, comprobar checkbox de densidad, acreditar los dos 1 del caption de proyectos/organización con control negativo de cifras inventadas. Producto, Auth/RLS/Core, rutas y permisos sin cambios. Local: 12/12 regresiones en 360/390/1280; verify 655 PASS / 1 SKIP, lint/tipos/build. Limpieza E2E propia completa; stack local exclusivo. Resultado CI completo y Preview del SHA publicado se consignan en el checkpoint de entrega de #158; no inferir PASS remoto del local. Evidencias: [F1-A2-TECHNICAL-CLOSE-20261101.md](F1-A2-TECHNICAL-CLOSE-20261101.md). Sin merge ni nuevos proveedores/esquemas.
+
 ## F1-A.2 · refinamiento visual de la misma PR · 01/11/2026
 
 PR #158 sigue Draft contra Kimi, rama `codex/f1-a2-premium-frontend`. Base de comparación `01ca72f`; implementación recuperable `a01e1ff`. Diagnóstico rutinario plegable, contexto móvil compacto, tipografía legible, estados explícitos y explorador de gravedad con evidencia y filtros locales. Sin consultas nuevas, Auth/RLS/Core ni stacks compartidos. Verify 655 PASS / 1 SKIP + build/lint/tipos; E2E dashboard 15/15, interacciones dirigidas y responsive claro/oscuro PASS. Volumen 1/4/50 verificado; 46 fixtures propios retirados, cuatro demos locales conservadas. Capturas en `output/playwright/f1-a2-refinement`; Preview protegida y CI del SHA final se consignan en #158. Siguiente acción exclusiva: revisión visual humana de Juanma, no aprobación ni merge. Detalles: [F1-A2-REFINEMENT-20261101.md](F1-A2-REFINEMENT-20261101.md).

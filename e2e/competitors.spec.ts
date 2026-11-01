@@ -2,7 +2,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
-import { OTHER_PROJECT, OTHER_TENANT, PROJECT, TENANT, signIn } from "./support";
+import { OTHER_PROJECT, OTHER_TENANT, PROJECT, TENANT, expectActiveProjectTool, signIn } from "./support";
 
 // N2-11 in the browser as fictitious users of the local stack. The data flow runs once
 // (desktop) because it changes data; the pages are checked at 360, 390 and 1280 px.
@@ -156,7 +156,7 @@ test("competidores at every width: analyst form, client read-only, other tenant 
   await signIn(page, "analyst");
   expect((await page.goto(C))?.status()).toBe(200);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Competidores");
-  await expect(page.getByRole("link", { name: "Competidores" })).toHaveAttribute("aria-current", "page");
+  await expectActiveProjectTool(page, "Competidores", C, P);
   await expect(page.getByText("Fuente no configurada", { exact: true })).toBeVisible();
   await healthy(page, mobile);
   await screenshot(page, info.project.name, "33-competidores-analista");

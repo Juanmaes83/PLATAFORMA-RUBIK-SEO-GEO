@@ -76,7 +76,24 @@ for (const p of PAGES) {
     expect(dead, "controls without a working action").toEqual([]);
     const inputs = page.locator("main input:not([type=hidden]), main textarea, main select");
     if (p.form) await expect(inputs.first()).toBeVisible();
-    else await expect(inputs).toHaveCount(0);
+    else if (p.name === "04-panel") {
+      // One authorized project has only the approved density checkbox, not arbitrary inputs.
+      await expect(inputs).toHaveCount(1);
+      const compact = page.getByRole("checkbox", { name: "Vista compacta", exact: true });
+      await expect(compact).toBeVisible();
+      await expect(compact).toBeEnabled();
+      await expect(compact).not.toBeChecked();
+      await expect(inputs).toHaveAttribute("type", "checkbox");
+      const portfolio = page.locator("ul.portfolio");
+      await expect(portfolio).not.toHaveClass(/portfolio-compact/);
+      await compact.focus();
+      await page.keyboard.press("Space");
+      await expect(compact).toBeChecked();
+      await expect(portfolio).toHaveClass(/portfolio-compact/);
+      await page.keyboard.press("Space");
+      await expect(compact).not.toBeChecked();
+      await expect(portfolio).not.toHaveClass(/portfolio-compact/);
+    } else await expect(inputs).toHaveCount(0);
 
     // Core codes such as ROLE_NOT_ALLOWED may only appear as a small diagnostic detail.
     const rawCodes = await page.$$eval("main *", (els) =>
@@ -139,18 +156,40 @@ test("the overflow check detects a too-wide element (self-test)", async ({ page 
 test("honest empty states: no invented numbers on the dashboard", async ({ page }) => {
   await signIn(page, "owner");
   await page.goto("/panel");
-  const main = (await page.locator("main").innerText()).replace(/\s+/g, " ");
-  // The only digits allowed are the real portfolio counts («Cartera de 1 proyecto…», the
-  // «1 proyecto» / «2 de 4 proyectos» filter count), stage names (CORE-9.x) and the audit
-  // activity line when the stack records events («Último evento · 31 oct 2026, 21:48 CET»).
-  const digits = main
-    .replace(/CORE-9\.\d+( y \d+(\.\d+)?)?/g, "")
-    .replace(/Último evento · \d{1,2} \w+ \d{4}, \d{2}:\d{2}(:\d{2})?( [A-Z]+)?/g, "")
-    .replace(/Cartera de \d+ proyectos?/g, "")
-    .replace(/\b\d+ de \d+ proyectos\b/g, "")
-    .replace(/\b\d+ proyectos?\b/g, "")
-    .match(/\d/g);
-  expect(digits).toBeNull();
+  // Independent source: this fixture owns exactly the one project and organization created
+  // in global-setup. CSS uppercases this caption in innerText (the old guard left two 1s).
+  const heading = page.locator(".portfolio-heading > .eyebrow");
+  await expect(heading).toHaveCount(1);
+  await expect(heading).toHaveText("1 proyectos autorizados · 1 organización");
+  await expect(page.locator(".project-card")).toHaveCount(1);
+  await expect(page.locator(".project-card .project-card-meta")).toContainText("Agencia de ejemplo");
+  await expect(page.locator(".project-card").getByRole("link", { name: "Abrir proyecto", exact: true })).toHaveAttribute("href", P);
+  const verifiedHeading = (await heading.innerText()).replace(/\s+/g, " ");
+  const unaccountedDigits = async () => {
+    const main = (await page.locator("main").innerText()).replace(/\s+/g, " ");
+    // Remove exactly this verified DOM caption once. No global exclusion for organization
+    // counts, uppercase numbers, arbitrary headings or arbitrary metrics is introduced.
+    return main.replace(verifiedHeading, "")
+      .replace(/CORE-9\.\d+( y \d+(\.\d+)?)?/g, "")
+      .replace(/Último evento · \d{1,2} \w+ \d{4}, \d{2}:\d{2}(:\d{2})?( [A-Z]+)?/g, "")
+      .replace(/Cartera de \d+ proyectos?/g, "")
+      .replace(/\b\d+ de \d+ proyectos\b/g, "")
+      .replace(/\b\d+ proyectos?\b/g, "")
+      .match(/\d/g);
+  };
+  expect(await unaccountedDigits()).toBeNull();
+  await page.waitForLoadState("networkidle");
+  // Negative control: fabricated KPI + an organization count outside its accredited
+  // caption must both remain detectable by the SAME guard used above.
+  await page.locator("main").evaluate(root => {
+    const probe = document.createElement("p");
+    probe.dataset.numberGuardProbe = "true";
+    probe.textContent = "Visibilidad IA 99% · 1 ORGANIZACIÓN";
+    root.append(probe);
+  });
+  try { expect(await unaccountedDigits()).toEqual(["9", "9", "1"]); }
+  finally { await page.locator('[data-number-guard-probe="true"]').evaluate(el => el.remove()); }
+  expect(await unaccountedDigits()).toBeNull();
 });
 
 test("permissions come from the stored role: granted but unbuilt functions never look usable", async ({ page }) => {

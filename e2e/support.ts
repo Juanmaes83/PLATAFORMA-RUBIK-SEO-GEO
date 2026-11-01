@@ -24,3 +24,42 @@ export async function signIn(page: Page, user: UserKey) {
   await page.getByRole("button", { name: "Entrar" }).click();
   await expect(page).toHaveURL(/\/panel$/);
 }
+
+/** Exercise the approved disclosure, active route and real keyboard navigation. */
+export async function expectActiveProjectTool(page: Page, label: string, href: string, summaryHref: string) {
+  const navigation = page.getByRole("navigation", { name: "Secciones del proyecto" });
+  const disclosure = navigation.locator(".project-nav-disclosure details");
+  const toggle = disclosure.locator("summary");
+  const open = async () => {
+    if (!(await disclosure.evaluate((el) => (el as HTMLDetailsElement).open))) {
+      await toggle.focus();
+      await page.keyboard.press("Enter");
+    }
+    await expect(disclosure).toHaveAttribute("open", "");
+  };
+  const active = async () => {
+    const link = disclosure.getByRole("link", { name: label, exact: true });
+    await expect(link).toBeVisible();
+    await expect(link).toHaveAttribute("href", href);
+    await expect(link).toHaveAttribute("aria-current", "page");
+    await expect(navigation.locator('a[aria-current="page"]')).toHaveCount(1);
+  };
+  await open();
+  await active();
+  // Leave and return through the menu, so checking an attribute cannot hide a dead route.
+  await navigation.getByRole("link", { name: "Resumen", exact: true }).focus();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(summaryHref);
+  await expect(navigation.getByRole("link", { name: "Resumen", exact: true })).toHaveAttribute("aria-current", "page");
+  await open();
+  await disclosure.getByRole("link", { name: label, exact: true }).focus();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(href);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(label);
+  await open();
+  await active();
+  await toggle.focus();
+  await page.keyboard.press("Enter");
+  await expect(disclosure).not.toHaveAttribute("open", "");
+  await expect(disclosure.getByRole("link", { name: label, exact: true })).toBeHidden();
+}
